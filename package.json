@@ -1,0 +1,30 @@
+{
+  "name": "addere",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "apps/mobile",
+    "apps/web",
+    "apps/api",
+    "packages/db",
+    "packages/types"
+  ],
+  "scripts": {
+    "dev:api": "npm run dev --workspace=apps/api",
+    "dev:web": "npm run dev --workspace=apps/web",
+    "dev:mobile": "npm run start --workspace=apps/mobile",
+    "build:api": "npm run build --workspace=apps/api",
+    "build:web": "npm run build --workspace=apps/web",
+    "db:generate": "npm run generate --workspace=packages/db",
+    "db:migrate": "npm run migrate:dev --workspace=packages/db",
+    "db:studio": "npm run studio --workspace=packages/db",
+    "types:build": "npm run build --workspace=packages/types"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.5"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "npm": ">=10.0.0"
+  }
+}
