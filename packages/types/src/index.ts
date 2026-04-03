@@ -34,6 +34,16 @@ export interface LoginResponse {
   accessToken: string
 }
 
+// ─── Branch ────────────────────────────────────────────────────────────────
+
+export interface Branch {
+  id: string
+  name: string
+  cnpj: string | null
+  idProtheus: string | null
+  active: boolean
+}
+
 // ─── Customer ──────────────────────────────────────────────────────────────
 
 export interface Customer {

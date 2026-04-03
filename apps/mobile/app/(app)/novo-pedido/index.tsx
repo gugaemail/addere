@@ -14,7 +14,8 @@ import { useRouter, Stack } from 'expo-router'
 import { useClientes } from '../../../src/hooks/useClientes'
 import { useProdutos } from '../../../src/hooks/useProdutos'
 import { useCriarPedido } from '../../../src/hooks/usePedidos'
-import type { Customer, Product, CreateOrderItemInput } from '@addere/types'
+import { useBranches } from '../../../src/hooks/useBranches'
+import type { Branch, Customer, Product, CreateOrderItemInput } from '@addere/types'
 
 type Step = 1 | 2 | 3
 
@@ -36,15 +37,47 @@ function StepIndicator({ current }: { current: Step }) {
   )
 }
 
-// ─── Step 1: Seleção de cliente ───────────────────────────────────────────
+// ─── Step 1: Seleção de cliente e filial ─────────────────────────────────
 
 function Step1({
-  onSelect,
+  onComplete,
 }: {
-  onSelect: (c: Customer) => void
+  onComplete: (customer: Customer, branch: Branch) => void
 }) {
   const [search, setSearch] = useState('')
-  const { data: customers, isLoading } = useClientes(search || undefined)
+  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null)
+  const { data: customers, isLoading: loadingCustomers } = useClientes(search || undefined)
+  const { data: branches, isLoading: loadingBranches } = useBranches()
+
+  if (selectedCustomer) {
+    return (
+      <View style={{ flex: 1 }}>
+        <TouchableOpacity style={styles.selectedCard} onPress={() => setSelectedCustomer(null)}>
+          <Text style={styles.selectedCardLabel}>Cliente selecionado</Text>
+          <Text style={styles.selectedCardValue}>{selectedCustomer.name}</Text>
+          <Text style={styles.selectedCardChange}>Trocar →</Text>
+        </TouchableOpacity>
+
+        <Text style={[styles.stepTitle, { marginTop: 16 }]}>Selecione a filial</Text>
+
+        {loadingBranches ? (
+          <ActivityIndicator style={{ marginTop: 16 }} />
+        ) : (
+          <FlatList
+            data={branches}
+            keyExtractor={(b) => b.id}
+            renderItem={({ item }) => (
+              <TouchableOpacity style={styles.listItem} onPress={() => onComplete(selectedCustomer, item)}>
+                <Text style={styles.listItemTitle}>{item.name}</Text>
+                {item.cnpj && <Text style={styles.listItemSub}>{item.cnpj}</Text>}
+              </TouchableOpacity>
+            )}
+            ListEmptyComponent={<Text style={styles.empty}>Nenhuma filial encontrada.</Text>}
+          />
+        )}
+      </View>
+    )
+  }
 
   return (
     <View style={{ flex: 1 }}>
@@ -55,14 +88,14 @@ function Step1({
         value={search}
         onChangeText={setSearch}
       />
-      {isLoading ? (
+      {loadingCustomers ? (
         <ActivityIndicator style={{ marginTop: 16 }} />
       ) : (
         <FlatList
           data={customers}
           keyExtractor={(c) => c.id}
           renderItem={({ item }) => (
-            <TouchableOpacity style={styles.listItem} onPress={() => onSelect(item)}>
+            <TouchableOpacity style={styles.listItem} onPress={() => setSelectedCustomer(item)}>
               <Text style={styles.listItemTitle}>{item.name}</Text>
               {item.document && <Text style={styles.listItemSub}>{item.document}</Text>}
             </TouchableOpacity>
@@ -152,11 +185,13 @@ function Step2({
 
 function Step3({
   customer,
+  branch,
   cart,
   onConfirm,
   isLoading,
 }: {
   customer: Customer
+  branch: Branch
   cart: CartItem[]
   onConfirm: () => void
   isLoading: boolean
@@ -173,6 +208,11 @@ function Step3({
       <View style={styles.summaryBox}>
         <Text style={styles.summaryLabel}>Cliente</Text>
         <Text style={styles.summaryValue}>{customer.name}</Text>
+      </View>
+
+      <View style={styles.summaryBox}>
+        <Text style={styles.summaryLabel}>Filial</Text>
+        <Text style={styles.summaryValue}>{branch.name}</Text>
       </View>
 
       <View style={styles.summaryBox}>
@@ -207,17 +247,19 @@ export default function NovoPedidoScreen() {
   const router = useRouter()
   const [step, setStep] = useState<Step>(1)
   const [customer, setCustomer] = useState<Customer | null>(null)
+  const [branch, setBranch] = useState<Branch | null>(null)
   const [cart, setCart] = useState<CartItem[]>([])
 
   const { mutate: criarPedido, isPending } = useCriarPedido()
 
-  function handleSelectCustomer(c: Customer) {
+  function handleStep1Complete(c: Customer, b: Branch) {
     setCustomer(c)
+    setBranch(b)
     setStep(2)
   }
 
   function handleConfirm() {
-    if (!customer || cart.length === 0) return
+    if (!customer || !branch || cart.length === 0) return
 
     const items: CreateOrderItemInput[] = cart.map((i) => ({
       productId: i.product.id,
@@ -226,7 +268,7 @@ export default function NovoPedidoScreen() {
     }))
 
     criarPedido(
-      { customerId: customer.id, items },
+      { customerId: customer.id, branchId: branch.id, items },
       {
         onSuccess: () => {
           Alert.alert('Pedido criado', 'Pedido salvo com sucesso!', [
@@ -240,7 +282,7 @@ export default function NovoPedidoScreen() {
     )
   }
 
-  const stepLabel = ['Selecionar cliente', 'Adicionar produtos', 'Confirmar']
+  const stepLabel = ['Selecionar cliente / filial', 'Adicionar produtos', 'Confirmar']
 
   return (
     <View style={{ flex: 1, backgroundColor: '#f3f4f6' }}>
@@ -248,7 +290,7 @@ export default function NovoPedidoScreen() {
       <StepIndicator current={step} />
 
       <View style={{ flex: 1, padding: 16 }}>
-        {step === 1 && <Step1 onSelect={handleSelectCustomer} />}
+        {step === 1 && <Step1 onComplete={handleStep1Complete} />}
         {step === 2 && (
           <View style={{ flex: 1 }}>
             <Step2 cart={cart} onCartChange={setCart} />
@@ -261,8 +303,8 @@ export default function NovoPedidoScreen() {
             </TouchableOpacity>
           </View>
         )}
-        {step === 3 && customer && (
-          <Step3 customer={customer} cart={cart} onConfirm={handleConfirm} isLoading={isPending} />
+        {step === 3 && customer && branch && (
+          <Step3 customer={customer} branch={branch} cart={cart} onConfirm={handleConfirm} isLoading={isPending} />
         )}
       </View>
     </View>
@@ -297,4 +339,8 @@ const styles = StyleSheet.create({
   totalValue: { fontSize: 20, fontWeight: '700', color: '#2563eb' },
   confirmBtn: { backgroundColor: '#2563eb', borderRadius: 8, padding: 14, alignItems: 'center', marginTop: 12 },
   confirmBtnText: { color: '#fff', fontWeight: '700', fontSize: 15 },
+  selectedCard: { backgroundColor: '#eff6ff', borderRadius: 8, padding: 14, borderWidth: 1, borderColor: '#bfdbfe' },
+  selectedCardLabel: { fontSize: 11, color: '#6b7280', marginBottom: 2 },
+  selectedCardValue: { fontSize: 15, fontWeight: '700', color: '#111827' },
+  selectedCardChange: { fontSize: 12, color: '#2563eb', marginTop: 4 },
 })
