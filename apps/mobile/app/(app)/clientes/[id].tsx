@@ -50,7 +50,7 @@ export default function ClienteDetailScreen() {
     </View>
   )
 
-  const orders = (customer as any).orders as Order[] ?? []
+  const orders = customer.orders ?? []
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={{ padding: 16 }}>

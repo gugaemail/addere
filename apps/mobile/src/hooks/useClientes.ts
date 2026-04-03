@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { api } from '../lib/api'
-import type { Customer } from '@addere/types'
+import type { Customer, CustomerWithOrders } from '@addere/types'
 
 export function useClientes(search?: string) {
   return useQuery({
@@ -16,7 +16,7 @@ export function useCliente(id: string) {
   return useQuery({
     queryKey: ['customers', id],
     queryFn: async () => {
-      const { data } = await api.get<Customer>(`/customers/${id}`)
+      const { data } = await api.get<CustomerWithOrders>(`/customers/${id}`)
       return data
     },
     enabled: !!id,

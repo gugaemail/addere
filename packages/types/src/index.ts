@@ -58,6 +58,10 @@ export interface Customer {
   createdAt: string
 }
 
+export interface CustomerWithOrders extends Customer {
+  orders: Order[]
+}
+
 // ─── Product ───────────────────────────────────────────────────────────────
 
 export interface Product {
