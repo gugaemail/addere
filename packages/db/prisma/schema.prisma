@@ -37,14 +37,27 @@ model Company {
   idProtheus  String? // código da empresa no ERP Protheus
   active      Boolean @default(true)
 
+  // URLs das APIs Protheus configuradas por empresa
+  apiPord      String? // GET produtos
+  apiCliente   String? // GET clientes
+  apiMetaVend  String? // GET metas de vendedor
+  apiPedido    String? // POST pedido
+  apiConsPed   String? // GET consulta pedido
+  apiCondPag   String? // GET condições de pagamento
+  apiTransp    String? // GET transportadoras
+  usrProtheus  String? // usuário para autenticação na API Protheus
+  passProtheus String? // senha para autenticação na API Protheus
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  branches  Branch[]
-  users     User[]
-  customers Customer[]
-  products  Product[]
-  orders    Order[]
+  branches        Branch[]
+  users           User[]
+  customers       Customer[]
+  products        Product[]
+  orders          Order[]
+  transportadoras Transportadora[]
+  condPags        CondPag[]
 
   @@map("companies")
 }
@@ -76,12 +89,13 @@ model Branch {
 // ─────────────────────────────────────────
 
 model User {
-  id        String  @id @default(uuid())
-  name      String
-  email     String  @unique
-  password  String
-  role      Role    @default(SALESPERSON)
-  active    Boolean @default(true) // soft delete
+  id          String  @id @default(uuid())
+  name        String
+  email       String  @unique
+  password    String
+  role        Role    @default(SALESPERSON)
+  active      Boolean @default(true) // soft delete
+  idVendProt  String? // código do vendedor no Protheus
 
   // null para SUPERADMIN; obrigatório para ADMIN e SALESPERSON
   companyId String?
@@ -119,12 +133,17 @@ model RefreshToken {
 
 model Customer {
   id           String  @id @default(uuid())
-  protheusCode String? // código do cliente no ERP Protheus (único por empresa)
+  protheusCode String? // código do cliente no ERP Protheus
+  loja         String? // código da loja (chave composta com protheusCode)
   name         String
   document     String? // CPF ou CNPJ (único por empresa)
   email        String?
   phone        String?
   address      String?
+  municipio    String?
+  bairro       String?
+  cep          String?
+  uf           String?
   active       Boolean @default(true) // soft delete
 
   companyId String
@@ -135,7 +154,7 @@ model Customer {
 
   orders Order[]
 
-  @@unique([companyId, protheusCode])
+  @@unique([companyId, loja, protheusCode])
   @@unique([companyId, document])
   @@map("customers")
 }
@@ -152,6 +171,7 @@ model Product {
   price        Decimal @db.Decimal(10, 2)
   unit         String  @default("UN") // unidade de medida
   stock        Decimal @default(0) @db.Decimal(10, 3)
+  saldo        Decimal @default(0) @db.Decimal(10, 2) // saldo disponível
   active       Boolean @default(true) // soft delete
 
   companyId String
@@ -167,6 +187,44 @@ model Product {
 }
 
 // ─────────────────────────────────────────
+// Transportadora
+// ─────────────────────────────────────────
+
+model Transportadora {
+  id           String  @id @default(uuid())
+  protheusCode String?
+  nome         String
+
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  orders Order[]
+
+  @@map("transportadoras")
+}
+
+// ─────────────────────────────────────────
+// CondPag — condições de pagamento
+// ─────────────────────────────────────────
+
+model CondPag {
+  id           String  @id @default(uuid())
+  protheusCode String?
+  nome         String
+
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  orders Order[]
+
+  @@map("cond_pags")
+}
+
+// ─────────────────────────────────────────
 // Order — pedidos de venda
 // ─────────────────────────────────────────
 
@@ -177,6 +235,8 @@ model Order {
   notes           String?
   protheusOrderId String?     @unique // ID do pedido no ERP após sincronização
   syncedAt        DateTime?   // data/hora da sincronização com o Protheus
+  emissao         DateTime?   // data de criação do pedido (informada pelo usuário)
+  mennota         String?     // mensagem/observação da nota
 
   userId String
   user   User   @relation(fields: [userId], references: [id])
@@ -189,6 +249,12 @@ model Order {
 
   branchId String
   branch   Branch @relation(fields: [branchId], references: [id])
+
+  transportId String?
+  transportadora Transportadora? @relation(fields: [transportId], references: [id])
+
+  condId String?
+  condPag CondPag? @relation(fields: [condId], references: [id])
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -208,6 +274,7 @@ model OrderItem {
   unitPrice Decimal @db.Decimal(10, 2)
   discount  Decimal @default(0) @db.Decimal(5, 2) // percentual de desconto
   total     Decimal @db.Decimal(10, 2)
+  descricao String? // descrição do item (sobrescreve nome do produto se informado)
 
   orderId String
   order   Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)

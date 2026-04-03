@@ -11,6 +11,15 @@ CREATE TABLE "companies" (
     "cnpj" TEXT NOT NULL,
     "idProtheus" TEXT,
     "active" BOOLEAN NOT NULL DEFAULT true,
+    "apiPord" TEXT,
+    "apiCliente" TEXT,
+    "apiMetaVend" TEXT,
+    "apiPedido" TEXT,
+    "apiConsPed" TEXT,
+    "apiCondPag" TEXT,
+    "apiTransp" TEXT,
+    "usrProtheus" TEXT,
+    "passProtheus" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
@@ -39,6 +48,7 @@ CREATE TABLE "users" (
     "password" TEXT NOT NULL,
     "role" "Role" NOT NULL DEFAULT 'SALESPERSON',
     "active" BOOLEAN NOT NULL DEFAULT true,
+    "idVendProt" TEXT,
     "companyId" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
@@ -61,11 +71,16 @@ CREATE TABLE "refresh_tokens" (
 CREATE TABLE "customers" (
     "id" TEXT NOT NULL,
     "protheusCode" TEXT,
+    "loja" TEXT,
     "name" TEXT NOT NULL,
     "document" TEXT,
     "email" TEXT,
     "phone" TEXT,
     "address" TEXT,
+    "municipio" TEXT,
+    "bairro" TEXT,
+    "cep" TEXT,
+    "uf" TEXT,
     "active" BOOLEAN NOT NULL DEFAULT true,
     "companyId" TEXT NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -83,12 +98,35 @@ CREATE TABLE "products" (
     "price" DECIMAL(10,2) NOT NULL,
     "unit" TEXT NOT NULL DEFAULT 'UN',
     "stock" DECIMAL(10,3) NOT NULL DEFAULT 0,
+    "saldo" DECIMAL(10,2) NOT NULL DEFAULT 0,
     "active" BOOLEAN NOT NULL DEFAULT true,
     "companyId" TEXT NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
     CONSTRAINT "products_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "transportadoras" (
+    "id" TEXT NOT NULL,
+    "protheusCode" TEXT,
+    "nome" TEXT NOT NULL,
+    "companyId" TEXT NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "transportadoras_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "cond_pags" (
+    "id" TEXT NOT NULL,
+    "protheusCode" TEXT,
+    "nome" TEXT NOT NULL,
+    "companyId" TEXT NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "cond_pags_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -99,10 +137,14 @@ CREATE TABLE "orders" (
     "notes" TEXT,
     "protheusOrderId" TEXT,
     "syncedAt" TIMESTAMP(3),
+    "emissao" TIMESTAMP(3),
+    "mennota" TEXT,
     "userId" TEXT NOT NULL,
     "customerId" TEXT NOT NULL,
     "companyId" TEXT NOT NULL,
     "branchId" TEXT NOT NULL,
+    "transportId" TEXT,
+    "condId" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
@@ -116,6 +158,7 @@ CREATE TABLE "order_items" (
     "unitPrice" DECIMAL(10,2) NOT NULL,
     "discount" DECIMAL(5,2) NOT NULL DEFAULT 0,
     "total" DECIMAL(10,2) NOT NULL,
+    "descricao" TEXT,
     "orderId" TEXT NOT NULL,
     "productId" TEXT NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -133,7 +176,7 @@ CREATE UNIQUE INDEX "users_email_key" ON "users"("email");
 CREATE UNIQUE INDEX "refresh_tokens_token_key" ON "refresh_tokens"("token");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "customers_companyId_protheusCode_key" ON "customers"("companyId", "protheusCode");
+CREATE UNIQUE INDEX "customers_companyId_loja_protheusCode_key" ON "customers"("companyId", "loja", "protheusCode");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "customers_companyId_document_key" ON "customers"("companyId", "document");
@@ -160,6 +203,12 @@ ALTER TABLE "customers" ADD CONSTRAINT "customers_companyId_fkey" FOREIGN KEY ("
 ALTER TABLE "products" ADD CONSTRAINT "products_companyId_fkey" FOREIGN KEY ("companyId") REFERENCES "companies"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
+ALTER TABLE "transportadoras" ADD CONSTRAINT "transportadoras_companyId_fkey" FOREIGN KEY ("companyId") REFERENCES "companies"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "cond_pags" ADD CONSTRAINT "cond_pags_companyId_fkey" FOREIGN KEY ("companyId") REFERENCES "companies"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
 ALTER TABLE "orders" ADD CONSTRAINT "orders_userId_fkey" FOREIGN KEY ("userId") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
@@ -170,6 +219,12 @@ ALTER TABLE "orders" ADD CONSTRAINT "orders_companyId_fkey" FOREIGN KEY ("compan
 
 -- AddForeignKey
 ALTER TABLE "orders" ADD CONSTRAINT "orders_branchId_fkey" FOREIGN KEY ("branchId") REFERENCES "branches"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "orders" ADD CONSTRAINT "orders_transportId_fkey" FOREIGN KEY ("transportId") REFERENCES "transportadoras"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "orders" ADD CONSTRAINT "orders_condId_fkey" FOREIGN KEY ("condId") REFERENCES "cond_pags"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "order_items" ADD CONSTRAINT "order_items_orderId_fkey" FOREIGN KEY ("orderId") REFERENCES "orders"("id") ON DELETE CASCADE ON UPDATE CASCADE;

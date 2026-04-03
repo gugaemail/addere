@@ -21,6 +21,7 @@ export interface UserPublic {
   email: string
   role: UserRole
   active: boolean
+  idVendProt: string | null
   createdAt: string
 }
 
@@ -44,16 +45,37 @@ export interface Branch {
   active: boolean
 }
 
+// ─── Transportadora ────────────────────────────────────────────────────────
+
+export interface Transportadora {
+  id: string
+  protheusCode: string | null
+  nome: string
+}
+
+// ─── CondPag — condições de pagamento ─────────────────────────────────────
+
+export interface CondPag {
+  id: string
+  protheusCode: string | null
+  nome: string
+}
+
 // ─── Customer ──────────────────────────────────────────────────────────────
 
 export interface Customer {
   id: string
   protheusCode: string | null
+  loja: string | null
   name: string
   document: string | null
   email: string | null
   phone: string | null
   address: string | null
+  municipio: string | null
+  bairro: string | null
+  cep: string | null
+  uf: string | null
   active: boolean
   createdAt: string
 }
@@ -72,6 +94,7 @@ export interface Product {
   price: string        // Decimal serializado como string
   unit: string
   stock: string        // Decimal serializado como string
+  saldo: string        // Decimal serializado como string
   active: boolean
 }
 
@@ -87,6 +110,7 @@ export interface OrderItemDetail {
   unitPrice: string
   discount: string
   total: string
+  descricao: string | null
 }
 
 export interface Order {
@@ -96,6 +120,8 @@ export interface Order {
   notes: string | null
   protheusOrderId: string | null
   syncedAt: string | null
+  emissao: string | null
+  mennota: string | null
   createdAt: string
   customer: Pick<Customer, 'id' | 'name' | 'document'>
   items: OrderItemDetail[]
@@ -105,11 +131,16 @@ export interface CreateOrderItemInput {
   productId: string
   quantity: number
   discount?: number
+  descricao?: string
 }
 
 export interface CreateOrderInput {
   customerId: string
   branchId: string
+  transportId?: string
+  condId?: string
+  emissao?: string
+  mennota?: string
   notes?: string
   items: CreateOrderItemInput[]
 }
