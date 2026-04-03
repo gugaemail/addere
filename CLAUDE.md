@@ -35,10 +35,11 @@ npm run build
 npm run start
 
 # Banco (packages/db)
-npx prisma migrate dev      # criar migration
+npx prisma migrate dev      # criar migration (requer DB acessível)
 npx prisma migrate deploy   # aplicar em produção
 npx prisma generate         # gerar client
 npx prisma studio           # GUI do banco
+npx prisma validate         # validar schema sem DB
 ```
 
 ## Arquitetura
@@ -50,9 +51,24 @@ JWT com dois tokens: access token (8h) + refresh token (30d). Middleware de aute
 - PostgreSQL via Prisma ORM no backend (nunca usar SQL raw)
 - SQLite local via `expo-sqlite` no mobile para modo offline
 - Soft delete em `users`, `customers` e `products` via campo `active = false` (nunca deletar fisicamente)
+- O banco (Render) não é acessível localmente. Para gerar SQL de migration sem conexão usar:
+  `prisma migrate diff --from-empty --to-schema-datamodel ./prisma/schema.prisma --script`
 
 ### Integração Protheus
-Comunicação via `PROTHEUS_API_BASE_URL` + `PROTHEUS_API_KEY`. Encapsulada na camada de serviços da API.
+Cada empresa (`Company`) armazena suas próprias URLs e credenciais:
+- `apiToken` — endpoint de autenticação (POST → retorna Bearer token)
+- `apiPord`, `apiCliente`, `apiPedido`, `apiConsPed`, `apiCondPag`, `apiTransp`, `apiMetaVend` — endpoints por entidade
+- `usrProtheus`, `passProtheus` — credenciais
+- `syncConfig` (JSONB) — mapeamento de campos Protheus → campos internos por entidade; sobrescreve os `DEFAULT_MAPPINGS` de `apps/api/src/modules/sync/default-mappings.ts`
+
+O token é obtido antes de cada chamada via `protheus.client.ts` e cacheado em memória por 55 minutos por empresa.
+
+Módulo de sync: `apps/api/src/modules/sync/`
+- `protheus.client.ts` — cliente HTTP com token cache
+- `field-mapper.ts` — `mapRecord()` e `extractRecords()` genéricos
+- `default-mappings.ts` — mapeamentos padrão (campos Protheus mais comuns)
+- `sync.service.ts` — funções de sincronização por entidade
+- `sync.routes.ts` — rotas `POST /sync/*`
 
 ### Hosting
 - Backend: Render
@@ -75,20 +91,47 @@ Comunicação via `PROTHEUS_API_BASE_URL` + `PROTHEUS_API_KEY`. Encapsulada na c
 DATABASE_URL
 JWT_SECRET
 JWT_REFRESH_SECRET
-PROTHEUS_API_BASE_URL
-PROTHEUS_API_KEY
 NODE_ENV
 PORT
 CORS_ORIGIN
 EXPO_PUBLIC_API_URL
 ```
 
-## Fases de Implementação
+> As credenciais Protheus são por empresa no banco (`usrProtheus`, `passProtheus`, `apiToken`, etc.) — não há variável de ambiente global para o Protheus.
 
-1. Setup monorepo + estrutura de pastas
-2. Banco de dados + migrations Prisma
-3. Autenticação JWT (login, refresh, middleware)
-4. Telas mobile (M-01 a M-07)
-5. Painel web admin (W-01, W-02)
-6. Integração API Protheus
-7. Modo offline + sincronização
+## Estado de Implementação
+
+| Fase | Descrição | Status |
+|------|-----------|--------|
+| 1 | Setup monorepo | ✅ 100% |
+| 2 | Banco + Prisma | ✅ 100% |
+| 3 | Autenticação JWT | ✅ 100% |
+| 4 | Telas mobile (M-01 a M-07) | ✅ 100% |
+| 5 | Painel web admin (W-01, W-02) | ✅ 100% |
+| 6 | Integração Protheus | 🔄 15% — Etapa 6.1 concluída |
+| 7 | Modo offline + sincronização | ❌ 0% |
+
+### Fase 6 — Etapas pendentes
+
+- **6.2** — `POST /sync/customers` — sync de clientes via `apiCliente`
+- **6.3** — `POST /sync/transportadoras` — sync via `apiTransp` + hook mobile + seleção no wizard
+- **6.4** — `POST /sync/cond-pags` — sync via `apiCondPag` + hook mobile + seleção no wizard
+- **6.5** — `POST /orders/:id/sync` — envio de pedido ao Protheus via `apiPedido`; atualiza `status=SYNCED`, `protheusOrderId`, `syncedAt`
+- **6.6** — `GET /orders/:id/status` — consulta status no Protheus via `apiConsPed`
+- **6.7** — `GET /sync/metas` — metas do vendedor via `apiMetaVend`
+
+### Fase 7 — Modo offline
+- Instalar `expo-sqlite` no mobile
+- Schema SQLite local para pedidos pendentes
+- Queue de sincronização: pedido criado offline → enviado quando conectar
+
+## Arquivos Críticos
+
+| Arquivo | Descrição |
+|---------|-----------|
+| `packages/db/prisma/schema.prisma` | Schema de referência |
+| `apps/api/src/modules/sync/` | Módulo de integração Protheus |
+| `apps/api/src/modules/orders/orders.schema.ts` | Validação Zod dos pedidos |
+| `apps/api/src/modules/orders/orders.service.ts` | Lógica de criação de pedidos |
+| `apps/web/src/app/(admin)/empresas/[id]/page.tsx` | Detalhe da empresa + aba Protheus |
+| `packages/types/src/index.ts` | Tipos compartilhados (Company, Order, Product, etc.) |
