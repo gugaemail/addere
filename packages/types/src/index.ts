@@ -35,6 +35,28 @@ export interface LoginResponse {
   accessToken: string
 }
 
+// ─── Company ───────────────────────────────────────────────────────────────
+
+export interface Company {
+  id:           string
+  name:         string
+  cnpj:         string
+  idProtheus:   string | null
+  active:       boolean
+  apiToken:     string | null
+  apiPord:      string | null
+  apiCliente:   string | null
+  apiMetaVend:  string | null
+  apiPedido:    string | null
+  apiConsPed:   string | null
+  apiCondPag:   string | null
+  apiTransp:    string | null
+  usrProtheus:  string | null
+  passProtheus: string | null
+  syncConfig:   unknown | null
+  createdAt:    string
+}
+
 // ─── Branch ────────────────────────────────────────────────────────────────
 
 export interface Branch {

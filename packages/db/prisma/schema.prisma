@@ -38,6 +38,7 @@ model Company {
   active      Boolean @default(true)
 
   // URLs das APIs Protheus configuradas por empresa
+  apiToken     String? // POST autenticação — retorna Bearer token
   apiPord      String? // GET produtos
   apiCliente   String? // GET clientes
   apiMetaVend  String? // GET metas de vendedor
@@ -47,6 +48,7 @@ model Company {
   apiTransp    String? // GET transportadoras
   usrProtheus  String? // usuário para autenticação na API Protheus
   passProtheus String? // senha para autenticação na API Protheus
+  syncConfig   Json?   // mapeamento de campos Protheus por entidade (JSONB)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

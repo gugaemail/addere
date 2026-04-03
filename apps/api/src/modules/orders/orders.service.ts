@@ -55,10 +55,11 @@ export async function createOrder(userId: string, companyId: string, input: Crea
 
     return {
       productId: item.productId,
-      quantity: item.quantity,
+      quantity:  item.quantity,
       unitPrice,
       discount,
-      total: Math.round(total * 100) / 100,
+      total:     Math.round(total * 100) / 100,
+      descricao: item.descricao,
     }
   })
 
@@ -68,11 +69,15 @@ export async function createOrder(userId: string, companyId: string, input: Crea
     data: {
       userId,
       companyId,
-      customerId: input.customerId,
-      branchId: input.branchId,
-      notes: input.notes,
-      total: Math.round(orderTotal * 100) / 100,
-      items: { create: itemsWithTotals },
+      customerId:  input.customerId,
+      branchId:    input.branchId,
+      transportId: input.transportId,
+      condId:      input.condId,
+      emissao:     input.emissao ? new Date(input.emissao) : undefined,
+      mennota:     input.mennota,
+      notes:       input.notes,
+      total:       Math.round(orderTotal * 100) / 100,
+      items:       { create: itemsWithTotals },
     },
     include: orderInclude,
   })

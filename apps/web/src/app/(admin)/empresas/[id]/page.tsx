@@ -36,9 +36,17 @@ interface Order {
 interface CompanyDetail {
   id: string; name: string; cnpj: string; idProtheus: string | null; active: boolean
   branches: Branch[]; users: User[]; _count: { orders: number }
+  apiToken: string | null; apiPord: string | null; apiCliente: string | null
+  apiMetaVend: string | null; apiPedido: string | null; apiConsPed: string | null
+  apiCondPag: string | null; apiTransp: string | null
+  usrProtheus: string | null; passProtheus: string | null
 }
 
-type Tab = 'filiais' | 'usuarios' | 'clientes' | 'produtos' | 'pedidos'
+interface SyncResult {
+  synced: number; total: number; errors: string[]
+}
+
+type Tab = 'filiais' | 'usuarios' | 'clientes' | 'produtos' | 'pedidos' | 'protheus'
 
 // ─── Página ───────────────────────────────────────────────────────────────────
 
@@ -53,6 +61,9 @@ export default function EmpresaPage() {
   const [orders, setOrders] = useState<Order[]>([])
   const [showBranchModal, setShowBranchModal] = useState(false)
   const [showUserModal, setShowUserModal] = useState(false)
+  const [syncingProducts, setSyncingProducts] = useState(false)
+  const [syncResult, setSyncResult] = useState<SyncResult | null>(null)
+  const [syncError, setSyncError] = useState<string | null>(null)
 
   async function fetchCompany() {
     const { data } = await api.get<CompanyDetail>(`/companies/${id}`)
@@ -99,12 +110,28 @@ export default function EmpresaPage() {
   if (loading) return <div className="text-gray-500 text-sm">Carregando...</div>
   if (!company) return <div className="text-red-500 text-sm">Empresa não encontrada.</div>
 
+  async function syncProducts() {
+    setSyncingProducts(true)
+    setSyncResult(null)
+    setSyncError(null)
+    try {
+      const { data } = await api.post<SyncResult>('/sync/products')
+      setSyncResult(data)
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? 'Erro ao sincronizar'
+      setSyncError(msg)
+    } finally {
+      setSyncingProducts(false)
+    }
+  }
+
   const tabs: { key: Tab; label: string }[] = [
     { key: 'filiais', label: `Filiais (${company.branches.length})` },
     { key: 'usuarios', label: `Usuários (${company.users.length})` },
     { key: 'clientes', label: 'Clientes' },
     { key: 'produtos', label: 'Produtos' },
     { key: 'pedidos', label: 'Pedidos' },
+    { key: 'protheus', label: 'Protheus' },
   ]
 
   return (
@@ -245,6 +272,69 @@ export default function EmpresaPage() {
         </TabSection>
       )}
 
+      {tab === 'protheus' && (
+        <div className="space-y-6">
+          {/* Config APIs */}
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+            <h2 className="text-sm font-semibold text-gray-700 mb-4">Configuração das APIs Protheus</h2>
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              <ApiConfigRow label="Token (auth)" value={company.apiToken} />
+              <ApiConfigRow label="Produtos (GET)" value={company.apiPord} />
+              <ApiConfigRow label="Clientes (GET)" value={company.apiCliente} />
+              <ApiConfigRow label="Pedido (POST)" value={company.apiPedido} />
+              <ApiConfigRow label="Consulta pedido (GET)" value={company.apiConsPed} />
+              <ApiConfigRow label="Transportadoras (GET)" value={company.apiTransp} />
+              <ApiConfigRow label="Cond. pagamento (GET)" value={company.apiCondPag} />
+              <ApiConfigRow label="Meta vendedor (GET)" value={company.apiMetaVend} />
+              <ApiConfigRow label="Usuário Protheus" value={company.usrProtheus} />
+              <ApiConfigRow label="Senha Protheus" value={company.passProtheus ? '••••••••' : null} />
+            </div>
+          </div>
+
+          {/* Sync Produtos */}
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+            <div className="flex items-start justify-between">
+              <div>
+                <h2 className="text-sm font-semibold text-gray-700">Sincronizar Produtos</h2>
+                <p className="text-xs text-gray-400 mt-1">Importa produtos via <code className="bg-gray-100 px-1 rounded">apiPord</code> e atualiza o catálogo da empresa.</p>
+              </div>
+              <button
+                onClick={syncProducts}
+                disabled={syncingProducts || !company.apiPord || !company.apiToken}
+                className="text-sm font-medium px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                {syncingProducts ? 'Sincronizando...' : 'Sincronizar Produtos'}
+              </button>
+            </div>
+
+            {(!company.apiPord || !company.apiToken) && (
+              <p className="mt-3 text-xs text-yellow-600 bg-yellow-50 rounded-lg px-3 py-2">
+                Configure <strong>apiToken</strong> e <strong>apiPord</strong> para habilitar a sincronização.
+              </p>
+            )}
+
+            {syncResult && (
+              <div className="mt-4 p-4 bg-green-50 rounded-lg border border-green-200">
+                <p className="text-sm font-medium text-green-700">
+                  Sincronização concluída: {syncResult.synced} de {syncResult.total} produtos importados.
+                </p>
+                {syncResult.errors.length > 0 && (
+                  <ul className="mt-2 text-xs text-red-600 space-y-1 list-disc list-inside">
+                    {syncResult.errors.map((e, i) => <li key={i}>{e}</li>)}
+                  </ul>
+                )}
+              </div>
+            )}
+
+            {syncError && (
+              <div className="mt-4 p-4 bg-red-50 rounded-lg border border-red-200">
+                <p className="text-sm text-red-600">{syncError}</p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {showBranchModal && (
         <CreateBranchModal companyId={id} onClose={() => setShowBranchModal(false)} onCreated={() => { setShowBranchModal(false); fetchCompany() }} />
       )}
@@ -326,5 +416,16 @@ function ToggleBtn({ active, onClick }: { active: boolean; onClick: () => void }
     >
       {active ? 'Desativar' : 'Ativar'}
     </button>
+  )
+}
+
+function ApiConfigRow({ label, value }: { label: string; value: string | null | undefined }) {
+  return (
+    <div className="flex flex-col gap-0.5">
+      <span className="text-xs text-gray-400">{label}</span>
+      <span className={`text-sm truncate ${value ? 'text-gray-700 font-mono' : 'text-gray-300'}`}>
+        {value ?? '—'}
+      </span>
+    </div>
   )
 }
