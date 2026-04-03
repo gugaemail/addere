@@ -1,8 +1,9 @@
 import { prisma } from '@addere/db'
 
-export async function listProducts(search?: string) {
+export async function listProducts(companyId: string, search?: string) {
   return prisma.product.findMany({
     where: {
+      companyId,
       active: true,
       ...(search && {
         OR: [

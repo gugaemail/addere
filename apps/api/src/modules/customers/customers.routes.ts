@@ -6,15 +6,17 @@ export default async function customersRoutes(app: FastifyInstance) {
   // GET /customers?search=...
   app.get('/', { preHandler: authenticate }, async (request: FastifyRequest, reply: FastifyReply) => {
     const { search } = request.query as { search?: string }
-    const customers = await listCustomers(search)
+    const companyId = request.user.companyId!
+    const customers = await listCustomers(companyId, search)
     return reply.send(customers)
   })
 
   // GET /customers/:id
   app.get('/:id', { preHandler: authenticate }, async (request: FastifyRequest, reply: FastifyReply) => {
     const { id } = request.params as { id: string }
+    const companyId = request.user.companyId!
     try {
-      const customer = await getCustomerById(id)
+      const customer = await getCustomerById(companyId, id)
       return reply.send(customer)
     } catch (err) {
       return reply.status(404).send({ message: (err as Error).message })

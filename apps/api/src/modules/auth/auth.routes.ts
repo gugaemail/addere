@@ -34,7 +34,12 @@ export default async function authRoutes(app: FastifyInstance) {
       const user = await loginUser(result.data)
       const refreshToken = await createRefreshToken(user.id)
 
-      const accessToken = app.jwt.sign({ sub: user.id, email: user.email, role: user.role })
+      const accessToken = app.jwt.sign({
+        sub: user.id,
+        email: user.email,
+        role: user.role,
+        companyId: user.companyId,
+      })
 
       reply.setCookie(COOKIE_NAME, refreshToken, cookieOptions(isProduction))
 
@@ -45,6 +50,7 @@ export default async function authRoutes(app: FastifyInstance) {
           name: user.name,
           email: user.email,
           role: user.role,
+          companyId: user.companyId,
           createdAt: user.createdAt,
         },
       })
@@ -63,7 +69,12 @@ export default async function authRoutes(app: FastifyInstance) {
     try {
       const { user, newToken } = await rotateRefreshToken(token)
 
-      const accessToken = app.jwt.sign({ sub: user.id, email: user.email, role: user.role })
+      const accessToken = app.jwt.sign({
+        sub: user.id,
+        email: user.email,
+        role: user.role,
+        companyId: user.companyId,
+      })
 
       reply.setCookie(COOKIE_NAME, newToken, cookieOptions(isProduction))
 

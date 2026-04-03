@@ -6,14 +6,14 @@ import { listOrders, getOrderStats, createOrder } from './orders.service'
 export default async function ordersRoutes(app: FastifyInstance) {
   // GET /orders/stats — deve vir antes de /:id para não conflitar
   app.get('/stats', { preHandler: authenticate }, async (request: FastifyRequest, reply: FastifyReply) => {
-    const stats = await getOrderStats(request.user.sub)
+    const stats = await getOrderStats(request.user.sub, request.user.companyId!)
     return reply.send(stats)
   })
 
   // GET /orders?limit=5
   app.get('/', { preHandler: authenticate }, async (request: FastifyRequest, reply: FastifyReply) => {
     const { limit } = request.query as { limit?: string }
-    const orders = await listOrders(request.user.sub, limit ? Number(limit) : undefined)
+    const orders = await listOrders(request.user.sub, request.user.companyId!, limit ? Number(limit) : undefined)
     return reply.send(orders)
   })
 
@@ -25,7 +25,7 @@ export default async function ordersRoutes(app: FastifyInstance) {
     }
 
     try {
-      const order = await createOrder(request.user.sub, result.data)
+      const order = await createOrder(request.user.sub, request.user.companyId!, result.data)
       return reply.status(201).send(order)
     } catch (err) {
       return reply.status(422).send({ message: (err as Error).message })

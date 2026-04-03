@@ -2,6 +2,7 @@ import { z } from 'zod'
 
 export const createOrderSchema = z.object({
   customerId: z.string().uuid({ message: 'Cliente inválido' }),
+  branchId: z.string().uuid({ message: 'Filial inválida' }),
   notes: z.string().optional(),
   items: z
     .array(

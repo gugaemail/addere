@@ -2,12 +2,13 @@
 
 // ─── Auth ──────────────────────────────────────────────────────────────────
 
-export type UserRole = 'ADMIN' | 'SALESPERSON'
+export type UserRole = 'SUPERADMIN' | 'ADMIN' | 'SALESPERSON'
 
 export interface JwtPayload {
-  sub: string      // user id
+  sub: string        // user id
   email: string
   role: UserRole
+  companyId: string | null  // null para SUPERADMIN
 }
 
 export interface AuthTokens {
@@ -94,6 +95,7 @@ export interface CreateOrderItemInput {
 
 export interface CreateOrderInput {
   customerId: string
+  branchId: string
   notes?: string
   items: CreateOrderItemInput[]
 }

@@ -8,21 +8,21 @@ const orderInclude = {
   },
 } as const
 
-export async function listOrders(userId: string, limit?: number) {
+export async function listOrders(userId: string, companyId: string, limit?: number) {
   return prisma.order.findMany({
-    where: { userId },
+    where: { userId, companyId },
     orderBy: { createdAt: 'desc' },
     take: limit,
     include: orderInclude,
   })
 }
 
-export async function getOrderStats(userId: string) {
+export async function getOrderStats(userId: string, companyId: string) {
   const [totalOrders, pendingOrders, syncedOrders, revenueResult] = await Promise.all([
-    prisma.order.count({ where: { userId } }),
-    prisma.order.count({ where: { userId, status: 'PENDING' } }),
-    prisma.order.count({ where: { userId, status: 'SYNCED' } }),
-    prisma.order.aggregate({ where: { userId }, _sum: { total: true } }),
+    prisma.order.count({ where: { userId, companyId } }),
+    prisma.order.count({ where: { userId, companyId, status: 'PENDING' } }),
+    prisma.order.count({ where: { userId, companyId, status: 'SYNCED' } }),
+    prisma.order.aggregate({ where: { userId, companyId }, _sum: { total: true } }),
   ])
 
   return {
@@ -33,11 +33,11 @@ export async function getOrderStats(userId: string) {
   }
 }
 
-export async function createOrder(userId: string, input: CreateOrderInput) {
-  // Busca os produtos para calcular os preços
+export async function createOrder(userId: string, companyId: string, input: CreateOrderInput) {
+  // Busca os produtos para calcular os preços (filtrado pela empresa)
   const productIds = input.items.map((i) => i.productId)
   const products = await prisma.product.findMany({
-    where: { id: { in: productIds }, active: true },
+    where: { id: { in: productIds }, companyId, active: true },
   })
 
   if (products.length !== productIds.length) {
@@ -67,7 +67,9 @@ export async function createOrder(userId: string, input: CreateOrderInput) {
   return prisma.order.create({
     data: {
       userId,
+      companyId,
       customerId: input.customerId,
+      branchId: input.branchId,
       notes: input.notes,
       total: Math.round(orderTotal * 100) / 100,
       items: { create: itemsWithTotals },

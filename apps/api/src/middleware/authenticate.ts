@@ -12,9 +12,19 @@ export async function authenticate(request: FastifyRequest, reply: FastifyReply)
 // Verifica se o usuário autenticado tem role de ADMIN
 export async function requireAdmin(request: FastifyRequest, reply: FastifyReply): Promise<void> {
   await authenticate(request, reply)
-  if (reply.sent) return // authenticate já respondeu com 401
+  if (reply.sent) return
 
   if (request.user.role !== 'ADMIN') {
     reply.status(403).send({ message: 'Acesso restrito a administradores' })
+  }
+}
+
+// Verifica se o usuário autenticado tem role de SUPERADMIN (painel web)
+export async function requireSuperAdmin(request: FastifyRequest, reply: FastifyReply): Promise<void> {
+  await authenticate(request, reply)
+  if (reply.sent) return
+
+  if (request.user.role !== 'SUPERADMIN') {
+    reply.status(403).send({ message: 'Acesso restrito ao super administrador' })
   }
 }

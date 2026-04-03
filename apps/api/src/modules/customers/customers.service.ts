@@ -1,8 +1,9 @@
 import { prisma } from '@addere/db'
 
-export async function listCustomers(search?: string) {
+export async function listCustomers(companyId: string, search?: string) {
   return prisma.customer.findMany({
     where: {
+      companyId,
       active: true,
       ...(search && {
         OR: [
@@ -15,9 +16,9 @@ export async function listCustomers(search?: string) {
   })
 }
 
-export async function getCustomerById(id: string) {
+export async function getCustomerById(companyId: string, id: string) {
   const customer = await prisma.customer.findFirst({
-    where: { id, active: true },
+    where: { id, companyId, active: true },
     include: {
       orders: {
         orderBy: { createdAt: 'desc' },

@@ -6,7 +6,7 @@ export default async function productsRoutes(app: FastifyInstance) {
   // GET /products?search=...
   app.get('/', { preHandler: authenticate }, async (request: FastifyRequest, reply: FastifyReply) => {
     const { search } = request.query as { search?: string }
-    const products = await listProducts(search)
+    const products = await listProducts(request.user.companyId!, search)
     return reply.send(products)
   })
 }
