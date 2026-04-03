@@ -10,6 +10,9 @@ import {
   toggleBranchActive,
   createUser,
   toggleUserActive,
+  listCompanyCustomers,
+  listCompanyProducts,
+  listCompanyOrders,
 } from './companies.service'
 
 const createCompanySchema = z.object({
@@ -107,5 +110,26 @@ export default async function companiesRoutes(app: FastifyInstance) {
     const { active } = request.body as { active: boolean }
     const user = await toggleUserActive(userId, active)
     return reply.send(user)
+  })
+
+  // GET /companies/:id/customers — clientes da empresa
+  app.get('/:id/customers', { preHandler: requireSuperAdmin }, async (request: FastifyRequest, reply: FastifyReply) => {
+    const { id } = request.params as { id: string }
+    const customers = await listCompanyCustomers(id)
+    return reply.send(customers)
+  })
+
+  // GET /companies/:id/products — produtos da empresa
+  app.get('/:id/products', { preHandler: requireSuperAdmin }, async (request: FastifyRequest, reply: FastifyReply) => {
+    const { id } = request.params as { id: string }
+    const products = await listCompanyProducts(id)
+    return reply.send(products)
+  })
+
+  // GET /companies/:id/orders — pedidos da empresa
+  app.get('/:id/orders', { preHandler: requireSuperAdmin }, async (request: FastifyRequest, reply: FastifyReply) => {
+    const { id } = request.params as { id: string }
+    const orders = await listCompanyOrders(id)
+    return reply.send(orders)
   })
 }
