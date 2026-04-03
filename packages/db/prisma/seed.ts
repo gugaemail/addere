@@ -4,7 +4,7 @@ import bcrypt from 'bcryptjs'
 const prisma = new PrismaClient()
 
 async function main() {
-  const passwordHash = await bcrypt.hash('admin123', 10)
+  const passwordHash = await bcrypt.hash('ad@123a', 10)
 
   // ─── SUPERADMIN da plataforma (acesso ao painel web) ───
   const superadmin = await prisma.user.upsert({
