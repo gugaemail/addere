@@ -9,7 +9,7 @@ async function main() {
   // ─── SUPERADMIN da plataforma (acesso ao painel web) ───
   const superadmin = await prisma.user.upsert({
     where: { email: 'superadmin@addere.dev' },
-    update: {},
+    update: { password: passwordHash },
     create: {
       name: 'Super Administrador',
       email: 'superadmin@addere.dev',
