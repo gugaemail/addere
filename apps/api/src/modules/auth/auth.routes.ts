@@ -6,6 +6,8 @@ import {
   rotateRefreshToken,
   revokeRefreshToken,
 } from './auth.service'
+import { authenticate } from '../../middleware/authenticate'
+import { prisma } from '@addere/db'
 
 const COOKIE_NAME = 'refreshToken'
 const COOKIE_MAX_AGE = 60 * 60 * 24 * 30 // 30 dias em segundos
@@ -71,6 +73,16 @@ export default async function authRoutes(app: FastifyInstance) {
     } catch (err) {
       return reply.status(401).send({ message: (err as Error).message })
     }
+  })
+
+  // GET /auth/me — retorna o usuário autenticado
+  app.get('/me', { preHandler: authenticate }, async (request: FastifyRequest, reply: FastifyReply) => {
+    const user = await prisma.user.findUnique({
+      where: { id: request.user.sub },
+      select: { id: true, name: true, email: true, role: true, active: true, createdAt: true },
+    })
+    if (!user) return reply.status(404).send({ message: 'Usuário não encontrado' })
+    return reply.send(user)
   })
 
   // POST /auth/logout — revoga o refresh token e limpa o cookie

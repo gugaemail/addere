@@ -7,6 +7,7 @@ import authRoutes from './modules/auth/auth.routes'
 import customersRoutes from './modules/customers/customers.routes'
 import productsRoutes from './modules/products/products.routes'
 import ordersRoutes from './modules/orders/orders.routes'
+import usersRoutes from './modules/users/users.routes'
 
 export async function buildApp(): Promise<FastifyInstance> {
   const app = Fastify({
@@ -26,6 +27,7 @@ export async function buildApp(): Promise<FastifyInstance> {
   await app.register(customersRoutes, { prefix: '/customers' })
   await app.register(productsRoutes, { prefix: '/products' })
   await app.register(ordersRoutes, { prefix: '/orders' })
+  await app.register(usersRoutes, { prefix: '/users' })
 
   // Tratamento global de erros
   app.setErrorHandler((error, request, reply) => {
