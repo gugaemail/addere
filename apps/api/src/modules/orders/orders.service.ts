@@ -34,44 +34,46 @@ export async function getOrderStats(userId: string) {
 }
 
 export async function createOrder(userId: string, input: CreateOrderInput) {
-  // Busca os produtos para calcular os preços
-  const productIds = input.items.map((i) => i.productId)
-  const products = await prisma.product.findMany({
-    where: { id: { in: productIds }, active: true },
-  })
+  return prisma.$transaction(async (tx) => {
+    // Busca os produtos para calcular os preços (dentro da transação para evitar race condition)
+    const productIds = input.items.map((i) => i.productId)
+    const products = await tx.product.findMany({
+      where: { id: { in: productIds }, active: true },
+    })
 
-  if (products.length !== productIds.length) {
-    throw new Error('Um ou mais produtos não foram encontrados ou estão inativos')
-  }
-
-  const productMap = new Map(products.map((p) => [p.id, p]))
-
-  // Calcula totais de cada item
-  const itemsWithTotals = input.items.map((item) => {
-    const product = productMap.get(item.productId)!
-    const unitPrice = Number(product.price)
-    const discount = item.discount ?? 0
-    const total = unitPrice * item.quantity * (1 - discount / 100)
-
-    return {
-      productId: item.productId,
-      quantity: item.quantity,
-      unitPrice,
-      discount,
-      total: Math.round(total * 100) / 100,
+    if (products.length !== productIds.length) {
+      throw new Error('Um ou mais produtos não foram encontrados ou estão inativos')
     }
-  })
 
-  const orderTotal = itemsWithTotals.reduce((sum, i) => sum + i.total, 0)
+    const productMap = new Map(products.map((p) => [p.id, p]))
 
-  return prisma.order.create({
-    data: {
-      userId,
-      customerId: input.customerId,
-      notes: input.notes,
-      total: Math.round(orderTotal * 100) / 100,
-      items: { create: itemsWithTotals },
-    },
-    include: orderInclude,
+    // Calcula totais de cada item
+    const itemsWithTotals = input.items.map((item) => {
+      const product = productMap.get(item.productId)!
+      const unitPrice = Number(product.price)
+      const discount = item.discount ?? 0
+      const total = unitPrice * item.quantity * (1 - discount / 100)
+
+      return {
+        productId: item.productId,
+        quantity: item.quantity,
+        unitPrice,
+        discount,
+        total: Math.round(total * 100) / 100,
+      }
+    })
+
+    const orderTotal = itemsWithTotals.reduce((sum, i) => sum + i.total, 0)
+
+    return tx.order.create({
+      data: {
+        userId,
+        customerId: input.customerId,
+        notes: input.notes,
+        total: Math.round(orderTotal * 100) / 100,
+        items: { create: itemsWithTotals },
+      },
+      include: orderInclude,
+    })
   })
 }

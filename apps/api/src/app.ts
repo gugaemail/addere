@@ -27,5 +27,14 @@ export async function buildApp(): Promise<FastifyInstance> {
   await app.register(productsRoutes, { prefix: '/products' })
   await app.register(ordersRoutes, { prefix: '/orders' })
 
+  // Tratamento global de erros
+  app.setErrorHandler((error, request, reply) => {
+    app.log.error({ err: error, url: request.url, method: request.method }, 'Unhandled error')
+    const statusCode = error.statusCode ?? 500
+    reply.status(statusCode).send({
+      error: statusCode >= 500 ? 'Internal Server Error' : error.message,
+    })
+  })
+
   return app
 }

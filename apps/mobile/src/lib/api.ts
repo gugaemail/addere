@@ -17,7 +17,8 @@ api.interceptors.request.use((config) => {
 
 // Em 401: tenta renovar o token e retenta a request original
 let isRefreshing = false
-let refreshQueue: Array<(token: string) => void> = []
+type QueueItem = { resolve: (token: string) => void; reject: (err: unknown) => void }
+let refreshQueue: QueueItem[] = []
 
 api.interceptors.response.use(
   (response) => response,
@@ -30,10 +31,13 @@ api.interceptors.response.use(
 
     if (isRefreshing) {
       // Enfileira requests que chegam enquanto o refresh está em andamento
-      return new Promise((resolve) => {
-        refreshQueue.push((token: string) => {
-          originalRequest.headers.Authorization = `Bearer ${token}`
-          resolve(api(originalRequest))
+      return new Promise((resolve, reject) => {
+        refreshQueue.push({
+          resolve: (token: string) => {
+            originalRequest.headers.Authorization = `Bearer ${token}`
+            resolve(api(originalRequest))
+          },
+          reject,
         })
       })
     }
@@ -52,14 +56,16 @@ api.interceptors.response.use(
       const { setAuth, user } = useAuthStore.getState()
       if (user) await setAuth(user, newToken)
 
-      refreshQueue.forEach((cb) => cb(newToken))
+      refreshQueue.forEach(({ resolve }) => resolve(newToken))
       refreshQueue = []
 
       originalRequest.headers.Authorization = `Bearer ${newToken}`
       return api(originalRequest)
-    } catch {
+    } catch (err) {
+      refreshQueue.forEach(({ reject }) => reject(err))
+      refreshQueue = []
       useAuthStore.getState().clearAuth()
-      return Promise.reject(error)
+      return Promise.reject(err)
     } finally {
       isRefreshing = false
     }
