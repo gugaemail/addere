@@ -42,22 +42,22 @@ export function CreateUserModal({ companyId, onClose, onCreated }: Props) {
         <Field label="Nome" value={name} onChange={setName} required />
         <Field label="E-mail" value={email} onChange={setEmail} required />
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Senha</label>
+          <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">Senha</label>
           <input
             type="password"
             required
             minLength={6}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full bg-[var(--bg-subtle)] border border-[var(--border)] rounded-lg px-3 py-2.5 text-sm text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition-shadow"
           />
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Perfil</label>
+          <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">Perfil</label>
           <select
             value={role}
             onChange={(e) => setRole(e.target.value as 'ADMIN' | 'SALESPERSON')}
-            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+            className="w-full bg-[var(--bg-subtle)] border border-[var(--border)] rounded-lg px-3 py-2.5 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition-shadow"
           >
             <option value="SALESPERSON">Vendedor</option>
             <option value="ADMIN">Administrador</option>

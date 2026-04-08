@@ -1,32 +1,49 @@
 import { Tabs } from 'expo-router'
-import { Text } from 'react-native'
+import { Ionicons } from '@expo/vector-icons'
+import { useTheme } from '../../src/theme'
 
-// Ícones inline simples para não depender de biblioteca de ícones
-const Icon = ({ label }: { label: string }) => (
-  <Text style={{ fontSize: 20 }}>{label}</Text>
-)
+type IoniconsName = React.ComponentProps<typeof Ionicons>['name']
+
+function TabIcon({ name, color, size }: { name: IoniconsName; color: string; size: number }) {
+  return <Ionicons name={name} size={size} color={color} />
+}
 
 export default function AppLayout() {
+  const theme = useTheme()
+
   return (
     <Tabs
       screenOptions={{
         headerShown: true,
-        tabBarActiveTintColor: '#2563eb',
-        tabBarInactiveTintColor: '#6b7280',
+        tabBarActiveTintColor:   theme.tab.active,
+        tabBarInactiveTintColor: theme.tab.inactive,
+        tabBarStyle: {
+          backgroundColor: theme.tab.bg,
+          borderTopColor:  theme.tab.border,
+        },
+        headerStyle: {
+          backgroundColor: theme.surface,
+        },
+        headerTintColor: theme.text,
+        headerShadowVisible: false,
       }}
     >
       <Tabs.Screen
         name="index"
         options={{
           title: 'Dashboard',
-          tabBarIcon: () => <Icon label="🏠" />,
+          tabBarIcon: ({ color, size }) => (
+            <TabIcon name="home-outline" color={color} size={size} />
+          ),
         }}
       />
       <Tabs.Screen
         name="clientes"
         options={{
           title: 'Clientes',
-          tabBarIcon: () => <Icon label="👥" />,
+          tabBarIcon: ({ color, size }) => (
+            <TabIcon name="people-outline" color={color} size={size} />
+          ),
           headerShown: false,
         }}
       />
@@ -34,7 +51,9 @@ export default function AppLayout() {
         name="produtos"
         options={{
           title: 'Produtos',
-          tabBarIcon: () => <Icon label="📦" />,
+          tabBarIcon: ({ color, size }) => (
+            <TabIcon name="cube-outline" color={color} size={size} />
+          ),
           headerShown: false,
         }}
       />
@@ -42,7 +61,9 @@ export default function AppLayout() {
         name="pedidos"
         options={{
           title: 'Pedidos',
-          tabBarIcon: () => <Icon label="📋" />,
+          tabBarIcon: ({ color, size }) => (
+            <TabIcon name="receipt-outline" color={color} size={size} />
+          ),
           headerShown: false,
         }}
       />

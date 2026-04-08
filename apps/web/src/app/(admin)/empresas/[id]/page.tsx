@@ -107,8 +107,15 @@ export default function EmpresaPage() {
     fetchCompany()
   }
 
-  if (loading) return <div className="text-gray-500 text-sm">Carregando...</div>
-  if (!company) return <div className="text-red-500 text-sm">Empresa não encontrada.</div>
+  if (loading) return <PageSkeleton />
+  if (!company) return (
+    <div className="flex flex-col items-center justify-center py-20 text-center gap-3">
+      <svg className="w-10 h-10 text-[var(--text-muted)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.25}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z" />
+      </svg>
+      <p className="font-semibold text-[var(--text-primary)]">Empresa não encontrada</p>
+    </div>
+  )
 
   async function syncProducts() {
     setSyncingProducts(true)
@@ -126,11 +133,11 @@ export default function EmpresaPage() {
   }
 
   const tabs: { key: Tab; label: string }[] = [
-    { key: 'filiais', label: `Filiais (${company.branches.length})` },
+    { key: 'filiais',  label: `Filiais (${company.branches.length})` },
     { key: 'usuarios', label: `Usuários (${company.users.length})` },
     { key: 'clientes', label: 'Clientes' },
     { key: 'produtos', label: 'Produtos' },
-    { key: 'pedidos', label: 'Pedidos' },
+    { key: 'pedidos',  label: 'Pedidos' },
     { key: 'protheus', label: 'Protheus' },
   ]
 
@@ -139,18 +146,28 @@ export default function EmpresaPage() {
       {/* Header */}
       <div className="flex items-start justify-between">
         <div>
-          <button onClick={() => router.push('/dashboard')} className="text-sm text-blue-600 hover:underline mb-2 block">
-            ← Voltar
+          <button
+            onClick={() => router.push('/dashboard')}
+            className="flex items-center gap-1 text-sm text-[var(--text-muted)] hover:text-brand-500 mb-3 transition-colors"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18" />
+            </svg>
+            Voltar
           </button>
-          <h1 className="text-2xl font-bold text-gray-900">{company.name}</h1>
-          <p className="text-gray-500 text-sm mt-1">
+          <h1 className="text-2xl font-bold tracking-tight text-[var(--text-primary)]">{company.name}</h1>
+          <p className="text-[var(--text-muted)] text-sm mt-1">
             {company.cnpj}
-            {company.idProtheus && <span className="ml-3 text-gray-400">Protheus: {company.idProtheus}</span>}
+            {company.idProtheus && <span className="ml-3">Protheus: {company.idProtheus}</span>}
           </p>
         </div>
         <button
           onClick={() => toggleCompany(!company.active)}
-          className={`text-sm font-medium px-4 py-2 rounded-lg border transition-colors ${company.active ? 'border-red-300 text-red-600 hover:bg-red-50' : 'border-green-300 text-green-600 hover:bg-green-50'}`}
+          className={`text-sm font-medium px-4 py-2 rounded-lg border transition-colors ${
+            company.active
+              ? 'border-red-500/30 text-red-500 hover:bg-red-500/10'
+              : 'border-green-500/30 text-green-500 hover:bg-green-500/10'
+          }`}
         >
           {company.active ? 'Desativar empresa' : 'Ativar empresa'}
         </button>
@@ -158,14 +175,14 @@ export default function EmpresaPage() {
 
       {/* Stats */}
       <div className="grid grid-cols-4 gap-4">
-        <StatCard label="Filiais" value={company.branches.length} />
+        <StatCard label="Filiais"  value={company.branches.length} />
         <StatCard label="Usuários" value={company.users.length} />
-        <StatCard label="Pedidos" value={company._count.orders} />
-        <StatCard label="Status" value={company.active ? 'Ativa' : 'Inativa'} text />
+        <StatCard label="Pedidos"  value={company._count.orders} />
+        <StatCard label="Status"   value={company.active ? 'Ativa' : 'Inativa'} text />
       </div>
 
       {/* Tabs */}
-      <div className="border-b border-gray-200">
+      <div className="border-b border-[var(--border)]">
         <nav className="flex gap-1">
           {tabs.map((t) => (
             <button
@@ -173,8 +190,8 @@ export default function EmpresaPage() {
               onClick={() => setTab(t.key)}
               className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
                 tab === t.key
-                  ? 'border-blue-600 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700'
+                  ? 'border-brand-500 text-brand-500'
+                  : 'border-transparent text-[var(--text-muted)] hover:text-[var(--text-secondary)]'
               }`}
             >
               {t.label}
@@ -189,12 +206,14 @@ export default function EmpresaPage() {
           <Table
             headers={['Nome', 'CNPJ', 'Protheus', 'Status', '']}
             empty={company.branches.length === 0}
+            emptyTitle="Nenhuma filial"
+            emptyDesc="Adicione a primeira filial desta empresa."
           >
             {company.branches.map((b) => (
-              <tr key={b.id}>
-                <td className="px-4 py-3 font-medium text-gray-900">{b.name}</td>
-                <td className="px-4 py-3 text-gray-500">{b.cnpj ?? '—'}</td>
-                <td className="px-4 py-3 text-gray-500">{b.idProtheus ?? '—'}</td>
+              <tr key={b.id} className="hover:bg-[var(--bg-subtle)] transition-colors">
+                <td className="px-4 py-3 font-medium text-[var(--text-primary)]">{b.name}</td>
+                <td className="px-4 py-3 text-[var(--text-muted)]">{b.cnpj ?? '—'}</td>
+                <td className="px-4 py-3 text-[var(--text-muted)]">{b.idProtheus ?? '—'}</td>
                 <td className="px-4 py-3"><StatusBadge active={b.active} /></td>
                 <td className="px-4 py-3 text-right"><ToggleBtn active={b.active} onClick={() => toggleBranch(b.id, !b.active)} /></td>
               </tr>
@@ -205,12 +224,17 @@ export default function EmpresaPage() {
 
       {tab === 'usuarios' && (
         <TabSection action={{ label: '+ Novo usuário', onClick: () => setShowUserModal(true) }}>
-          <Table headers={['Nome', 'E-mail', 'Perfil', 'Status', '']} empty={company.users.length === 0}>
+          <Table
+            headers={['Nome', 'E-mail', 'Perfil', 'Status', '']}
+            empty={company.users.length === 0}
+            emptyTitle="Nenhum usuário"
+            emptyDesc="Adicione o primeiro usuário desta empresa."
+          >
             {company.users.map((u) => (
-              <tr key={u.id}>
-                <td className="px-4 py-3 font-medium text-gray-900">{u.name}</td>
-                <td className="px-4 py-3 text-gray-600">{u.email}</td>
-                <td className="px-4 py-3 text-gray-500">{u.role === 'ADMIN' ? 'Administrador' : 'Vendedor'}</td>
+              <tr key={u.id} className="hover:bg-[var(--bg-subtle)] transition-colors">
+                <td className="px-4 py-3 font-medium text-[var(--text-primary)]">{u.name}</td>
+                <td className="px-4 py-3 text-[var(--text-secondary)]">{u.email}</td>
+                <td className="px-4 py-3 text-[var(--text-muted)]">{u.role === 'ADMIN' ? 'Administrador' : 'Vendedor'}</td>
                 <td className="px-4 py-3"><StatusBadge active={u.active} /></td>
                 <td className="px-4 py-3 text-right"><ToggleBtn active={u.active} onClick={() => toggleUser(u.id, !u.active)} /></td>
               </tr>
@@ -221,14 +245,19 @@ export default function EmpresaPage() {
 
       {tab === 'clientes' && (
         <TabSection>
-          <Table headers={['Nome', 'Documento', 'E-mail', 'Telefone', 'Protheus', 'Status']} empty={customers.length === 0}>
+          <Table
+            headers={['Nome', 'Documento', 'E-mail', 'Telefone', 'Protheus', 'Status']}
+            empty={customers.length === 0}
+            emptyTitle="Nenhum cliente sincronizado"
+            emptyDesc="Sincronize clientes via Protheus na aba Protheus."
+          >
             {customers.map((c) => (
-              <tr key={c.id}>
-                <td className="px-4 py-3 font-medium text-gray-900">{c.name}</td>
-                <td className="px-4 py-3 text-gray-500">{c.document ?? '—'}</td>
-                <td className="px-4 py-3 text-gray-500">{c.email ?? '—'}</td>
-                <td className="px-4 py-3 text-gray-500">{c.phone ?? '—'}</td>
-                <td className="px-4 py-3 text-gray-400">{c.protheusCode ?? '—'}</td>
+              <tr key={c.id} className="hover:bg-[var(--bg-subtle)] transition-colors">
+                <td className="px-4 py-3 font-medium text-[var(--text-primary)]">{c.name}</td>
+                <td className="px-4 py-3 text-[var(--text-muted)]">{c.document ?? '—'}</td>
+                <td className="px-4 py-3 text-[var(--text-muted)]">{c.email ?? '—'}</td>
+                <td className="px-4 py-3 text-[var(--text-muted)]">{c.phone ?? '—'}</td>
+                <td className="px-4 py-3 text-[var(--text-muted)]">{c.protheusCode ?? '—'}</td>
                 <td className="px-4 py-3"><StatusBadge active={c.active} /></td>
               </tr>
             ))}
@@ -238,14 +267,19 @@ export default function EmpresaPage() {
 
       {tab === 'produtos' && (
         <TabSection>
-          <Table headers={['Nome', 'Protheus', 'Unidade', 'Preço', 'Estoque', 'Status']} empty={products.length === 0}>
+          <Table
+            headers={['Nome', 'Protheus', 'Unidade', 'Preço', 'Estoque', 'Status']}
+            empty={products.length === 0}
+            emptyTitle="Nenhum produto sincronizado"
+            emptyDesc="Use o botão Sincronizar Produtos na aba Protheus."
+          >
             {products.map((p) => (
-              <tr key={p.id}>
-                <td className="px-4 py-3 font-medium text-gray-900">{p.name}</td>
-                <td className="px-4 py-3 text-gray-400">{p.protheusCode ?? '—'}</td>
-                <td className="px-4 py-3 text-gray-500">{p.unit}</td>
-                <td className="px-4 py-3 text-gray-700">R$ {Number(p.price).toFixed(2)}</td>
-                <td className="px-4 py-3 text-gray-500">{Number(p.stock).toFixed(3)}</td>
+              <tr key={p.id} className="hover:bg-[var(--bg-subtle)] transition-colors">
+                <td className="px-4 py-3 font-medium text-[var(--text-primary)]">{p.name}</td>
+                <td className="px-4 py-3 text-[var(--text-muted)]">{p.protheusCode ?? '—'}</td>
+                <td className="px-4 py-3 text-[var(--text-muted)]">{p.unit}</td>
+                <td className="px-4 py-3 text-[var(--text-secondary)]">R$ {Number(p.price).toFixed(2)}</td>
+                <td className="px-4 py-3 text-[var(--text-muted)]">{Number(p.stock).toFixed(3)}</td>
                 <td className="px-4 py-3"><StatusBadge active={p.active} /></td>
               </tr>
             ))}
@@ -255,17 +289,22 @@ export default function EmpresaPage() {
 
       {tab === 'pedidos' && (
         <TabSection>
-          <Table headers={['#', 'Cliente', 'Vendedor', 'Filial', 'Itens', 'Total', 'Status', 'Data']} empty={orders.length === 0}>
+          <Table
+            headers={['#', 'Cliente', 'Vendedor', 'Filial', 'Itens', 'Total', 'Status', 'Data']}
+            empty={orders.length === 0}
+            emptyTitle="Nenhum pedido ainda"
+            emptyDesc="Os pedidos criados pelos vendedores aparecerão aqui."
+          >
             {orders.map((o) => (
-              <tr key={o.id}>
-                <td className="px-4 py-3 text-gray-400 font-mono text-xs">{o.id.slice(0, 8)}</td>
-                <td className="px-4 py-3 font-medium text-gray-900">{o.customer.name}</td>
-                <td className="px-4 py-3 text-gray-500">{o.user.name}</td>
-                <td className="px-4 py-3 text-gray-500">{o.branch.name}</td>
-                <td className="px-4 py-3 text-center text-gray-600">{o.items.length}</td>
-                <td className="px-4 py-3 text-gray-700">R$ {Number(o.total).toFixed(2)}</td>
+              <tr key={o.id} className="hover:bg-[var(--bg-subtle)] transition-colors">
+                <td className="px-4 py-3 text-[var(--text-muted)] font-mono text-xs">{o.id.slice(0, 8)}</td>
+                <td className="px-4 py-3 font-medium text-[var(--text-primary)]">{o.customer.name}</td>
+                <td className="px-4 py-3 text-[var(--text-muted)]">{o.user.name}</td>
+                <td className="px-4 py-3 text-[var(--text-muted)]">{o.branch.name}</td>
+                <td className="px-4 py-3 text-center text-[var(--text-secondary)]">{o.items.length}</td>
+                <td className="px-4 py-3 text-[var(--text-secondary)]">R$ {Number(o.total).toFixed(2)}</td>
                 <td className="px-4 py-3"><OrderStatusBadge status={o.status} /></td>
-                <td className="px-4 py-3 text-gray-400 text-xs">{new Date(o.createdAt).toLocaleDateString('pt-BR')}</td>
+                <td className="px-4 py-3 text-[var(--text-muted)] text-xs">{new Date(o.createdAt).toLocaleDateString('pt-BR')}</td>
               </tr>
             ))}
           </Table>
@@ -273,62 +312,75 @@ export default function EmpresaPage() {
       )}
 
       {tab === 'protheus' && (
-        <div className="space-y-6">
+        <div className="space-y-4">
           {/* Config APIs */}
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-            <h2 className="text-sm font-semibold text-gray-700 mb-4">Configuração das APIs Protheus</h2>
+          <div className="bg-[var(--bg-surface)] rounded-xl shadow-card border border-[var(--border)] p-6">
+            <h2 className="text-sm font-semibold tracking-tight text-[var(--text-primary)] mb-4">Configuração das APIs Protheus</h2>
             <div className="grid grid-cols-2 gap-4 text-sm">
-              <ApiConfigRow label="Token (auth)" value={company.apiToken} />
-              <ApiConfigRow label="Produtos (GET)" value={company.apiPord} />
-              <ApiConfigRow label="Clientes (GET)" value={company.apiCliente} />
-              <ApiConfigRow label="Pedido (POST)" value={company.apiPedido} />
-              <ApiConfigRow label="Consulta pedido (GET)" value={company.apiConsPed} />
-              <ApiConfigRow label="Transportadoras (GET)" value={company.apiTransp} />
-              <ApiConfigRow label="Cond. pagamento (GET)" value={company.apiCondPag} />
-              <ApiConfigRow label="Meta vendedor (GET)" value={company.apiMetaVend} />
-              <ApiConfigRow label="Usuário Protheus" value={company.usrProtheus} />
-              <ApiConfigRow label="Senha Protheus" value={company.passProtheus ? '••••••••' : null} />
+              <ApiConfigRow label="Token (auth)"            value={company.apiToken} />
+              <ApiConfigRow label="Produtos (GET)"          value={company.apiPord} />
+              <ApiConfigRow label="Clientes (GET)"          value={company.apiCliente} />
+              <ApiConfigRow label="Pedido (POST)"           value={company.apiPedido} />
+              <ApiConfigRow label="Consulta pedido (GET)"   value={company.apiConsPed} />
+              <ApiConfigRow label="Transportadoras (GET)"   value={company.apiTransp} />
+              <ApiConfigRow label="Cond. pagamento (GET)"   value={company.apiCondPag} />
+              <ApiConfigRow label="Meta vendedor (GET)"     value={company.apiMetaVend} />
+              <ApiConfigRow label="Usuário Protheus"        value={company.usrProtheus} />
+              <ApiConfigRow label="Senha Protheus"          value={company.passProtheus ? '••••••••' : null} />
             </div>
           </div>
 
           {/* Sync Produtos */}
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+          <div className="bg-[var(--bg-surface)] rounded-xl shadow-card border border-[var(--border)] p-6">
             <div className="flex items-start justify-between">
               <div>
-                <h2 className="text-sm font-semibold text-gray-700">Sincronizar Produtos</h2>
-                <p className="text-xs text-gray-400 mt-1">Importa produtos via <code className="bg-gray-100 px-1 rounded">apiPord</code> e atualiza o catálogo da empresa.</p>
+                <h2 className="text-sm font-semibold tracking-tight text-[var(--text-primary)]">Sincronizar Produtos</h2>
+                <p className="text-xs text-[var(--text-muted)] mt-1">
+                  Importa produtos via <code className="bg-[var(--bg-subtle)] px-1 rounded text-[var(--text-secondary)]">apiPord</code> e atualiza o catálogo da empresa.
+                </p>
               </div>
               <button
                 onClick={syncProducts}
                 disabled={syncingProducts || !company.apiPord || !company.apiToken}
-                className="text-sm font-medium px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                className="text-sm font-medium px-4 py-2 rounded-lg bg-brand-600 text-white hover:bg-brand-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 {syncingProducts ? 'Sincronizando...' : 'Sincronizar Produtos'}
               </button>
             </div>
 
             {(!company.apiPord || !company.apiToken) && (
-              <p className="mt-3 text-xs text-yellow-600 bg-yellow-50 rounded-lg px-3 py-2">
-                Configure <strong>apiToken</strong> e <strong>apiPord</strong> para habilitar a sincronização.
-              </p>
+              <div className="mt-3 flex items-start gap-2 text-xs text-yellow-600 dark:text-yellow-400 bg-yellow-500/10 border border-yellow-500/20 rounded-lg px-3 py-2.5">
+                <svg className="w-3.5 h-3.5 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z" />
+                </svg>
+                Configure <strong className="mx-0.5">apiToken</strong> e <strong className="mx-0.5">apiPord</strong> para habilitar a sincronização.
+              </div>
             )}
 
             {syncResult && (
-              <div className="mt-4 p-4 bg-green-50 rounded-lg border border-green-200">
-                <p className="text-sm font-medium text-green-700">
-                  Sincronização concluída: {syncResult.synced} de {syncResult.total} produtos importados.
-                </p>
-                {syncResult.errors.length > 0 && (
-                  <ul className="mt-2 text-xs text-red-600 space-y-1 list-disc list-inside">
-                    {syncResult.errors.map((e, i) => <li key={i}>{e}</li>)}
-                  </ul>
-                )}
+              <div className="mt-4 flex items-start gap-2 p-3.5 bg-green-500/10 border border-green-500/20 rounded-lg">
+                <svg className="w-4 h-4 shrink-0 mt-0.5 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                </svg>
+                <div>
+                  <p className="text-sm font-medium text-green-600 dark:text-green-400">
+                    {syncResult.synced} de {syncResult.total} produtos sincronizados.
+                  </p>
+                  {syncResult.errors.length > 0 && (
+                    <ul className="mt-1.5 text-xs text-red-500 space-y-1 list-disc list-inside">
+                      {syncResult.errors.map((e, i) => <li key={i}>{e}</li>)}
+                    </ul>
+                  )}
+                </div>
               </div>
             )}
 
             {syncError && (
-              <div className="mt-4 p-4 bg-red-50 rounded-lg border border-red-200">
-                <p className="text-sm text-red-600">{syncError}</p>
+              <div className="mt-4 flex items-start gap-2 p-3.5 bg-red-500/10 border border-red-500/20 rounded-lg">
+                <svg className="w-4 h-4 shrink-0 mt-0.5 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z" />
+                </svg>
+                <p className="text-sm text-red-500">{syncError}</p>
               </div>
             )}
           </div>
@@ -347,11 +399,28 @@ export default function EmpresaPage() {
 
 // ─── Componentes auxiliares ───────────────────────────────────────────────────
 
+function PageSkeleton() {
+  return (
+    <div className="space-y-6 animate-skeleton-pulse">
+      <div className="h-6 w-48 bg-[var(--bg-subtle)] rounded" />
+      <div className="h-8 w-64 bg-[var(--bg-subtle)] rounded" />
+      <div className="grid grid-cols-4 gap-4">
+        {[0,1,2,3].map((i) => (
+          <div key={i} className="bg-[var(--bg-surface)] border border-[var(--border)] rounded-xl px-5 py-4 space-y-2">
+            <div className="h-3 w-16 bg-[var(--bg-subtle)] rounded" />
+            <div className="h-7 w-10 bg-[var(--bg-subtle)] rounded" />
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 function StatCard({ label, value, text }: { label: string; value: string | number; text?: boolean }) {
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-gray-200 px-5 py-4">
-      <p className="text-sm text-gray-500">{label}</p>
-      <p className={`mt-1 font-bold text-gray-900 ${text ? 'text-lg' : 'text-3xl'}`}>{value}</p>
+    <div className="bg-[var(--bg-surface)] rounded-xl shadow-card border border-[var(--border)] px-5 py-4">
+      <p className="text-xs font-medium text-[var(--text-muted)] uppercase tracking-wide">{label}</p>
+      <p className={`mt-1 font-bold text-[var(--text-primary)] ${text ? 'text-lg' : 'text-3xl tracking-tighter'}`}>{value}</p>
     </div>
   )
 }
@@ -361,32 +430,54 @@ function TabSection({ children, action }: { children: React.ReactNode; action?: 
     <div>
       {action && (
         <div className="flex justify-end mb-3">
-          <button onClick={action.onClick} className="text-sm text-blue-600 hover:underline">{action.label}</button>
+          <button
+            onClick={action.onClick}
+            className="text-sm font-medium text-brand-600 hover:text-brand-500 transition-colors"
+          >
+            {action.label}
+          </button>
         </div>
       )}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">{children}</div>
+      <div className="bg-[var(--bg-surface)] rounded-xl shadow-card border border-[var(--border)] overflow-hidden">
+        {children}
+      </div>
     </div>
   )
 }
 
-function Table({ headers, empty, children }: { headers: string[]; empty: boolean; children: React.ReactNode }) {
+function Table({
+  headers, empty, emptyTitle, emptyDesc, children,
+}: {
+  headers: string[]; empty: boolean; emptyTitle: string; emptyDesc: string; children: React.ReactNode
+}) {
+  if (empty) {
+    return (
+      <div className="flex flex-col items-center justify-center py-14 px-6 text-center gap-2">
+        <svg className="w-9 h-9 text-[var(--text-muted)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.25}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M20.25 7.5l-.625 10.632a2.25 2.25 0 0 1-2.247 2.118H6.622a2.25 2.25 0 0 1-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125Z" />
+        </svg>
+        <p className="font-semibold text-[var(--text-primary)] text-sm">{emptyTitle}</p>
+        <p className="text-xs text-[var(--text-muted)] max-w-xs">{emptyDesc}</p>
+      </div>
+    )
+  }
   return (
     <table className="w-full text-sm">
-      <thead className="bg-gray-50 border-b border-gray-200">
-        <tr>{headers.map((h) => <th key={h} className="text-left px-4 py-3 font-medium text-gray-600">{h}</th>)}</tr>
+      <thead className="bg-[var(--bg-subtle)] border-b border-[var(--border)]">
+        <tr>{headers.map((h) => (
+          <th key={h} className="text-left px-4 py-3 font-medium text-[var(--text-secondary)]">{h}</th>
+        ))}</tr>
       </thead>
-      <tbody className="divide-y divide-gray-100">
-        {empty ? (
-          <tr><td colSpan={headers.length} className="px-4 py-8 text-center text-gray-400">Nenhum registro encontrado.</td></tr>
-        ) : children}
-      </tbody>
+      <tbody className="divide-y divide-[var(--border)]">{children}</tbody>
     </table>
   )
 }
 
 function StatusBadge({ active }: { active: boolean }) {
   return (
-    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+      active ? 'bg-green-500/10 text-green-500' : 'bg-[var(--bg-subtle)] text-[var(--text-muted)]'
+    }`}>
       {active ? 'Ativo' : 'Inativo'}
     </span>
   )
@@ -394,15 +485,15 @@ function StatusBadge({ active }: { active: boolean }) {
 
 function OrderStatusBadge({ status }: { status: string }) {
   const styles: Record<string, string> = {
-    PENDING: 'bg-yellow-100 text-yellow-700',
-    SYNCED: 'bg-green-100 text-green-700',
-    CANCELLED: 'bg-red-100 text-red-500',
+    PENDING:   'bg-yellow-500/10 text-yellow-600 dark:text-yellow-400',
+    SYNCED:    'bg-green-500/10 text-green-600 dark:text-green-400',
+    CANCELLED: 'bg-red-500/10 text-red-500',
   }
   const labels: Record<string, string> = {
     PENDING: 'Pendente', SYNCED: 'Sincronizado', CANCELLED: 'Cancelado',
   }
   return (
-    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${styles[status] ?? 'bg-gray-100 text-gray-500'}`}>
+    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${styles[status] ?? 'bg-[var(--bg-subtle)] text-[var(--text-muted)]'}`}>
       {labels[status] ?? status}
     </span>
   )
@@ -412,7 +503,11 @@ function ToggleBtn({ active, onClick }: { active: boolean; onClick: () => void }
   return (
     <button
       onClick={onClick}
-      className={`text-xs font-medium px-3 py-1 rounded-lg border transition-colors ${active ? 'border-red-200 text-red-500 hover:bg-red-50' : 'border-green-200 text-green-600 hover:bg-green-50'}`}
+      className={`text-xs font-medium px-3 py-1 rounded-lg border transition-colors ${
+        active
+          ? 'border-red-500/20 text-red-500 hover:bg-red-500/10'
+          : 'border-green-500/20 text-green-500 hover:bg-green-500/10'
+      }`}
     >
       {active ? 'Desativar' : 'Ativar'}
     </button>
@@ -422,8 +517,8 @@ function ToggleBtn({ active, onClick }: { active: boolean; onClick: () => void }
 function ApiConfigRow({ label, value }: { label: string; value: string | null | undefined }) {
   return (
     <div className="flex flex-col gap-0.5">
-      <span className="text-xs text-gray-400">{label}</span>
-      <span className={`text-sm truncate ${value ? 'text-gray-700 font-mono' : 'text-gray-300'}`}>
+      <span className="text-xs text-[var(--text-muted)]">{label}</span>
+      <span className={`text-sm truncate font-mono ${value ? 'text-[var(--text-secondary)]' : 'text-[var(--border)]'}`}>
         {value ?? '—'}
       </span>
     </div>
