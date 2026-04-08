@@ -44,9 +44,17 @@ export async function rotateRefreshToken(oldToken: string) {
     throw new Error('Usuário inativo')
   }
 
-  // Rotação: invalida o token antigo e emite um novo
-  await prisma.refreshToken.delete({ where: { token: oldToken } })
-  const newToken = await createRefreshToken(existing.userId)
+  // Rotação atômica: invalida o token antigo e emite um novo na mesma transação
+  const newTokenValue = randomUUID()
+  const expiresAt = new Date()
+  expiresAt.setDate(expiresAt.getDate() + REFRESH_TOKEN_EXPIRES_DAYS)
+
+  await prisma.$transaction([
+    prisma.refreshToken.delete({ where: { token: oldToken } }),
+    prisma.refreshToken.create({ data: { token: newTokenValue, userId: existing.userId, expiresAt } }),
+  ])
+
+  const newToken = newTokenValue
 
   return { user: existing.user, newToken }
 }

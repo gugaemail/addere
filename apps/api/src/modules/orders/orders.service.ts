@@ -46,24 +46,29 @@ export async function createOrder(userId: string, companyId: string, input: Crea
 
   const productMap = new Map(products.map((p) => [p.id, p]))
 
-  // Calcula totais de cada item
+  // Calcula totais de cada item usando aritmética inteira (centavos) para evitar erros de float
   const itemsWithTotals = input.items.map((item) => {
     const product = productMap.get(item.productId)!
     const unitPrice = Number(product.price)
     const discount = item.discount ?? 0
-    const total = unitPrice * item.quantity * (1 - discount / 100)
+
+    // Trabalha em centavos e milésimos de unidade para manter precisão inteira
+    const priceCents      = Math.round(unitPrice * 100)
+    const qty1000         = Math.round(item.quantity * 1000)
+    const discountBP      = Math.round(discount * 100)          // basis points 0-10000
+    const totalCents      = Math.round(priceCents * qty1000 / 1000 * (10000 - discountBP) / 10000)
 
     return {
       productId: item.productId,
       quantity:  item.quantity,
       unitPrice,
       discount,
-      total:     Math.round(total * 100) / 100,
+      total:     totalCents / 100,
       descricao: item.descricao,
     }
   })
 
-  const orderTotal = itemsWithTotals.reduce((sum, i) => sum + i.total, 0)
+  const orderTotalCents = itemsWithTotals.reduce((sum, i) => sum + Math.round(i.total * 100), 0)
 
   return prisma.order.create({
     data: {
@@ -76,7 +81,7 @@ export async function createOrder(userId: string, companyId: string, input: Crea
       emissao:     input.emissao ? new Date(input.emissao) : undefined,
       mennota:     input.mennota,
       notes:       input.notes,
-      total:       Math.round(orderTotal * 100) / 100,
+      total:       orderTotalCents / 100,
       items:       { create: itemsWithTotals },
     },
     include: orderInclude,

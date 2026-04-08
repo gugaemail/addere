@@ -29,3 +29,24 @@ export function extractRecords(
   const value = obj[responseKey]
   return Array.isArray(value) ? (value as Record<string, unknown>[]) : []
 }
+
+/**
+ * Converte um valor de campo para string, retornando fallback se nulo/indefinido.
+ * Evita que objetos ou arrays virem "[object Object]".
+ */
+export function toStr(value: unknown, fallback = ''): string {
+  if (value === null || value === undefined) return fallback
+  if (typeof value === 'string') return value.trim()
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value)
+  return fallback // objetos, arrays — ignora e usa fallback
+}
+
+/**
+ * Converte um valor de campo para número.
+ * Retorna fallback se o valor não for numérico ou for NaN.
+ */
+export function toNum(value: unknown, fallback = 0): number {
+  if (value === null || value === undefined) return fallback
+  const n = typeof value === 'number' ? value : parseFloat(String(value).replace(',', '.'))
+  return Number.isFinite(n) ? n : fallback
+}

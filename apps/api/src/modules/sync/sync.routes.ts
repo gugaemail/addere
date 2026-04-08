@@ -1,5 +1,5 @@
 import { FastifyInstance } from 'fastify'
-import { authenticate } from '../../plugins/authenticate'
+import { authenticate } from '../../middleware/authenticate'
 import { syncProducts } from './sync.service'
 
 export default async function syncRoutes(app: FastifyInstance) {
@@ -18,7 +18,8 @@ export default async function syncRoutes(app: FastifyInstance) {
       const result = await syncProducts(companyId)
       return reply.send(result)
     } catch (err) {
-      return reply.status(502).send({ message: (err as Error).message })
+      app.log.error({ err }, 'Falha ao sincronizar produtos com Protheus')
+      return reply.status(502).send({ message: 'Erro ao comunicar com o Protheus. Verifique as configurações da empresa.' })
     }
   })
 }

@@ -23,8 +23,16 @@ function cookieOptions(secure: boolean) {
 export default async function authRoutes(app: FastifyInstance) {
   const isProduction = process.env.NODE_ENV === 'production'
 
-  // POST /auth/login
-  app.post('/login', async (request: FastifyRequest, reply: FastifyReply) => {
+  // POST /auth/login — rate limit: 10 tentativas por minuto por IP
+  app.post('/login', {
+    config: {
+      rateLimit: {
+        max: 10,
+        timeWindow: '1 minute',
+        errorResponseBuilder: () => ({ message: 'Muitas tentativas. Aguarde 1 minuto e tente novamente.' }),
+      },
+    },
+  }, async (request: FastifyRequest, reply: FastifyReply) => {
     const result = loginSchema.safeParse(request.body)
     if (!result.success) {
       return reply.status(400).send({ message: 'Dados inválidos', errors: result.error.flatten() })

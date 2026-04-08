@@ -1,4 +1,5 @@
 import Fastify, { FastifyInstance } from 'fastify'
+import rateLimit from '@fastify/rate-limit'
 import envPlugin from './plugins/env'
 import cookiePlugin from './plugins/cookie'
 import corsPlugin from './plugins/cors'
@@ -23,6 +24,9 @@ export async function buildApp(): Promise<FastifyInstance> {
   await app.register(cookiePlugin)
   await app.register(corsPlugin)
   await app.register(jwtPlugin)
+
+  // Rate limiting: desabilitado globalmente, ativado por rota onde necessário
+  await app.register(rateLimit, { global: false })
 
   // Rotas
   await app.register(authRoutes, { prefix: '/auth' })
