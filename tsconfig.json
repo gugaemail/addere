@@ -3,7 +3,9 @@
     "target": "ES2022",
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
-    "lib": ["ES2022"],
+    "lib": [
+      "ES2022"
+    ],
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
@@ -14,10 +16,19 @@
     "sourceMap": true,
     "baseUrl": ".",
     "paths": {
-      "@addere/types": ["packages/types/src/index.ts"],
-      "@addere/db": ["packages/db/src/index.ts"]
+      "@addere/types": [
+        "packages/types/src/index.ts"
+      ],
+      "@addere/db": [
+        "packages/db/src/index.ts"
+      ]
     },
     "composite": true
   },
-  "exclude": ["node_modules", "dist", "**/*.spec.ts", "**/*.test.ts"]
+  "exclude": [
+    "node_modules",
+    "dist",
+    "**/*.spec.ts",
+    "**/*.test.ts"
+  ]
 }

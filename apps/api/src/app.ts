@@ -1,5 +1,6 @@
 import Fastify, { FastifyInstance } from 'fastify'
 import rateLimit from '@fastify/rate-limit'
+import { prisma } from '@addere/db'
 import envPlugin from './plugins/env'
 import cookiePlugin from './plugins/cookie'
 import corsPlugin from './plugins/cors'
@@ -27,6 +28,16 @@ export async function buildApp(): Promise<FastifyInstance> {
 
   // Rate limiting: desabilitado globalmente, ativado por rota onde necessário
   await app.register(rateLimit, { global: false })
+
+  // GET /health — verifica conectividade real com o banco de dados
+  app.get('/health', async (_request, reply) => {
+    try {
+      await prisma.$queryRaw`SELECT 1`
+      return reply.send({ status: 'ok', db: 'connected' })
+    } catch {
+      return reply.status(503).send({ status: 'error', db: 'unreachable' })
+    }
+  })
 
   // Rotas
   await app.register(authRoutes, { prefix: '/auth' })

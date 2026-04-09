@@ -17,7 +17,9 @@ export default async function ordersRoutes(app: FastifyInstance) {
     const { companyId } = request.user
     if (!companyId) return reply.status(403).send({ message: 'Rota disponível apenas para usuários de uma empresa' })
     const { limit } = request.query as { limit?: string }
-    const orders = await listOrders(request.user.sub, companyId, limit ? Number(limit) : undefined)
+    const MAX_PAGE_SIZE = 500
+    const parsedLimit = limit ? Math.min(Number(limit), MAX_PAGE_SIZE) : undefined
+    const orders = await listOrders(request.user.sub, companyId, parsedLimit)
     return reply.send(orders)
   })
 

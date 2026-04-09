@@ -67,8 +67,16 @@ export default async function authRoutes(app: FastifyInstance) {
     }
   })
 
-  // POST /auth/refresh — emite novo access token usando o refresh token do cookie
-  app.post('/refresh', async (request: FastifyRequest, reply: FastifyReply) => {
+  // POST /auth/refresh — rate limit: 30 tentativas por minuto por IP
+  app.post('/refresh', {
+    config: {
+      rateLimit: {
+        max: 30,
+        timeWindow: '1 minute',
+        errorResponseBuilder: () => ({ message: 'Muitas tentativas. Aguarde 1 minuto e tente novamente.' }),
+      },
+    },
+  }, async (request: FastifyRequest, reply: FastifyReply) => {
     const token = request.cookies[COOKIE_NAME]
     if (!token) {
       return reply.status(401).send({ message: 'Refresh token ausente' })

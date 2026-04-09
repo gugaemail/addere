@@ -4,7 +4,7 @@ import { FastifyInstance } from 'fastify'
 
 export default fp(async (app: FastifyInstance) => {
   await app.register(cookie, {
-    // segredo para assinar cookies (usa o mesmo segredo do refresh token)
-    secret: process.env.JWT_REFRESH_SECRET ?? 'cookie-secret',
+    // segredo para assinar cookies (JWT_REFRESH_SECRET é validado como obrigatório pelo plugin env)
+    secret: process.env.JWT_REFRESH_SECRET!,
   })
 })
