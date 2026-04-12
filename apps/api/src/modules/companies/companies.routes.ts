@@ -90,14 +90,14 @@ const createProductSchema = z.object({
 const updateProductSchema = createProductSchema.partial()
 
 const updateProtheusSchema = z.object({
-  apiToken:     z.string().url().optional().or(z.literal('')),
-  apiPord:      z.string().url().optional().or(z.literal('')),
-  apiCliente:   z.string().url().optional().or(z.literal('')),
-  apiPedido:    z.string().url().optional().or(z.literal('')),
-  apiConsPed:   z.string().url().optional().or(z.literal('')),
-  apiCondPag:   z.string().url().optional().or(z.literal('')),
-  apiTransp:    z.string().url().optional().or(z.literal('')),
-  apiMetaVend:  z.string().url().optional().or(z.literal('')),
+  apiToken:     z.string().optional(),
+  apiPord:      z.string().optional(),
+  apiCliente:   z.string().optional(),
+  apiPedido:    z.string().optional(),
+  apiConsPed:   z.string().optional(),
+  apiCondPag:   z.string().optional(),
+  apiTransp:    z.string().optional(),
+  apiMetaVend:  z.string().optional(),
   usrProtheus:  z.string().optional(),
   passProtheus: z.string().optional(),
   syncConfig:   z.record(z.unknown()).optional(),

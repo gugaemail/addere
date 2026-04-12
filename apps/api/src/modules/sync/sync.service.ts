@@ -1,5 +1,5 @@
 import { prisma } from '@addere/db'
-import { protheusGet, CompanyCredentials } from './protheus.client'
+import { protheusGet, protheusPost, CompanyCredentials } from './protheus.client'
 import { mapRecord, extractRecords, toStr, toNum } from './field-mapper'
 import { DEFAULT_MAPPINGS } from './default-mappings'
 import { decryptCredential } from '../../lib/protheus-crypto'
@@ -37,7 +37,11 @@ export async function syncProducts(companyId: string) {
   const config = creds.syncConfig as Record<string, unknown> | null
   const mapping = (config?.products as typeof DEFAULT_MAPPINGS.products | undefined) ?? DEFAULT_MAPPINGS.products
 
-  const rawResponse = await protheusGet(companyId, company.apiPord, creds)
+  const method = (config?.products as Record<string, unknown> | undefined)?.method as string | undefined
+  const body   = (config?.products as Record<string, unknown> | undefined)?.body ?? {}
+  const rawResponse = method === 'POST'
+    ? await protheusPost(companyId, company.apiPord, body, creds)
+    : await protheusGet(companyId, company.apiPord, creds)
   const records = extractRecords(rawResponse, mapping.responseKey)
 
   const errors: string[] = []
@@ -124,7 +128,11 @@ export async function syncCustomers(companyId: string) {
   const config = creds.syncConfig as Record<string, unknown> | null
   const mapping = (config?.customers as typeof DEFAULT_MAPPINGS.customers | undefined) ?? DEFAULT_MAPPINGS.customers
 
-  const rawResponse = await protheusGet(companyId, company.apiCliente, creds)
+  const custMethod = (config?.customers as Record<string, unknown> | undefined)?.method as string | undefined
+  const custBody   = (config?.customers as Record<string, unknown> | undefined)?.body ?? {}
+  const rawResponse = custMethod === 'POST'
+    ? await protheusPost(companyId, company.apiCliente, custBody, creds)
+    : await protheusGet(companyId, company.apiCliente, creds)
   const records = extractRecords(rawResponse, mapping.responseKey)
 
   const errors: string[] = []

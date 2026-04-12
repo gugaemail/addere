@@ -358,7 +358,14 @@ export function ProtheusConfigModal({ company, onClose, onSaved }: ProtheusConfi
       const { data } = await api.patch<CompanyProtheus>(`/companies/${company.id}/protheus`, body)
       onSaved(data)
     } catch (err: unknown) {
-      setError((err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? 'Erro ao salvar configuração.')
+      const e = err as { response?: { status?: number; data?: { message?: string } }; message?: string }
+      const apiMsg = e.response?.data?.message
+      const status = e.response?.status
+      if (apiMsg) {
+        setError(status ? `[${status}] ${apiMsg}` : apiMsg)
+      } else {
+        setError(e.message ?? 'Erro ao salvar configuração. Verifique a conexão com a API.')
+      }
     } finally {
       setLoading(false)
     }
@@ -368,14 +375,14 @@ export function ProtheusConfigModal({ company, onClose, onSaved }: ProtheusConfi
     <Modal title="Configuração Protheus" onClose={onClose}>
       <form onSubmit={handleSubmit} className="space-y-3 max-h-[70vh] overflow-y-auto pr-1">
         <p className="text-xs text-[var(--text-muted)]">Deixe em branco para remover o valor configurado.</p>
-        <Field label="Token (auth)" value={apiToken} onChange={setApiToken} placeholder="https://..." />
-        <Field label="Produtos (GET)" value={apiPord} onChange={setApiPord} placeholder="https://..." />
-        <Field label="Clientes (GET)" value={apiCliente} onChange={setApiCliente} placeholder="https://..." />
-        <Field label="Pedido (POST)" value={apiPedido} onChange={setApiPedido} placeholder="https://..." />
-        <Field label="Consulta pedido (GET)" value={apiConsPed} onChange={setApiConsPed} placeholder="https://..." />
-        <Field label="Transportadoras (GET)" value={apiTransp} onChange={setApiTransp} placeholder="https://..." />
-        <Field label="Cond. pagamento (GET)" value={apiCondPag} onChange={setApiCondPag} placeholder="https://..." />
-        <Field label="Meta vendedor (GET)" value={apiMetaVend} onChange={setApiMetaVend} placeholder="https://..." />
+        <Field label="Token de autenticação (POST)" value={apiToken} onChange={setApiToken} placeholder="http://..." />
+        <Field label="Produtos (POST)" value={apiPord} onChange={setApiPord} placeholder="http://..." />
+        <Field label="Clientes (GET)" value={apiCliente} onChange={setApiCliente} placeholder="http://..." />
+        <Field label="Pedido (POST)" value={apiPedido} onChange={setApiPedido} placeholder="http://..." />
+        <Field label="Consulta pedido (GET)" value={apiConsPed} onChange={setApiConsPed} placeholder="http://..." />
+        <Field label="Transportadoras (GET)" value={apiTransp} onChange={setApiTransp} placeholder="http://..." />
+        <Field label="Cond. pagamento (GET)" value={apiCondPag} onChange={setApiCondPag} placeholder="http://..." />
+        <Field label="Meta vendedor (GET)" value={apiMetaVend} onChange={setApiMetaVend} placeholder="http://..." />
         <div className="border-t border-[var(--border)] pt-3 space-y-3">
           <Field label="Usuário Protheus" value={usrProtheus} onChange={setUsrProtheus} placeholder="usuario" />
           <div>

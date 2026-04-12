@@ -454,8 +454,8 @@ export default function EmpresaPage() {
               </button>
             </div>
             <div className="grid grid-cols-2 gap-4 text-sm">
-              <ApiConfigRow label="Token (auth)"            value={company.apiToken} />
-              <ApiConfigRow label="Produtos (GET)"          value={company.apiPord} />
+              <ApiConfigRow label="Token (auth) POST"        value={company.apiToken} />
+              <ApiConfigRow label="Produtos (POST)"         value={company.apiPord} />
               <ApiConfigRow label="Clientes (GET)"          value={company.apiCliente} />
               <ApiConfigRow label="Pedido (POST)"           value={company.apiPedido} />
               <ApiConfigRow label="Consulta pedido (GET)"   value={company.apiConsPed} />
