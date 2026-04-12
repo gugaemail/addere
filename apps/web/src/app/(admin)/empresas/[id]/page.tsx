@@ -7,8 +7,9 @@ import { CreateBranchModal } from './CreateBranchModal'
 import { CreateUserModal } from './CreateUserModal'
 import {
   BranchModal, UserModal, CustomerModal, ProductModal,
-  ProtheusConfigModal, ActionMenu,
+  ActionMenu,
 } from './EntityModals'
+import { ProtheusConfigForm } from './ProtheusConfigForm'
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -75,8 +76,6 @@ export default function EmpresaPage() {
   const [userModal,     setUserModal]     = useState<ModalState<User>>(null)
   const [customerModal, setCustomerModal] = useState<ModalState<Customer>>(null)
   const [productModal,  setProductModal]  = useState<ModalState<Product>>(null)
-  const [showProtheusModal, setShowProtheusModal] = useState(false)
-
   // Sync
   const [syncingProducts,  setSyncingProducts]  = useState(false)
   const [syncingCustomers, setSyncingCustomers] = useState(false)
@@ -443,29 +442,13 @@ export default function EmpresaPage() {
       {tab === 'protheus' && (
         <div className="space-y-4">
           {/* Config APIs */}
-          <div className="bg-[var(--bg-surface)] rounded-xl shadow-card border border-[var(--border)] p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-sm font-semibold tracking-tight text-[var(--text-primary)]">Configuração das APIs Protheus</h2>
-              <button
-                onClick={() => setShowProtheusModal(true)}
-                className="text-sm font-medium px-4 py-2 rounded-lg border border-brand-500/30 text-brand-500 hover:bg-brand-500/10 transition-colors"
-              >
-                Editar configuração
-              </button>
-            </div>
-            <div className="grid grid-cols-2 gap-4 text-sm">
-              <ApiConfigRow label="Token (auth) POST"        value={company.apiToken} />
-              <ApiConfigRow label="Produtos (POST)"         value={company.apiPord} />
-              <ApiConfigRow label="Clientes (GET)"          value={company.apiCliente} />
-              <ApiConfigRow label="Pedido (POST)"           value={company.apiPedido} />
-              <ApiConfigRow label="Consulta pedido (GET)"   value={company.apiConsPed} />
-              <ApiConfigRow label="Transportadoras (GET)"   value={company.apiTransp} />
-              <ApiConfigRow label="Cond. pagamento (GET)"   value={company.apiCondPag} />
-              <ApiConfigRow label="Meta vendedor (GET)"     value={company.apiMetaVend} />
-              <ApiConfigRow label="Usuário Protheus"        value={company.usrProtheus} />
-              <ApiConfigRow label="Senha Protheus"          value={company.passProtheus ? '••••••••' : null} />
-            </div>
-          </div>
+          <ProtheusConfigForm
+            company={company}
+            onSaved={(updated) => {
+              setCompany((prev) => prev ? { ...prev, ...updated } : prev)
+              fetchCompany()
+            }}
+          />
 
           {/* Resultado / erro do sync (compartilhado) */}
           {syncResult && (
@@ -569,17 +552,6 @@ export default function EmpresaPage() {
           product={productModal.item}
           onClose={() => setProductModal(null)}
           onSaved={() => { setProductModal(null); fetchProducts() }}
-        />
-      )}
-      {showProtheusModal && (
-        <ProtheusConfigModal
-          company={company}
-          onClose={() => setShowProtheusModal(false)}
-          onSaved={(updated) => {
-            setShowProtheusModal(false)
-            setCompany((prev) => prev ? { ...prev, ...updated } : prev)
-            fetchCompany()
-          }}
         />
       )}
     </div>
@@ -688,16 +660,6 @@ function OrderStatusBadge({ status }: { status: string }) {
   )
 }
 
-function ApiConfigRow({ label, value }: { label: string; value: string | null | undefined }) {
-  return (
-    <div className="flex flex-col gap-0.5">
-      <span className="text-xs text-[var(--text-muted)]">{label}</span>
-      <span className={`text-sm truncate font-mono ${value ? 'text-[var(--text-secondary)]' : 'text-[var(--border)]'}`}>
-        {value ?? '—'}
-      </span>
-    </div>
-  )
-}
 
 function SyncCard({
   title, description, disabled, loading, missingFields, onSync, btnLabel,
