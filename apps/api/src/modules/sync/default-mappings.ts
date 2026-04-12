@@ -3,14 +3,17 @@
 
 export const DEFAULT_MAPPINGS = {
   products: {
-    responseKey: 'data',
+    // Formato padrão: POST com paginação, resposta { paginas, produtos: [...] }
+    // preco e estoque são strings JSON: {"atual":0,"moeda":"BRL"} / {"quantidade":0,"localizacao":"0101"}
+    // O parse desses campos é feito diretamente em sync.service.ts (não pelo field-mapper)
+    responseKey: 'produtos',
     fields: {
-      protheusCode: 'B1_COD',
-      name:         'B1_DESC',
-      price:        'B1_PRE1',
-      unit:         'B1_UM',
-      stock:        'B1_ESTQ',
-      saldo:        'B1_SALDO',
+      protheusCode: 'id',
+      name:         'nome',
+      price:        'preco',    // string JSON → .atual
+      unit:         '',         // não retornado pela API (usa 'UN' como padrão)
+      stock:        'estoque',  // string JSON → .quantidade
+      saldo:        'estoque',
     },
   },
   customers: {

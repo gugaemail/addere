@@ -28,58 +28,89 @@ function getCredentials(company: {
 
 // ─── Sync Produtos ────────────────────────────────────────────────────────────
 
+const SYNC_PRODUCTS_PAGE_SIZE = 50
+
+type ProductData = {
+  protheusCode: string
+  name: string
+  price: number
+  unit: string
+  stock: number
+  saldo: number
+}
+
+/** Tenta parsear um campo que pode ser string JSON ou já um objeto */
+function parseJsonField(value: unknown): Record<string, unknown> {
+  if (typeof value === 'string') {
+    try { return JSON.parse(value) as Record<string, unknown> } catch { return {} }
+  }
+  if (typeof value === 'object' && value !== null) return value as Record<string, unknown>
+  return {}
+}
+
 export async function syncProducts(companyId: string) {
-  const company = await prisma.company.findUniqueOrThrow({ where: { id: companyId } })
+  const company = await prisma.company.findUniqueOrThrow({
+    where: { id: companyId },
+    include: { branches: { where: { active: true }, take: 1 } },
+  })
 
   if (!company.apiPord) throw new Error('URL apiPord não configurada')
 
-  const creds = getCredentials(company)
-  const config = creds.syncConfig as Record<string, unknown> | null
-  const mapping = (config?.products as typeof DEFAULT_MAPPINGS.products | undefined) ?? DEFAULT_MAPPINGS.products
+  const branch = company.branches[0]
+  if (!branch) throw new Error('Nenhuma filial ativa encontrada para a empresa')
+  if (!branch.idProtheus) throw new Error('Filial sem código Protheus configurado')
 
-  const method = (config?.products as Record<string, unknown> | undefined)?.method as string | undefined
-  const body   = (config?.products as Record<string, unknown> | undefined)?.body ?? {}
-  const rawResponse = method === 'POST'
-    ? await protheusPost(companyId, company.apiPord, body, creds)
-    : await protheusGet(companyId, company.apiPord, creds)
-  const records = extractRecords(rawResponse, mapping.responseKey)
-
+  const filial = branch.idProtheus
+  const creds  = getCredentials(company)
   const errors: string[] = []
-
-  // Mapeia todos os registros e filtra os sem protheusCode antes de ir ao banco
-  type ProductData = {
-    protheusCode: string
-    name: string
-    price: number
-    unit: string
-    stock: number
-    saldo: number
-  }
-
   const validRecords: ProductData[] = []
 
-  for (const raw of records) {
-    const mapped = mapRecord(raw, mapping.fields)
-    const protheusCode = toStr(mapped['protheusCode'])
-    if (!protheusCode) continue
+  let deslocamento = 1
+  let totalRecords = 0
 
-    const price = toNum(mapped['price'])
-    const stock = toNum(mapped['stock'])
-    const saldo = toNum(mapped['saldo'])
-
-    if (!Number.isFinite(price) || !Number.isFinite(stock) || !Number.isFinite(saldo)) {
-      errors.push(`protheusCode=${protheusCode}: valor numérico inválido no registro`)
-      continue
+  // Loop de paginação: busca páginas até esgotar todos os registros
+  while (true) {
+    const body = {
+      limite:      SYNC_PRODUCTS_PAGE_SIZE,
+      deslocamento,
+      B2_FILIAL:   filial,
+      DA1_FILIAL:  filial,
+      INTERV:      0,
     }
 
-    validRecords.push({
-      protheusCode,
-      name:  toStr(mapped['name'], protheusCode),
-      price,
-      unit:  toStr(mapped['unit'], 'UN'),
-      stock,
-      saldo,
-    })
+    const rawResponse = await protheusPost(companyId, company.apiPord, body, creds) as Record<string, unknown>
+
+    // Extrai paginação e lista de produtos do retorno
+    const paginas  = (rawResponse['paginas']  ?? {}) as Record<string, unknown>
+    const produtos = Array.isArray(rawResponse['produtos']) ? rawResponse['produtos'] as Record<string, unknown>[] : []
+
+    if (deslocamento === 1) {
+      totalRecords = toNum(paginas['total'])
+    }
+
+    for (const raw of produtos) {
+      const protheusCode = toStr(raw['id'])
+      if (!protheusCode) continue
+
+      const precoObj   = parseJsonField(raw['preco'])
+      const estoqueObj = parseJsonField(raw['estoque'])
+
+      const price = toNum(precoObj['atual'])
+      const stock = toNum(estoqueObj['quantidade'])
+
+      validRecords.push({
+        protheusCode,
+        name:  toStr(raw['nome'], protheusCode),
+        price: Number.isFinite(price) ? price : 0,
+        unit:  'UN',
+        stock: Number.isFinite(stock) ? stock : 0,
+        saldo: Number.isFinite(stock) ? stock : 0,
+      })
+    }
+
+    // Avança para próxima página ou encerra o loop
+    if (produtos.length < SYNC_PRODUCTS_PAGE_SIZE) break
+    deslocamento += SYNC_PRODUCTS_PAGE_SIZE
   }
 
   // Executa todos os upserts em uma única transação para reduzir round-trips
@@ -114,7 +145,7 @@ export async function syncProducts(companyId: string) {
     errors.push(`Erro na transação em lote: ${err.message}`)
   })
 
-  return { synced, total: records.length, errors }
+  return { synced, total: totalRecords || validRecords.length, errors }
 }
 
 // ─── Sync Clientes ────────────────────────────────────────────────────────────
