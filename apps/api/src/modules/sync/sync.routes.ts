@@ -5,17 +5,14 @@ import { syncProducts, syncCustomers } from './sync.service'
 export default async function syncRoutes(app: FastifyInstance) {
   // POST /sync/products — importa produtos do Protheus (ADMIN ou SUPERADMIN)
   app.post('/products', { preHandler: authenticate }, async (request, reply) => {
-    const { companyId: tokenCompanyId, role } = request.user as { companyId: string | null; role: string }
-    const { companyId: bodyCompanyId } = (request.body ?? {}) as { companyId?: string }
+    const { role } = request.user as { role: string }
+    const { companyId } = (request.body ?? {}) as { companyId?: string }
 
     if (role === 'SALESPERSON') {
       return reply.status(403).send({ message: 'Acesso negado' })
     }
-
-    // SUPERADMIN pode informar o companyId pelo body; ADMIN usa o do próprio token
-    const companyId = tokenCompanyId ?? bodyCompanyId ?? null
     if (!companyId) {
-      return reply.status(400).send({ message: 'Empresa não associada ao usuário' })
+      return reply.status(400).send({ message: 'companyId é obrigatório' })
     }
 
     try {
@@ -29,17 +26,14 @@ export default async function syncRoutes(app: FastifyInstance) {
 
   // POST /sync/customers — importa clientes do Protheus (ADMIN ou SUPERADMIN)
   app.post('/customers', { preHandler: authenticate }, async (request, reply) => {
-    const { companyId: tokenCompanyId, role } = request.user as { companyId: string | null; role: string }
-    const { companyId: bodyCompanyId } = (request.body ?? {}) as { companyId?: string }
+    const { role } = request.user as { role: string }
+    const { companyId } = (request.body ?? {}) as { companyId?: string }
 
     if (role === 'SALESPERSON') {
       return reply.status(403).send({ message: 'Acesso negado' })
     }
-
-    // SUPERADMIN pode informar o companyId pelo body; ADMIN usa o do próprio token
-    const companyId = tokenCompanyId ?? bodyCompanyId ?? null
     if (!companyId) {
-      return reply.status(400).send({ message: 'Empresa não associada ao usuário' })
+      return reply.status(400).send({ message: 'companyId é obrigatório' })
     }
 
     try {
