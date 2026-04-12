@@ -478,15 +478,25 @@ export default function EmpresaPage() {
           )}
 
           {/* Sync Produtos */}
-          <SyncCard
-            title="Sincronizar Produtos"
-            description={<>Importa produtos via <code className="bg-[var(--bg-subtle)] px-1 rounded text-[var(--text-secondary)]">apiPord</code> e atualiza o catálogo da empresa.</>}
-            disabled={syncingProducts || !company.apiPord || !company.apiToken}
-            loading={syncingProducts}
-            missingFields={!company.apiPord || !company.apiToken ? 'Configure apiToken e apiPord para habilitar.' : undefined}
-            onSync={syncProducts}
-            btnLabel="Sincronizar Produtos"
-          />
+          {(() => {
+            const hasActiveBranch = company.branches.some((b) => b.active && b.idProtheus)
+            const missingProd = !company.apiPord || !company.apiToken
+              ? 'Configure apiToken e apiPord para habilitar.'
+              : !hasActiveBranch
+              ? 'Nenhuma filial ativa com Código Protheus configurado (aba Filiais).'
+              : undefined
+            return (
+              <SyncCard
+                title="Sincronizar Produtos"
+                description={<>Importa produtos via <code className="bg-[var(--bg-subtle)] px-1 rounded text-[var(--text-secondary)]">apiPord</code> e atualiza o catálogo da empresa.</>}
+                disabled={syncingProducts || !!missingProd}
+                loading={syncingProducts}
+                missingFields={missingProd}
+                onSync={syncProducts}
+                btnLabel="Sincronizar Produtos"
+              />
+            )
+          })()}
 
           {/* Sync Clientes */}
           <SyncCard
