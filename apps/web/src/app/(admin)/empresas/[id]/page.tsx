@@ -81,6 +81,10 @@ export default function EmpresaPage() {
   const [syncingCustomers, setSyncingCustomers] = useState(false)
   const [syncResult,  setSyncResult]  = useState<{ entity: string; result: SyncResult } | null>(null)
   const [syncError,   setSyncError]   = useState<{ entity: string; msg: string } | null>(null)
+  // Teste de token
+  const [testingToken,    setTestingToken]    = useState(false)
+  const [tokenTestResult, setTokenTestResult] = useState<unknown>(null)
+  const [showTokenModal,  setShowTokenModal]  = useState(false)
 
   async function fetchCompany() {
     const { data } = await api.get<CompanyDetail>(`/companies/${id}`)
@@ -159,6 +163,21 @@ export default function EmpresaPage() {
       const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? 'Erro ao sincronizar'
       setSyncError({ entity: 'clientes', msg })
     } finally { setSyncingCustomers(false) }
+  }
+
+  async function testToken() {
+    setTestingToken(true)
+    setTokenTestResult(null)
+    try {
+      const { data } = await api.post('/sync/test-token', { companyId: id })
+      setTokenTestResult(data)
+    } catch (err: unknown) {
+      const e = err as { response?: { data?: unknown }; message: string }
+      setTokenTestResult(e.response?.data ?? { error: e.message })
+    } finally {
+      setTestingToken(false)
+      setShowTokenModal(true)
+    }
   }
 
   if (loading) return <PageSkeleton />
@@ -477,6 +496,29 @@ export default function EmpresaPage() {
             </div>
           )}
 
+          {/* Testar Token */}
+          <div className="p-4 rounded-xl border border-[var(--border)] bg-[var(--bg-subtle)] flex items-center justify-between gap-4">
+            <div>
+              <p className="text-sm font-medium text-[var(--text-primary)]">Testar autenticação Protheus</p>
+              <p className="text-xs text-[var(--text-muted)] mt-0.5">
+                Chama o endpoint <code className="bg-[var(--surface)] px-1 rounded">apiToken</code> e exibe a resposta bruta para diagnóstico.
+              </p>
+            </div>
+            <button
+              onClick={testToken}
+              disabled={testingToken || !company.apiToken || !company.usrProtheus || !company.passProtheus}
+              className="shrink-0 px-4 py-2 rounded-lg text-sm font-medium bg-brand-500 text-white hover:bg-brand-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+            >
+              {testingToken && (
+                <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+                </svg>
+              )}
+              {testingToken ? 'Testando…' : 'Testar Token'}
+            </button>
+          </div>
+
           {/* Sync Produtos */}
           {(() => {
             const hasActiveBranch = company.branches.some((b) => b.active && b.idProtheus)
@@ -563,6 +605,53 @@ export default function EmpresaPage() {
           onClose={() => setProductModal(null)}
           onSaved={() => { setProductModal(null); fetchProducts() }}
         />
+      )}
+
+      {/* ── Modal resultado do teste de token ── */}
+      {showTokenModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="w-full max-w-2xl bg-[var(--surface)] border border-[var(--border)] rounded-2xl shadow-2xl flex flex-col max-h-[80vh]">
+            {/* Header */}
+            <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--border)]">
+              <div className="flex items-center gap-2">
+                {(tokenTestResult as { ok?: boolean })?.ok === false ? (
+                  <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-red-500">
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z" />
+                    </svg>
+                    Falha na autenticação
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-green-500">
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                    </svg>
+                    Token obtido com sucesso
+                  </span>
+                )}
+                {(tokenTestResult as { ms?: number })?.ms != null && (
+                  <span className="text-xs text-[var(--text-muted)]">
+                    {(tokenTestResult as { ms: number }).ms} ms
+                  </span>
+                )}
+              </div>
+              <button
+                onClick={() => setShowTokenModal(false)}
+                className="p-1.5 rounded-lg hover:bg-[var(--bg-subtle)] text-[var(--text-muted)] transition-colors"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            {/* Body */}
+            <div className="overflow-auto p-4">
+              <pre className="text-xs font-mono text-[var(--text-secondary)] bg-[var(--bg-subtle)] rounded-xl p-4 whitespace-pre-wrap break-all">
+                {JSON.stringify(tokenTestResult, null, 2)}
+              </pre>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )

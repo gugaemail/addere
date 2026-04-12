@@ -95,6 +95,57 @@ export default async function syncRoutes(app: FastifyInstance) {
     return reply.send(result)
   })
 
+  // POST /sync/test-token — testa a chamada de autenticação Protheus e retorna resposta bruta
+  app.post('/test-token', { preHandler: authenticate }, async (request, reply) => {
+    const { role } = request.user as { role: string }
+    const { companyId } = (request.body ?? {}) as { companyId?: string }
+
+    if (role === 'SALESPERSON') {
+      return reply.status(403).send({ message: 'Acesso negado' })
+    }
+    if (!companyId) {
+      return reply.status(400).send({ message: 'companyId é obrigatório' })
+    }
+
+    const company = await prisma.company.findUnique({ where: { id: companyId } })
+    if (!company) return reply.status(404).send({ message: 'Empresa não encontrada' })
+
+    if (!company.apiToken || !company.usrProtheus || !company.passProtheus) {
+      return reply.status(422).send({ message: 'Configure apiToken, usrProtheus e passProtheus antes de testar.' })
+    }
+
+    try {
+      const senha = decryptCredential(company.passProtheus)
+      const params = new URLSearchParams()
+      params.set('grant_type', 'password')
+      params.set('username', company.usrProtheus)
+      params.set('password', senha)
+
+      const t0 = Date.now()
+      const tokenRes = await axios.post(company.apiToken, params, {
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        timeout: 15000,
+      })
+      const ms = Date.now() - t0
+
+      return reply.send({
+        ok: true,
+        status: tokenRes.status,
+        ms,
+        data: tokenRes.data,
+      })
+    } catch (err: unknown) {
+      const e = err as { response?: { status: number; data: unknown }; message: string }
+      return reply.send({
+        ok: false,
+        status: e.response?.status ?? null,
+        ms: null,
+        error: e.message,
+        data: e.response?.data ?? null,
+      })
+    }
+  })
+
   // POST /sync/products — importa produtos do Protheus (ADMIN ou SUPERADMIN)
   app.post('/products', { preHandler: authenticate }, async (request, reply) => {
     const { role } = request.user as { role: string }
