@@ -22,13 +22,18 @@ async function getToken(companyId: string, creds: CompanyCredentials): Promise<s
   const cached = tokenCache.get(companyId)
   if (cached && cached.expiresAt > new Date()) return cached.token
 
-  const response = await axios.post(creds.apiToken, {
-    username: creds.usrProtheus,
-    password: creds.passProtheus,
+  // OAuth2 password grant — envia como form-urlencoded (padrão Protheus)
+  const params = new URLSearchParams()
+  params.set('grant_type', 'password')
+  params.set('username', creds.usrProtheus)
+  params.set('password', creds.passProtheus)
+
+  const response = await axios.post(creds.apiToken, params, {
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
   })
 
-  // Campo do token configurável via syncConfig.tokenField (padrão: 'token')
-  const tokenField = (creds.syncConfig?.tokenField as string | undefined) ?? 'token'
+  // Campo do token configurável via syncConfig.tokenField (padrão OAuth2: 'access_token')
+  const tokenField = (creds.syncConfig?.tokenField as string | undefined) ?? 'access_token'
   const token = response.data[tokenField] as string | undefined
 
   if (!token) throw new Error(`Token não encontrado na resposta (campo esperado: "${tokenField}")`)
