@@ -5,6 +5,10 @@ import { useParams, useRouter } from 'next/navigation'
 import { api } from '@/lib/api'
 import { CreateBranchModal } from './CreateBranchModal'
 import { CreateUserModal } from './CreateUserModal'
+import {
+  BranchModal, UserModal, CustomerModal, ProductModal,
+  ProtheusConfigModal, ActionMenu,
+} from './EntityModals'
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -16,11 +20,13 @@ interface User {
 }
 interface Customer {
   id: string; name: string; document: string | null; email: string | null; phone: string | null
-  protheusCode: string | null; active: boolean; createdAt: string
+  protheusCode: string | null; loja: string | null; address: string | null
+  municipio: string | null; bairro: string | null; cep: string | null; uf: string | null
+  active: boolean; createdAt: string
 }
 interface Product {
   id: string; name: string; protheusCode: string | null; price: string; unit: string
-  stock: string; active: boolean
+  stock: string; saldo: string; description: string | null; active: boolean
 }
 interface OrderItem {
   id: string; quantity: string; unitPrice: string; discount: string; total: string
@@ -28,6 +34,7 @@ interface OrderItem {
 }
 interface Order {
   id: string; status: string; total: string; notes: string | null; createdAt: string
+  protheusOrderId: string | null; syncedAt: string | null
   customer: { id: string; name: string }
   user: { id: string; name: string }
   branch: { id: string; name: string }
@@ -41,58 +48,67 @@ interface CompanyDetail {
   apiCondPag: string | null; apiTransp: string | null
   usrProtheus: string | null; passProtheus: string | null
 }
-
-interface SyncResult {
-  synced: number; total: number; errors: string[]
-}
+interface SyncResult { synced: number; total: number; errors: string[] }
 
 type Tab = 'filiais' | 'usuarios' | 'clientes' | 'produtos' | 'pedidos' | 'protheus'
+type ModalState<T> = { mode: 'create' | 'edit' | 'copy'; item?: T } | null
 
 // ─── Página ───────────────────────────────────────────────────────────────────
 
 export default function EmpresaPage() {
   const { id } = useParams<{ id: string }>()
   const router = useRouter()
-  const [company, setCompany] = useState<CompanyDetail | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [tab, setTab] = useState<Tab>('filiais')
+  const [company,  setCompany]  = useState<CompanyDetail | null>(null)
+  const [loading,  setLoading]  = useState(true)
+  const [tab,      setTab]      = useState<Tab>('filiais')
   const [customers, setCustomers] = useState<Customer[]>([])
-  const [products, setProducts] = useState<Product[]>([])
-  const [orders, setOrders] = useState<Order[]>([])
+  const [products,  setProducts]  = useState<Product[]>([])
+  const [orders,    setOrders]    = useState<Order[]>([])
+  const [expandedOrder, setExpandedOrder] = useState<string | null>(null)
+
+  // Modais legados (criar)
   const [showBranchModal, setShowBranchModal] = useState(false)
-  const [showUserModal, setShowUserModal] = useState(false)
-  const [syncingProducts, setSyncingProducts] = useState(false)
-  const [syncResult, setSyncResult] = useState<SyncResult | null>(null)
-  const [syncError, setSyncError] = useState<string | null>(null)
+  const [showUserModal,   setShowUserModal]   = useState(false)
+
+  // Modais de entidade (editar/copiar/criar)
+  const [branchModal,   setBranchModal]   = useState<ModalState<Branch>>(null)
+  const [userModal,     setUserModal]     = useState<ModalState<User>>(null)
+  const [customerModal, setCustomerModal] = useState<ModalState<Customer>>(null)
+  const [productModal,  setProductModal]  = useState<ModalState<Product>>(null)
+  const [showProtheusModal, setShowProtheusModal] = useState(false)
+
+  // Sync
+  const [syncingProducts,  setSyncingProducts]  = useState(false)
+  const [syncingCustomers, setSyncingCustomers] = useState(false)
+  const [syncResult,  setSyncResult]  = useState<{ entity: string; result: SyncResult } | null>(null)
+  const [syncError,   setSyncError]   = useState<{ entity: string; msg: string } | null>(null)
 
   async function fetchCompany() {
     const { data } = await api.get<CompanyDetail>(`/companies/${id}`)
     setCompany(data)
     setLoading(false)
   }
-
   async function fetchCustomers() {
     const { data } = await api.get<Customer[]>(`/companies/${id}/customers`)
     setCustomers(data)
   }
-
   async function fetchProducts() {
     const { data } = await api.get<Product[]>(`/companies/${id}/products`)
     setProducts(data)
   }
-
   async function fetchOrders() {
     const { data } = await api.get<Order[]>(`/companies/${id}/orders`)
     setOrders(data)
   }
 
   useEffect(() => { fetchCompany() }, [id])
-
   useEffect(() => {
     if (tab === 'clientes') fetchCustomers()
     if (tab === 'produtos') fetchProducts()
-    if (tab === 'pedidos') fetchOrders()
+    if (tab === 'pedidos')  fetchOrders()
   }, [tab])
+
+  // ── Toggles ──────────────────────────────────────────────────────────────
 
   async function toggleCompany(active: boolean) {
     await api.patch(`/companies/${id}/active`, { active })
@@ -106,31 +122,52 @@ export default function EmpresaPage() {
     await api.patch(`/companies/${id}/users/${userId}/active`, { active })
     fetchCompany()
   }
+  async function toggleCustomer(customerId: string, active: boolean) {
+    await api.patch(`/companies/${id}/customers/${customerId}/active`, { active })
+    fetchCustomers()
+  }
+  async function toggleProduct(productId: string, active: boolean) {
+    await api.patch(`/companies/${id}/products/${productId}/active`, { active })
+    fetchProducts()
+  }
+  async function cancelOrder(orderId: string) {
+    if (!confirm('Cancelar este pedido?')) return
+    await api.patch(`/companies/${id}/orders/${orderId}/cancel`)
+    fetchOrders()
+  }
+
+  // ── Sync ──────────────────────────────────────────────────────────────────
+
+  async function syncProducts() {
+    setSyncingProducts(true); setSyncResult(null); setSyncError(null)
+    try {
+      const { data } = await api.post<SyncResult>('/sync/products')
+      setSyncResult({ entity: 'Produtos', result: data })
+      fetchProducts()
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? 'Erro ao sincronizar'
+      setSyncError({ entity: 'produtos', msg })
+    } finally { setSyncingProducts(false) }
+  }
+
+  async function syncCustomers() {
+    setSyncingCustomers(true); setSyncResult(null); setSyncError(null)
+    try {
+      const { data } = await api.post<SyncResult>('/sync/customers')
+      setSyncResult({ entity: 'Clientes', result: data })
+      fetchCustomers()
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? 'Erro ao sincronizar'
+      setSyncError({ entity: 'clientes', msg })
+    } finally { setSyncingCustomers(false) }
+  }
 
   if (loading) return <PageSkeleton />
   if (!company) return (
     <div className="flex flex-col items-center justify-center py-20 text-center gap-3">
-      <svg className="w-10 h-10 text-[var(--text-muted)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.25}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z" />
-      </svg>
       <p className="font-semibold text-[var(--text-primary)]">Empresa não encontrada</p>
     </div>
   )
-
-  async function syncProducts() {
-    setSyncingProducts(true)
-    setSyncResult(null)
-    setSyncError(null)
-    try {
-      const { data } = await api.post<SyncResult>('/sync/products')
-      setSyncResult(data)
-    } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? 'Erro ao sincronizar'
-      setSyncError(msg)
-    } finally {
-      setSyncingProducts(false)
-    }
-  }
 
   const tabs: { key: Tab; label: string }[] = [
     { key: 'filiais',  label: `Filiais (${company.branches.length})` },
@@ -200,7 +237,7 @@ export default function EmpresaPage() {
         </nav>
       </div>
 
-      {/* Conteúdo das tabs */}
+      {/* ── Tab: Filiais ── */}
       {tab === 'filiais' && (
         <TabSection action={{ label: '+ Nova filial', onClick: () => setShowBranchModal(true) }}>
           <Table
@@ -215,13 +252,22 @@ export default function EmpresaPage() {
                 <td className="px-4 py-3 text-[var(--text-muted)]">{b.cnpj ?? '—'}</td>
                 <td className="px-4 py-3 text-[var(--text-muted)]">{b.idProtheus ?? '—'}</td>
                 <td className="px-4 py-3"><StatusBadge active={b.active} /></td>
-                <td className="px-4 py-3 text-right"><ToggleBtn active={b.active} onClick={() => toggleBranch(b.id, !b.active)} /></td>
+                <td className="px-4 py-3 text-right">
+                  <ActionMenu
+                    label="filial"
+                    active={b.active}
+                    onEdit={() => setBranchModal({ mode: 'edit', item: b })}
+                    onCopy={() => setBranchModal({ mode: 'copy', item: b })}
+                    onToggle={() => toggleBranch(b.id, !b.active)}
+                  />
+                </td>
               </tr>
             ))}
           </Table>
         </TabSection>
       )}
 
+      {/* ── Tab: Usuários ── */}
       {tab === 'usuarios' && (
         <TabSection action={{ label: '+ Novo usuário', onClick: () => setShowUserModal(true) }}>
           <Table
@@ -236,20 +282,29 @@ export default function EmpresaPage() {
                 <td className="px-4 py-3 text-[var(--text-secondary)]">{u.email}</td>
                 <td className="px-4 py-3 text-[var(--text-muted)]">{u.role === 'ADMIN' ? 'Administrador' : 'Vendedor'}</td>
                 <td className="px-4 py-3"><StatusBadge active={u.active} /></td>
-                <td className="px-4 py-3 text-right"><ToggleBtn active={u.active} onClick={() => toggleUser(u.id, !u.active)} /></td>
+                <td className="px-4 py-3 text-right">
+                  <ActionMenu
+                    label="usuário"
+                    active={u.active}
+                    onEdit={() => setUserModal({ mode: 'edit', item: u })}
+                    onCopy={() => setUserModal({ mode: 'copy', item: u })}
+                    onToggle={() => toggleUser(u.id, !u.active)}
+                  />
+                </td>
               </tr>
             ))}
           </Table>
         </TabSection>
       )}
 
+      {/* ── Tab: Clientes ── */}
       {tab === 'clientes' && (
-        <TabSection>
+        <TabSection action={{ label: '+ Novo cliente', onClick: () => setCustomerModal({ mode: 'create' }) }}>
           <Table
-            headers={['Nome', 'Documento', 'E-mail', 'Telefone', 'Protheus', 'Status']}
+            headers={['Nome', 'Documento', 'E-mail', 'Telefone', 'Protheus', 'Status', '']}
             empty={customers.length === 0}
-            emptyTitle="Nenhum cliente sincronizado"
-            emptyDesc="Sincronize clientes via Protheus na aba Protheus."
+            emptyTitle="Nenhum cliente"
+            emptyDesc="Adicione manualmente ou sincronize via Protheus."
           >
             {customers.map((c) => (
               <tr key={c.id} className="hover:bg-[var(--bg-subtle)] transition-colors">
@@ -257,21 +312,31 @@ export default function EmpresaPage() {
                 <td className="px-4 py-3 text-[var(--text-muted)]">{c.document ?? '—'}</td>
                 <td className="px-4 py-3 text-[var(--text-muted)]">{c.email ?? '—'}</td>
                 <td className="px-4 py-3 text-[var(--text-muted)]">{c.phone ?? '—'}</td>
-                <td className="px-4 py-3 text-[var(--text-muted)]">{c.protheusCode ?? '—'}</td>
+                <td className="px-4 py-3 text-[var(--text-muted)]">{c.protheusCode ? `${c.protheusCode}${c.loja ? `/${c.loja}` : ''}` : '—'}</td>
                 <td className="px-4 py-3"><StatusBadge active={c.active} /></td>
+                <td className="px-4 py-3 text-right">
+                  <ActionMenu
+                    label="cliente"
+                    active={c.active}
+                    onEdit={() => setCustomerModal({ mode: 'edit', item: c })}
+                    onCopy={() => setCustomerModal({ mode: 'copy', item: c })}
+                    onToggle={() => toggleCustomer(c.id, !c.active)}
+                  />
+                </td>
               </tr>
             ))}
           </Table>
         </TabSection>
       )}
 
+      {/* ── Tab: Produtos ── */}
       {tab === 'produtos' && (
-        <TabSection>
+        <TabSection action={{ label: '+ Novo produto', onClick: () => setProductModal({ mode: 'create' }) }}>
           <Table
-            headers={['Nome', 'Protheus', 'Unidade', 'Preço', 'Estoque', 'Status']}
+            headers={['Nome', 'Protheus', 'Unidade', 'Preço', 'Estoque', 'Status', '']}
             empty={products.length === 0}
-            emptyTitle="Nenhum produto sincronizado"
-            emptyDesc="Use o botão Sincronizar Produtos na aba Protheus."
+            emptyTitle="Nenhum produto"
+            emptyDesc="Adicione manualmente ou sincronize via Protheus."
           >
             {products.map((p) => (
               <tr key={p.id} className="hover:bg-[var(--bg-subtle)] transition-colors">
@@ -281,41 +346,113 @@ export default function EmpresaPage() {
                 <td className="px-4 py-3 text-[var(--text-secondary)]">R$ {Number(p.price).toFixed(2)}</td>
                 <td className="px-4 py-3 text-[var(--text-muted)]">{Number(p.stock).toFixed(3)}</td>
                 <td className="px-4 py-3"><StatusBadge active={p.active} /></td>
+                <td className="px-4 py-3 text-right">
+                  <ActionMenu
+                    label="produto"
+                    active={p.active}
+                    onEdit={() => setProductModal({ mode: 'edit', item: p })}
+                    onCopy={() => setProductModal({ mode: 'copy', item: p })}
+                    onToggle={() => toggleProduct(p.id, !p.active)}
+                  />
+                </td>
               </tr>
             ))}
           </Table>
         </TabSection>
       )}
 
+      {/* ── Tab: Pedidos ── */}
       {tab === 'pedidos' && (
         <TabSection>
           <Table
-            headers={['#', 'Cliente', 'Vendedor', 'Filial', 'Itens', 'Total', 'Status', 'Data']}
+            headers={['#', 'Cliente', 'Vendedor', 'Filial', 'Itens', 'Total', 'Status', 'Data', '']}
             empty={orders.length === 0}
             emptyTitle="Nenhum pedido ainda"
             emptyDesc="Os pedidos criados pelos vendedores aparecerão aqui."
           >
             {orders.map((o) => (
-              <tr key={o.id} className="hover:bg-[var(--bg-subtle)] transition-colors">
-                <td className="px-4 py-3 text-[var(--text-muted)] font-mono text-xs">{o.id.slice(0, 8)}</td>
-                <td className="px-4 py-3 font-medium text-[var(--text-primary)]">{o.customer.name}</td>
-                <td className="px-4 py-3 text-[var(--text-muted)]">{o.user.name}</td>
-                <td className="px-4 py-3 text-[var(--text-muted)]">{o.branch.name}</td>
-                <td className="px-4 py-3 text-center text-[var(--text-secondary)]">{o.items.length}</td>
-                <td className="px-4 py-3 text-[var(--text-secondary)]">R$ {Number(o.total).toFixed(2)}</td>
-                <td className="px-4 py-3"><OrderStatusBadge status={o.status} /></td>
-                <td className="px-4 py-3 text-[var(--text-muted)] text-xs">{new Date(o.createdAt).toLocaleDateString('pt-BR')}</td>
-              </tr>
+              <>
+                <tr
+                  key={o.id}
+                  className="hover:bg-[var(--bg-subtle)] transition-colors cursor-pointer"
+                  onClick={() => setExpandedOrder(expandedOrder === o.id ? null : o.id)}
+                >
+                  <td className="px-4 py-3 text-[var(--text-muted)] font-mono text-xs">{o.id.slice(0, 8)}</td>
+                  <td className="px-4 py-3 font-medium text-[var(--text-primary)]">{o.customer.name}</td>
+                  <td className="px-4 py-3 text-[var(--text-muted)]">{o.user.name}</td>
+                  <td className="px-4 py-3 text-[var(--text-muted)]">{o.branch.name}</td>
+                  <td className="px-4 py-3 text-center text-[var(--text-secondary)]">{o.items.length}</td>
+                  <td className="px-4 py-3 text-[var(--text-secondary)]">R$ {Number(o.total).toFixed(2)}</td>
+                  <td className="px-4 py-3"><OrderStatusBadge status={o.status} /></td>
+                  <td className="px-4 py-3 text-[var(--text-muted)] text-xs">{new Date(o.createdAt).toLocaleDateString('pt-BR')}</td>
+                  <td className="px-4 py-3 text-right">
+                    {o.status !== 'CANCELLED' && (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); cancelOrder(o.id) }}
+                        className="text-xs font-medium px-3 py-1 rounded-lg border border-red-500/20 text-red-500 hover:bg-red-500/10 transition-colors"
+                      >
+                        Cancelar
+                      </button>
+                    )}
+                  </td>
+                </tr>
+                {expandedOrder === o.id && (
+                  <tr key={`${o.id}-detail`}>
+                    <td colSpan={9} className="px-4 pb-4 bg-[var(--bg-subtle)]">
+                      <div className="rounded-lg border border-[var(--border)] overflow-hidden mt-1">
+                        <table className="w-full text-xs">
+                          <thead className="bg-[var(--bg-surface)]">
+                            <tr>
+                              <th className="text-left px-3 py-2 font-medium text-[var(--text-secondary)]">Produto</th>
+                              <th className="text-right px-3 py-2 font-medium text-[var(--text-secondary)]">Qtd</th>
+                              <th className="text-right px-3 py-2 font-medium text-[var(--text-secondary)]">Preço unit.</th>
+                              <th className="text-right px-3 py-2 font-medium text-[var(--text-secondary)]">Desc. %</th>
+                              <th className="text-right px-3 py-2 font-medium text-[var(--text-secondary)]">Total</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-[var(--border)]">
+                            {o.items.map((item) => (
+                              <tr key={item.id}>
+                                <td className="px-3 py-2 text-[var(--text-primary)]">{item.product.name}</td>
+                                <td className="px-3 py-2 text-right text-[var(--text-secondary)]">{Number(item.quantity).toFixed(3)} {item.product.unit}</td>
+                                <td className="px-3 py-2 text-right text-[var(--text-secondary)]">R$ {Number(item.unitPrice).toFixed(2)}</td>
+                                <td className="px-3 py-2 text-right text-[var(--text-secondary)]">{Number(item.discount).toFixed(1)}%</td>
+                                <td className="px-3 py-2 text-right font-medium text-[var(--text-primary)]">R$ {Number(item.total).toFixed(2)}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                        {(o.protheusOrderId || o.notes) && (
+                          <div className="px-3 py-2 bg-[var(--bg-surface)] border-t border-[var(--border)] flex gap-6 text-xs text-[var(--text-muted)]">
+                            {o.protheusOrderId && <span>Pedido Protheus: <span className="font-mono">{o.protheusOrderId}</span></span>}
+                            {o.notes && <span>Obs: {o.notes}</span>}
+                            {o.syncedAt && <span>Sincronizado: {new Date(o.syncedAt).toLocaleString('pt-BR')}</span>}
+                          </div>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                )}
+              </>
             ))}
           </Table>
         </TabSection>
       )}
 
+      {/* ── Tab: Protheus ── */}
       {tab === 'protheus' && (
         <div className="space-y-4">
           {/* Config APIs */}
           <div className="bg-[var(--bg-surface)] rounded-xl shadow-card border border-[var(--border)] p-6">
-            <h2 className="text-sm font-semibold tracking-tight text-[var(--text-primary)] mb-4">Configuração das APIs Protheus</h2>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-sm font-semibold tracking-tight text-[var(--text-primary)]">Configuração das APIs Protheus</h2>
+              <button
+                onClick={() => setShowProtheusModal(true)}
+                className="text-sm font-medium px-4 py-2 rounded-lg border border-brand-500/30 text-brand-500 hover:bg-brand-500/10 transition-colors"
+              >
+                Editar configuração
+              </button>
+            </div>
             <div className="grid grid-cols-2 gap-4 text-sm">
               <ApiConfigRow label="Token (auth)"            value={company.apiToken} />
               <ApiConfigRow label="Produtos (GET)"          value={company.apiPord} />
@@ -330,68 +467,116 @@ export default function EmpresaPage() {
             </div>
           </div>
 
-          {/* Sync Produtos */}
-          <div className="bg-[var(--bg-surface)] rounded-xl shadow-card border border-[var(--border)] p-6">
-            <div className="flex items-start justify-between">
+          {/* Resultado / erro do sync (compartilhado) */}
+          {syncResult && (
+            <div className="flex items-start gap-2 p-3.5 bg-green-500/10 border border-green-500/20 rounded-lg">
+              <svg className="w-4 h-4 shrink-0 mt-0.5 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+              </svg>
               <div>
-                <h2 className="text-sm font-semibold tracking-tight text-[var(--text-primary)]">Sincronizar Produtos</h2>
-                <p className="text-xs text-[var(--text-muted)] mt-1">
-                  Importa produtos via <code className="bg-[var(--bg-subtle)] px-1 rounded text-[var(--text-secondary)]">apiPord</code> e atualiza o catálogo da empresa.
+                <p className="text-sm font-medium text-green-600 dark:text-green-400">
+                  {syncResult.entity}: {syncResult.result.synced} de {syncResult.result.total} sincronizados.
                 </p>
+                {syncResult.result.errors.length > 0 && (
+                  <ul className="mt-1.5 text-xs text-red-500 space-y-1 list-disc list-inside">
+                    {syncResult.result.errors.map((e, i) => <li key={i}>{e}</li>)}
+                  </ul>
+                )}
               </div>
-              <button
-                onClick={syncProducts}
-                disabled={syncingProducts || !company.apiPord || !company.apiToken}
-                className="text-sm font-medium px-4 py-2 rounded-lg bg-brand-600 text-white hover:bg-brand-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              >
-                {syncingProducts ? 'Sincronizando...' : 'Sincronizar Produtos'}
-              </button>
             </div>
+          )}
+          {syncError && (
+            <div className="flex items-start gap-2 p-3.5 bg-red-500/10 border border-red-500/20 rounded-lg">
+              <svg className="w-4 h-4 shrink-0 mt-0.5 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z" />
+              </svg>
+              <p className="text-sm text-red-500">{syncError.msg}</p>
+            </div>
+          )}
 
-            {(!company.apiPord || !company.apiToken) && (
-              <div className="mt-3 flex items-start gap-2 text-xs text-yellow-600 dark:text-yellow-400 bg-yellow-500/10 border border-yellow-500/20 rounded-lg px-3 py-2.5">
-                <svg className="w-3.5 h-3.5 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z" />
-                </svg>
-                Configure <strong className="mx-0.5">apiToken</strong> e <strong className="mx-0.5">apiPord</strong> para habilitar a sincronização.
-              </div>
-            )}
+          {/* Sync Produtos */}
+          <SyncCard
+            title="Sincronizar Produtos"
+            description={<>Importa produtos via <code className="bg-[var(--bg-subtle)] px-1 rounded text-[var(--text-secondary)]">apiPord</code> e atualiza o catálogo da empresa.</>}
+            disabled={syncingProducts || !company.apiPord || !company.apiToken}
+            loading={syncingProducts}
+            missingFields={!company.apiPord || !company.apiToken ? 'Configure apiToken e apiPord para habilitar.' : undefined}
+            onSync={syncProducts}
+            btnLabel="Sincronizar Produtos"
+          />
 
-            {syncResult && (
-              <div className="mt-4 flex items-start gap-2 p-3.5 bg-green-500/10 border border-green-500/20 rounded-lg">
-                <svg className="w-4 h-4 shrink-0 mt-0.5 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
-                </svg>
-                <div>
-                  <p className="text-sm font-medium text-green-600 dark:text-green-400">
-                    {syncResult.synced} de {syncResult.total} produtos sincronizados.
-                  </p>
-                  {syncResult.errors.length > 0 && (
-                    <ul className="mt-1.5 text-xs text-red-500 space-y-1 list-disc list-inside">
-                      {syncResult.errors.map((e, i) => <li key={i}>{e}</li>)}
-                    </ul>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {syncError && (
-              <div className="mt-4 flex items-start gap-2 p-3.5 bg-red-500/10 border border-red-500/20 rounded-lg">
-                <svg className="w-4 h-4 shrink-0 mt-0.5 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z" />
-                </svg>
-                <p className="text-sm text-red-500">{syncError}</p>
-              </div>
-            )}
-          </div>
+          {/* Sync Clientes */}
+          <SyncCard
+            title="Sincronizar Clientes"
+            description={<>Importa clientes via <code className="bg-[var(--bg-subtle)] px-1 rounded text-[var(--text-secondary)]">apiCliente</code> e atualiza a base de clientes.</>}
+            disabled={syncingCustomers || !company.apiCliente || !company.apiToken}
+            loading={syncingCustomers}
+            missingFields={!company.apiCliente || !company.apiToken ? 'Configure apiToken e apiCliente para habilitar.' : undefined}
+            onSync={syncCustomers}
+            btnLabel="Sincronizar Clientes"
+          />
         </div>
       )}
 
+      {/* ── Modais legados (criar) ── */}
       {showBranchModal && (
-        <CreateBranchModal companyId={id} onClose={() => setShowBranchModal(false)} onCreated={() => { setShowBranchModal(false); fetchCompany() }} />
+        <CreateBranchModal
+          companyId={id}
+          onClose={() => setShowBranchModal(false)}
+          onCreated={() => { setShowBranchModal(false); fetchCompany() }}
+        />
       )}
       {showUserModal && (
-        <CreateUserModal companyId={id} onClose={() => setShowUserModal(false)} onCreated={() => { setShowUserModal(false); fetchCompany() }} />
+        <CreateUserModal
+          companyId={id}
+          onClose={() => setShowUserModal(false)}
+          onCreated={() => { setShowUserModal(false); fetchCompany() }}
+        />
+      )}
+
+      {/* ── Modais de entidade ── */}
+      {branchModal && (
+        <BranchModal
+          companyId={id}
+          mode={branchModal.mode}
+          branch={branchModal.item}
+          onClose={() => setBranchModal(null)}
+          onSaved={() => { setBranchModal(null); fetchCompany() }}
+        />
+      )}
+      {userModal && (
+        <UserModal
+          companyId={id}
+          mode={userModal.mode}
+          user={userModal.item}
+          onClose={() => setUserModal(null)}
+          onSaved={() => { setUserModal(null); fetchCompany() }}
+        />
+      )}
+      {customerModal && (
+        <CustomerModal
+          companyId={id}
+          mode={customerModal.mode}
+          customer={customerModal.item}
+          onClose={() => setCustomerModal(null)}
+          onSaved={() => { setCustomerModal(null); fetchCustomers() }}
+        />
+      )}
+      {productModal && (
+        <ProductModal
+          companyId={id}
+          mode={productModal.mode}
+          product={productModal.item}
+          onClose={() => setProductModal(null)}
+          onSaved={() => { setProductModal(null); fetchProducts() }}
+        />
+      )}
+      {showProtheusModal && (
+        <ProtheusConfigModal
+          company={company}
+          onClose={() => setShowProtheusModal(false)}
+          onSaved={() => { setShowProtheusModal(false); fetchCompany() }}
+        />
       )}
     </div>
   )
@@ -499,21 +684,6 @@ function OrderStatusBadge({ status }: { status: string }) {
   )
 }
 
-function ToggleBtn({ active, onClick }: { active: boolean; onClick: () => void }) {
-  return (
-    <button
-      onClick={onClick}
-      className={`text-xs font-medium px-3 py-1 rounded-lg border transition-colors ${
-        active
-          ? 'border-red-500/20 text-red-500 hover:bg-red-500/10'
-          : 'border-green-500/20 text-green-500 hover:bg-green-500/10'
-      }`}
-    >
-      {active ? 'Desativar' : 'Ativar'}
-    </button>
-  )
-}
-
 function ApiConfigRow({ label, value }: { label: string; value: string | null | undefined }) {
   return (
     <div className="flex flex-col gap-0.5">
@@ -521,6 +691,44 @@ function ApiConfigRow({ label, value }: { label: string; value: string | null | 
       <span className={`text-sm truncate font-mono ${value ? 'text-[var(--text-secondary)]' : 'text-[var(--border)]'}`}>
         {value ?? '—'}
       </span>
+    </div>
+  )
+}
+
+function SyncCard({
+  title, description, disabled, loading, missingFields, onSync, btnLabel,
+}: {
+  title: string
+  description: React.ReactNode
+  disabled: boolean
+  loading: boolean
+  missingFields?: string
+  onSync: () => void
+  btnLabel: string
+}) {
+  return (
+    <div className="bg-[var(--bg-surface)] rounded-xl shadow-card border border-[var(--border)] p-6">
+      <div className="flex items-start justify-between">
+        <div>
+          <h2 className="text-sm font-semibold tracking-tight text-[var(--text-primary)]">{title}</h2>
+          <p className="text-xs text-[var(--text-muted)] mt-1">{description}</p>
+        </div>
+        <button
+          onClick={onSync}
+          disabled={disabled}
+          className="text-sm font-medium px-4 py-2 rounded-lg bg-brand-600 text-white hover:bg-brand-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        >
+          {loading ? 'Sincronizando...' : btnLabel}
+        </button>
+      </div>
+      {missingFields && (
+        <div className="mt-3 flex items-start gap-2 text-xs text-yellow-600 dark:text-yellow-400 bg-yellow-500/10 border border-yellow-500/20 rounded-lg px-3 py-2.5">
+          <svg className="w-3.5 h-3.5 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z" />
+          </svg>
+          {missingFields}
+        </div>
+      )}
     </div>
   )
 }

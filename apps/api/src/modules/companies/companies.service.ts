@@ -174,6 +174,133 @@ export async function toggleUserActive(id: string, active: boolean) {
   })
 }
 
+// ─── Branches (update) ───────────────────────────────────────────────────────
+
+export interface UpdateBranchInput {
+  name?: string
+  cnpj?: string
+  idProtheus?: string
+}
+
+export async function updateBranch(id: string, input: UpdateBranchInput) {
+  const data: Record<string, unknown> = {}
+  if (input.name        !== undefined) data.name        = input.name
+  if (input.cnpj        !== undefined) data.cnpj        = input.cnpj        || null
+  if (input.idProtheus  !== undefined) data.idProtheus  = input.idProtheus  || null
+  return prisma.branch.update({ where: { id }, data })
+}
+
+// ─── Users (update) ──────────────────────────────────────────────────────────
+
+export interface UpdateUserInput {
+  name?:     string
+  email?:    string
+  password?: string
+  role?:     'ADMIN' | 'SALESPERSON'
+}
+
+export async function updateUser(id: string, input: UpdateUserInput) {
+  const data: Record<string, unknown> = {}
+  if (input.name  !== undefined) data.name  = input.name
+  if (input.email !== undefined) data.email = input.email
+  if (input.role  !== undefined) data.role  = input.role
+  if (input.password) data.password = await bcrypt.hash(input.password, 10)
+  return prisma.user.update({
+    where: { id },
+    data,
+    select: { id: true, name: true, email: true, role: true, active: true, createdAt: true },
+  })
+}
+
+// ─── Customers (CRUD por empresa) ────────────────────────────────────────────
+
+export interface CreateCustomerInput {
+  name:         string
+  protheusCode?: string
+  loja?:         string
+  document?:     string
+  email?:        string
+  phone?:        string
+  address?:      string
+  municipio?:    string
+  bairro?:       string
+  cep?:          string
+  uf?:           string
+}
+
+export async function createCustomer(companyId: string, input: CreateCustomerInput) {
+  return prisma.customer.create({ data: { ...input, companyId } })
+}
+
+export interface UpdateCustomerInput extends Partial<CreateCustomerInput> {}
+
+export async function updateCustomer(id: string, input: UpdateCustomerInput) {
+  const data: Record<string, unknown> = {}
+  const fields: (keyof CreateCustomerInput)[] = [
+    'name', 'protheusCode', 'loja', 'document', 'email', 'phone', 'address', 'municipio', 'bairro', 'cep', 'uf',
+  ]
+  for (const f of fields) {
+    if (input[f] !== undefined) data[f] = input[f] || null
+  }
+  if (input.name !== undefined) data.name = input.name
+  return prisma.customer.update({ where: { id }, data })
+}
+
+export async function toggleCustomerActive(id: string, active: boolean) {
+  return prisma.customer.update({ where: { id }, data: { active } })
+}
+
+// ─── Products (CRUD por empresa) ─────────────────────────────────────────────
+
+export interface CreateProductInput {
+  name:          string
+  protheusCode?: string
+  description?:  string
+  price:         number
+  unit?:         string
+  stock?:        number
+  saldo?:        number
+}
+
+export async function createProduct(companyId: string, input: CreateProductInput) {
+  return prisma.product.create({
+    data: {
+      companyId,
+      name:         input.name,
+      protheusCode: input.protheusCode || null,
+      description:  input.description  || null,
+      price:        input.price,
+      unit:         input.unit  ?? 'UN',
+      stock:        input.stock ?? 0,
+      saldo:        input.saldo ?? 0,
+    },
+  })
+}
+
+export interface UpdateProductInput extends Partial<CreateProductInput> {}
+
+export async function updateProduct(id: string, input: UpdateProductInput) {
+  const data: Record<string, unknown> = {}
+  if (input.name         !== undefined) data.name         = input.name
+  if (input.protheusCode !== undefined) data.protheusCode = input.protheusCode || null
+  if (input.description  !== undefined) data.description  = input.description  || null
+  if (input.price        !== undefined) data.price        = input.price
+  if (input.unit         !== undefined) data.unit         = input.unit
+  if (input.stock        !== undefined) data.stock        = input.stock
+  if (input.saldo        !== undefined) data.saldo        = input.saldo
+  return prisma.product.update({ where: { id }, data })
+}
+
+export async function toggleProductActive(id: string, active: boolean) {
+  return prisma.product.update({ where: { id }, data: { active } })
+}
+
+// ─── Orders (cancelar) ───────────────────────────────────────────────────────
+
+export async function cancelOrder(id: string) {
+  return prisma.order.update({ where: { id }, data: { status: 'CANCELLED' } })
+}
+
 // ─── Helper interno para o módulo de sync ────────────────────────────────────
 // Retorna credenciais descriptografadas — nunca expor via API
 
