@@ -67,9 +67,11 @@ export async function syncProducts(companyId: string) {
 
   let deslocamento = 1
   let totalRecords = 0
+  let totalFetched = 0
+  const MAX_PAGES  = 500 // segurança contra loop infinito
 
-  // Loop de paginação: busca páginas até esgotar todos os registros
-  while (true) {
+  // Loop de paginação: deslocamento é número de página (1-based)
+  while (deslocamento <= MAX_PAGES) {
     const body = {
       limite:      SYNC_PRODUCTS_PAGE_SIZE,
       deslocamento,
@@ -87,6 +89,8 @@ export async function syncProducts(companyId: string) {
     if (deslocamento === 1) {
       totalRecords = toNum(paginas['total'])
     }
+
+    if (produtos.length === 0) break
 
     for (const raw of produtos) {
       const protheusCode = toStr(raw['id'])
@@ -108,9 +112,14 @@ export async function syncProducts(companyId: string) {
       })
     }
 
-    // Avança para próxima página ou encerra o loop
+    totalFetched += produtos.length
+
+    // Encerra quando buscou todos os registros informados pelo total,
+    // ou quando recebeu menos que o limite (última página)
+    if (totalRecords > 0 && totalFetched >= totalRecords) break
     if (produtos.length < SYNC_PRODUCTS_PAGE_SIZE) break
-    deslocamento += SYNC_PRODUCTS_PAGE_SIZE
+
+    deslocamento += 1 // avança para a próxima página
   }
 
   // Executa todos os upserts em uma única transação para reduzir round-trips
