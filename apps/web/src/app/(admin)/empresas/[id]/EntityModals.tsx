@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { api } from '@/lib/api'
 import { Modal, Field, ModalActions, ErrorMsg } from './CreateBranchModal'
 
@@ -327,10 +327,20 @@ interface ActionMenuProps {
 
 export function ActionMenu({ onEdit, onCopy, onToggle, active, label }: ActionMenuProps) {
   const [open, setOpen] = useState(false)
+  const [pos, setPos] = useState({ top: 0, right: 0 })
+  const btnRef = useRef<HTMLButtonElement>(null)
+
+  useEffect(() => {
+    if (open && btnRef.current) {
+      const rect = btnRef.current.getBoundingClientRect()
+      setPos({ top: rect.bottom + 4, right: window.innerWidth - rect.right })
+    }
+  }, [open])
 
   return (
-    <div className="relative inline-block text-left">
+    <div className="inline-block text-left">
       <button
+        ref={btnRef}
         onClick={() => setOpen((v) => !v)}
         className="p-1.5 rounded-lg text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-subtle)] transition-colors"
         title="Ações"
@@ -342,8 +352,11 @@ export function ActionMenu({ onEdit, onCopy, onToggle, active, label }: ActionMe
 
       {open && (
         <>
-          <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
-          <div className="absolute right-0 z-20 mt-1 w-40 bg-[var(--bg-surface)] border border-[var(--border)] rounded-xl shadow-modal overflow-hidden">
+          <div className="fixed inset-0 z-30" onClick={() => setOpen(false)} />
+          <div
+            className="fixed z-40 w-44 bg-[var(--bg-surface)] border border-[var(--border)] rounded-xl shadow-modal overflow-hidden"
+            style={{ top: pos.top, right: pos.right }}
+          >
             <button
               onClick={() => { setOpen(false); onEdit() }}
               className="w-full text-left px-4 py-2.5 text-sm text-[var(--text-secondary)] hover:bg-[var(--bg-subtle)] transition-colors"
