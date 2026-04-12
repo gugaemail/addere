@@ -18,6 +18,16 @@ export interface CompanyCredentials {
   syncConfig?:  Record<string, unknown> | null
 }
 
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(`Timeout de ${ms / 1000}s ao ${label}`)), ms)
+    promise.then(
+      (v) => { clearTimeout(timer); resolve(v) },
+      (e) => { clearTimeout(timer); reject(e) }
+    )
+  })
+}
+
 async function getToken(companyId: string, creds: CompanyCredentials): Promise<string> {
   const cached = tokenCache.get(companyId)
   if (cached && cached.expiresAt > new Date()) return cached.token
@@ -28,16 +38,19 @@ async function getToken(companyId: string, creds: CompanyCredentials): Promise<s
   params.set('username', creds.usrProtheus)
   params.set('password', creds.passProtheus)
 
-  const response = await axios.post(creds.apiToken, params, {
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    timeout: 15000,
-  })
+  const response = await withTimeout(
+    axios.post(creds.apiToken, params, {
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    }),
+    15000,
+    'obter token Protheus'
+  )
 
   // Campo do token configurável via syncConfig.tokenField (padrão OAuth2: 'access_token')
   const tokenField = (creds.syncConfig?.tokenField as string | undefined) ?? 'access_token'
   const token = response.data[tokenField] as string | undefined
 
-  if (!token) throw new Error(`Token não encontrado na resposta (campo esperado: "${tokenField}")`)
+  if (!token) throw new Error(`Token não encontrado na resposta (campo esperado: "${tokenField}"). Campos recebidos: ${Object.keys(response.data as object).join(', ')}`)
 
   // Cache por 55 minutos (tokens Protheus geralmente expiram em 1h)
   tokenCache.set(companyId, {
@@ -54,10 +67,11 @@ export async function protheusGet(
   creds: CompanyCredentials
 ): Promise<unknown> {
   const token = await getToken(companyId, creds)
-  const response = await axios.get(url, {
-    headers: { Authorization: `Bearer ${token}` },
-    timeout: 30000,
-  })
+  const response = await withTimeout(
+    axios.get(url, { headers: { Authorization: `Bearer ${token}` } }),
+    30000,
+    'buscar dados Protheus'
+  )
   return response.data
 }
 
@@ -68,10 +82,11 @@ export async function protheusPost(
   creds: CompanyCredentials
 ): Promise<unknown> {
   const token = await getToken(companyId, creds)
-  const response = await axios.post(url, body, {
-    headers: { Authorization: `Bearer ${token}` },
-    timeout: 30000,
-  })
+  const response = await withTimeout(
+    axios.post(url, body, { headers: { Authorization: `Bearer ${token}` } }),
+    30000,
+    'enviar dados ao Protheus'
+  )
   return response.data
 }
 

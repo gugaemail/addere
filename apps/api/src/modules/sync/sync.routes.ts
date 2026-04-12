@@ -111,8 +111,9 @@ export default async function syncRoutes(app: FastifyInstance) {
       const result = await syncProducts(companyId)
       return reply.send(result)
     } catch (err) {
+      const msg = (err instanceof Error) ? err.message : 'Erro desconhecido'
       app.log.error({ err }, 'Falha ao sincronizar produtos com Protheus')
-      return reply.status(502).send({ message: 'Erro ao comunicar com o Protheus. Verifique as configurações da empresa.' })
+      return reply.status(502).send({ message: msg })
     }
   })
 
@@ -132,8 +133,9 @@ export default async function syncRoutes(app: FastifyInstance) {
       const result = await syncCustomers(companyId)
       return reply.send(result)
     } catch (err) {
+      const msg = (err instanceof Error) ? err.message : 'Erro desconhecido'
       app.log.error({ err }, 'Falha ao sincronizar clientes com Protheus')
-      return reply.status(502).send({ message: 'Erro ao comunicar com o Protheus. Verifique as configurações da empresa.' })
+      return reply.status(502).send({ message: msg })
     }
   })
 }
