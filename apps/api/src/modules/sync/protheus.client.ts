@@ -30,6 +30,7 @@ async function getToken(companyId: string, creds: CompanyCredentials): Promise<s
 
   const response = await axios.post(creds.apiToken, params, {
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    timeout: 15000,
   })
 
   // Campo do token configurável via syncConfig.tokenField (padrão OAuth2: 'access_token')
@@ -55,6 +56,7 @@ export async function protheusGet(
   const token = await getToken(companyId, creds)
   const response = await axios.get(url, {
     headers: { Authorization: `Bearer ${token}` },
+    timeout: 30000,
   })
   return response.data
 }
@@ -68,6 +70,7 @@ export async function protheusPost(
   const token = await getToken(companyId, creds)
   const response = await axios.post(url, body, {
     headers: { Authorization: `Bearer ${token}` },
+    timeout: 30000,
   })
   return response.data
 }
