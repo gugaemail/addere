@@ -575,7 +575,11 @@ export default function EmpresaPage() {
         <ProtheusConfigModal
           company={company}
           onClose={() => setShowProtheusModal(false)}
-          onSaved={() => { setShowProtheusModal(false); fetchCompany() }}
+          onSaved={(updated) => {
+            setShowProtheusModal(false)
+            setCompany((prev) => prev ? { ...prev, ...updated } : prev)
+            fetchCompany()
+          }}
         />
       )}
     </div>

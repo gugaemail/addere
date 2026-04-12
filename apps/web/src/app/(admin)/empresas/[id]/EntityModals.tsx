@@ -328,7 +328,7 @@ interface CompanyProtheus {
 interface ProtheusConfigModalProps {
   company: CompanyProtheus
   onClose: () => void
-  onSaved: () => void
+  onSaved: (updated: CompanyProtheus) => void
 }
 
 export function ProtheusConfigModal({ company, onClose, onSaved }: ProtheusConfigModalProps) {
@@ -355,8 +355,8 @@ export function ProtheusConfigModal({ company, onClose, onSaved }: ProtheusConfi
         apiConsPed, apiCondPag, apiTransp, apiMetaVend, usrProtheus,
       }
       if (passProtheus) body.passProtheus = passProtheus
-      await api.patch(`/companies/${company.id}/protheus`, body)
-      onSaved()
+      const { data } = await api.patch<CompanyProtheus>(`/companies/${company.id}/protheus`, body)
+      onSaved(data)
     } catch (err: unknown) {
       setError((err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? 'Erro ao salvar configuração.')
     } finally {
