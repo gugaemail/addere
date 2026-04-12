@@ -140,7 +140,7 @@ export default function EmpresaPage() {
   async function syncProducts() {
     setSyncingProducts(true); setSyncResult(null); setSyncError(null)
     try {
-      const { data } = await api.post<SyncResult>('/sync/products')
+      const { data } = await api.post<SyncResult>('/sync/products', { companyId: id })
       setSyncResult({ entity: 'Produtos', result: data })
       fetchProducts()
     } catch (err: unknown) {
@@ -152,7 +152,7 @@ export default function EmpresaPage() {
   async function syncCustomers() {
     setSyncingCustomers(true); setSyncResult(null); setSyncError(null)
     try {
-      const { data } = await api.post<SyncResult>('/sync/customers')
+      const { data } = await api.post<SyncResult>('/sync/customers', { companyId: id })
       setSyncResult({ entity: 'Clientes', result: data })
       fetchCustomers()
     } catch (err: unknown) {
