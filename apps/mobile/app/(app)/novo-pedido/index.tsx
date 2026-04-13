@@ -381,8 +381,12 @@ export default function NovoPedidoScreen() {
           ])
         },
         onError: (error: any) => {
-          const msg = error?.response?.data?.message ?? 'Não foi possível criar o pedido. Tente novamente.'
-          Alert.alert('Erro', msg)
+          const data = error?.response?.data
+          const msg = data?.message ?? 'Não foi possível criar o pedido. Tente novamente.'
+          const detail = data?.errors
+            ? JSON.stringify(data.errors.fieldErrors ?? data.errors, null, 2)
+            : null
+          Alert.alert('Erro', detail ? `${msg}\n\n${detail}` : msg)
         },
       }
     )
