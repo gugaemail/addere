@@ -154,6 +154,7 @@ export interface CreateOrderItemInput {
   quantity: number
   discount?: number
   descricao?: string
+  unitPrice?: number
 }
 
 export interface CreateOrderInput {

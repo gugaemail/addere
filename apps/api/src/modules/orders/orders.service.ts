@@ -49,7 +49,7 @@ export async function createOrder(userId: string, companyId: string, input: Crea
   // Calcula totais de cada item usando aritmética inteira (centavos) para evitar erros de float
   const itemsWithTotals = input.items.map((item) => {
     const product = productMap.get(item.productId)!
-    const unitPrice = Number(product.price)
+    const unitPrice = item.unitPrice !== undefined ? item.unitPrice : Number(product.price)
     const discount = item.discount ?? 0
 
     // Trabalha em centavos e milésimos de unidade para manter precisão inteira

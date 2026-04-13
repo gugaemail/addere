@@ -23,6 +23,7 @@ interface CartItem {
   product: Product
   quantity: number
   discount: number
+  unitPrice: number
 }
 
 function StepIndicator({ current }: { current: Step }) {
@@ -112,9 +113,11 @@ function Step1({
 function Step2({
   cart,
   onCartChange,
+  onBack,
 }: {
   cart: CartItem[]
   onCartChange: (cart: CartItem[]) => void
+  onBack: () => void
 }) {
   const [search, setSearch] = useState('')
   const { data: products, isLoading } = useProdutos(search || undefined)
@@ -124,7 +127,7 @@ function Step2({
     if (existing) {
       onCartChange(cart.map((i) => i.product.id === product.id ? { ...i, quantity: i.quantity + 1 } : i))
     } else {
-      onCartChange([...cart, { product, quantity: 1, discount: 0 }])
+      onCartChange([...cart, { product, quantity: 1, discount: 0, unitPrice: Number(product.price) }])
     }
   }
 
@@ -177,29 +180,72 @@ function Step2({
           ListEmptyComponent={<Text style={styles.empty}>Nenhum produto encontrado.</Text>}
         />
       )}
+
+      <TouchableOpacity style={styles.backBtn} onPress={onBack}>
+        <Text style={styles.backBtnText}>← Voltar</Text>
+      </TouchableOpacity>
     </View>
   )
 }
 
-// ─── Step 3: Resumo e confirmação ─────────────────────────────────────────
+// ─── Step 3: Resumo e confirmação (editável) ──────────────────────────────
 
 function Step3({
   customer,
   branch,
   cart,
+  notes,
+  onCartChange,
+  onNotesChange,
   onConfirm,
+  onBack,
+  onCancel,
   isLoading,
 }: {
   customer: Customer
   branch: Branch
   cart: CartItem[]
+  notes: string
+  onCartChange: (cart: CartItem[]) => void
+  onNotesChange: (notes: string) => void
   onConfirm: () => void
+  onBack: () => void
+  onCancel: () => void
   isLoading: boolean
 }) {
   const total = cart.reduce(
-    (sum, i) => sum + Number(i.product.price) * i.quantity * (1 - i.discount / 100),
+    (sum, i) => sum + i.unitPrice * i.quantity * (1 - i.discount / 100),
     0
   )
+
+  function updateQty(productId: string, qty: number) {
+    if (qty <= 0) {
+      onCartChange(cart.filter((i) => i.product.id !== productId))
+      return
+    }
+    onCartChange(cart.map((i) => i.product.id === productId ? { ...i, quantity: qty } : i))
+  }
+
+  function updatePrice(productId: string, raw: string) {
+    const value = parseFloat(raw.replace(',', '.'))
+    if (isNaN(value) || value < 0) return
+    onCartChange(cart.map((i) => i.product.id === productId ? { ...i, unitPrice: value } : i))
+  }
+
+  function removeItem(productId: string) {
+    onCartChange(cart.filter((i) => i.product.id !== productId))
+  }
+
+  function handleCancel() {
+    Alert.alert(
+      'Cancelar pedido',
+      'Tem certeza que deseja cancelar? Os dados serão perdidos.',
+      [
+        { text: 'Não', style: 'cancel' },
+        { text: 'Sim, cancelar', style: 'destructive', onPress: onCancel },
+      ]
+    )
+  }
 
   return (
     <ScrollView>
@@ -217,16 +263,61 @@ function Step3({
 
       <View style={styles.summaryBox}>
         <Text style={styles.summaryLabel}>Itens</Text>
+        {cart.length === 0 && (
+          <Text style={styles.empty}>Nenhum item. Volte e adicione produtos.</Text>
+        )}
         {cart.map((item) => (
-          <View key={item.product.id} style={styles.summaryRow}>
-            <Text style={styles.summaryItem}>
-              {item.product.name} × {item.quantity}
-            </Text>
-            <Text style={styles.summaryItem}>
-              R$ {(Number(item.product.price) * item.quantity).toFixed(2)}
-            </Text>
+          <View key={item.product.id} style={styles.itemEditRow}>
+            <View style={styles.itemEditHeader}>
+              <Text style={styles.itemEditName} numberOfLines={2}>{item.product.name}</Text>
+              <TouchableOpacity onPress={() => removeItem(item.product.id)} style={styles.removeBtn}>
+                <Text style={styles.removeBtnText}>×</Text>
+              </TouchableOpacity>
+            </View>
+            <View style={styles.itemEditControls}>
+              <View style={styles.itemEditQty}>
+                <Text style={styles.itemControlLabel}>Qtd</Text>
+                <View style={styles.qtyRow}>
+                  <TouchableOpacity onPress={() => updateQty(item.product.id, item.quantity - 1)}>
+                    <Text style={styles.qtyBtn}>−</Text>
+                  </TouchableOpacity>
+                  <Text style={styles.qtyNum}>{item.quantity}</Text>
+                  <TouchableOpacity onPress={() => updateQty(item.product.id, item.quantity + 1)}>
+                    <Text style={styles.qtyBtn}>+</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+              <View style={styles.itemEditPrice}>
+                <Text style={styles.itemControlLabel}>Preço unit. (R$)</Text>
+                <TextInput
+                  style={styles.priceInput}
+                  keyboardType="decimal-pad"
+                  defaultValue={item.unitPrice.toFixed(2)}
+                  onEndEditing={(e) => updatePrice(item.product.id, e.nativeEvent.text)}
+                />
+              </View>
+              <View style={styles.itemEditSubtotal}>
+                <Text style={styles.itemControlLabel}>Subtotal</Text>
+                <Text style={styles.itemSubtotalValue}>
+                  R$ {(item.unitPrice * item.quantity * (1 - item.discount / 100)).toFixed(2)}
+                </Text>
+              </View>
+            </View>
           </View>
         ))}
+      </View>
+
+      <View style={styles.summaryBox}>
+        <Text style={styles.summaryLabel}>Observação</Text>
+        <TextInput
+          style={styles.notesInput}
+          placeholder="Digite uma observação (opcional)..."
+          value={notes}
+          onChangeText={onNotesChange}
+          multiline
+          numberOfLines={3}
+          textAlignVertical="top"
+        />
       </View>
 
       <View style={[styles.summaryBox, { flexDirection: 'row', justifyContent: 'space-between' }]}>
@@ -234,8 +325,20 @@ function Step3({
         <Text style={styles.totalValue}>R$ {total.toFixed(2)}</Text>
       </View>
 
-      <TouchableOpacity style={styles.confirmBtn} onPress={onConfirm} disabled={isLoading}>
+      <TouchableOpacity
+        style={[styles.confirmBtn, cart.length === 0 && { opacity: 0.4 }]}
+        onPress={onConfirm}
+        disabled={isLoading || cart.length === 0}
+      >
         {isLoading ? <ActivityIndicator color="#fff" /> : <Text style={styles.confirmBtnText}>Confirmar pedido</Text>}
+      </TouchableOpacity>
+
+      <TouchableOpacity style={styles.backBtn} onPress={onBack} disabled={isLoading}>
+        <Text style={styles.backBtnText}>← Voltar</Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity style={styles.cancelBtn} onPress={handleCancel} disabled={isLoading}>
+        <Text style={styles.cancelBtnText}>Cancelar</Text>
       </TouchableOpacity>
     </ScrollView>
   )
@@ -249,6 +352,7 @@ export default function NovoPedidoScreen() {
   const [customer, setCustomer] = useState<Customer | null>(null)
   const [branch, setBranch] = useState<Branch | null>(null)
   const [cart, setCart] = useState<CartItem[]>([])
+  const [notes, setNotes] = useState('')
 
   const { mutate: criarPedido, isPending } = useCriarPedido()
 
@@ -265,18 +369,20 @@ export default function NovoPedidoScreen() {
       productId: i.product.id,
       quantity: i.quantity,
       discount: i.discount,
+      unitPrice: i.unitPrice,
     }))
 
     criarPedido(
-      { customerId: customer.id, branchId: branch.id, items },
+      { customerId: customer.id, branchId: branch.id, items, notes: notes || undefined },
       {
         onSuccess: () => {
           Alert.alert('Pedido criado', 'Pedido salvo com sucesso!', [
             { text: 'OK', onPress: () => router.replace('/(app)/pedidos') },
           ])
         },
-        onError: () => {
-          Alert.alert('Erro', 'Não foi possível criar o pedido. Tente novamente.')
+        onError: (error: any) => {
+          const msg = error?.response?.data?.message ?? 'Não foi possível criar o pedido. Tente novamente.'
+          Alert.alert('Erro', msg)
         },
       }
     )
@@ -293,7 +399,7 @@ export default function NovoPedidoScreen() {
         {step === 1 && <Step1 onComplete={handleStep1Complete} />}
         {step === 2 && (
           <View style={{ flex: 1 }}>
-            <Step2 cart={cart} onCartChange={setCart} />
+            <Step2 cart={cart} onCartChange={setCart} onBack={() => setStep(1)} />
             <TouchableOpacity
               style={[styles.confirmBtn, cart.length === 0 && { opacity: 0.4 }]}
               disabled={cart.length === 0}
@@ -304,7 +410,18 @@ export default function NovoPedidoScreen() {
           </View>
         )}
         {step === 3 && customer && branch && (
-          <Step3 customer={customer} branch={branch} cart={cart} onConfirm={handleConfirm} isLoading={isPending} />
+          <Step3
+            customer={customer}
+            branch={branch}
+            cart={cart}
+            notes={notes}
+            onCartChange={setCart}
+            onNotesChange={setNotes}
+            onConfirm={handleConfirm}
+            onBack={() => setStep(2)}
+            onCancel={() => router.back()}
+            isLoading={isPending}
+          />
         )}
       </View>
     </View>
@@ -329,18 +446,34 @@ const styles = StyleSheet.create({
   qtyRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   qtyBtn: { fontSize: 20, color: '#2563eb', paddingHorizontal: 4 },
   qtyNum: { fontSize: 14, fontWeight: '700', minWidth: 20, textAlign: 'center' },
-  empty: { color: '#9ca3af', textAlign: 'center', marginTop: 24 },
+  empty: { color: '#9ca3af', textAlign: 'center', marginTop: 8, marginBottom: 4 },
   summaryBox: { backgroundColor: '#fff', borderRadius: 8, padding: 14, marginBottom: 8 },
   summaryLabel: { fontSize: 12, color: '#6b7280', marginBottom: 6 },
   summaryValue: { fontSize: 15, fontWeight: '600', color: '#111827' },
-  summaryRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 3 },
-  summaryItem: { fontSize: 13, color: '#374151' },
   totalLabel: { fontSize: 16, fontWeight: '700', color: '#111827' },
   totalValue: { fontSize: 20, fontWeight: '700', color: '#2563eb' },
   confirmBtn: { backgroundColor: '#2563eb', borderRadius: 8, padding: 14, alignItems: 'center', marginTop: 12 },
   confirmBtnText: { color: '#fff', fontWeight: '700', fontSize: 15 },
+  backBtn: { borderRadius: 8, borderWidth: 1, borderColor: '#d1d5db', padding: 14, alignItems: 'center', marginTop: 8, backgroundColor: '#fff' },
+  backBtnText: { color: '#374151', fontWeight: '600', fontSize: 15 },
+  cancelBtn: { padding: 14, alignItems: 'center', marginTop: 4, marginBottom: 24 },
+  cancelBtnText: { color: '#dc2626', fontWeight: '600', fontSize: 14 },
   selectedCard: { backgroundColor: '#eff6ff', borderRadius: 8, padding: 14, borderWidth: 1, borderColor: '#bfdbfe' },
   selectedCardLabel: { fontSize: 11, color: '#6b7280', marginBottom: 2 },
   selectedCardValue: { fontSize: 15, fontWeight: '700', color: '#111827' },
   selectedCardChange: { fontSize: 12, color: '#2563eb', marginTop: 4 },
+  // Item editável no Step 3
+  itemEditRow: { borderTopWidth: 1, borderTopColor: '#f3f4f6', paddingTop: 10, marginTop: 6 },
+  itemEditHeader: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 8 },
+  itemEditName: { flex: 1, fontSize: 13, fontWeight: '600', color: '#111827', marginRight: 8 },
+  removeBtn: { width: 28, height: 28, borderRadius: 14, backgroundColor: '#fee2e2', justifyContent: 'center', alignItems: 'center' },
+  removeBtnText: { color: '#dc2626', fontSize: 18, fontWeight: '700', lineHeight: 22 },
+  itemEditControls: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  itemEditQty: { alignItems: 'center' },
+  itemEditPrice: { flex: 1, alignItems: 'flex-start' },
+  itemEditSubtotal: { alignItems: 'flex-end' },
+  itemControlLabel: { fontSize: 10, color: '#9ca3af', marginBottom: 4 },
+  priceInput: { borderWidth: 1, borderColor: '#d1d5db', borderRadius: 6, padding: 6, fontSize: 13, minWidth: 80, backgroundColor: '#f9fafb' },
+  itemSubtotalValue: { fontSize: 13, fontWeight: '700', color: '#111827' },
+  notesInput: { borderWidth: 1, borderColor: '#d1d5db', borderRadius: 8, padding: 10, fontSize: 14, minHeight: 80, backgroundColor: '#f9fafb' },
 })

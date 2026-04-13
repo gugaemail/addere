@@ -15,6 +15,7 @@ export const createOrderSchema = z.object({
         quantity:  z.number().positive({ message: 'Quantidade deve ser positiva' }),
         discount:  z.number().min(0).max(100).optional().default(0),
         descricao: z.string().optional(),
+        unitPrice: z.number().nonnegative().optional(),
       })
     )
     .min(1, { message: 'O pedido deve ter ao menos um item' }),
