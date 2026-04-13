@@ -3,6 +3,7 @@ import * as SecureStore from 'expo-secure-store'
 import type { UserPublic } from '@addere/types'
 
 const TOKEN_KEY = 'addere_access_token'
+const USER_KEY  = 'addere_user'
 
 interface AuthState {
   user: UserPublic | null
@@ -19,18 +20,28 @@ export const useAuthStore = create<AuthState>((set) => ({
   hydrated: false,
 
   setAuth: async (user, token) => {
-    await SecureStore.setItemAsync(TOKEN_KEY, token)
+    await Promise.all([
+      SecureStore.setItemAsync(TOKEN_KEY, token),
+      SecureStore.setItemAsync(USER_KEY, JSON.stringify(user)),
+    ])
     set({ user, accessToken: token })
   },
 
   clearAuth: async () => {
-    await SecureStore.deleteItemAsync(TOKEN_KEY)
+    await Promise.all([
+      SecureStore.deleteItemAsync(TOKEN_KEY),
+      SecureStore.deleteItemAsync(USER_KEY),
+    ])
     set({ user: null, accessToken: null })
   },
 
   // Chamado uma vez no boot do app para restaurar sessão salva
   hydrate: async () => {
-    const token = await SecureStore.getItemAsync(TOKEN_KEY)
-    set({ accessToken: token ?? null, hydrated: true })
+    const [token, userJson] = await Promise.all([
+      SecureStore.getItemAsync(TOKEN_KEY),
+      SecureStore.getItemAsync(USER_KEY),
+    ])
+    const user = userJson ? (JSON.parse(userJson) as UserPublic) : null
+    set({ accessToken: token ?? null, user, hydrated: true })
   },
 }))

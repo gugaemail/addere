@@ -1,19 +1,20 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 
-const TOKEN_KEY = 'addere_access_token'
+// Cookie indicador de sessão ativa (sem valor sensível — apenas presença importa)
+const SESSION_COOKIE = 'addere_session'
 const PUBLIC_PATHS = ['/login']
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
   const isPublic = PUBLIC_PATHS.some((p) => pathname.startsWith(p))
-  const token = request.cookies.get(TOKEN_KEY)?.value
+  const hasSession = !!request.cookies.get(SESSION_COOKIE)?.value
 
-  if (!isPublic && !token) {
+  if (!isPublic && !hasSession) {
     return NextResponse.redirect(new URL('/login', request.url))
   }
 
-  if (isPublic && token) {
+  if (isPublic && hasSession) {
     return NextResponse.redirect(new URL('/dashboard', request.url))
   }
 

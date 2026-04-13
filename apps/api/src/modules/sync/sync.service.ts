@@ -122,138 +122,165 @@ export async function syncProducts(companyId: string) {
     deslocamento += 1 // avança para a próxima página
   }
 
-  // Executa todos os upserts em uma única transação para reduzir round-trips
+  // Executa upserts em chunks para evitar transações com milhares de operações
+  const CHUNK_SIZE = 500
   let synced = 0
 
-  await prisma.$transaction(
-    validRecords.map((p) =>
-      prisma.product.upsert({
-        where: { companyId_protheusCode: { companyId, protheusCode: p.protheusCode } },
-        update: {
-          name:   p.name,
-          price:  p.price,
-          unit:   p.unit,
-          stock:  p.stock,
-          saldo:  p.saldo,
-          active: true,
-        },
-        create: {
-          companyId,
-          protheusCode: p.protheusCode,
-          name:         p.name,
-          price:        p.price,
-          unit:         p.unit,
-          stock:        p.stock,
-          saldo:        p.saldo,
-        },
-      })
+  for (let i = 0; i < validRecords.length; i += CHUNK_SIZE) {
+    const chunk = validRecords.slice(i, i + CHUNK_SIZE)
+    const results = await prisma.$transaction(
+      chunk.map((p) =>
+        prisma.product.upsert({
+          where: { companyId_protheusCode: { companyId, protheusCode: p.protheusCode } },
+          update: {
+            name:   p.name,
+            price:  p.price,
+            unit:   p.unit,
+            stock:  p.stock,
+            saldo:  p.saldo,
+            active: true,
+          },
+          create: {
+            companyId,
+            protheusCode: p.protheusCode,
+            name:         p.name,
+            price:        p.price,
+            unit:         p.unit,
+            stock:        p.stock,
+            saldo:        p.saldo,
+          },
+        })
+      )
     )
-  ).then((results) => {
-    synced = results.length
-  }).catch((err: Error) => {
-    errors.push(`Erro na transação em lote: ${err.message}`)
-  })
+    synced += results.length
+  }
 
   return { synced, total: totalRecords || validRecords.length, errors }
 }
 
 // ─── Sync Clientes ────────────────────────────────────────────────────────────
 
+const SYNC_CUSTOMERS_PAGE_SIZE = 100
+const UPSERT_CHUNK_SIZE = 500
+
+type CustomerData = {
+  protheusCode: string
+  loja:         string
+  name:         string
+  document:     string | null
+  email:        string | null
+  phone:        string | null
+  address:      string | null
+  municipio:    string | null
+  bairro:       string | null
+  cep:          string | null
+  uf:           string | null
+}
+
+async function upsertCustomersChunked(companyId: string, records: CustomerData[]): Promise<number> {
+  let synced = 0
+  for (let i = 0; i < records.length; i += UPSERT_CHUNK_SIZE) {
+    const chunk = records.slice(i, i + UPSERT_CHUNK_SIZE)
+    const results = await prisma.$transaction(
+      chunk.map((c) =>
+        prisma.customer.upsert({
+          where: { companyId_loja_protheusCode: { companyId, loja: c.loja, protheusCode: c.protheusCode } },
+          update: {
+            name:      c.name,
+            document:  c.document,
+            email:     c.email,
+            phone:     c.phone,
+            address:   c.address,
+            municipio: c.municipio,
+            bairro:    c.bairro,
+            cep:       c.cep,
+            uf:        c.uf,
+            active:    true,
+          },
+          create: {
+            companyId,
+            protheusCode: c.protheusCode,
+            loja:         c.loja,
+            name:         c.name,
+            document:     c.document,
+            email:        c.email,
+            phone:        c.phone,
+            address:      c.address,
+            municipio:    c.municipio,
+            bairro:       c.bairro,
+            cep:          c.cep,
+            uf:           c.uf,
+          },
+        })
+      )
+    )
+    synced += results.length
+  }
+  return synced
+}
+
 export async function syncCustomers(companyId: string) {
   const company = await prisma.company.findUniqueOrThrow({ where: { id: companyId } })
 
   if (!company.apiCliente) throw new Error('URL apiCliente não configurada')
 
-  const creds = getCredentials(company)
+  const creds  = getCredentials(company)
   const config = creds.syncConfig as Record<string, unknown> | null
   const mapping = (config?.customers as typeof DEFAULT_MAPPINGS.customers | undefined) ?? DEFAULT_MAPPINGS.customers
 
-  const custMethod = (config?.customers as Record<string, unknown> | undefined)?.method as string | undefined
-  const custBody   = (config?.customers as Record<string, unknown> | undefined)?.body ?? {}
-  const rawResponse = custMethod === 'POST'
-    ? await protheusPost(companyId, company.apiCliente, custBody, creds)
-    : await protheusGet(companyId, company.apiCliente, creds)
-  const records = extractRecords(rawResponse, mapping.responseKey)
-
-  const errors: string[] = []
-
-  type CustomerData = {
-    protheusCode: string
-    loja:         string
-    name:         string
-    document:     string | null
-    email:        string | null
-    phone:        string | null
-    address:      string | null
-    municipio:    string | null
-    bairro:       string | null
-    cep:          string | null
-    uf:           string | null
-  }
+  const custMethod    = (config?.customers as Record<string, unknown> | undefined)?.method as string | undefined
+  const custBody      = (config?.customers as Record<string, unknown> | undefined)?.body as Record<string, unknown> | undefined ?? {}
+  const pageKey       = (config?.customers as Record<string, unknown> | undefined)?.pageKey as string | undefined ?? 'deslocamento'
+  const limitKey      = (config?.customers as Record<string, unknown> | undefined)?.limitKey as string | undefined ?? 'limite'
+  const isPaginated   = custMethod === 'POST'
+  const MAX_PAGES     = 500
 
   const validRecords: CustomerData[] = []
+  let totalFetched = 0
+  let deslocamento = 1
 
-  for (const raw of records) {
-    const mapped = mapRecord(raw, mapping.fields)
-    const protheusCode = toStr(mapped['protheusCode'])
-    if (!protheusCode) continue
+  // Paginação: suportada quando método é POST (mesmo padrão de syncProducts)
+  while (deslocamento <= MAX_PAGES) {
+    let rawResponse: unknown
+    if (isPaginated) {
+      const body = { ...custBody, [limitKey]: SYNC_CUSTOMERS_PAGE_SIZE, [pageKey]: deslocamento }
+      rawResponse = await protheusPost(companyId, company.apiCliente, body, creds)
+    } else {
+      rawResponse = await protheusGet(companyId, company.apiCliente, creds)
+    }
 
-    const loja = toStr(mapped['loja'], '01')
+    const records = extractRecords(rawResponse, mapping.responseKey)
+    if (records.length === 0) break
 
-    validRecords.push({
-      protheusCode,
-      loja,
-      name:      toStr(mapped['name'], protheusCode),
-      document:  toStr(mapped['document'])  || null,
-      email:     toStr(mapped['email'])     || null,
-      phone:     toStr(mapped['phone'])     || null,
-      address:   toStr(mapped['address'])   || null,
-      municipio: toStr(mapped['municipio']) || null,
-      bairro:    toStr(mapped['bairro'])    || null,
-      cep:       toStr(mapped['cep'])       || null,
-      uf:        toStr(mapped['uf'])        || null,
-    })
+    for (const raw of records) {
+      const mapped = mapRecord(raw, mapping.fields)
+      const protheusCode = toStr(mapped['protheusCode'])
+      if (!protheusCode) continue
+      const loja = toStr(mapped['loja'], '01')
+      validRecords.push({
+        protheusCode,
+        loja,
+        name:      toStr(mapped['name'], protheusCode),
+        document:  toStr(mapped['document'])  || null,
+        email:     toStr(mapped['email'])     || null,
+        phone:     toStr(mapped['phone'])     || null,
+        address:   toStr(mapped['address'])   || null,
+        municipio: toStr(mapped['municipio']) || null,
+        bairro:    toStr(mapped['bairro'])    || null,
+        cep:       toStr(mapped['cep'])       || null,
+        uf:        toStr(mapped['uf'])        || null,
+      })
+    }
+
+    totalFetched += records.length
+
+    // Se não é paginado ou recebeu menos que o limite, encerra
+    if (!isPaginated || records.length < SYNC_CUSTOMERS_PAGE_SIZE) break
+
+    deslocamento += 1
   }
 
-  let synced = 0
+  const synced = await upsertCustomersChunked(companyId, validRecords)
 
-  await prisma.$transaction(
-    validRecords.map((c) =>
-      prisma.customer.upsert({
-        where: { companyId_loja_protheusCode: { companyId, loja: c.loja, protheusCode: c.protheusCode } },
-        update: {
-          name:      c.name,
-          document:  c.document,
-          email:     c.email,
-          phone:     c.phone,
-          address:   c.address,
-          municipio: c.municipio,
-          bairro:    c.bairro,
-          cep:       c.cep,
-          uf:        c.uf,
-          active:    true,
-        },
-        create: {
-          companyId,
-          protheusCode: c.protheusCode,
-          loja:         c.loja,
-          name:         c.name,
-          document:     c.document,
-          email:        c.email,
-          phone:        c.phone,
-          address:      c.address,
-          municipio:    c.municipio,
-          bairro:       c.bairro,
-          cep:          c.cep,
-          uf:           c.uf,
-        },
-      })
-    )
-  ).then((results) => {
-    synced = results.length
-  }).catch((err: Error) => {
-    errors.push(`Erro na transação em lote: ${err.message}`)
-  })
-
-  return { synced, total: records.length, errors }
+  return { synced, total: totalFetched }
 }

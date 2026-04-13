@@ -1,5 +1,6 @@
 import Fastify, { FastifyInstance } from 'fastify'
 import rateLimit from '@fastify/rate-limit'
+import helmet from '@fastify/helmet'
 import { prisma } from '@addere/db'
 import envPlugin from './plugins/env'
 import cookiePlugin from './plugins/cookie'
@@ -22,6 +23,7 @@ export async function buildApp(): Promise<FastifyInstance> {
 
   // Plugins — ordem importa: env primeiro pois os outros dependem das variáveis
   await app.register(envPlugin)
+  await app.register(helmet, { global: true })
   await app.register(cookiePlugin)
   await app.register(corsPlugin)
   await app.register(jwtPlugin)

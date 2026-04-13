@@ -167,6 +167,10 @@ export async function createUser(companyId: string, input: CreateUserInput) {
 }
 
 export async function toggleUserActive(id: string, active: boolean) {
+  // Ao desativar, invalida todas as sessões ativas
+  if (!active) {
+    await prisma.refreshToken.deleteMany({ where: { userId: id } })
+  }
   return prisma.user.update({
     where: { id },
     data: { active },
@@ -205,6 +209,13 @@ export async function updateUser(id: string, input: UpdateUserInput) {
   if (input.email !== undefined) data.email = input.email
   if (input.role  !== undefined) data.role  = input.role
   if (input.password) data.password = await bcrypt.hash(input.password, 10)
+
+  // Invalida todas as sessões ativas ao trocar role ou senha
+  const sensitiveChange = input.role !== undefined || !!input.password
+  if (sensitiveChange) {
+    await prisma.refreshToken.deleteMany({ where: { userId: id } })
+  }
+
   return prisma.user.update({
     where: { id },
     data,

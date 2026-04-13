@@ -1,5 +1,7 @@
 import { prisma } from '@addere/db'
 
+const DEFAULT_LIMIT = 500
+
 export async function listCustomers(companyId: string, search?: string) {
   return prisma.customer.findMany({
     where: {
@@ -13,6 +15,7 @@ export async function listCustomers(companyId: string, search?: string) {
       }),
     },
     orderBy: { name: 'asc' },
+    take: DEFAULT_LIMIT,
   })
 }
 
@@ -22,6 +25,7 @@ export async function getCustomerById(companyId: string, id: string) {
     include: {
       orders: {
         orderBy: { createdAt: 'desc' },
+        take: 50,
         include: { items: { include: { product: { select: { id: true, name: true, unit: true } } } } },
       },
     },
