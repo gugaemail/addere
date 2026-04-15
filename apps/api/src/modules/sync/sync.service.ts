@@ -177,46 +177,95 @@ type CustomerData = {
   uf:           string | null
 }
 
-async function upsertCustomersChunked(companyId: string, records: CustomerData[]): Promise<number> {
+async function upsertOne(companyId: string, c: CustomerData): Promise<void> {
+  await prisma.customer.upsert({
+    where: { companyId_loja_protheusCode: { companyId, loja: c.loja, protheusCode: c.protheusCode } },
+    update: {
+      name:      c.name,
+      document:  c.document,
+      email:     c.email,
+      phone:     c.phone,
+      address:   c.address,
+      municipio: c.municipio,
+      bairro:    c.bairro,
+      cep:       c.cep,
+      uf:        c.uf,
+      active:    true,
+    },
+    create: {
+      companyId,
+      protheusCode: c.protheusCode,
+      loja:         c.loja,
+      name:         c.name,
+      document:     c.document,
+      email:        c.email,
+      phone:        c.phone,
+      address:      c.address,
+      municipio:    c.municipio,
+      bairro:       c.bairro,
+      cep:          c.cep,
+      uf:           c.uf,
+    },
+  })
+}
+
+async function upsertCustomersChunked(
+  companyId: string,
+  records: CustomerData[]
+): Promise<{ synced: number; errors: string[] }> {
   let synced = 0
+  const errors: string[] = []
+
   for (let i = 0; i < records.length; i += UPSERT_CHUNK_SIZE) {
     const chunk = records.slice(i, i + UPSERT_CHUNK_SIZE)
-    const results = await prisma.$transaction(
-      chunk.map((c) =>
-        prisma.customer.upsert({
-          where: { companyId_loja_protheusCode: { companyId, loja: c.loja, protheusCode: c.protheusCode } },
-          update: {
-            name:      c.name,
-            document:  c.document,
-            email:     c.email,
-            phone:     c.phone,
-            address:   c.address,
-            municipio: c.municipio,
-            bairro:    c.bairro,
-            cep:       c.cep,
-            uf:        c.uf,
-            active:    true,
-          },
-          create: {
-            companyId,
-            protheusCode: c.protheusCode,
-            loja:         c.loja,
-            name:         c.name,
-            document:     c.document,
-            email:        c.email,
-            phone:        c.phone,
-            address:      c.address,
-            municipio:    c.municipio,
-            bairro:       c.bairro,
-            cep:          c.cep,
-            uf:           c.uf,
-          },
-        })
-      )
-    )
-    synced += results.length
+    try {
+      // Tentativa rápida: todos os registros do chunk em uma transação
+      await prisma.$transaction(chunk.map((c) => prisma.customer.upsert({
+        where: { companyId_loja_protheusCode: { companyId, loja: c.loja, protheusCode: c.protheusCode } },
+        update: {
+          name:      c.name,
+          document:  c.document,
+          email:     c.email,
+          phone:     c.phone,
+          address:   c.address,
+          municipio: c.municipio,
+          bairro:    c.bairro,
+          cep:       c.cep,
+          uf:        c.uf,
+          active:    true,
+        },
+        create: {
+          companyId,
+          protheusCode: c.protheusCode,
+          loja:         c.loja,
+          name:         c.name,
+          document:     c.document,
+          email:        c.email,
+          phone:        c.phone,
+          address:      c.address,
+          municipio:    c.municipio,
+          bairro:       c.bairro,
+          cep:          c.cep,
+          uf:           c.uf,
+        },
+      })))
+      synced += chunk.length
+    } catch (chunkErr: unknown) {
+      // Fallback individual: salva o máximo possível e coleta erros por registro.
+      // Necessário quando clientes multi-loja compartilham o mesmo CNPJ (P2002 em @@unique([companyId, document])).
+      for (const c of chunk) {
+        try {
+          await upsertOne(companyId, c)
+          synced++
+        } catch (err: unknown) {
+          const msg = err instanceof Error ? err.message : 'Erro desconhecido'
+          errors.push(`${c.protheusCode}/${c.loja}: ${msg}`)
+        }
+      }
+    }
   }
-  return synced
+
+  return { synced, errors }
 }
 
 export async function syncCustomers(companyId: string) {
@@ -280,7 +329,7 @@ export async function syncCustomers(companyId: string) {
     deslocamento += 1
   }
 
-  const synced = await upsertCustomersChunked(companyId, validRecords)
+  const { synced, errors } = await upsertCustomersChunked(companyId, validRecords)
 
-  return { synced, total: totalFetched }
+  return { synced, total: totalFetched, errors }
 }
