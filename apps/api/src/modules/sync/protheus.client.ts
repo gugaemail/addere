@@ -2,6 +2,7 @@
 // O token é obtido via POST no endpoint `apiToken` e cacheado por 55 minutos.
 
 import axios from 'axios'
+import { assertSafeUrl } from '../../lib/url-validator'
 
 interface TokenCache {
   token: string
@@ -38,6 +39,8 @@ async function getToken(companyId: string, creds: CompanyCredentials): Promise<s
   params.set('username', creds.usrProtheus)
   params.set('password', creds.passProtheus)
 
+  assertSafeUrl(creds.apiToken, 'apiToken')
+
   const response = await withTimeout(
     axios.post(creds.apiToken, params, {
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -66,6 +69,7 @@ export async function protheusGet(
   url: string,
   creds: CompanyCredentials
 ): Promise<unknown> {
+  assertSafeUrl(url, 'url')
   const token = await getToken(companyId, creds)
   const response = await withTimeout(
     axios.get(url, { headers: { Authorization: `Bearer ${token}` } }),
@@ -81,6 +85,7 @@ export async function protheusPost(
   body: unknown,
   creds: CompanyCredentials
 ): Promise<unknown> {
+  assertSafeUrl(url, 'url')
   const token = await getToken(companyId, creds)
   const response = await withTimeout(
     axios.post(url, body, { headers: { Authorization: `Bearer ${token}` } }),

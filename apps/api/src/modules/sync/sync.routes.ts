@@ -4,6 +4,7 @@ import { prisma } from '@addere/db'
 import { authenticate } from '../../middleware/authenticate'
 import { syncProducts, syncCustomers } from './sync.service'
 import { decryptCredential } from '../../lib/protheus-crypto'
+import { assertSafeUrl } from '../../lib/url-validator'
 
 export default async function syncRoutes(app: FastifyInstance) {
   // POST /sync/test-token — testa a chamada de autenticação Protheus e retorna resposta bruta
@@ -30,6 +31,8 @@ export default async function syncRoutes(app: FastifyInstance) {
     }
 
     try {
+      assertSafeUrl(company.apiToken, 'apiToken')
+
       const senha = decryptCredential(company.passProtheus)
       const params = new URLSearchParams()
       params.set('grant_type', 'password')
@@ -93,6 +96,9 @@ export default async function syncRoutes(app: FastifyInstance) {
     // ── Passo 1: obter token ──────────────────────────────────────────────────
     let token: string
     try {
+      assertSafeUrl(company.apiToken, 'apiToken')
+      assertSafeUrl(company.apiPord, 'apiPord')
+
       const senha = decryptCredential(company.passProtheus)
       const params = new URLSearchParams()
       params.set('grant_type', 'password')
