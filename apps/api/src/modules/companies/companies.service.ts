@@ -9,6 +9,7 @@ const MAX_PAGE_SIZE = 500
 export async function listCompanies() {
   return prisma.company.findMany({
     orderBy: { name: 'asc' },
+    take: 200,
     include: {
       _count: { select: { users: true, branches: true, orders: true } },
     },

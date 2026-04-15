@@ -15,6 +15,12 @@ function getKey(): Buffer {
         'Gere com: openssl rand -hex 32'
     )
   }
+  if (/^0+$/.test(hex)) {
+    throw new Error(
+      'PROTHEUS_ENCRYPTION_KEY não pode ser todos zeros. ' +
+        'Gere uma chave segura com: openssl rand -hex 32'
+    )
+  }
   return Buffer.from(hex, 'hex')
 }
 

@@ -32,7 +32,7 @@ export async function buildApp(): Promise<FastifyInstance> {
   await app.register(rateLimit, { global: false })
 
   // GET /health — verifica conectividade real com o banco de dados
-  app.get('/health', async (_request, reply) => {
+  app.get('/health', { config: { rateLimit: { max: 60, timeWindow: '1 minute' } } }, async (_request, reply) => {
     try {
       await prisma.$queryRaw`SELECT 1`
       return reply.send({ status: 'ok', db: 'connected' })

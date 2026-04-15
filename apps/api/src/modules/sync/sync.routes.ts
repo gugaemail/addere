@@ -31,7 +31,7 @@ export default async function syncRoutes(app: FastifyInstance) {
     }
 
     try {
-      assertSafeUrl(company.apiToken, 'apiToken')
+      await assertSafeUrl(company.apiToken, 'apiToken')
 
       const senha = decryptCredential(company.passProtheus)
       const params = new URLSearchParams()
@@ -96,8 +96,8 @@ export default async function syncRoutes(app: FastifyInstance) {
     // ── Passo 1: obter token ──────────────────────────────────────────────────
     let token: string
     try {
-      assertSafeUrl(company.apiToken, 'apiToken')
-      assertSafeUrl(company.apiPord, 'apiPord')
+      await assertSafeUrl(company.apiToken, 'apiToken')
+      await assertSafeUrl(company.apiPord, 'apiPord')
 
       const senha = decryptCredential(company.passProtheus)
       const params = new URLSearchParams()
@@ -138,7 +138,7 @@ export default async function syncRoutes(app: FastifyInstance) {
   })
 
   // POST /sync/products — importa produtos do Protheus (ADMIN ou SUPERADMIN)
-  app.post('/products', { preHandler: authenticate }, async (request, reply) => {
+  app.post('/products', { preHandler: authenticate, config: { rateLimit: { max: 3, timeWindow: '1 minute' } } }, async (request, reply) => {
     const { role, companyId: userCompanyId } = request.user as { role: string; companyId: string | null }
     const { companyId } = (request.body ?? {}) as { companyId?: string }
 
@@ -163,7 +163,7 @@ export default async function syncRoutes(app: FastifyInstance) {
   })
 
   // POST /sync/customers — importa clientes do Protheus (ADMIN ou SUPERADMIN)
-  app.post('/customers', { preHandler: authenticate }, async (request, reply) => {
+  app.post('/customers', { preHandler: authenticate, config: { rateLimit: { max: 3, timeWindow: '1 minute' } } }, async (request, reply) => {
     const { role, companyId: userCompanyId } = request.user as { role: string; companyId: string | null }
     const { companyId } = (request.body ?? {}) as { companyId?: string }
 

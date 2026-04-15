@@ -14,7 +14,7 @@ export async function requireAdmin(request: FastifyRequest, reply: FastifyReply)
   await authenticate(request, reply)
   if (reply.sent) return
 
-  if (request.user.role !== 'ADMIN') {
+  if (!['ADMIN', 'SUPERADMIN'].includes(request.user.role)) {
     reply.status(403).send({ message: 'Acesso restrito a administradores' })
   }
 }

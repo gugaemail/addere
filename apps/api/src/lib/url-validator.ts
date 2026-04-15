@@ -1,5 +1,8 @@
 // Valida URLs de endpoints Protheus para evitar SSRF (Server-Side Request Forgery).
 // Bloqueia IPs privados, loopback e metadados de cloud antes de qualquer chamada HTTP.
+// Inclui resolução DNS para prevenir DNS rebinding.
+
+import { promises as dns } from 'dns'
 
 const BLOCKED_HOSTS = new Set([
   'localhost',
@@ -20,11 +23,18 @@ const PRIVATE_IP_PATTERNS = [
   /^fd/,                     // IPv6 unique local
 ]
 
+function isBlockedAddress(addr: string): boolean {
+  const lower = addr.toLowerCase()
+  if (BLOCKED_HOSTS.has(lower)) return true
+  return PRIVATE_IP_PATTERNS.some((p) => p.test(lower))
+}
+
 /**
  * Lança erro se a URL não for HTTP/HTTPS ou apontar para endereços bloqueados.
+ * Resolve o hostname via DNS para prevenir DNS rebinding.
  * Chame antes de qualquer axios.get/post com URL vinda do banco.
  */
-export function assertSafeUrl(url: string, field: string): void {
+export async function assertSafeUrl(url: string, field: string): Promise<void> {
   let parsed: URL
   try {
     parsed = new URL(url)
@@ -38,13 +48,20 @@ export function assertSafeUrl(url: string, field: string): void {
 
   const hostname = parsed.hostname.toLowerCase()
 
-  if (BLOCKED_HOSTS.has(hostname)) {
+  // Verificação estática do hostname (captura IPs privados literais e hostnames bloqueados)
+  if (isBlockedAddress(hostname)) {
     throw new Error(`${field}: endereço não permitido — "${hostname}"`)
   }
 
-  for (const pattern of PRIVATE_IP_PATTERNS) {
-    if (pattern.test(hostname)) {
-      throw new Error(`${field}: endereço IP privado/reservado não permitido — "${hostname}"`)
+  // Resolução DNS: detecta DNS rebinding (hostname público → IP privado)
+  try {
+    const { address } = await dns.lookup(hostname)
+    if (isBlockedAddress(address)) {
+      throw new Error(`${field}: hostname resolve para endereço privado/reservado — "${address}"`)
     }
+  } catch (err) {
+    // Re-lança apenas erros de validação (não erros de rede/DNS)
+    if (err instanceof Error && err.message.startsWith(field + ':')) throw err
+    // Falha de resolução DNS: deixa o axios lidar com o erro naturalmente
   }
 }
