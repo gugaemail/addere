@@ -329,7 +329,18 @@ export async function syncCustomers(companyId: string) {
     deslocamento += 1
   }
 
-  const { synced, errors } = await upsertCustomersChunked(companyId, validRecords)
+  // Deduplica por document: o Protheus pode retornar o mesmo CNPJ em múltiplas lojas
+  // (A1_LOJA='01', '02'...). A constraint @@unique([companyId, document]) aceita apenas um
+  // registro por CNPJ — mantemos a primeira ocorrência (geralmente loja='01').
+  const seenDocuments = new Set<string>()
+  const deduped = validRecords.filter((c) => {
+    if (!c.document) return true
+    if (seenDocuments.has(c.document)) return false
+    seenDocuments.add(c.document)
+    return true
+  })
+
+  const { synced, errors } = await upsertCustomersChunked(companyId, deduped)
 
   return { synced, total: totalFetched, errors }
 }
