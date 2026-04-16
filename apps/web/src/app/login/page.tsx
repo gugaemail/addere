@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { api, setAccessToken } from '@/lib/api'
+import { Logo } from '@/components/Logo'
 
 export default function LoginPage() {
   const router = useRouter()
@@ -42,9 +43,12 @@ export default function LoginPage() {
       <div className="w-full max-w-sm">
         {/* Card */}
         <div className="bg-[var(--bg-surface)] border border-[var(--border)] rounded-2xl shadow-modal p-8 space-y-6">
-          <div className="text-center space-y-1">
-            <h1 className="text-2xl font-bold tracking-tighter text-[var(--text-primary)]">Addere</h1>
-            <p className="text-sm text-[var(--text-muted)]">Painel Administrativo</p>
+          <div className="flex flex-col items-center gap-3">
+            <Logo size={40} />
+            <div className="text-center space-y-0.5">
+              <h1 className="text-xl font-bold tracking-tighter text-[var(--text-primary)]">Addere</h1>
+              <p className="text-sm text-[var(--text-muted)]">Painel Administrativo</p>
+            </div>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">

@@ -1,8 +1,9 @@
-import { View, Text, FlatList, TouchableOpacity, ActivityIndicator, StyleSheet } from 'react-native'
+import { View, Text, FlatList, TouchableOpacity, StyleSheet } from 'react-native'
 import { useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import { usePedidos } from '../../../src/hooks/usePedidos'
 import { useTheme } from '../../../src/theme'
+import { OrderRowSkeleton, EmptyState } from '../../../src/components/Skeleton'
 import type { Order } from '@addere/types'
 
 const STATUS_COLOR: Record<string, string> = {
@@ -47,22 +48,22 @@ export default function PedidosScreen() {
   return (
     <View style={[styles.container, { backgroundColor: theme.bg }]}>
       {isLoading ? (
-        <ActivityIndicator color={theme.brand} style={{ marginTop: 40 }} />
+        <View style={{ padding: 16 }}>
+          {[0, 1, 2, 3].map((i) => <OrderRowSkeleton key={i} />)}
+        </View>
       ) : (
         <FlatList
           data={orders}
           keyExtractor={(item) => item.id}
           renderItem={({ item }) => <OrderCard order={item} theme={theme} />}
           onRefresh={refetch}
-          refreshing={isLoading}
+          refreshing={false}
           ListEmptyComponent={
-            <View style={styles.emptyContainer}>
-              <Ionicons name="receipt-outline" size={40} color={theme.textMuted} />
-              <Text style={[styles.emptyTitle, { color: theme.text }]}>Nenhum pedido ainda</Text>
-              <Text style={[styles.emptyDesc, { color: theme.textMuted }]}>
-                Toque no botão + para criar seu primeiro pedido.
-              </Text>
-            </View>
+            <EmptyState
+              icon={<Ionicons name="receipt-outline" size={28} color={theme.textMuted} />}
+              title="Nenhum pedido ainda"
+              description="Toque no botão + para criar seu primeiro pedido."
+            />
           }
           contentContainerStyle={{ padding: 16, paddingBottom: 90 }}
         />
@@ -97,9 +98,6 @@ const styles = StyleSheet.create({
   total:      { fontSize: 16, fontWeight: '700' },
   badge:      { borderRadius: 12, paddingHorizontal: 8, paddingVertical: 3, marginTop: 6 },
   badgeText:  { fontSize: 11, fontWeight: '700' },
-  emptyContainer: { alignItems: 'center', paddingTop: 60, gap: 8 },
-  emptyTitle: { fontSize: 15, fontWeight: '600', marginTop: 4 },
-  emptyDesc:  { fontSize: 13, textAlign: 'center', maxWidth: 240 },
   fab: {
     position: 'absolute',
     bottom: 24,

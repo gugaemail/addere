@@ -1,11 +1,26 @@
 'use client'
 
-import { useRouter } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { api, clearAccessToken } from '@/lib/api'
 import { useTheme } from '../theme-provider'
+import { Logo } from '@/components/Logo'
+
+const NAV_ITEMS = [
+  {
+    href: '/dashboard',
+    label: 'Empresas',
+    match: (p: string) => p.startsWith('/dashboard') || p.startsWith('/empresas'),
+    icon: (
+      <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 21h16.5M4.5 3h15M5.25 3v18m13.5-18v18M9 6.75h1.5m-1.5 3h1.5m-1.5 3h1.5m3-6H15m-1.5 3H15m-1.5 3H15M9 21v-3.375c0-.621.504-1.125 1.125-1.125h3.75c.621 0 1.125.504 1.125 1.125V21" />
+      </svg>
+    ),
+  },
+]
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
-  const router = useRouter()
+  const router   = useRouter()
+  const pathname = usePathname()
   const { theme, toggle } = useTheme()
 
   async function handleLogout() {
@@ -22,22 +37,30 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       {/* Sidebar */}
       <aside className="w-56 bg-gray-950 dark:bg-[#0a0e1a] text-white flex flex-col border-r border-white/5 shrink-0">
         {/* Logo */}
-        <div className="px-6 py-5 border-b border-white/5">
-          <span className="text-base font-bold tracking-tighter text-white">Addere</span>
-          <p className="text-[11px] text-gray-500 mt-0.5 tracking-wide uppercase">Painel Admin</p>
+        <div className="px-5 py-4 border-b border-white/5">
+          <Logo size={28} showWordmark wordmarkClass="text-sm font-bold tracking-tighter text-white" />
+          <p className="text-[10px] text-gray-500 mt-1.5 tracking-widest uppercase pl-[38px]">Painel Admin</p>
         </div>
 
         {/* Nav */}
         <nav className="flex-1 px-3 py-4 space-y-0.5">
-          <a
-            href="/dashboard"
-            className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-gray-400 hover:bg-white/6 hover:text-white transition-colors"
-          >
-            <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 21h16.5M4.5 3h15M5.25 3v18m13.5-18v18M9 6.75h1.5m-1.5 3h1.5m-1.5 3h1.5m3-6H15m-1.5 3H15m-1.5 3H15M9 21v-3.375c0-.621.504-1.125 1.125-1.125h3.75c.621 0 1.125.504 1.125 1.125V21" />
-            </svg>
-            Empresas
-          </a>
+          {NAV_ITEMS.map((item) => {
+            const active = item.match(pathname)
+            return (
+              <a
+                key={item.href}
+                href={item.href}
+                className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-colors ${
+                  active
+                    ? 'bg-white/10 text-white font-medium'
+                    : 'text-gray-400 hover:bg-white/6 hover:text-white'
+                }`}
+              >
+                {item.icon}
+                {item.label}
+              </a>
+            )
+          })}
         </nav>
 
         {/* Footer */}

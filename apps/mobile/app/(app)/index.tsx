@@ -1,8 +1,10 @@
-import { View, Text, FlatList, ActivityIndicator, StyleSheet, ScrollView, TouchableOpacity } from 'react-native'
+import { View, Text, FlatList, StyleSheet, ScrollView, TouchableOpacity } from 'react-native'
 import { useDashboardStats, usePedidos } from '../../src/hooks/usePedidos'
 import { useAuthStore } from '../../src/store/auth.store'
 import { useLogout } from '../../src/hooks/useAuth'
 import { useTheme } from '../../src/theme'
+import { StatGridSkeleton, OrderRowSkeleton, EmptyState } from '../../src/components/Skeleton'
+import { Ionicons } from '@expo/vector-icons'
 import type { Order } from '@addere/types'
 
 const STATUS_LABEL: Record<string, string> = {
@@ -45,7 +47,7 @@ export default function DashboardScreen() {
 
       {/* Stats */}
       {loadingStats ? (
-        <ActivityIndicator color={theme.brand} style={{ marginVertical: 16 }} />
+        <StatGridSkeleton />
       ) : (
         <View style={styles.statsGrid}>
           {statItems.map((s, i) => (
@@ -61,7 +63,9 @@ export default function DashboardScreen() {
       <Text style={[styles.sectionTitle, { color: theme.text }]}>Últimos pedidos</Text>
 
       {loadingOrders ? (
-        <ActivityIndicator color={theme.brand} style={{ marginVertical: 16 }} />
+        <View>
+          {[0, 1, 2].map((i) => <OrderRowSkeleton key={i} />)}
+        </View>
       ) : (
         <FlatList
           data={recentOrders}
@@ -69,9 +73,11 @@ export default function DashboardScreen() {
           renderItem={({ item }) => <OrderRow order={item} theme={theme} />}
           scrollEnabled={false}
           ListEmptyComponent={
-            <View style={styles.emptyContainer}>
-              <Text style={[styles.emptyText, { color: theme.textMuted }]}>Nenhum pedido ainda.</Text>
-            </View>
+            <EmptyState
+              icon={<Ionicons name="receipt-outline" size={28} color={theme.textMuted} />}
+              title="Nenhum pedido ainda"
+              description="Seus pedidos mais recentes aparecerão aqui."
+            />
           }
         />
       )}

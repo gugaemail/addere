@@ -1,8 +1,10 @@
 import { useState } from 'react'
-import { View, Text, FlatList, TextInput, TouchableOpacity, ActivityIndicator, StyleSheet } from 'react-native'
+import { View, Text, FlatList, TextInput, TouchableOpacity, StyleSheet } from 'react-native'
 import { useRouter } from 'expo-router'
+import { Ionicons } from '@expo/vector-icons'
 import { useClientes } from '../../../src/hooks/useClientes'
 import { useTheme } from '../../../src/theme'
+import { ClienteItemSkeleton, EmptyState } from '../../../src/components/Skeleton'
 import type { Customer } from '@addere/types'
 
 function ClienteItem({ customer, onPress, theme }: { customer: Customer; onPress: () => void; theme: ReturnType<typeof useTheme> }) {
@@ -36,7 +38,9 @@ export default function ClientesScreen() {
       />
 
       {isLoading ? (
-        <ActivityIndicator color={theme.brand} style={{ marginTop: 24 }} />
+        <View style={{ paddingHorizontal: 16 }}>
+          {[0, 1, 2, 3, 4].map((i) => <ClienteItemSkeleton key={i} />)}
+        </View>
       ) : (
         <FlatList
           data={customers}
@@ -49,11 +53,13 @@ export default function ClientesScreen() {
             />
           )}
           onRefresh={refetch}
-          refreshing={isLoading}
+          refreshing={false}
           ListEmptyComponent={
-            <View style={styles.emptyContainer}>
-              <Text style={[styles.empty, { color: theme.textMuted }]}>Nenhum cliente encontrado.</Text>
-            </View>
+            <EmptyState
+              icon={<Ionicons name="people-outline" size={28} color={theme.textMuted} />}
+              title={search ? 'Nenhum resultado' : 'Nenhum cliente ainda'}
+              description={search ? `Não encontramos clientes para "${search}".` : 'Sincronize os clientes pelo painel web.'}
+            />
           }
           contentContainerStyle={{ padding: 16 }}
         />
@@ -88,6 +94,4 @@ const styles = StyleSheet.create({
   doc:   { fontSize: 12, marginTop: 2 },
   sub:   { fontSize: 12 },
   arrow: { fontSize: 22 },
-  emptyContainer: { alignItems: 'center', marginTop: 40 },
-  empty: { textAlign: 'center' },
 })

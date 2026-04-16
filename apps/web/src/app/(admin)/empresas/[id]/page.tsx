@@ -10,6 +10,7 @@ import {
   ActionMenu,
 } from './EntityModals'
 import { ProtheusConfigForm } from './ProtheusConfigForm'
+import { ConfirmModal } from './ConfirmModal'
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -82,6 +83,7 @@ export default function EmpresaPage() {
   const [syncResult,  setSyncResult]  = useState<{ entity: string; result: SyncResult } | null>(null)
   const [syncError,   setSyncError]   = useState<{ entity: string; msg: string } | null>(null)
   // Modal de diagnóstico (compartilhado entre Testar Token e Testar Produtos)
+  const [confirmCancel,   setConfirmCancel]   = useState<string | null>(null)
   const [testingToken,    setTestingToken]    = useState(false)
   const [testingProducts, setTestingProducts] = useState(false)
   const [rawModalTitle,   setRawModalTitle]   = useState('')
@@ -136,7 +138,6 @@ export default function EmpresaPage() {
     fetchProducts()
   }
   async function cancelOrder(orderId: string) {
-    if (!confirm('Cancelar este pedido?')) return
     await api.patch(`/companies/${id}/orders/${orderId}/cancel`)
     fetchOrders()
   }
@@ -425,7 +426,7 @@ export default function EmpresaPage() {
                   <td className="px-4 py-3 text-right">
                     {o.status !== 'CANCELLED' && (
                       <button
-                        onClick={(e) => { e.stopPropagation(); cancelOrder(o.id) }}
+                        onClick={(e) => { e.stopPropagation(); setConfirmCancel(o.id) }}
                         className="text-xs font-medium px-3 py-1 rounded-lg border border-red-500/20 text-red-500 hover:bg-red-500/10 transition-colors"
                       >
                         Cancelar
@@ -646,6 +647,17 @@ export default function EmpresaPage() {
           product={productModal.item}
           onClose={() => setProductModal(null)}
           onSaved={() => { setProductModal(null); fetchProducts() }}
+        />
+      )}
+
+      {/* ── Modal de confirmação de cancelamento ── */}
+      {confirmCancel && (
+        <ConfirmModal
+          title="Cancelar pedido?"
+          description={`O pedido #${confirmCancel.slice(0, 8)} será cancelado e não poderá ser reaberto.`}
+          confirmLabel="Sim, cancelar"
+          onConfirm={() => cancelOrder(confirmCancel)}
+          onClose={() => setConfirmCancel(null)}
         />
       )}
 
