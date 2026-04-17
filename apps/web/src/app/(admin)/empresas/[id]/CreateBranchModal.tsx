@@ -101,7 +101,7 @@ export function Field({
   )
 }
 
-export function ModalActions({ loading, onClose }: { loading: boolean; onClose: () => void }) {
+export function ModalActions({ loading, onClose, submitLabel = 'Criar' }: { loading: boolean; onClose: () => void; submitLabel?: string }) {
   return (
     <div className="flex gap-3 pt-2">
       <button
@@ -116,7 +116,7 @@ export function ModalActions({ loading, onClose }: { loading: boolean; onClose: 
         disabled={loading}
         className="flex-1 bg-brand-600 hover:bg-brand-700 disabled:opacity-50 text-white text-sm font-medium rounded-lg py-2.5 transition-colors"
       >
-        {loading ? 'Salvando...' : 'Criar'}
+        {loading ? 'Salvando...' : submitLabel}
       </button>
     </div>
   )

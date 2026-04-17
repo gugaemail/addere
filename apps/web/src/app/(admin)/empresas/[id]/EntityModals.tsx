@@ -75,7 +75,7 @@ export function BranchModal({ companyId, mode, branch, onClose, onSaved }: Branc
         <Field label="Nome" value={name} onChange={setName} required />
         <Field label="CNPJ" value={cnpj} onChange={setCnpj} placeholder="Opcional" />
         <Field label="Código Protheus" value={idProtheus} onChange={setIdProtheus} placeholder="Opcional" />
-        <ModalActions loading={loading} onClose={onClose} />
+        <ModalActions loading={loading} onClose={onClose} submitLabel={mode === 'edit' ? 'Salvar' : 'Criar'} />
         {error && <ErrorMsg message={error} />}
       </form>
     </Modal>
@@ -152,7 +152,7 @@ export function UserModal({ companyId, mode, user, onClose, onSaved }: UserModal
             <option value="ADMIN">Administrador</option>
           </select>
         </div>
-        <ModalActions loading={loading} onClose={onClose} />
+        <ModalActions loading={loading} onClose={onClose} submitLabel={mode === 'edit' ? 'Salvar' : 'Criar'} />
         {error && <ErrorMsg message={error} />}
       </form>
     </Modal>
@@ -237,7 +237,7 @@ export function CustomerModal({ companyId, mode, customer, onClose, onSaved }: C
           <Field label="CEP" value={cep} onChange={setCep} placeholder="Opcional" />
           <Field label="UF" value={uf} onChange={setUf} placeholder="SP" />
         </div>
-        <ModalActions loading={loading} onClose={onClose} />
+        <ModalActions loading={loading} onClose={onClose} submitLabel={mode === 'edit' ? 'Salvar' : 'Criar'} />
         {error && <ErrorMsg message={error} />}
       </form>
     </Modal>
@@ -308,7 +308,7 @@ export function ProductModal({ companyId, mode, product, onClose, onSaved }: Pro
           <NumField label="Estoque" value={stock} onChange={setStock} />
           <NumField label="Saldo" value={saldo} onChange={setSaldo} />
         </div>
-        <ModalActions loading={loading} onClose={onClose} />
+        <ModalActions loading={loading} onClose={onClose} submitLabel={mode === 'edit' ? 'Salvar' : 'Criar'} />
         {error && <ErrorMsg message={error} />}
       </form>
     </Modal>
