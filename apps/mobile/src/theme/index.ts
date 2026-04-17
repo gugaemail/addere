@@ -1,3 +1,10 @@
-export { colors } from './colors'
-export { spacing } from './spacing'
-export { radius } from './radius'
+import { colors }     from './colors'
+import { spacing }    from './spacing'
+import { radius }     from './radius'
+import { typography } from './typography'
+
+export const theme = { colors, spacing, radius, typography } as const
+
+export type Theme = typeof theme
+
+export { colors, spacing, radius, typography }
