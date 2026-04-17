@@ -33,9 +33,9 @@ const textStyles: Record<Variant, object> = {
 }
 
 const sizeContainer: Record<Size, object> = {
-  sm: { paddingVertical: spacing.xs,     paddingHorizontal: spacing.md  },
-  md: { paddingVertical: spacing.sm + 2, paddingHorizontal: spacing.lg  },
-  lg: { paddingVertical: spacing.md - 2, paddingHorizontal: spacing.xl  },
+  sm: { paddingVertical: spacing.xs,  paddingHorizontal: spacing.md },
+  md: { paddingVertical: spacing.sm,  paddingHorizontal: spacing.lg },
+  lg: { paddingVertical: spacing.md,  paddingHorizontal: spacing.xl },
 }
 
 const sizeText: Record<Size, number> = {
