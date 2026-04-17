@@ -17,7 +17,10 @@ function AuthGuard() {
   useEffect(() => {
     if (!hydrated) return
 
-    const inAuthGroup = segments[0] === '(auth)'
+    const inAuthGroup   = segments[0] === '(auth)'
+    const inDevPreview  = segments[0] === 'dev-preview'
+
+    if (inDevPreview) return
 
     if (!accessToken && !inAuthGroup) {
       router.replace('/(auth)/login')
