@@ -1,30 +1,36 @@
+import { View, StyleSheet } from 'react-native'
 import { Tabs } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
-import { useTheme } from '../../src/theme'
 
 type IoniconsName = React.ComponentProps<typeof Ionicons>['name']
 
-function TabIcon({ name, color, size }: { name: IoniconsName; color: string; size: number }) {
+function TabIcon({ name, color, size, focused }: { name: IoniconsName; color: string; size: number; focused: boolean }) {
+  if (focused) {
+    return (
+      <View style={s.activeIconWrap}>
+        <Ionicons name={name} size={size} color="#1B4FA8" />
+      </View>
+    )
+  }
   return <Ionicons name={name} size={size} color={color} />
 }
 
 export default function AppLayout() {
-  const theme = useTheme()
-
   return (
     <Tabs
       screenOptions={{
         headerShown: true,
-        tabBarActiveTintColor:   theme.tab.active,
-        tabBarInactiveTintColor: theme.tab.inactive,
+        tabBarActiveTintColor:   '#1B4FA8',
+        tabBarInactiveTintColor: '#94A3B8',
         tabBarStyle: {
-          backgroundColor: theme.tab.bg,
-          borderTopColor:  theme.tab.border,
+          backgroundColor: '#FFFFFF',
+          borderTopColor:  '#E2E8F0',
+          borderTopWidth:  1,
         },
         headerStyle: {
-          backgroundColor: theme.surface,
+          backgroundColor: '#FFFFFF',
         },
-        headerTintColor: theme.text,
+        headerTintColor: '#0D2045',
         headerShadowVisible: false,
       }}
     >
@@ -32,8 +38,8 @@ export default function AppLayout() {
         name="index"
         options={{
           title: 'Dashboard',
-          tabBarIcon: ({ color, size }) => (
-            <TabIcon name="home-outline" color={color} size={size} />
+          tabBarIcon: ({ color, size, focused }) => (
+            <TabIcon name="home-outline" color={color} size={size} focused={focused} />
           ),
         }}
       />
@@ -41,8 +47,8 @@ export default function AppLayout() {
         name="clientes"
         options={{
           title: 'Clientes',
-          tabBarIcon: ({ color, size }) => (
-            <TabIcon name="people-outline" color={color} size={size} />
+          tabBarIcon: ({ color, size, focused }) => (
+            <TabIcon name="people-outline" color={color} size={size} focused={focused} />
           ),
           headerShown: false,
         }}
@@ -51,8 +57,8 @@ export default function AppLayout() {
         name="produtos"
         options={{
           title: 'Produtos',
-          tabBarIcon: ({ color, size }) => (
-            <TabIcon name="cube-outline" color={color} size={size} />
+          tabBarIcon: ({ color, size, focused }) => (
+            <TabIcon name="cube-outline" color={color} size={size} focused={focused} />
           ),
           headerShown: false,
         }}
@@ -61,8 +67,8 @@ export default function AppLayout() {
         name="pedidos"
         options={{
           title: 'Pedidos',
-          tabBarIcon: ({ color, size }) => (
-            <TabIcon name="receipt-outline" color={color} size={size} />
+          tabBarIcon: ({ color, size, focused }) => (
+            <TabIcon name="receipt-outline" color={color} size={size} focused={focused} />
           ),
           headerShown: false,
         }}
@@ -75,3 +81,16 @@ export default function AppLayout() {
     </Tabs>
   )
 }
+
+const s = StyleSheet.create({
+  activeIconWrap: {
+    width: 36,
+    height: 28,
+    borderRadius: 8,
+    backgroundColor: '#E8F4FF',
+    borderWidth: 1.5,
+    borderColor: '#1B4FA8',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+})

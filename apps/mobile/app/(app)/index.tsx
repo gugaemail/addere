@@ -5,6 +5,7 @@ import { useLogout } from '../../src/hooks/useAuth'
 import { useTheme } from '../../src/theme'
 import { StatGridSkeleton, OrderRowSkeleton, EmptyState } from '../../src/components/Skeleton'
 import { Ionicons } from '@expo/vector-icons'
+import { LogOut } from 'lucide-react-native'
 import type { Order } from '@addere/types'
 
 const STATUS_LABEL: Record<string, string> = {
@@ -17,31 +18,31 @@ const STATUS_COLOR: Record<string, string> = {
   SYNCED:    '#16a34a',
   CANCELLED: '#dc2626',
 }
-const STAT_ACCENT = ['#2563eb', '#f59e0b', '#16a34a', '#7c3aed']
+const STAT_ACCENT = ['#1B4FA8', '#f59e0b', '#16a34a', '#7c3aed']
 
 export default function DashboardScreen() {
   const user    = useAuthStore((s) => s.user)
   const theme   = useTheme()
-  const { data: stats, isLoading: loadingStats }   = useDashboardStats()
+  const { data: stats, isLoading: loadingStats }       = useDashboardStats()
   const { data: recentOrders, isLoading: loadingOrders } = usePedidos(5)
   const { mutate: logout } = useLogout()
 
   const statItems = [
-    { label: 'Total de pedidos',  value: stats?.totalOrders  ?? 0 },
-    { label: 'Pendentes',         value: stats?.pendingOrders ?? 0 },
-    { label: 'Sincronizados',     value: stats?.syncedOrders  ?? 0 },
-    { label: 'Receita total',     value: `R$ ${Number(stats?.totalRevenue ?? 0).toFixed(2)}` },
+    { label: 'Total de pedidos', value: stats?.totalOrders  ?? 0 },
+    { label: 'Pendentes',        value: stats?.pendingOrders ?? 0 },
+    { label: 'Sincronizados',    value: stats?.syncedOrders  ?? 0 },
+    { label: 'Receita total',    value: `R$ ${Number(stats?.totalRevenue ?? 0).toFixed(2)}` },
   ]
 
   return (
-    <ScrollView style={{ flex: 1, backgroundColor: theme.bg }} contentContainerStyle={{ padding: 16 }}>
+    <ScrollView style={s.scroll} contentContainerStyle={s.content}>
       {/* Header */}
-      <View style={styles.header}>
-        <Text style={[styles.greeting, { color: theme.text }]}>
+      <View style={s.header}>
+        <Text style={s.greeting}>
           Olá, {user?.name?.split(' ')[0]}
         </Text>
-        <TouchableOpacity onPress={() => logout()}>
-          <Text style={styles.logoutBtn}>Sair</Text>
+        <TouchableOpacity onPress={() => logout()} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+          <LogOut size={20} color="#64748B" />
         </TouchableOpacity>
       </View>
 
@@ -49,18 +50,18 @@ export default function DashboardScreen() {
       {loadingStats ? (
         <StatGridSkeleton />
       ) : (
-        <View style={styles.statsGrid}>
-          {statItems.map((s, i) => (
-            <View key={s.label} style={[styles.statCard, { backgroundColor: theme.surface, borderLeftColor: STAT_ACCENT[i] }]}>
-              <Text style={[styles.statValue, { color: theme.text }]}>{s.value}</Text>
-              <Text style={[styles.statLabel, { color: theme.textMuted }]}>{s.label}</Text>
+        <View style={s.statsGrid}>
+          {statItems.map((item, i) => (
+            <View key={item.label} style={[s.statCard, { borderTopColor: STAT_ACCENT[i] }]}>
+              <Text style={s.statValue}>{item.value}</Text>
+              <Text style={s.statLabel}>{item.label}</Text>
             </View>
           ))}
         </View>
       )}
 
       {/* Últimos pedidos */}
-      <Text style={[styles.sectionTitle, { color: theme.text }]}>Últimos pedidos</Text>
+      <Text style={s.sectionTitle}>Últimos pedidos</Text>
 
       {loadingOrders ? (
         <View>
@@ -70,11 +71,11 @@ export default function DashboardScreen() {
         <FlatList
           data={recentOrders}
           keyExtractor={(item) => item.id}
-          renderItem={({ item }) => <OrderRow order={item} theme={theme} />}
+          renderItem={({ item }) => <OrderRow order={item} />}
           scrollEnabled={false}
           ListEmptyComponent={
             <EmptyState
-              icon={<Ionicons name="receipt-outline" size={28} color={theme.textMuted} />}
+              icon={<Ionicons name="receipt-outline" size={28} color="#64748B" />}
               title="Nenhum pedido ainda"
               description="Seus pedidos mais recentes aparecerão aqui."
             />
@@ -85,20 +86,18 @@ export default function DashboardScreen() {
   )
 }
 
-function OrderRow({ order, theme }: { order: Order; theme: ReturnType<typeof useTheme> }) {
+function OrderRow({ order }: { order: Order }) {
   return (
-    <View style={[styles.orderRow, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+    <View style={s.orderRow}>
       <View style={{ flex: 1 }}>
-        <Text style={[styles.orderCustomer, { color: theme.text }]}>{order.customer.name}</Text>
-        <Text style={[styles.orderDate, { color: theme.textMuted }]}>
+        <Text style={s.orderCustomer}>{order.customer.name}</Text>
+        <Text style={s.orderDate}>
           {new Date(order.createdAt).toLocaleDateString('pt-BR')}
         </Text>
       </View>
       <View style={{ alignItems: 'flex-end' }}>
-        <Text style={[styles.orderTotal, { color: theme.text }]}>
-          R$ {Number(order.total).toFixed(2)}
-        </Text>
-        <Text style={[styles.orderStatus, { color: STATUS_COLOR[order.status] }]}>
+        <Text style={s.orderTotal}>R$ {Number(order.total).toFixed(2)}</Text>
+        <Text style={[s.orderStatus, { color: STATUS_COLOR[order.status] }]}>
           {STATUS_LABEL[order.status]}
         </Text>
       </View>
@@ -106,39 +105,94 @@ function OrderRow({ order, theme }: { order: Order; theme: ReturnType<typeof use
   )
 }
 
-const styles = StyleSheet.create({
-  header:        { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
-  greeting:      { fontSize: 20, fontWeight: '700' },
-  logoutBtn:     { color: '#dc2626', fontWeight: '600' },
-  statsGrid:     { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginBottom: 24 },
+const s = StyleSheet.create({
+  scroll: {
+    flex: 1,
+    backgroundColor: '#F8FAFC',
+  },
+  content: {
+    padding: 16,
+  },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  greeting: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#0D2045',
+  },
+  statsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+    marginBottom: 24,
+  },
   statCard: {
-    borderRadius: 10,
+    borderRadius: 12,
     padding: 14,
     flex: 1,
     minWidth: '45%',
-    borderLeftWidth: 3,
-    shadowColor: '#000',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderTopWidth: 3,
+    shadowColor: '#0D2045',
     shadowOpacity: 0.06,
-    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 1 },
+    shadowRadius: 3,
     elevation: 2,
   },
-  statValue:     { fontSize: 20, fontWeight: '700' },
-  statLabel:     { fontSize: 12, marginTop: 2 },
-  sectionTitle:  { fontSize: 15, fontWeight: '700', marginBottom: 8 },
+  statValue: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#0D2045',
+  },
+  statLabel: {
+    fontSize: 12,
+    marginTop: 2,
+    color: '#64748B',
+  },
+  sectionTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    marginBottom: 8,
+    color: '#0D2045',
+  },
   orderRow: {
-    borderRadius: 10,
+    borderRadius: 12,
     padding: 12,
     flexDirection: 'row',
     marginBottom: 8,
+    backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    shadowColor: '#000',
-    shadowOpacity: 0.04,
+    borderColor: '#E2E8F0',
+    shadowColor: '#0D2045',
+    shadowOpacity: 0.06,
+    shadowOffset: { width: 0, height: 1 },
+    shadowRadius: 3,
     elevation: 1,
   },
-  orderCustomer: { fontWeight: '600', fontSize: 14 },
-  orderDate:     { fontSize: 12, marginTop: 2 },
-  orderTotal:    { fontWeight: '700', fontSize: 14 },
-  orderStatus:   { fontSize: 12, marginTop: 2, fontWeight: '600' },
-  emptyContainer:{ alignItems: 'center', paddingVertical: 32 },
-  emptyText:     { textAlign: 'center' },
+  orderCustomer: {
+    fontWeight: '600',
+    fontSize: 14,
+    color: '#0D2045',
+  },
+  orderDate: {
+    fontSize: 12,
+    marginTop: 2,
+    color: '#64748B',
+  },
+  orderTotal: {
+    fontWeight: '700',
+    fontSize: 14,
+    color: '#0D2045',
+  },
+  orderStatus: {
+    fontSize: 12,
+    marginTop: 2,
+    fontWeight: '600',
+  },
 })
