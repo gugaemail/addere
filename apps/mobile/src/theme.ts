@@ -1,6 +1,11 @@
 import { useColorScheme } from 'react-native'
 import { colors } from './theme/colors'
 
+export { colors } from './theme/colors'
+export { spacing } from './theme/spacing'
+export { radius } from './theme/radius'
+export { typography } from './theme/typography'
+
 export const light = {
   bg:        colors.neutral.bg,
   surface:   colors.neutral.white,
