@@ -54,6 +54,41 @@ interface SyncResult { synced: number; total: number; errors: string[] }
 
 type Tab = 'filiais' | 'usuarios' | 'clientes' | 'produtos' | 'pedidos' | 'protheus'
 type ModalState<T> = { mode: 'create' | 'edit' | 'copy'; item?: T } | null
+type SortConfig = { col: string; dir: 'asc' | 'desc' } | null
+
+// ─── Utilitários de tabela ────────────────────────────────────────────────────
+
+const PAGE_SIZE = 15
+
+function applyTable<T>(
+  items: T[],
+  filter: (item: T) => boolean,
+  sort: SortConfig,
+  getField: (item: T, col: string) => string,
+  page: number,
+): { rows: T[]; total: number; pages: number } {
+  let filtered = items.filter(filter)
+  if (sort) {
+    filtered = [...filtered].sort((a, b) => {
+      const av = getField(a, sort.col)
+      const bv = getField(b, sort.col)
+      return sort.dir === 'asc'
+        ? av.localeCompare(bv, 'pt-BR', { sensitivity: 'base' })
+        : bv.localeCompare(av, 'pt-BR', { sensitivity: 'base' })
+    })
+  }
+  const total = filtered.length
+  const pages = Math.max(1, Math.ceil(total / PAGE_SIZE))
+  const safePage = Math.min(Math.max(1, page), pages)
+  const rows = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE)
+  return { rows, total, pages }
+}
+
+function toggleSort(current: SortConfig, col: string): SortConfig {
+  if (current?.col !== col) return { col, dir: 'asc' }
+  if (current.dir === 'asc') return { col, dir: 'desc' }
+  return null
+}
 
 // ─── Página ───────────────────────────────────────────────────────────────────
 
@@ -77,11 +112,13 @@ export default function EmpresaPage() {
   const [userModal,     setUserModal]     = useState<ModalState<User>>(null)
   const [customerModal, setCustomerModal] = useState<ModalState<Customer>>(null)
   const [productModal,  setProductModal]  = useState<ModalState<Product>>(null)
+
   // Sync
   const [syncingProducts,  setSyncingProducts]  = useState(false)
   const [syncingCustomers, setSyncingCustomers] = useState(false)
   const [syncResult,  setSyncResult]  = useState<{ entity: string; result: SyncResult } | null>(null)
   const [syncError,   setSyncError]   = useState<{ entity: string; msg: string } | null>(null)
+
   // Modal de diagnóstico (compartilhado entre Testar Token e Testar Produtos)
   const [confirmCancel,   setConfirmCancel]   = useState<string | null>(null)
   const [testingToken,    setTestingToken]    = useState(false)
@@ -89,6 +126,27 @@ export default function EmpresaPage() {
   const [rawModalTitle,   setRawModalTitle]   = useState('')
   const [tokenTestResult, setTokenTestResult] = useState<unknown>(null)
   const [showTokenModal,  setShowTokenModal]  = useState(false)
+
+  // Busca por aba
+  const [searchBranches,  setSearchBranches]  = useState('')
+  const [searchUsers,     setSearchUsers]     = useState('')
+  const [searchCustomers, setSearchCustomers] = useState('')
+  const [searchProducts,  setSearchProducts]  = useState('')
+  const [searchOrders,    setSearchOrders]    = useState('')
+
+  // Página atual por aba
+  const [pageBranches,  setPageBranches]  = useState(1)
+  const [pageUsers,     setPageUsers]     = useState(1)
+  const [pageCustomers, setPageCustomers] = useState(1)
+  const [pageProducts,  setPageProducts]  = useState(1)
+  const [pageOrders,    setPageOrders]    = useState(1)
+
+  // Ordenação por aba
+  const [sortBranches,  setSortBranches]  = useState<SortConfig>(null)
+  const [sortUsers,     setSortUsers]     = useState<SortConfig>(null)
+  const [sortCustomers, setSortCustomers] = useState<SortConfig>(null)
+  const [sortProducts,  setSortProducts]  = useState<SortConfig>(null)
+  const [sortOrders,    setSortOrders]    = useState<SortConfig>(null)
 
   async function fetchCompany() {
     const { data } = await api.get<CompanyDetail>(`/companies/${id}`)
@@ -216,6 +274,58 @@ export default function EmpresaPage() {
     { key: 'protheus', label: 'Protheus' },
   ]
 
+  // ── Dados filtrados / ordenados / paginados ───────────────────────────────
+
+  const qBr = searchBranches.toLowerCase()
+  const branchTable = applyTable(
+    company.branches,
+    (b) => !qBr || b.name.toLowerCase().includes(qBr) || (b.cnpj ?? '').toLowerCase().includes(qBr) || (b.idProtheus ?? '').toLowerCase().includes(qBr),
+    sortBranches,
+    (b, col) => col === 'name' ? b.name : (b.idProtheus ?? ''),
+    pageBranches,
+  )
+
+  const qUs = searchUsers.toLowerCase()
+  const userTable = applyTable(
+    company.users,
+    (u) => !qUs || u.name.toLowerCase().includes(qUs) || u.email.toLowerCase().includes(qUs),
+    sortUsers,
+    (u, col) => col === 'name' ? u.name : u.email,
+    pageUsers,
+  )
+
+  const qCu = searchCustomers.toLowerCase()
+  const customerTable = applyTable(
+    customers,
+    (c) => !qCu || c.name.toLowerCase().includes(qCu) || (c.document ?? '').toLowerCase().includes(qCu) || (c.email ?? '').toLowerCase().includes(qCu) || (c.protheusCode ?? '').toLowerCase().includes(qCu),
+    sortCustomers,
+    (c, col) => col === 'name' ? c.name : (c.protheusCode ?? ''),
+    pageCustomers,
+  )
+
+  const qPr = searchProducts.toLowerCase()
+  const productTable = applyTable(
+    products,
+    (p) => !qPr || p.name.toLowerCase().includes(qPr) || (p.protheusCode ?? '').toLowerCase().includes(qPr),
+    sortProducts,
+    (p, col) => col === 'name' ? p.name : (p.protheusCode ?? ''),
+    pageProducts,
+  )
+
+  const qOr = searchOrders.toLowerCase()
+  const orderTable = applyTable(
+    orders,
+    (o) => !qOr || o.id.slice(0, 8).toLowerCase().includes(qOr) || o.customer.name.toLowerCase().includes(qOr) || o.user.name.toLowerCase().includes(qOr) || o.status.toLowerCase().includes(qOr),
+    sortOrders,
+    (o, col) => {
+      if (col === 'id') return o.id
+      if (col === 'customer') return o.customer.name
+      if (col === 'date') return o.createdAt
+      return ''
+    },
+    pageOrders,
+  )
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -277,210 +387,291 @@ export default function EmpresaPage() {
 
       {/* ── Tab: Filiais ── */}
       {tab === 'filiais' && (
-        <TabSection action={{ label: '+ Nova filial', onClick: () => setShowBranchModal(true) }}>
-          <Table
-            headers={['Nome', 'CNPJ', 'Protheus', 'Status', '']}
-            empty={company.branches.length === 0}
-            emptyTitle="Nenhuma filial"
-            emptyDesc="Adicione a primeira filial desta empresa."
-          >
-            {company.branches.map((b) => (
-              <tr key={b.id} className="hover:bg-[var(--bg-subtle)] transition-colors">
-                <td className="px-4 py-3 font-medium text-[var(--text-primary)]">{b.name}</td>
-                <td className="px-4 py-3 text-[var(--text-muted)]">{b.cnpj ?? '—'}</td>
-                <td className="px-4 py-3 text-[var(--text-muted)]">{b.idProtheus ?? '—'}</td>
-                <td className="px-4 py-3"><StatusBadge active={b.active} /></td>
-                <td className="px-4 py-3 text-right">
-                  <ActionMenu
-                    label="filial"
-                    active={b.active}
-                    onEdit={() => setBranchModal({ mode: 'edit', item: b })}
-                    onCopy={() => setBranchModal({ mode: 'copy', item: b })}
-                    onToggle={() => toggleBranch(b.id, !b.active)}
-                  />
-                </td>
-              </tr>
-            ))}
-          </Table>
+        <TabSection
+          action={{ label: '+ Nova filial', onClick: () => setShowBranchModal(true) }}
+          search={<SearchInput value={searchBranches} onChange={(v) => { setSearchBranches(v); setPageBranches(1) }} placeholder="Pesquisar filiais…" />}
+          footer={<Pagination page={pageBranches} total={branchTable.total} pages={branchTable.pages} onPage={setPageBranches} />}
+        >
+          <div className="overflow-auto max-h-[520px]">
+            <Table
+              customHeaders={
+                <tr>
+                  <SortableHeader label="Nome" col="name" sort={sortBranches} onSort={(c) => { setSortBranches(toggleSort(sortBranches, c)); setPageBranches(1) }} />
+                  <th className="text-left px-4 py-3 font-medium text-[var(--text-secondary)]">CNPJ</th>
+                  <SortableHeader label="Protheus" col="code" sort={sortBranches} onSort={(c) => { setSortBranches(toggleSort(sortBranches, c)); setPageBranches(1) }} />
+                  <th className="text-left px-4 py-3 font-medium text-[var(--text-secondary)]">Status</th>
+                  <th className="px-4 py-3" />
+                </tr>
+              }
+              empty={company.branches.length === 0}
+              emptyTitle="Nenhuma filial"
+              emptyDesc="Adicione a primeira filial desta empresa."
+              noResults={branchTable.total === 0 && !!searchBranches}
+            >
+              {branchTable.rows.map((b) => (
+                <tr key={b.id} className="hover:bg-[var(--bg-subtle)] transition-colors">
+                  <td className="px-4 py-3 font-medium text-[var(--text-primary)]">{b.name}</td>
+                  <td className="px-4 py-3 text-[var(--text-muted)]">{b.cnpj ?? '—'}</td>
+                  <td className="px-4 py-3 text-[var(--text-muted)]">{b.idProtheus ?? '—'}</td>
+                  <td className="px-4 py-3"><StatusBadge active={b.active} /></td>
+                  <td className="px-4 py-3 text-right">
+                    <ActionMenu
+                      label="filial"
+                      active={b.active}
+                      onEdit={() => setBranchModal({ mode: 'edit', item: b })}
+                      onCopy={() => setBranchModal({ mode: 'copy', item: b })}
+                      onToggle={() => toggleBranch(b.id, !b.active)}
+                    />
+                  </td>
+                </tr>
+              ))}
+            </Table>
+          </div>
         </TabSection>
       )}
 
       {/* ── Tab: Usuários ── */}
       {tab === 'usuarios' && (
-        <TabSection action={{ label: '+ Novo usuário', onClick: () => setShowUserModal(true) }}>
-          <Table
-            headers={['Nome', 'E-mail', 'Perfil', 'Status', '']}
-            empty={company.users.length === 0}
-            emptyTitle="Nenhum usuário"
-            emptyDesc="Adicione o primeiro usuário desta empresa."
-          >
-            {company.users.map((u) => (
-              <tr key={u.id} className="hover:bg-[var(--bg-subtle)] transition-colors">
-                <td className="px-4 py-3 font-medium text-[var(--text-primary)]">{u.name}</td>
-                <td className="px-4 py-3 text-[var(--text-secondary)]">{u.email}</td>
-                <td className="px-4 py-3 text-[var(--text-muted)]">{u.role === 'ADMIN' ? 'Administrador' : 'Vendedor'}</td>
-                <td className="px-4 py-3"><StatusBadge active={u.active} /></td>
-                <td className="px-4 py-3 text-right">
-                  <ActionMenu
-                    label="usuário"
-                    active={u.active}
-                    onEdit={() => setUserModal({ mode: 'edit', item: u })}
-                    onCopy={() => setUserModal({ mode: 'copy', item: u })}
-                    onToggle={() => toggleUser(u.id, !u.active)}
-                  />
-                </td>
-              </tr>
-            ))}
-          </Table>
+        <TabSection
+          action={{ label: '+ Novo usuário', onClick: () => setShowUserModal(true) }}
+          search={<SearchInput value={searchUsers} onChange={(v) => { setSearchUsers(v); setPageUsers(1) }} placeholder="Pesquisar usuários…" />}
+          footer={<Pagination page={pageUsers} total={userTable.total} pages={userTable.pages} onPage={setPageUsers} />}
+        >
+          <div className="overflow-auto max-h-[520px]">
+            <Table
+              customHeaders={
+                <tr>
+                  <SortableHeader label="Nome" col="name" sort={sortUsers} onSort={(c) => { setSortUsers(toggleSort(sortUsers, c)); setPageUsers(1) }} />
+                  <SortableHeader label="E-mail" col="email" sort={sortUsers} onSort={(c) => { setSortUsers(toggleSort(sortUsers, c)); setPageUsers(1) }} />
+                  <th className="text-left px-4 py-3 font-medium text-[var(--text-secondary)]">Perfil</th>
+                  <th className="text-left px-4 py-3 font-medium text-[var(--text-secondary)]">Status</th>
+                  <th className="px-4 py-3" />
+                </tr>
+              }
+              empty={company.users.length === 0}
+              emptyTitle="Nenhum usuário"
+              emptyDesc="Adicione o primeiro usuário desta empresa."
+              noResults={userTable.total === 0 && !!searchUsers}
+            >
+              {userTable.rows.map((u) => (
+                <tr key={u.id} className="hover:bg-[var(--bg-subtle)] transition-colors">
+                  <td className="px-4 py-3 font-medium text-[var(--text-primary)]">{u.name}</td>
+                  <td className="px-4 py-3 text-[var(--text-secondary)]">{u.email}</td>
+                  <td className="px-4 py-3 text-[var(--text-muted)]">{u.role === 'ADMIN' ? 'Administrador' : 'Vendedor'}</td>
+                  <td className="px-4 py-3"><StatusBadge active={u.active} /></td>
+                  <td className="px-4 py-3 text-right">
+                    <ActionMenu
+                      label="usuário"
+                      active={u.active}
+                      onEdit={() => setUserModal({ mode: 'edit', item: u })}
+                      onCopy={() => setUserModal({ mode: 'copy', item: u })}
+                      onToggle={() => toggleUser(u.id, !u.active)}
+                    />
+                  </td>
+                </tr>
+              ))}
+            </Table>
+          </div>
         </TabSection>
       )}
 
       {/* ── Tab: Clientes ── */}
       {tab === 'clientes' && (
-        <TabSection action={{ label: '+ Novo cliente', onClick: () => setCustomerModal({ mode: 'create' }) }}>
-          <Table
-            headers={['Nome', 'Documento', 'E-mail', 'Telefone', 'Protheus', 'Status', '']}
-            empty={customers.length === 0}
-            emptyTitle="Nenhum cliente"
-            emptyDesc="Adicione manualmente ou sincronize via Protheus."
-          >
-            {customers.map((c) => (
-              <tr key={c.id} className="hover:bg-[var(--bg-subtle)] transition-colors">
-                <td className="px-4 py-3 font-medium text-[var(--text-primary)]">{c.name}</td>
-                <td className="px-4 py-3 text-[var(--text-muted)]">{c.document ?? '—'}</td>
-                <td className="px-4 py-3 text-[var(--text-muted)]">{c.email ?? '—'}</td>
-                <td className="px-4 py-3 text-[var(--text-muted)]">{c.phone ?? '—'}</td>
-                <td className="px-4 py-3 text-[var(--text-muted)]">{c.protheusCode ? `${c.protheusCode}${c.loja ? `/${c.loja}` : ''}` : '—'}</td>
-                <td className="px-4 py-3"><StatusBadge active={c.active} /></td>
-                <td className="px-4 py-3 text-right">
-                  <ActionMenu
-                    label="cliente"
-                    active={c.active}
-                    onEdit={() => setCustomerModal({ mode: 'edit', item: c })}
-                    onCopy={() => setCustomerModal({ mode: 'copy', item: c })}
-                    onToggle={() => toggleCustomer(c.id, !c.active)}
-                  />
-                </td>
-              </tr>
-            ))}
-          </Table>
+        <TabSection
+          action={{ label: '+ Novo cliente', onClick: () => setCustomerModal({ mode: 'create' }) }}
+          search={<SearchInput value={searchCustomers} onChange={(v) => { setSearchCustomers(v); setPageCustomers(1) }} placeholder="Pesquisar clientes…" />}
+          footer={<Pagination page={pageCustomers} total={customerTable.total} pages={customerTable.pages} onPage={setPageCustomers} />}
+        >
+          <div className="overflow-auto max-h-[520px]">
+            <Table
+              customHeaders={
+                <tr>
+                  <SortableHeader label="Nome" col="name" sort={sortCustomers} onSort={(c) => { setSortCustomers(toggleSort(sortCustomers, c)); setPageCustomers(1) }} />
+                  <th className="text-left px-4 py-3 font-medium text-[var(--text-secondary)]">Documento</th>
+                  <th className="text-left px-4 py-3 font-medium text-[var(--text-secondary)]">E-mail</th>
+                  <th className="text-left px-4 py-3 font-medium text-[var(--text-secondary)]">Telefone</th>
+                  <SortableHeader label="Protheus" col="code" sort={sortCustomers} onSort={(c) => { setSortCustomers(toggleSort(sortCustomers, c)); setPageCustomers(1) }} />
+                  <th className="text-left px-4 py-3 font-medium text-[var(--text-secondary)]">Status</th>
+                  <th className="px-4 py-3" />
+                </tr>
+              }
+              empty={customers.length === 0}
+              emptyTitle="Nenhum cliente"
+              emptyDesc="Adicione manualmente ou sincronize via Protheus."
+              noResults={customerTable.total === 0 && !!searchCustomers}
+            >
+              {customerTable.rows.map((c) => (
+                <tr key={c.id} className="hover:bg-[var(--bg-subtle)] transition-colors">
+                  <td className="px-4 py-3 font-medium text-[var(--text-primary)]">{c.name}</td>
+                  <td className="px-4 py-3 text-[var(--text-muted)]">{c.document ?? '—'}</td>
+                  <td className="px-4 py-3 text-[var(--text-muted)]">{c.email ?? '—'}</td>
+                  <td className="px-4 py-3 text-[var(--text-muted)]">{c.phone ?? '—'}</td>
+                  <td className="px-4 py-3 text-[var(--text-muted)]">{c.protheusCode ? `${c.protheusCode}${c.loja ? `/${c.loja}` : ''}` : '—'}</td>
+                  <td className="px-4 py-3"><StatusBadge active={c.active} /></td>
+                  <td className="px-4 py-3 text-right">
+                    <ActionMenu
+                      label="cliente"
+                      active={c.active}
+                      onEdit={() => setCustomerModal({ mode: 'edit', item: c })}
+                      onCopy={() => setCustomerModal({ mode: 'copy', item: c })}
+                      onToggle={() => toggleCustomer(c.id, !c.active)}
+                    />
+                  </td>
+                </tr>
+              ))}
+            </Table>
+          </div>
         </TabSection>
       )}
 
       {/* ── Tab: Produtos ── */}
       {tab === 'produtos' && (
-        <TabSection action={{ label: '+ Novo produto', onClick: () => setProductModal({ mode: 'create' }) }}>
-          <Table
-            headers={['Nome', 'Protheus', 'Unidade', 'Preço', 'Estoque', 'Status', '']}
-            empty={products.length === 0}
-            emptyTitle="Nenhum produto"
-            emptyDesc="Adicione manualmente ou sincronize via Protheus."
-          >
-            {products.map((p) => (
-              <tr key={p.id} className="hover:bg-[var(--bg-subtle)] transition-colors">
-                <td className="px-4 py-3 font-medium text-[var(--text-primary)]">{p.name}</td>
-                <td className="px-4 py-3 text-[var(--text-muted)]">{p.protheusCode ?? '—'}</td>
-                <td className="px-4 py-3 text-[var(--text-muted)]">{p.unit}</td>
-                <td className="px-4 py-3 text-[var(--text-secondary)]">R$ {Number(p.price).toFixed(2)}</td>
-                <td className="px-4 py-3 text-[var(--text-muted)]">{Number(p.stock).toFixed(3)}</td>
-                <td className="px-4 py-3"><StatusBadge active={p.active} /></td>
-                <td className="px-4 py-3 text-right">
-                  <ActionMenu
-                    label="produto"
-                    active={p.active}
-                    onEdit={() => setProductModal({ mode: 'edit', item: p })}
-                    onCopy={() => setProductModal({ mode: 'copy', item: p })}
-                    onToggle={() => toggleProduct(p.id, !p.active)}
-                  />
-                </td>
-              </tr>
-            ))}
-          </Table>
+        <TabSection
+          action={{ label: '+ Novo produto', onClick: () => setProductModal({ mode: 'create' }) }}
+          search={<SearchInput value={searchProducts} onChange={(v) => { setSearchProducts(v); setPageProducts(1) }} placeholder="Pesquisar produtos…" />}
+          footer={<Pagination page={pageProducts} total={productTable.total} pages={productTable.pages} onPage={setPageProducts} />}
+        >
+          <div className="overflow-auto max-h-[520px]">
+            <Table
+              customHeaders={
+                <tr>
+                  <SortableHeader label="Nome" col="name" sort={sortProducts} onSort={(c) => { setSortProducts(toggleSort(sortProducts, c)); setPageProducts(1) }} />
+                  <SortableHeader label="Protheus" col="code" sort={sortProducts} onSort={(c) => { setSortProducts(toggleSort(sortProducts, c)); setPageProducts(1) }} />
+                  <th className="text-left px-4 py-3 font-medium text-[var(--text-secondary)]">Unidade</th>
+                  <th className="text-left px-4 py-3 font-medium text-[var(--text-secondary)]">Preço</th>
+                  <th className="text-left px-4 py-3 font-medium text-[var(--text-secondary)]">Estoque</th>
+                  <th className="text-left px-4 py-3 font-medium text-[var(--text-secondary)]">Status</th>
+                  <th className="px-4 py-3" />
+                </tr>
+              }
+              empty={products.length === 0}
+              emptyTitle="Nenhum produto"
+              emptyDesc="Adicione manualmente ou sincronize via Protheus."
+              noResults={productTable.total === 0 && !!searchProducts}
+            >
+              {productTable.rows.map((p) => (
+                <tr key={p.id} className="hover:bg-[var(--bg-subtle)] transition-colors">
+                  <td className="px-4 py-3 font-medium text-[var(--text-primary)]">{p.name}</td>
+                  <td className="px-4 py-3 text-[var(--text-muted)]">{p.protheusCode ?? '—'}</td>
+                  <td className="px-4 py-3 text-[var(--text-muted)]">{p.unit}</td>
+                  <td className="px-4 py-3 text-[var(--text-secondary)]">R$ {Number(p.price).toFixed(2)}</td>
+                  <td className="px-4 py-3 text-[var(--text-muted)]">{Number(p.stock).toFixed(3)}</td>
+                  <td className="px-4 py-3"><StatusBadge active={p.active} /></td>
+                  <td className="px-4 py-3 text-right">
+                    <ActionMenu
+                      label="produto"
+                      active={p.active}
+                      onEdit={() => setProductModal({ mode: 'edit', item: p })}
+                      onCopy={() => setProductModal({ mode: 'copy', item: p })}
+                      onToggle={() => toggleProduct(p.id, !p.active)}
+                    />
+                  </td>
+                </tr>
+              ))}
+            </Table>
+          </div>
         </TabSection>
       )}
 
       {/* ── Tab: Pedidos ── */}
       {tab === 'pedidos' && (
-        <TabSection>
-          <Table
-            headers={['#', 'Cliente', 'Vendedor', 'Filial', 'Itens', 'Total', 'Status', 'Data', '']}
-            empty={orders.length === 0}
-            emptyTitle="Nenhum pedido ainda"
-            emptyDesc="Os pedidos criados pelos vendedores aparecerão aqui."
-          >
-            {orders.map((o) => (
-              <>
-                <tr
-                  key={o.id}
-                  className="hover:bg-[var(--bg-subtle)] transition-colors cursor-pointer"
-                  onClick={() => setExpandedOrder(expandedOrder === o.id ? null : o.id)}
-                >
-                  <td className="px-4 py-3 text-[var(--text-muted)] font-mono text-xs">{o.id.slice(0, 8)}</td>
-                  <td className="px-4 py-3 font-medium text-[var(--text-primary)]">{o.customer.name}</td>
-                  <td className="px-4 py-3 text-[var(--text-muted)]">{o.user.name}</td>
-                  <td className="px-4 py-3 text-[var(--text-muted)]">{o.branch.name}</td>
-                  <td className="px-4 py-3 text-center text-[var(--text-secondary)]">{o.items.length}</td>
-                  <td className="px-4 py-3 text-[var(--text-secondary)]">R$ {Number(o.total).toFixed(2)}</td>
-                  <td className="px-4 py-3"><OrderStatusBadge status={o.status} /></td>
-                  <td className="px-4 py-3 text-[var(--text-muted)] text-xs">{new Date(o.createdAt).toLocaleDateString('pt-BR')}</td>
-                  <td className="px-4 py-3 text-right">
-                    {o.status !== 'CANCELLED' && (
-                      <button
-                        onClick={(e) => { e.stopPropagation(); setConfirmCancel(o.id) }}
-                        className="text-xs font-medium px-3 py-1 rounded-lg border border-red-500/20 text-red-500 hover:bg-red-500/10 transition-colors"
-                      >
-                        Cancelar
-                      </button>
-                    )}
-                  </td>
+        <TabSection
+          search={<SearchInput value={searchOrders} onChange={(v) => { setSearchOrders(v); setPageOrders(1) }} placeholder="Pesquisar pedidos…" />}
+          footer={<Pagination page={pageOrders} total={orderTable.total} pages={orderTable.pages} onPage={setPageOrders} />}
+        >
+          <div className="overflow-auto max-h-[520px]">
+            <Table
+              customHeaders={
+                <tr>
+                  <SortableHeader label="#" col="id" sort={sortOrders} onSort={(c) => { setSortOrders(toggleSort(sortOrders, c)); setPageOrders(1) }} />
+                  <SortableHeader label="Cliente" col="customer" sort={sortOrders} onSort={(c) => { setSortOrders(toggleSort(sortOrders, c)); setPageOrders(1) }} />
+                  <th className="text-left px-4 py-3 font-medium text-[var(--text-secondary)]">Vendedor</th>
+                  <th className="text-left px-4 py-3 font-medium text-[var(--text-secondary)]">Filial</th>
+                  <th className="text-left px-4 py-3 font-medium text-[var(--text-secondary)]">Itens</th>
+                  <th className="text-left px-4 py-3 font-medium text-[var(--text-secondary)]">Total</th>
+                  <th className="text-left px-4 py-3 font-medium text-[var(--text-secondary)]">Status</th>
+                  <SortableHeader label="Data" col="date" sort={sortOrders} onSort={(c) => { setSortOrders(toggleSort(sortOrders, c)); setPageOrders(1) }} />
+                  <th className="px-4 py-3" />
                 </tr>
-                {expandedOrder === o.id && (
-                  <tr key={`${o.id}-detail`}>
-                    <td colSpan={9} className="px-4 pb-4 bg-[var(--bg-subtle)]">
-                      <div className="rounded-lg border border-[var(--border)] overflow-hidden mt-1">
-                        <table className="w-full text-xs">
-                          <thead className="bg-[var(--bg-surface)]">
-                            <tr>
-                              <th className="text-left px-3 py-2 font-medium text-[var(--text-secondary)]">Produto</th>
-                              <th className="text-right px-3 py-2 font-medium text-[var(--text-secondary)]">Qtd</th>
-                              <th className="text-right px-3 py-2 font-medium text-[var(--text-secondary)]">Preço unit.</th>
-                              <th className="text-right px-3 py-2 font-medium text-[var(--text-secondary)]">Desc. %</th>
-                              <th className="text-right px-3 py-2 font-medium text-[var(--text-secondary)]">Total</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-[var(--border)]">
-                            {o.items.map((item) => (
-                              <tr key={item.id}>
-                                <td className="px-3 py-2 text-[var(--text-primary)]">{item.product.name}</td>
-                                <td className="px-3 py-2 text-right text-[var(--text-secondary)]">{Number(item.quantity).toFixed(3)} {item.product.unit}</td>
-                                <td className="px-3 py-2 text-right text-[var(--text-secondary)]">R$ {Number(item.unitPrice).toFixed(2)}</td>
-                                <td className="px-3 py-2 text-right text-[var(--text-secondary)]">{Number(item.discount).toFixed(1)}%</td>
-                                <td className="px-3 py-2 text-right font-medium text-[var(--text-primary)]">R$ {Number(item.total).toFixed(2)}</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                        {(o.protheusOrderId || o.notes) && (
-                          <div className="px-3 py-2 bg-[var(--bg-surface)] border-t border-[var(--border)] flex gap-6 text-xs text-[var(--text-muted)]">
-                            {o.protheusOrderId && <span>Pedido Protheus: <span className="font-mono">{o.protheusOrderId}</span></span>}
-                            {o.notes && <span>Obs: {o.notes}</span>}
-                            {o.syncedAt && <span>Sincronizado: {new Date(o.syncedAt).toLocaleString('pt-BR')}</span>}
-                          </div>
-                        )}
-                      </div>
+              }
+              empty={orders.length === 0}
+              emptyTitle="Nenhum pedido ainda"
+              emptyDesc="Os pedidos criados pelos vendedores aparecerão aqui."
+              noResults={orderTable.total === 0 && !!searchOrders}
+            >
+              {orderTable.rows.map((o) => (
+                <>
+                  <tr
+                    key={o.id}
+                    className="hover:bg-[var(--bg-subtle)] transition-colors cursor-pointer"
+                    onClick={() => setExpandedOrder(expandedOrder === o.id ? null : o.id)}
+                  >
+                    <td className="px-4 py-3 text-[var(--text-muted)] font-mono text-xs">{o.id.slice(0, 8)}</td>
+                    <td className="px-4 py-3 font-medium text-[var(--text-primary)]">{o.customer.name}</td>
+                    <td className="px-4 py-3 text-[var(--text-muted)]">{o.user.name}</td>
+                    <td className="px-4 py-3 text-[var(--text-muted)]">{o.branch.name}</td>
+                    <td className="px-4 py-3 text-center text-[var(--text-secondary)]">{o.items.length}</td>
+                    <td className="px-4 py-3 text-[var(--text-secondary)]">R$ {Number(o.total).toFixed(2)}</td>
+                    <td className="px-4 py-3"><OrderStatusBadge status={o.status} /></td>
+                    <td className="px-4 py-3 text-[var(--text-muted)] text-xs">{new Date(o.createdAt).toLocaleDateString('pt-BR')}</td>
+                    <td className="px-4 py-3 text-right">
+                      {o.status !== 'CANCELLED' && (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setConfirmCancel(o.id) }}
+                          className="text-xs font-medium px-3 py-1 rounded-lg border border-red-500/20 text-red-500 hover:bg-red-500/10 transition-colors"
+                        >
+                          Cancelar
+                        </button>
+                      )}
                     </td>
                   </tr>
-                )}
-              </>
-            ))}
-          </Table>
+                  {expandedOrder === o.id && (
+                    <tr key={`${o.id}-detail`}>
+                      <td colSpan={9} className="px-4 pb-4 bg-[var(--bg-subtle)]">
+                        <div className="rounded-lg border border-[var(--border)] overflow-hidden mt-1">
+                          <table className="w-full text-xs">
+                            <thead className="bg-[var(--bg-surface)]">
+                              <tr>
+                                <th className="text-left px-3 py-2 font-medium text-[var(--text-secondary)]">Produto</th>
+                                <th className="text-right px-3 py-2 font-medium text-[var(--text-secondary)]">Qtd</th>
+                                <th className="text-right px-3 py-2 font-medium text-[var(--text-secondary)]">Preço unit.</th>
+                                <th className="text-right px-3 py-2 font-medium text-[var(--text-secondary)]">Desc. %</th>
+                                <th className="text-right px-3 py-2 font-medium text-[var(--text-secondary)]">Total</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-[var(--border)]">
+                              {o.items.map((item) => (
+                                <tr key={item.id}>
+                                  <td className="px-3 py-2 text-[var(--text-primary)]">{item.product.name}</td>
+                                  <td className="px-3 py-2 text-right text-[var(--text-secondary)]">{Number(item.quantity).toFixed(3)} {item.product.unit}</td>
+                                  <td className="px-3 py-2 text-right text-[var(--text-secondary)]">R$ {Number(item.unitPrice).toFixed(2)}</td>
+                                  <td className="px-3 py-2 text-right text-[var(--text-secondary)]">{Number(item.discount).toFixed(1)}%</td>
+                                  <td className="px-3 py-2 text-right font-medium text-[var(--text-primary)]">R$ {Number(item.total).toFixed(2)}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                          {(o.protheusOrderId || o.notes) && (
+                            <div className="px-3 py-2 bg-[var(--bg-surface)] border-t border-[var(--border)] flex gap-6 text-xs text-[var(--text-muted)]">
+                              {o.protheusOrderId && <span>Pedido Protheus: <span className="font-mono">{o.protheusOrderId}</span></span>}
+                              {o.notes && <span>Obs: {o.notes}</span>}
+                              {o.syncedAt && <span>Sincronizado: {new Date(o.syncedAt).toLocaleString('pt-BR')}</span>}
+                            </div>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </>
+              ))}
+            </Table>
+          </div>
         </TabSection>
       )}
 
       {/* ── Tab: Protheus ── */}
       {tab === 'protheus' && (
         <div className="space-y-4">
-          {/* Config APIs */}
           <ProtheusConfigForm
             company={company}
             onSaved={(updated) => {
@@ -489,7 +680,6 @@ export default function EmpresaPage() {
             }}
           />
 
-          {/* Resultado / erro do sync (compartilhado) */}
           {syncResult && (
             <div className="flex items-start gap-2 p-3.5 bg-green-500/10 border border-green-500/20 rounded-lg">
               <svg className="w-4 h-4 shrink-0 mt-0.5 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -516,7 +706,6 @@ export default function EmpresaPage() {
             </div>
           )}
 
-          {/* Testar Token */}
           <div className="p-4 rounded-xl border border-[var(--border)] bg-[var(--bg-subtle)] flex items-center justify-between gap-4">
             <div>
               <p className="text-sm font-medium text-[var(--text-primary)]">Testar autenticação Protheus</p>
@@ -539,7 +728,6 @@ export default function EmpresaPage() {
             </button>
           </div>
 
-          {/* Testar Produtos */}
           <div className="p-4 rounded-xl border border-[var(--border)] bg-[var(--bg-subtle)] flex items-center justify-between gap-4">
             <div>
               <p className="text-sm font-medium text-[var(--text-primary)]">Testar API de Produtos</p>
@@ -562,7 +750,6 @@ export default function EmpresaPage() {
             </button>
           </div>
 
-          {/* Sync Produtos */}
           {(() => {
             const hasActiveBranch = company.branches.some((b) => b.active && b.idProtheus)
             const missingProd = !company.apiPord || !company.apiToken
@@ -583,7 +770,6 @@ export default function EmpresaPage() {
             )
           })()}
 
-          {/* Sync Clientes */}
           <SyncCard
             title="Sincronizar Clientes"
             description={<>Importa clientes via <code className="bg-[var(--bg-subtle)] px-1 rounded text-[var(--text-secondary)]">apiCliente</code> e atualiza a base de clientes.</>}
@@ -665,7 +851,6 @@ export default function EmpresaPage() {
       {showTokenModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
           <div className="w-full max-w-2xl bg-[var(--surface)] border border-[var(--border)] rounded-2xl shadow-2xl flex flex-col max-h-[80vh]">
-            {/* Header */}
             <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--border)]">
               <div className="flex items-center gap-2">
                 {(tokenTestResult as { ok?: boolean })?.ok === false ? (
@@ -698,7 +883,6 @@ export default function EmpresaPage() {
                 </svg>
               </button>
             </div>
-            {/* Body */}
             <div className="overflow-auto p-4">
               <pre className="text-xs font-mono text-[var(--text-secondary)] bg-[var(--bg-subtle)] rounded-xl p-4 whitespace-pre-wrap break-all">
                 {JSON.stringify(tokenTestResult, null, 2)}
@@ -739,30 +923,117 @@ function StatCard({ label, value, text }: { label: string; value: string | numbe
   )
 }
 
-function TabSection({ children, action }: { children: React.ReactNode; action?: { label: string; onClick: () => void } }) {
+function TabSection({
+  children, action, search, footer,
+}: {
+  children: React.ReactNode
+  action?: { label: string; onClick: () => void }
+  search?: React.ReactNode
+  footer?: React.ReactNode
+}) {
   return (
     <div>
-      {action && (
-        <div className="flex justify-end mb-3">
-          <button
-            onClick={action.onClick}
-            className="text-sm font-medium text-brand-600 hover:text-brand-500 transition-colors"
-          >
-            {action.label}
-          </button>
+      {(action || search) && (
+        <div className="flex items-center justify-between mb-3 gap-3">
+          <div className="flex-1">{search}</div>
+          {action && (
+            <button
+              onClick={action.onClick}
+              className="text-sm font-medium text-brand-600 hover:text-brand-500 transition-colors shrink-0"
+            >
+              {action.label}
+            </button>
+          )}
         </div>
       )}
       <div className="bg-[var(--bg-surface)] rounded-xl shadow-card border border-[var(--border)] overflow-hidden">
         {children}
+        {footer}
+      </div>
+    </div>
+  )
+}
+
+function SearchInput({ value, onChange, placeholder }: {
+  value: string; onChange: (v: string) => void; placeholder?: string
+}) {
+  return (
+    <div className="relative max-w-xs">
+      <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[var(--text-muted)] pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.197 5.197a7.5 7.5 0 0 0 10.606 10.606Z" />
+      </svg>
+      <input
+        type="text"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder ?? 'Pesquisar…'}
+        className="w-full pl-8 pr-3 py-1.5 text-sm rounded-lg border border-[var(--border)] bg-[var(--bg-surface)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 transition-colors"
+      />
+    </div>
+  )
+}
+
+function SortableHeader({ label, col, sort, onSort }: {
+  label: string; col: string; sort: SortConfig; onSort: (col: string) => void
+}) {
+  const active = sort?.col === col
+  return (
+    <th
+      className="text-left px-4 py-3 font-medium text-[var(--text-secondary)] cursor-pointer select-none hover:text-[var(--text-primary)] transition-colors"
+      onClick={() => onSort(col)}
+    >
+      <span className="inline-flex items-center gap-1">
+        {label}
+        <svg
+          className={`w-3.5 h-3.5 shrink-0 transition-colors ${active ? 'text-brand-500' : 'text-[var(--text-muted)]'}`}
+          fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
+        >
+          {!active && <path strokeLinecap="round" strokeLinejoin="round" d="M8 9l4-4 4 4M8 15l4 4 4-4" />}
+          {active && sort?.dir === 'asc'  && <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 15.75l7.5-7.5 7.5 7.5" />}
+          {active && sort?.dir === 'desc' && <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />}
+        </svg>
+      </span>
+    </th>
+  )
+}
+
+function Pagination({ page, total, pages, onPage }: {
+  page: number; total: number; pages: number; onPage: (p: number) => void
+}) {
+  if (pages <= 1 && total <= PAGE_SIZE) return null
+  return (
+    <div className="flex items-center justify-between px-4 py-3 border-t border-[var(--border)] text-xs text-[var(--text-muted)]">
+      <span>{total} registro{total !== 1 ? 's' : ''}</span>
+      <div className="flex items-center gap-2">
+        <button
+          onClick={() => onPage(page - 1)}
+          disabled={page <= 1}
+          className="px-2.5 py-1 rounded border border-[var(--border)] hover:bg-[var(--bg-subtle)] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+        >
+          Anterior
+        </button>
+        <span className="px-1">Página {page} de {pages}</span>
+        <button
+          onClick={() => onPage(page + 1)}
+          disabled={page >= pages}
+          className="px-2.5 py-1 rounded border border-[var(--border)] hover:bg-[var(--bg-subtle)] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+        >
+          Próximo
+        </button>
       </div>
     </div>
   )
 }
 
 function Table({
-  headers, empty, emptyTitle, emptyDesc, children,
+  customHeaders, empty, emptyTitle, emptyDesc, noResults, children,
 }: {
-  headers: string[]; empty: boolean; emptyTitle: string; emptyDesc: string; children: React.ReactNode
+  customHeaders?: React.ReactNode
+  empty: boolean
+  emptyTitle: string
+  emptyDesc: string
+  noResults?: boolean
+  children: React.ReactNode
 }) {
   if (empty) {
     return (
@@ -775,12 +1046,21 @@ function Table({
       </div>
     )
   }
+  if (noResults) {
+    return (
+      <div className="flex flex-col items-center justify-center py-14 px-6 text-center gap-2">
+        <svg className="w-9 h-9 text-[var(--text-muted)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.25}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.197 5.197a7.5 7.5 0 0 0 10.606 10.606Z" />
+        </svg>
+        <p className="font-semibold text-[var(--text-primary)] text-sm">Nenhum resultado</p>
+        <p className="text-xs text-[var(--text-muted)] max-w-xs">Tente outros termos de busca.</p>
+      </div>
+    )
+  }
   return (
     <table className="w-full text-sm">
-      <thead className="bg-[var(--bg-subtle)] border-b border-[var(--border)]">
-        <tr>{headers.map((h) => (
-          <th key={h} className="text-left px-4 py-3 font-medium text-[var(--text-secondary)]">{h}</th>
-        ))}</tr>
+      <thead className="bg-[var(--bg-subtle)] border-b border-[var(--border)] sticky top-0 z-10">
+        {customHeaders}
       </thead>
       <tbody className="divide-y divide-[var(--border)]">{children}</tbody>
     </table>
@@ -812,7 +1092,6 @@ function OrderStatusBadge({ status }: { status: string }) {
     </span>
   )
 }
-
 
 function SyncCard({
   title, description, disabled, loading, missingFields, onSync, btnLabel,
