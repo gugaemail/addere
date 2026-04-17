@@ -4,6 +4,7 @@ import { QueryClientProvider } from '@tanstack/react-query'
 import { useFonts } from '../src/hooks/useFonts'
 import { queryClient } from '../src/lib/query-client'
 import { useAuthStore } from '../src/store/auth.store'
+import { SplashScreen } from '../src/screens/SplashScreen'
 
 function AuthGuard() {
   const router = useRouter()
@@ -35,7 +36,7 @@ function AuthGuard() {
 export default function RootLayout() {
   const { fontsLoaded } = useFonts()
 
-  if (!fontsLoaded) return null
+  if (!fontsLoaded) return <SplashScreen />
 
   return (
     <QueryClientProvider client={queryClient}>
