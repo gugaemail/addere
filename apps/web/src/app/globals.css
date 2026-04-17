@@ -11,6 +11,18 @@
     --text-primary:   theme('colors.gray.900');
     --text-secondary: theme('colors.gray.600');
     --text-muted:     theme('colors.gray.400');
+
+    /* Addere brand tokens */
+    --color-brand:   #1B4FA8;
+    --color-accent:  #29BEFF;
+    --color-navy:    #0D2045;
+    --color-tint:    #E8F4FF;
+    --color-success: #22C55E;
+    --color-warning: #F59E0B;
+    --color-danger:  #EF4444;
+    --color-muted:   #64748B;
+    --color-border:  #E2E8F0;
+    --color-surface: #F8FAFC;
   }
 
   .dark {

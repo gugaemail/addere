@@ -10,18 +10,16 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        brand: {
-          50:  '#eff6ff',
-          100: '#dbeafe',
-          200: '#bfdbfe',
-          300: '#93c5fd',
-          400: '#60a5fa',
-          500: '#3b82f6',
-          600: '#2563eb',
-          700: '#1d4ed8',
-          800: '#1e40af',
-          900: '#1e3a8a',
-        },
+        brand:   'var(--color-brand)',
+        accent:  'var(--color-accent)',
+        navy:    'var(--color-navy)',
+        tint:    'var(--color-tint)',
+        success: 'var(--color-success)',
+        warning: 'var(--color-warning)',
+        danger:  'var(--color-danger)',
+        muted:   'var(--color-muted)',
+        border2: 'var(--color-border)',
+        surface: 'var(--color-surface)',
       },
       letterSpacing: {
         tight:   '-0.02em',
@@ -30,7 +28,7 @@ const config: Config = {
       boxShadow: {
         card:  '0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04)',
         modal: '0 20px 60px rgba(0,0,0,0.18), 0 0 0 1px rgba(0,0,0,0.06)',
-        fab:   '0 4px 14px rgba(37,99,235,0.35)',
+        fab:   '0 4px 14px rgba(27,79,168,0.35)',
       },
       keyframes: {
         'modal-in': {
