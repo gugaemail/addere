@@ -39,7 +39,11 @@ export function encryptCredential(plaintext: string): string {
  * Se o valor não começar com "enc:" (legado/plaintext), retorna como está.
  */
 export function decryptCredential(value: string): string {
-  if (!value.startsWith(ENCRYPTED_PREFIX)) return value // compatibilidade legado
+  if (!value.startsWith(ENCRYPTED_PREFIX)) {
+    // Credencial em plaintext (formato legado anterior à criptografia) — deve ser migrada
+    console.warn('[protheus-crypto] credencial não criptografada detectada; execute a migração para enc: format')
+    return value
+  }
 
   const rest = value.slice(ENCRYPTED_PREFIX.length)
   const parts = rest.split(':')

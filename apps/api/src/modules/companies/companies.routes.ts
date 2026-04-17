@@ -170,24 +170,32 @@ export default async function companiesRoutes(app: FastifyInstance) {
 
   // PATCH /companies/:id/branches/:branchId — atualiza dados da filial
   app.patch('/:id/branches/:branchId', { preHandler: requireSuperAdmin }, async (request: FastifyRequest, reply: FastifyReply) => {
-    const { branchId } = request.params as { id: string; branchId: string }
+    const { id, branchId } = request.params as { id: string; branchId: string }
     const result = updateBranchSchema.safeParse(request.body)
     if (!result.success) {
       return reply.status(400).send({ message: 'Dados inválidos', errors: result.error.flatten() })
     }
-    const branch = await updateBranch(branchId, result.data)
-    return reply.send(branch)
+    try {
+      const branch = await updateBranch(id, branchId, result.data)
+      return reply.send(branch)
+    } catch (err) {
+      return reply.status(404).send({ message: (err as Error).message })
+    }
   })
 
   // PATCH /companies/:id/branches/:branchId/active — ativa/desativa filial
   app.patch('/:id/branches/:branchId/active', { preHandler: requireSuperAdmin }, async (request: FastifyRequest, reply: FastifyReply) => {
-    const { branchId } = request.params as { id: string; branchId: string }
+    const { id, branchId } = request.params as { id: string; branchId: string }
     const result = toggleActiveSchema.safeParse(request.body)
     if (!result.success) {
       return reply.status(400).send({ message: 'Dados inválidos', errors: result.error.flatten() })
     }
-    const branch = await toggleBranchActive(branchId, result.data.active)
-    return reply.send(branch)
+    try {
+      const branch = await toggleBranchActive(id, branchId, result.data.active)
+      return reply.send(branch)
+    } catch (err) {
+      return reply.status(404).send({ message: (err as Error).message })
+    }
   })
 
   // POST /companies/:id/users — cria usuário na empresa
@@ -207,13 +215,13 @@ export default async function companiesRoutes(app: FastifyInstance) {
 
   // PATCH /companies/:id/users/:userId — atualiza dados do usuário
   app.patch('/:id/users/:userId', { preHandler: requireSuperAdmin }, async (request: FastifyRequest, reply: FastifyReply) => {
-    const { userId } = request.params as { id: string; userId: string }
+    const { id, userId } = request.params as { id: string; userId: string }
     const result = updateUserSchema.safeParse(request.body)
     if (!result.success) {
       return reply.status(400).send({ message: 'Dados inválidos', errors: result.error.flatten() })
     }
     try {
-      const user = await updateUser(userId, result.data)
+      const user = await updateUser(id, userId, result.data)
       return reply.send(user)
     } catch (err) {
       return reply.status(422).send({ message: (err as Error).message })
@@ -222,13 +230,17 @@ export default async function companiesRoutes(app: FastifyInstance) {
 
   // PATCH /companies/:id/users/:userId/active — ativa/desativa usuário
   app.patch('/:id/users/:userId/active', { preHandler: requireSuperAdmin }, async (request: FastifyRequest, reply: FastifyReply) => {
-    const { userId } = request.params as { id: string; userId: string }
+    const { id, userId } = request.params as { id: string; userId: string }
     const result = toggleActiveSchema.safeParse(request.body)
     if (!result.success) {
       return reply.status(400).send({ message: 'Dados inválidos', errors: result.error.flatten() })
     }
-    const user = await toggleUserActive(userId, result.data.active)
-    return reply.send(user)
+    try {
+      const user = await toggleUserActive(id, userId, result.data.active)
+      return reply.send(user)
+    } catch (err) {
+      return reply.status(404).send({ message: (err as Error).message })
+    }
   })
 
   // GET /companies/:id/customers — clientes da empresa
@@ -256,13 +268,13 @@ export default async function companiesRoutes(app: FastifyInstance) {
 
   // PATCH /companies/:id/customers/:customerId — atualiza cliente
   app.patch('/:id/customers/:customerId', { preHandler: requireSuperAdmin }, async (request: FastifyRequest, reply: FastifyReply) => {
-    const { customerId } = request.params as { id: string; customerId: string }
+    const { id, customerId } = request.params as { id: string; customerId: string }
     const result = updateCustomerSchema.safeParse(request.body)
     if (!result.success) {
       return reply.status(400).send({ message: 'Dados inválidos', errors: result.error.flatten() })
     }
     try {
-      const customer = await updateCustomer(customerId, result.data)
+      const customer = await updateCustomer(id, customerId, result.data)
       return reply.send(customer)
     } catch (err) {
       return reply.status(422).send({ message: (err as Error).message })
@@ -271,13 +283,17 @@ export default async function companiesRoutes(app: FastifyInstance) {
 
   // PATCH /companies/:id/customers/:customerId/active — ativa/desativa cliente
   app.patch('/:id/customers/:customerId/active', { preHandler: requireSuperAdmin }, async (request: FastifyRequest, reply: FastifyReply) => {
-    const { customerId } = request.params as { id: string; customerId: string }
+    const { id, customerId } = request.params as { id: string; customerId: string }
     const result = toggleActiveSchema.safeParse(request.body)
     if (!result.success) {
       return reply.status(400).send({ message: 'Dados inválidos', errors: result.error.flatten() })
     }
-    const customer = await toggleCustomerActive(customerId, result.data.active)
-    return reply.send(customer)
+    try {
+      const customer = await toggleCustomerActive(id, customerId, result.data.active)
+      return reply.send(customer)
+    } catch (err) {
+      return reply.status(404).send({ message: (err as Error).message })
+    }
   })
 
   // GET /companies/:id/products — produtos da empresa
@@ -305,13 +321,13 @@ export default async function companiesRoutes(app: FastifyInstance) {
 
   // PATCH /companies/:id/products/:productId — atualiza produto
   app.patch('/:id/products/:productId', { preHandler: requireSuperAdmin }, async (request: FastifyRequest, reply: FastifyReply) => {
-    const { productId } = request.params as { id: string; productId: string }
+    const { id, productId } = request.params as { id: string; productId: string }
     const result = updateProductSchema.safeParse(request.body)
     if (!result.success) {
       return reply.status(400).send({ message: 'Dados inválidos', errors: result.error.flatten() })
     }
     try {
-      const product = await updateProduct(productId, result.data)
+      const product = await updateProduct(id, productId, result.data)
       return reply.send(product)
     } catch (err) {
       return reply.status(422).send({ message: (err as Error).message })
@@ -320,13 +336,17 @@ export default async function companiesRoutes(app: FastifyInstance) {
 
   // PATCH /companies/:id/products/:productId/active — ativa/desativa produto
   app.patch('/:id/products/:productId/active', { preHandler: requireSuperAdmin }, async (request: FastifyRequest, reply: FastifyReply) => {
-    const { productId } = request.params as { id: string; productId: string }
+    const { id, productId } = request.params as { id: string; productId: string }
     const result = toggleActiveSchema.safeParse(request.body)
     if (!result.success) {
       return reply.status(400).send({ message: 'Dados inválidos', errors: result.error.flatten() })
     }
-    const product = await toggleProductActive(productId, result.data.active)
-    return reply.send(product)
+    try {
+      const product = await toggleProductActive(id, productId, result.data.active)
+      return reply.send(product)
+    } catch (err) {
+      return reply.status(404).send({ message: (err as Error).message })
+    }
   })
 
   // GET /companies/:id/orders — pedidos da empresa
@@ -339,9 +359,9 @@ export default async function companiesRoutes(app: FastifyInstance) {
 
   // PATCH /companies/:id/orders/:orderId/cancel — cancela pedido
   app.patch('/:id/orders/:orderId/cancel', { preHandler: requireSuperAdmin }, async (request: FastifyRequest, reply: FastifyReply) => {
-    const { orderId } = request.params as { id: string; orderId: string }
+    const { id, orderId } = request.params as { id: string; orderId: string }
     try {
-      const order = await cancelOrder(orderId)
+      const order = await cancelOrder(id, orderId)
       return reply.send(order)
     } catch (err) {
       return reply.status(422).send({ message: (err as Error).message })

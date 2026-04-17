@@ -146,7 +146,9 @@ export async function createBranch(companyId: string, input: CreateBranchInput) 
   return prisma.branch.create({ data: { ...input, companyId } })
 }
 
-export async function toggleBranchActive(id: string, active: boolean) {
+export async function toggleBranchActive(companyId: string, id: string, active: boolean) {
+  const exists = await prisma.branch.findFirst({ where: { id, companyId } })
+  if (!exists) throw new Error('Filial não encontrada')
   return prisma.branch.update({ where: { id }, data: { active } })
 }
 
@@ -160,14 +162,16 @@ export interface CreateUserInput {
 }
 
 export async function createUser(companyId: string, input: CreateUserInput) {
-  const passwordHash = await bcrypt.hash(input.password, 10)
+  const passwordHash = await bcrypt.hash(input.password, 12)
   return prisma.user.create({
     data: { ...input, password: passwordHash, companyId },
     select: { id: true, name: true, email: true, role: true, active: true, createdAt: true },
   })
 }
 
-export async function toggleUserActive(id: string, active: boolean) {
+export async function toggleUserActive(companyId: string, id: string, active: boolean) {
+  const exists = await prisma.user.findFirst({ where: { id, companyId } })
+  if (!exists) throw new Error('Usuário não encontrado')
   // Ao desativar, invalida todas as sessões ativas
   if (!active) {
     await prisma.refreshToken.deleteMany({ where: { userId: id } })
@@ -187,7 +191,9 @@ export interface UpdateBranchInput {
   idProtheus?: string
 }
 
-export async function updateBranch(id: string, input: UpdateBranchInput) {
+export async function updateBranch(companyId: string, id: string, input: UpdateBranchInput) {
+  const exists = await prisma.branch.findFirst({ where: { id, companyId } })
+  if (!exists) throw new Error('Filial não encontrada')
   const data: Record<string, unknown> = {}
   if (input.name        !== undefined) data.name        = input.name
   if (input.cnpj        !== undefined) data.cnpj        = input.cnpj        || null
@@ -204,12 +210,14 @@ export interface UpdateUserInput {
   role?:     'ADMIN' | 'SALESPERSON'
 }
 
-export async function updateUser(id: string, input: UpdateUserInput) {
+export async function updateUser(companyId: string, id: string, input: UpdateUserInput) {
+  const exists = await prisma.user.findFirst({ where: { id, companyId } })
+  if (!exists) throw new Error('Usuário não encontrado')
   const data: Record<string, unknown> = {}
   if (input.name  !== undefined) data.name  = input.name
   if (input.email !== undefined) data.email = input.email
   if (input.role  !== undefined) data.role  = input.role
-  if (input.password) data.password = await bcrypt.hash(input.password, 10)
+  if (input.password) data.password = await bcrypt.hash(input.password, 12)
 
   // Invalida todas as sessões ativas ao trocar role ou senha
   const sensitiveChange = input.role !== undefined || !!input.password
@@ -246,7 +254,9 @@ export async function createCustomer(companyId: string, input: CreateCustomerInp
 
 export interface UpdateCustomerInput extends Partial<CreateCustomerInput> {}
 
-export async function updateCustomer(id: string, input: UpdateCustomerInput) {
+export async function updateCustomer(companyId: string, id: string, input: UpdateCustomerInput) {
+  const exists = await prisma.customer.findFirst({ where: { id, companyId } })
+  if (!exists) throw new Error('Cliente não encontrado')
   const data: Record<string, unknown> = {}
   const fields: (keyof CreateCustomerInput)[] = [
     'name', 'protheusCode', 'loja', 'document', 'email', 'phone', 'address', 'municipio', 'bairro', 'cep', 'uf',
@@ -258,7 +268,9 @@ export async function updateCustomer(id: string, input: UpdateCustomerInput) {
   return prisma.customer.update({ where: { id }, data })
 }
 
-export async function toggleCustomerActive(id: string, active: boolean) {
+export async function toggleCustomerActive(companyId: string, id: string, active: boolean) {
+  const exists = await prisma.customer.findFirst({ where: { id, companyId } })
+  if (!exists) throw new Error('Cliente não encontrado')
   return prisma.customer.update({ where: { id }, data: { active } })
 }
 
@@ -291,7 +303,9 @@ export async function createProduct(companyId: string, input: CreateProductInput
 
 export interface UpdateProductInput extends Partial<CreateProductInput> {}
 
-export async function updateProduct(id: string, input: UpdateProductInput) {
+export async function updateProduct(companyId: string, id: string, input: UpdateProductInput) {
+  const exists = await prisma.product.findFirst({ where: { id, companyId } })
+  if (!exists) throw new Error('Produto não encontrado')
   const data: Record<string, unknown> = {}
   if (input.name         !== undefined) data.name         = input.name
   if (input.protheusCode !== undefined) data.protheusCode = input.protheusCode || null
@@ -303,13 +317,17 @@ export async function updateProduct(id: string, input: UpdateProductInput) {
   return prisma.product.update({ where: { id }, data })
 }
 
-export async function toggleProductActive(id: string, active: boolean) {
+export async function toggleProductActive(companyId: string, id: string, active: boolean) {
+  const exists = await prisma.product.findFirst({ where: { id, companyId } })
+  if (!exists) throw new Error('Produto não encontrado')
   return prisma.product.update({ where: { id }, data: { active } })
 }
 
 // ─── Orders (cancelar) ───────────────────────────────────────────────────────
 
-export async function cancelOrder(id: string) {
+export async function cancelOrder(companyId: string, id: string) {
+  const exists = await prisma.order.findFirst({ where: { id, companyId } })
+  if (!exists) throw new Error('Pedido não encontrado')
   return prisma.order.update({ where: { id }, data: { status: 'CANCELLED' } })
 }
 

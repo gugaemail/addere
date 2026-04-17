@@ -2,7 +2,7 @@ import { z } from 'zod'
 
 export const loginSchema = z.object({
   email: z.string().email({ message: 'Email inválido' }),
-  password: z.string().min(6, { message: 'Senha deve ter no mínimo 6 caracteres' }),
+  password: z.string().min(8, { message: 'Senha deve ter no mínimo 8 caracteres' }),
 })
 
 export type LoginInput = z.infer<typeof loginSchema>

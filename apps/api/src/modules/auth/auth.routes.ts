@@ -101,7 +101,15 @@ export default async function authRoutes(app: FastifyInstance) {
   })
 
   // POST /auth/logout — revoga o refresh token e limpa o cookie
-  app.post('/logout', async (request: FastifyRequest, reply: FastifyReply) => {
+  app.post('/logout', {
+    config: {
+      rateLimit: {
+        max: 20,
+        timeWindow: '1 minute',
+        errorResponseBuilder: () => ({ message: 'Muitas tentativas. Aguarde 1 minuto e tente novamente.' }),
+      },
+    },
+  }, async (request: FastifyRequest, reply: FastifyReply) => {
     const token = request.cookies[COOKIE_NAME]
     if (token) {
       await revokeRefreshToken(token)

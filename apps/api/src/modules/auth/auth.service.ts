@@ -5,17 +5,19 @@ import type { LoginInput } from './auth.schema'
 
 const REFRESH_TOKEN_EXPIRES_DAYS = 30
 
+// Hash dummy para equalizar timing quando o email não existe (previne enumeração por timing)
+const DUMMY_HASH = '$2b$12$X4kv7j5ZcGaB3dcBp3rlsOBWRPqhf3IkHGBuPtXOt0OjbhAVJBXkW'
+
 export async function loginUser(input: LoginInput) {
-  // Busca usuário ativo pelo email
   const user = await prisma.user.findFirst({
     where: { email: input.email, active: true },
   })
 
-  // Mensagem genérica para não vazar se o email existe ou não
-  if (!user) throw new Error('Credenciais inválidas')
+  // Executa bcrypt mesmo quando o usuário não existe para equalizar o tempo de resposta
+  const passwordToCompare = user?.password ?? DUMMY_HASH
+  const passwordValid = await bcrypt.compare(input.password, passwordToCompare)
 
-  const passwordValid = await bcrypt.compare(input.password, user.password)
-  if (!passwordValid) throw new Error('Credenciais inválidas')
+  if (!user || !passwordValid) throw new Error('Credenciais inválidas')
 
   return user
 }

@@ -1,4 +1,5 @@
 import { FastifyInstance } from 'fastify'
+import { z } from 'zod'
 import axios from 'axios'
 import { prisma } from '@addere/db'
 import { authenticate } from '../../middleware/authenticate'
@@ -6,18 +7,23 @@ import { syncProducts, syncCustomers } from './sync.service'
 import { decryptCredential } from '../../lib/protheus-crypto'
 import { assertSafeUrl } from '../../lib/url-validator'
 
+const companyIdSchema = z.object({ companyId: z.string().uuid('companyId deve ser um UUID válido') })
+
 export default async function syncRoutes(app: FastifyInstance) {
   // POST /sync/test-token — testa a chamada de autenticação Protheus e retorna resposta bruta
   app.post('/test-token', { preHandler: authenticate }, async (request, reply) => {
     const { role, companyId: userCompanyId } = request.user as { role: string; companyId: string | null }
-    const { companyId } = (request.body ?? {}) as { companyId?: string }
 
     if (role === 'SALESPERSON') {
       return reply.status(403).send({ message: 'Acesso negado' })
     }
-    if (!companyId) {
-      return reply.status(400).send({ message: 'companyId é obrigatório' })
+
+    const bodyParsed = companyIdSchema.safeParse(request.body)
+    if (!bodyParsed.success) {
+      return reply.status(400).send({ message: 'companyId inválido', errors: bodyParsed.error.flatten() })
     }
+    const { companyId } = bodyParsed.data
+
     // ADMIN só pode testar a própria empresa
     if (role === 'ADMIN' && companyId !== userCompanyId) {
       return reply.status(403).send({ message: 'Acesso negado' })
@@ -67,14 +73,17 @@ export default async function syncRoutes(app: FastifyInstance) {
   // POST /sync/test-products — busca página 1 da API de produtos e retorna resposta bruta (sem salvar)
   app.post('/test-products', { preHandler: authenticate }, async (request, reply) => {
     const { role, companyId: userCompanyId } = request.user as { role: string; companyId: string | null }
-    const { companyId } = (request.body ?? {}) as { companyId?: string }
 
     if (role === 'SALESPERSON') {
       return reply.status(403).send({ message: 'Acesso negado' })
     }
-    if (!companyId) {
-      return reply.status(400).send({ message: 'companyId é obrigatório' })
+
+    const bodyParsed = companyIdSchema.safeParse(request.body)
+    if (!bodyParsed.success) {
+      return reply.status(400).send({ message: 'companyId inválido', errors: bodyParsed.error.flatten() })
     }
+    const { companyId } = bodyParsed.data
+
     // ADMIN só pode testar a própria empresa
     if (role === 'ADMIN' && companyId !== userCompanyId) {
       return reply.status(403).send({ message: 'Acesso negado' })
@@ -140,14 +149,17 @@ export default async function syncRoutes(app: FastifyInstance) {
   // POST /sync/test-customers — busca página 1 da API de clientes e retorna resposta bruta (sem salvar)
   app.post('/test-customers', { preHandler: authenticate }, async (request, reply) => {
     const { role, companyId: userCompanyId } = request.user as { role: string; companyId: string | null }
-    const { companyId } = (request.body ?? {}) as { companyId?: string }
 
     if (role === 'SALESPERSON') {
       return reply.status(403).send({ message: 'Acesso negado' })
     }
-    if (!companyId) {
-      return reply.status(400).send({ message: 'companyId é obrigatório' })
+
+    const bodyParsed = companyIdSchema.safeParse(request.body)
+    if (!bodyParsed.success) {
+      return reply.status(400).send({ message: 'companyId inválido', errors: bodyParsed.error.flatten() })
     }
+    const { companyId } = bodyParsed.data
+
     if (role === 'ADMIN' && companyId !== userCompanyId) {
       return reply.status(403).send({ message: 'Acesso negado' })
     }
@@ -206,14 +218,17 @@ export default async function syncRoutes(app: FastifyInstance) {
   // POST /sync/products — importa produtos do Protheus (ADMIN ou SUPERADMIN)
   app.post('/products', { preHandler: authenticate, config: { rateLimit: { max: 3, timeWindow: '1 minute' } } }, async (request, reply) => {
     const { role, companyId: userCompanyId } = request.user as { role: string; companyId: string | null }
-    const { companyId } = (request.body ?? {}) as { companyId?: string }
 
     if (role === 'SALESPERSON') {
       return reply.status(403).send({ message: 'Acesso negado' })
     }
-    if (!companyId) {
-      return reply.status(400).send({ message: 'companyId é obrigatório' })
+
+    const bodyParsed = companyIdSchema.safeParse(request.body)
+    if (!bodyParsed.success) {
+      return reply.status(400).send({ message: 'companyId inválido', errors: bodyParsed.error.flatten() })
     }
+    const { companyId } = bodyParsed.data
+
     if (role === 'ADMIN' && companyId !== userCompanyId) {
       return reply.status(403).send({ message: 'Acesso negado' })
     }
@@ -231,14 +246,17 @@ export default async function syncRoutes(app: FastifyInstance) {
   // POST /sync/customers — importa clientes do Protheus (ADMIN ou SUPERADMIN)
   app.post('/customers', { preHandler: authenticate, config: { rateLimit: { max: 3, timeWindow: '1 minute' } } }, async (request, reply) => {
     const { role, companyId: userCompanyId } = request.user as { role: string; companyId: string | null }
-    const { companyId } = (request.body ?? {}) as { companyId?: string }
 
     if (role === 'SALESPERSON') {
       return reply.status(403).send({ message: 'Acesso negado' })
     }
-    if (!companyId) {
-      return reply.status(400).send({ message: 'companyId é obrigatório' })
+
+    const bodyParsed = companyIdSchema.safeParse(request.body)
+    if (!bodyParsed.success) {
+      return reply.status(400).send({ message: 'companyId inválido', errors: bodyParsed.error.flatten() })
     }
+    const { companyId } = bodyParsed.data
+
     if (role === 'ADMIN' && companyId !== userCompanyId) {
       return reply.status(403).send({ message: 'Acesso negado' })
     }
