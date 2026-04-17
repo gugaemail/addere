@@ -24,6 +24,10 @@ export default function LoginScreen() {
 
   const { mutate: login, isPending, error } = useLogin()
 
+  const apiErrorMessage = error
+    ? ((error as { response?: { data?: { message?: string } } })?.response?.data?.message ?? 'Erro ao conectar com o servidor')
+    : null
+
   function handleLogin() {
     setValidationError(null)
     const result = schema.safeParse({ email, password })
@@ -61,9 +65,9 @@ export default function LoginScreen() {
           secureTextEntry
         />
 
-        {(validationError || error) && (
+        {(validationError || apiErrorMessage) && (
           <Text style={styles.error}>
-            {validationError ?? 'Credenciais inválidas'}
+            {validationError ?? apiErrorMessage}
           </Text>
         )}
 
