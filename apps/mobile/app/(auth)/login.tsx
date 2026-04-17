@@ -11,6 +11,7 @@ import {
 } from 'react-native'
 import { z } from 'zod'
 import { useLogin } from '../../src/hooks/useAuth'
+import { LogoMark } from '../../src/components/brand/LogoMark'
 
 const schema = z.object({
   email: z.string().email('Email inválido'),
@@ -44,8 +45,11 @@ export default function LoginScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <View style={styles.card}>
+        <View style={styles.logoContainer}>
+          <LogoMark size={52} variant="light" />
+        </View>
         <Text style={styles.title}>Addere</Text>
-        <Text style={styles.subtitle}>ERP Protheus Mobile</Text>
+        <Text style={styles.subtitle}>ERP Mobile</Text>
 
         <TextInput
           style={styles.input}
@@ -98,6 +102,10 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.08,
     shadowRadius: 8,
     elevation: 3,
+  },
+  logoContainer: {
+    alignItems: 'center',
+    marginBottom: 12,
   },
   title: {
     fontSize: 28,
