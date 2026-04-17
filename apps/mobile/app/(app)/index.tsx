@@ -18,7 +18,7 @@ const STATUS_COLOR: Record<string, string> = {
   SYNCED:    '#16a34a',
   CANCELLED: '#dc2626',
 }
-const STAT_ACCENT = ['#1B4FA8', '#f59e0b', '#16a34a', '#7c3aed']
+const STAT_ACCENT = ['#1B4FA8', '#f59e0b', '#16a34a', '#29BEFF']
 
 export default function DashboardScreen() {
   const user    = useAuthStore((s) => s.user)
