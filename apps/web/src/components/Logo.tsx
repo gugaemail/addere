@@ -19,8 +19,7 @@ export function Logo({ size = 28, showWordmark = false, wordmarkClass }: LogoPro
         <defs>
           <linearGradient id={id} x1="5" y1="5" x2="95" y2="95" gradientUnits="userSpaceOnUse">
             <stop offset="0%"   stopColor="#29BEFF" />
-            <stop offset="50%"  stopColor="#1B4FA8" />
-            <stop offset="100%" stopColor="#0D2045" />
+            <stop offset="100%" stopColor="#1B4FA8" />
           </linearGradient>
           <clipPath id="addere-logo-clip">
             <rect x="33" y="5"  width="34" height="90" rx="17" />
@@ -34,7 +33,7 @@ export function Logo({ size = 28, showWordmark = false, wordmarkClass }: LogoPro
         />
       </svg>
       {showWordmark && (
-        <span className={wordmarkClass}>Addere</span>
+        <span className={wordmarkClass}>addere</span>
       )}
     </span>
   )

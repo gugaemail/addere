@@ -37,8 +37,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       {/* Sidebar */}
       <aside className="w-56 bg-gray-950 dark:bg-[#0a0e1a] text-white flex flex-col border-r border-white/5 shrink-0">
         {/* Logo */}
-        <div className="px-5 py-4 border-b border-white/5">
-          <Logo size={28} showWordmark wordmarkClass="text-sm font-bold tracking-tighter text-white" />
+        <div className="px-5 py-4 bg-white border-b border-border2">
+          <Logo size={28} showWordmark wordmarkClass="text-lg font-bold tracking-tight text-navy" />
           <p className="text-[10px] text-gray-500 mt-1.5 tracking-widest uppercase pl-[38px]">Painel Admin</p>
         </div>
 

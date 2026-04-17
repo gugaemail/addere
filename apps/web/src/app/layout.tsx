@@ -18,8 +18,9 @@ const inter = Inter({
 })
 
 export const metadata: Metadata = {
-  title: 'Addere — Painel Admin',
-  description: 'Painel administrativo do Addere ERP Mobile',
+  title: 'Addere Admin',
+  description: 'Painel administrativo Addere ERP Mobile',
+  icons: { icon: '/favicon.svg' },
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
