@@ -43,4 +43,12 @@
     background-color: var(--bg-page);
     color: var(--text-primary);
   }
+
+  h1, h2, h3, h4 {
+    font-family: var(--font-heading), sans-serif;
+  }
+
+  body, p, span {
+    font-family: var(--font-body), sans-serif;
+  }
 }
