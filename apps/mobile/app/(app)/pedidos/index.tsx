@@ -1,15 +1,17 @@
 import { View, Text, FlatList, TouchableOpacity, StyleSheet } from 'react-native'
 import { useRouter } from 'expo-router'
-import { Ionicons } from '@expo/vector-icons'
+import { Plus } from 'lucide-react-native'
 import { usePedidos } from '../../../src/hooks/usePedidos'
-import { useTheme } from '../../../src/theme'
 import { OrderRowSkeleton, EmptyState } from '../../../src/components/Skeleton'
+import { Badge } from '../../../src/components/ui/Badge'
 import type { Order } from '@addere/types'
 
-const STATUS_COLOR: Record<string, string> = {
-  PENDING:   '#f59e0b',
-  SYNCED:    '#16a34a',
-  CANCELLED: '#dc2626',
+type BadgeVariant = 'warning' | 'success' | 'danger' | 'neutral'
+
+const STATUS_BADGE: Record<string, BadgeVariant> = {
+  PENDING:   'warning',
+  SYNCED:    'success',
+  CANCELLED: 'danger',
 }
 const STATUS_LABEL: Record<string, string> = {
   PENDING:   'Pendente',
@@ -17,24 +19,20 @@ const STATUS_LABEL: Record<string, string> = {
   CANCELLED: 'Cancelado',
 }
 
-function OrderCard({ order, theme }: { order: Order; theme: ReturnType<typeof useTheme> }) {
-  const statusColor = STATUS_COLOR[order.status] ?? '#6b7280'
+function OrderCard({ order }: { order: Order }) {
+  const variant = STATUS_BADGE[order.status] ?? 'neutral'
   return (
-    <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+    <View style={s.card}>
       <View style={{ flex: 1 }}>
-        <Text style={[styles.customer, { color: theme.text }]}>{order.customer.name}</Text>
-        <Text style={[styles.date, { color: theme.textMuted }]}>
+        <Text style={s.customer}>{order.customer.name}</Text>
+        <Text style={s.sub}>
           {new Date(order.createdAt).toLocaleDateString('pt-BR')}
         </Text>
-        <Text style={[styles.items, { color: theme.textMuted }]}>{order.items.length} item(s)</Text>
+        <Text style={s.sub}>{order.items.length} item(s)</Text>
       </View>
-      <View style={{ alignItems: 'flex-end' }}>
-        <Text style={[styles.total, { color: theme.text }]}>R$ {Number(order.total).toFixed(2)}</Text>
-        <View style={[styles.badge, { backgroundColor: statusColor + '22' }]}>
-          <Text style={[styles.badgeText, { color: statusColor }]}>
-            {STATUS_LABEL[order.status]}
-          </Text>
-        </View>
+      <View style={{ alignItems: 'flex-end', gap: 6 }}>
+        <Text style={s.total}>R$ {Number(order.total).toFixed(2)}</Text>
+        <Badge variant={variant}>{STATUS_LABEL[order.status]}</Badge>
       </View>
     </View>
   )
@@ -42,11 +40,10 @@ function OrderCard({ order, theme }: { order: Order; theme: ReturnType<typeof us
 
 export default function PedidosScreen() {
   const router = useRouter()
-  const theme  = useTheme()
   const { data: orders, isLoading, refetch } = usePedidos()
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.bg }]}>
+    <View style={s.container}>
       {isLoading ? (
         <View style={{ padding: 16 }}>
           {[0, 1, 2, 3].map((i) => <OrderRowSkeleton key={i} />)}
@@ -55,49 +52,66 @@ export default function PedidosScreen() {
         <FlatList
           data={orders}
           keyExtractor={(item) => item.id}
-          renderItem={({ item }) => <OrderCard order={item} theme={theme} />}
+          renderItem={({ item }) => <OrderCard order={item} />}
           onRefresh={refetch}
           refreshing={false}
           ListEmptyComponent={
             <EmptyState
-              icon={<Ionicons name="receipt-outline" size={28} color={theme.textMuted} />}
+              icon={null}
               title="Nenhum pedido ainda"
               description="Toque no botão + para criar seu primeiro pedido."
             />
           }
-          contentContainerStyle={{ padding: 16, paddingBottom: 90 }}
+          contentContainerStyle={{ padding: 16, paddingBottom: 90, gap: 8 }}
         />
       )}
 
       {/* FAB — Novo Pedido */}
       <TouchableOpacity
-        style={[styles.fab, { backgroundColor: theme.brand }]}
+        style={s.fab}
         onPress={() => router.push('/(app)/novo-pedido')}
+        activeOpacity={0.85}
       >
-        <Ionicons name="add" size={28} color="#fff" />
+        <Plus size={28} color="#FFFFFF" />
       </TouchableOpacity>
     </View>
   )
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1 },
+const s = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#F8FAFC',
+  },
   card: {
-    borderRadius: 10,
-    padding: 14,
-    marginBottom: 8,
-    flexDirection: 'row',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
     borderWidth: 1,
-    shadowColor: '#000',
-    shadowOpacity: 0.04,
+    borderColor: '#E2E8F0',
+    padding: 16,
+    flexDirection: 'row',
+    shadowColor: '#0D2045',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 3,
     elevation: 1,
   },
-  customer:   { fontSize: 14, fontWeight: '600' },
-  date:       { fontSize: 12, marginTop: 2 },
-  items:      { fontSize: 12, marginTop: 2 },
-  total:      { fontSize: 16, fontWeight: '700' },
-  badge:      { borderRadius: 12, paddingHorizontal: 8, paddingVertical: 3, marginTop: 6 },
-  badgeText:  { fontSize: 11, fontWeight: '700' },
+  customer: {
+    fontFamily: 'PlusJakartaSans_600SemiBold',
+    fontSize: 15,
+    color: '#0D2045',
+  },
+  sub: {
+    fontFamily: 'Inter_400Regular',
+    fontSize: 13,
+    color: '#64748B',
+    marginTop: 2,
+  },
+  total: {
+    fontFamily: 'PlusJakartaSans_600SemiBold',
+    fontSize: 16,
+    color: '#0D2045',
+  },
   fab: {
     position: 'absolute',
     bottom: 24,
@@ -105,11 +119,13 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 28,
+    backgroundColor: '#1B4FA8',
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: '#2563eb',
+    shadowColor: '#1B4FA8',
     shadowOpacity: 0.35,
     shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
     elevation: 6,
   },
 })

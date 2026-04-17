@@ -1,37 +1,35 @@
 import { useState } from 'react'
 import { View, Text, FlatList, TextInput, TouchableOpacity, StyleSheet } from 'react-native'
 import { useRouter } from 'expo-router'
-import { Ionicons } from '@expo/vector-icons'
+import { ChevronRight } from 'lucide-react-native'
 import { useClientes } from '../../../src/hooks/useClientes'
-import { useTheme } from '../../../src/theme'
 import { ClienteItemSkeleton, EmptyState } from '../../../src/components/Skeleton'
 import type { Customer } from '@addere/types'
 
-function ClienteItem({ customer, onPress, theme }: { customer: Customer; onPress: () => void; theme: ReturnType<typeof useTheme> }) {
+function ClienteItem({ customer, onPress }: { customer: Customer; onPress: () => void }) {
   return (
-    <TouchableOpacity style={[styles.item, { backgroundColor: theme.surface, borderColor: theme.border }]} onPress={onPress}>
+    <TouchableOpacity style={s.card} onPress={onPress} activeOpacity={0.75}>
       <View style={{ flex: 1 }}>
-        <Text style={[styles.name, { color: theme.text }]}>{customer.name}</Text>
-        {customer.document && <Text style={[styles.doc, { color: theme.textMuted }]}>{customer.document}</Text>}
-        {customer.phone && <Text style={[styles.sub, { color: theme.textMuted }]}>{customer.phone}</Text>}
+        <Text style={s.name}>{customer.name}</Text>
+        {customer.document && <Text style={s.sub}>{customer.document}</Text>}
+        {customer.phone    && <Text style={s.sub}>{customer.phone}</Text>}
       </View>
-      <Text style={[styles.arrow, { color: theme.textMuted }]}>›</Text>
+      <ChevronRight size={18} color="#94A3B8" />
     </TouchableOpacity>
   )
 }
 
 export default function ClientesScreen() {
-  const router  = useRouter()
-  const theme   = useTheme()
+  const router = useRouter()
   const [search, setSearch] = useState('')
   const { data: customers, isLoading, refetch } = useClientes(search || undefined)
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.bg }]}>
+    <View style={s.container}>
       <TextInput
-        style={[styles.search, { backgroundColor: theme.surface, borderColor: theme.border, color: theme.text }]}
+        style={s.search}
         placeholder="Buscar por nome ou CPF/CNPJ..."
-        placeholderTextColor={theme.textMuted}
+        placeholderTextColor="#94A3B8"
         value={search}
         onChangeText={setSearch}
         returnKeyType="search"
@@ -48,7 +46,6 @@ export default function ClientesScreen() {
           renderItem={({ item }) => (
             <ClienteItem
               customer={item}
-              theme={theme}
               onPress={() => router.push(`/(app)/clientes/${item.id}`)}
             />
           )}
@@ -56,42 +53,58 @@ export default function ClientesScreen() {
           refreshing={false}
           ListEmptyComponent={
             <EmptyState
-              icon={<Ionicons name="people-outline" size={28} color={theme.textMuted} />}
+              icon={null}
               title={search ? 'Nenhum resultado' : 'Nenhum cliente ainda'}
               description={search ? `Não encontramos clientes para "${search}".` : 'Sincronize os clientes pelo painel web.'}
             />
           }
-          contentContainerStyle={{ padding: 16 }}
+          contentContainerStyle={{ padding: 16, gap: 8 }}
         />
       )}
     </View>
   )
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1 },
+const s = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#F8FAFC',
+  },
   search: {
     margin: 16,
+    backgroundColor: '#FFFFFF',
     borderRadius: 10,
     borderWidth: 1,
+    borderColor: '#E2E8F0',
     paddingHorizontal: 14,
     paddingVertical: 12,
+    fontFamily: 'Inter_400Regular',
     fontSize: 14,
+    color: '#0D2045',
   },
-  item: {
-    borderRadius: 10,
-    padding: 14,
-    marginBottom: 8,
+  card: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    padding: 16,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    borderWidth: 1,
-    shadowColor: '#000',
-    shadowOpacity: 0.04,
+    shadowColor: '#0D2045',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 3,
     elevation: 1,
   },
-  name:  { fontSize: 15, fontWeight: '600' },
-  doc:   { fontSize: 12, marginTop: 2 },
-  sub:   { fontSize: 12 },
-  arrow: { fontSize: 22 },
+  name: {
+    fontFamily: 'PlusJakartaSans_600SemiBold',
+    fontSize: 15,
+    color: '#0D2045',
+  },
+  sub: {
+    fontFamily: 'Inter_400Regular',
+    fontSize: 13,
+    color: '#64748B',
+    marginTop: 2,
+  },
 })
