@@ -1,9 +1,10 @@
 import { Stack } from 'expo-router'
+import { brandScreenOptions } from '../../../src/navigation/BrandHeader'
 
 export default function ProdutosLayout() {
   return (
-    <Stack>
-      <Stack.Screen name="index" options={{ title: 'Produtos' }} />
+    <Stack screenOptions={brandScreenOptions}>
+      <Stack.Screen name="index" />
     </Stack>
   )
 }

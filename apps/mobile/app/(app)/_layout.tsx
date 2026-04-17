@@ -1,11 +1,12 @@
 import { Tabs } from 'expo-router'
 import { LayoutDashboard, Users, Package, ClipboardList } from 'lucide-react-native'
+import { brandScreenOptions } from '../../src/navigation/BrandHeader'
 
 export default function AppLayout() {
   return (
     <Tabs
       screenOptions={{
-        headerShown: true,
+        ...brandScreenOptions,
         tabBarActiveTintColor:   '#1B4FA8',
         tabBarInactiveTintColor: '#94A3B8',
         tabBarStyle: {
@@ -20,11 +21,6 @@ export default function AppLayout() {
           fontSize:   11,
           fontWeight: '500',
         },
-        headerStyle: {
-          backgroundColor: '#FFFFFF',
-        },
-        headerTintColor:     '#0D2045',
-        headerShadowVisible: false,
       }}
     >
       <Tabs.Screen
