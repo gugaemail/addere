@@ -14,6 +14,8 @@
   },
   "dependencies": {
     "@addere/types": "*",
+    "@expo-google-fonts/inter": "^0.4.2",
+    "@expo-google-fonts/plus-jakarta-sans": "^0.4.2",
     "@react-navigation/native": "^7.0.14",
     "@tanstack/react-query": "^5.51.1",
     "axios": "^1.15.0",

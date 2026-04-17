@@ -1,4 +1,14 @@
+export const fontFamily = {
+  sans:         'PlusJakartaSans_400Regular',
+  sansMedium:   'PlusJakartaSans_500Medium',
+  sansSemibold: 'PlusJakartaSans_600SemiBold',
+  sansBold:     'PlusJakartaSans_700Bold',
+  mono:         'Inter_400Regular',
+  monoBold:     'Inter_700Bold',
+} as const
+
 export const typography = {
+  fontFamily,
   size: {
     xs:   11,
     sm:   13,
