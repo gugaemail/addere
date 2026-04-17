@@ -1,19 +1,5 @@
-import { View, StyleSheet } from 'react-native'
 import { Tabs } from 'expo-router'
-import { Ionicons } from '@expo/vector-icons'
-
-type IoniconsName = React.ComponentProps<typeof Ionicons>['name']
-
-function TabIcon({ name, color, size, focused }: { name: IoniconsName; color: string; size: number; focused: boolean }) {
-  if (focused) {
-    return (
-      <View style={s.activeIconWrap}>
-        <Ionicons name={name} size={size} color="#1B4FA8" />
-      </View>
-    )
-  }
-  return <Ionicons name={name} size={size} color={color} />
-}
+import { LayoutDashboard, Users, Package, ClipboardList } from 'lucide-react-native'
 
 export default function AppLayout() {
   return (
@@ -26,11 +12,18 @@ export default function AppLayout() {
           backgroundColor: '#FFFFFF',
           borderTopColor:  '#E2E8F0',
           borderTopWidth:  1,
+          height:          60,
+          paddingBottom:   8,
+        },
+        tabBarLabelStyle: {
+          fontFamily: 'Inter_400Regular',
+          fontSize:   11,
+          fontWeight: '500',
         },
         headerStyle: {
           backgroundColor: '#FFFFFF',
         },
-        headerTintColor: '#0D2045',
+        headerTintColor:     '#0D2045',
         headerShadowVisible: false,
       }}
     >
@@ -38,8 +31,8 @@ export default function AppLayout() {
         name="index"
         options={{
           title: 'Dashboard',
-          tabBarIcon: ({ color, size, focused }) => (
-            <TabIcon name="home-outline" color={color} size={size} focused={focused} />
+          tabBarIcon: ({ color }) => (
+            <LayoutDashboard size={22} color={color} />
           ),
         }}
       />
@@ -47,30 +40,30 @@ export default function AppLayout() {
         name="clientes"
         options={{
           title: 'Clientes',
-          tabBarIcon: ({ color, size, focused }) => (
-            <TabIcon name="people-outline" color={color} size={size} focused={focused} />
-          ),
           headerShown: false,
+          tabBarIcon: ({ color }) => (
+            <Users size={22} color={color} />
+          ),
         }}
       />
       <Tabs.Screen
         name="produtos"
         options={{
           title: 'Produtos',
-          tabBarIcon: ({ color, size, focused }) => (
-            <TabIcon name="cube-outline" color={color} size={size} focused={focused} />
-          ),
           headerShown: false,
+          tabBarIcon: ({ color }) => (
+            <Package size={22} color={color} />
+          ),
         }}
       />
       <Tabs.Screen
         name="pedidos"
         options={{
           title: 'Pedidos',
-          tabBarIcon: ({ color, size, focused }) => (
-            <TabIcon name="receipt-outline" color={color} size={size} focused={focused} />
-          ),
           headerShown: false,
+          tabBarIcon: ({ color }) => (
+            <ClipboardList size={22} color={color} />
+          ),
         }}
       />
       {/* Rota oculta da tab bar — acessada via FAB */}
@@ -81,16 +74,3 @@ export default function AppLayout() {
     </Tabs>
   )
 }
-
-const s = StyleSheet.create({
-  activeIconWrap: {
-    width: 36,
-    height: 28,
-    borderRadius: 8,
-    backgroundColor: '#E8F4FF',
-    borderWidth: 1.5,
-    borderColor: '#1B4FA8',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-})
