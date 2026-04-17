@@ -1,4 +1,45 @@
-# CLAUDE.md
+# Addere — Project Context
+
+## Product
+Mobile ERP extension for Protheus/TOTVS. React Native (Expo) mobile app + Next.js 15 web admin panel.
+
+## Brand Rules — ALWAYS follow these
+- NEVER hardcode hex colors. Always use tokens from src/theme/colors.ts (mobile) or Tailwind brand classes (web)
+- NEVER use fonts outside the approved list: Plus Jakarta Sans (headings) and Inter (body)
+- NEVER use icons outside Lucide library (lucide-react-native on mobile, lucide-react on web)
+- ALWAYS use spacing scale multiples of 4px
+- ALWAYS use border-radius from theme: sm=6px, md=10px, lg=16px, xl=24px, full=999px
+- ALWAYS use the existing UI components (Button, Input, Card, Badge) — never create inline styles for these
+
+## Color Tokens
+- Primary: #1B4FA8 (brand blue — CTAs, links, active states)
+- Accent: #29BEFF (cyan — highlights, gradients, badges)
+- Dark: #0D2045 (deep navy — headings, dark backgrounds)
+- Tint: #E8F4FF (light blue — selected states, info backgrounds)
+- Success: #22C55E | Warning: #F59E0B | Danger: #EF4444 | Muted: #64748B
+
+## Stack
+- Mobile: React Native + Expo + TypeScript
+- Web: Next.js 15 App Router + Tailwind v4 + TypeScript
+- Icons: Lucide (1.5px stroke, round caps/joins)
+- ERP: Protheus/TOTVS REST API integration
+
+## Component Location
+- Mobile UI components: src/components/ui/
+- Mobile brand components: src/components/brand/
+- Web UI components: src/components/ui/
+- Theme tokens: src/theme/
+
+## When creating new screens
+1. Use #F8FAFC as background
+2. Use Card component for list items
+3. Use the global header (already configured in navigator)
+4. Import colors from theme, never hardcode
+5. Use EmptyState component for empty lists
+
+---
+
+# Monorepo — Guia Técnico
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
