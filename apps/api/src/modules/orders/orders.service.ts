@@ -33,6 +33,13 @@ export async function getOrderStats(userId: string, companyId: string) {
   }
 }
 
+export async function cancelOrder(userId: string, companyId: string, orderId: string) {
+  const order = await prisma.order.findFirst({ where: { id: orderId, userId, companyId } })
+  if (!order) throw new Error('Pedido não encontrado')
+  if (order.status !== 'PENDING') throw new Error('Apenas pedidos pendentes podem ser cancelados')
+  return prisma.order.update({ where: { id: orderId }, data: { status: 'CANCELLED' }, include: orderInclude })
+}
+
 export async function createOrder(userId: string, companyId: string, input: CreateOrderInput) {
   // Busca os produtos para calcular os preços (filtrado pela empresa)
   const productIds = input.items.map((i) => i.productId)

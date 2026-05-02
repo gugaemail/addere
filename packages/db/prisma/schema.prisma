@@ -159,6 +159,7 @@ model Customer {
   @@unique([companyId, loja, protheusCode])
   @@unique([companyId, document])
   @@index([companyId, active])
+  @@index([companyId, name])
   @@map("customers")
 }
 
@@ -187,6 +188,7 @@ model Product {
 
   @@unique([companyId, protheusCode])
   @@index([companyId, active])
+  @@index([companyId, name])
   @@map("products")
 }
 
