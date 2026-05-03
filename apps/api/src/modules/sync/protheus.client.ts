@@ -2,6 +2,8 @@
 // O token é obtido via POST no endpoint `apiToken` e cacheado por 55 minutos.
 
 import axios from 'axios'
+import * as http from 'http'
+import * as https from 'https'
 import { assertSafeUrl } from '../../lib/url-validator'
 
 interface TokenCache {
@@ -39,15 +41,11 @@ async function getToken(companyId: string, creds: CompanyCredentials): Promise<s
   params.set('username', creds.usrProtheus)
   params.set('password', creds.passProtheus)
 
-  const tokenUrl = normalizePathLower(creds.apiToken)
-  await assertSafeUrl(tokenUrl, 'apiToken')
+  await assertSafeUrl(creds.apiToken, 'apiToken')
 
   const response = await withTimeout(
-    axios.post(tokenUrl, params, {
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-        'Connection': 'close',
-      },
+    axios.post(creds.apiToken, params, {
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     }),
     15000,
     'obter token Protheus'
@@ -68,18 +66,74 @@ async function getToken(companyId: string, creds: CompanyCredentials): Promise<s
   return token
 }
 
-// Protheus redireciona paths uppercase→lowercase (ex: WSCLI→wscli).
-// O redirect 301 faz o axios converter POST→GET, quebrando a chamada.
-// Normalizar o path antes evita o redirect.
-function normalizePathLower(url: string): string {
-  try {
-    const u = new URL(url)
-    u.pathname = u.pathname.toLowerCase()
-    return u.href
-  } catch { return url }
+// POST com seguimento de redirect como POST.
+// O axios converte POST→GET em redirects 301/302 (RFC padrão), quebrando endpoints
+// Protheus que redirecionam (ex: WSCLI→wscli). O módulo nativo http/https
+// nos dá controle total sobre o comportamento do redirect.
+async function postJson(
+  urlStr: string,
+  body: unknown,
+  headers: Record<string, string>,
+  timeoutMs: number,
+  hopsLeft = 5
+): Promise<unknown> {
+  const bodyBuf = Buffer.from(JSON.stringify(body), 'utf-8')
+
+  return new Promise<unknown>((resolve, reject) => {
+    let u: URL
+    try { u = new URL(urlStr) } catch { return reject(new Error(`URL inválida: ${urlStr}`)) }
+
+    const client = u.protocol === 'https:' ? https : http
+    const req = client.request(
+      {
+        method: 'POST',
+        hostname: u.hostname,
+        port: u.port || (u.protocol === 'https:' ? 443 : 80),
+        path: u.pathname + u.search,
+        headers: { ...headers, 'Content-Length': bodyBuf.length },
+      },
+      (res) => {
+        // Segue redirect como POST (301/302 normalmente convertem para GET no axios)
+        if (res.statusCode && res.statusCode >= 300 && res.statusCode < 400) {
+          res.resume() // descarta body do redirect
+          if (hopsLeft <= 0) return reject(new Error(`Muitos redirects em ${urlStr}`))
+          const loc = res.headers.location
+          if (!loc) return reject(new Error(`Redirect sem Location em ${urlStr}`))
+          postJson(new URL(loc, urlStr).href, body, headers, timeoutMs, hopsLeft - 1)
+            .then(resolve, reject)
+          return
+        }
+
+        const chunks: Buffer[] = []
+        res.on('data', (c: Buffer) => chunks.push(c))
+        res.on('end', () => {
+          clearTimeout(timer)
+          const raw = Buffer.concat(chunks).toString('utf-8')
+          if (res.statusCode && res.statusCode >= 400) {
+            let data: unknown = raw
+            try { data = JSON.parse(raw) } catch { /* mantém string */ }
+            return reject(Object.assign(
+              new Error(`Protheus ${res.statusCode} em ${urlStr}`),
+              { response: { status: res.statusCode, data } }
+            ))
+          }
+          try { resolve(JSON.parse(raw)) } catch { resolve(raw) }
+        })
+        res.on('error', (e) => { clearTimeout(timer); reject(e) })
+      }
+    )
+
+    const timer = setTimeout(
+      () => req.destroy(new Error(`Timeout de ${timeoutMs / 1000}s em ${urlStr}`)),
+      timeoutMs
+    )
+    req.on('error', (e) => { clearTimeout(timer); reject(e) })
+    req.write(bodyBuf)
+    req.end()
+  })
 }
 
-function enrichAxiosError(err: unknown, url: string): never {
+function enrichError(err: unknown, url: string): never {
   const e = err as { response?: { status: number; data: unknown }; message: string }
   if (e.response) {
     const detail = typeof e.response.data === 'object'
@@ -95,17 +149,16 @@ export async function protheusGet(
   url: string,
   creds: CompanyCredentials
 ): Promise<unknown> {
-  const safeUrl = normalizePathLower(url)
-  await assertSafeUrl(safeUrl, 'url')
+  await assertSafeUrl(url, 'url')
   const token = await getToken(companyId, creds)
   try {
-    const response = await axios.get(safeUrl, {
-      headers: { Authorization: `Bearer ${token}`, 'Connection': 'close' },
+    const response = await axios.get(url, {
+      headers: { Authorization: `Bearer ${token}` },
       timeout: 60000,
     })
     return response.data
   } catch (err) {
-    return enrichAxiosError(err, safeUrl)
+    return enrichError(err, url)
   }
 }
 
@@ -115,21 +168,15 @@ export async function protheusPost(
   body: unknown,
   creds: CompanyCredentials
 ): Promise<unknown> {
-  const safeUrl = normalizePathLower(url)
-  await assertSafeUrl(safeUrl, 'url')
+  await assertSafeUrl(url, 'url')
   const token = await getToken(companyId, creds)
-
-  const headers = {
-    Authorization: `Bearer ${token}`,
-    'Content-Type': 'application/json',
-    'Connection': 'close',
-  }
-
   try {
-    const response = await axios.post(safeUrl, body, { headers, timeout: 60000 })
-    return response.data
+    return await postJson(url, body, {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    }, 60000)
   } catch (err) {
-    return enrichAxiosError(err, safeUrl)
+    return enrichError(err, url)
   }
 }
 
