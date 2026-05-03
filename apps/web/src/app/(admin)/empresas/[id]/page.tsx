@@ -114,8 +114,10 @@ export default function EmpresaPage() {
   const [productModal,  setProductModal]  = useState<ModalState<Product>>(null)
 
   // Sync
-  const [syncingProducts,  setSyncingProducts]  = useState(false)
-  const [syncingCustomers, setSyncingCustomers] = useState(false)
+  const [syncingProducts,       setSyncingProducts]       = useState(false)
+  const [syncingCustomers,      setSyncingCustomers]      = useState(false)
+  const [syncingTransportadoras, setSyncingTransportadoras] = useState(false)
+  const [syncingCondPags,       setSyncingCondPags]       = useState(false)
   const [syncResult,  setSyncResult]  = useState<{ entity: string; result: SyncResult } | null>(null)
   const [syncError,   setSyncError]   = useState<{ entity: string; msg: string } | null>(null)
 
@@ -225,6 +227,28 @@ export default function EmpresaPage() {
       const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? 'Erro ao sincronizar'
       setSyncError({ entity: 'clientes', msg })
     } finally { setSyncingCustomers(false) }
+  }
+
+  async function syncTransportadoras() {
+    setSyncingTransportadoras(true); setSyncResult(null); setSyncError(null)
+    try {
+      const { data } = await api.post<SyncResult>('/sync/transportadoras', { companyId: id })
+      setSyncResult({ entity: 'Transportadoras', result: data })
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? 'Erro ao sincronizar'
+      setSyncError({ entity: 'transportadoras', msg })
+    } finally { setSyncingTransportadoras(false) }
+  }
+
+  async function syncCondPags() {
+    setSyncingCondPags(true); setSyncResult(null); setSyncError(null)
+    try {
+      const { data } = await api.post<SyncResult>('/sync/cond-pags', { companyId: id })
+      setSyncResult({ entity: 'Condições de pagamento', result: data })
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? 'Erro ao sincronizar'
+      setSyncError({ entity: 'condições de pagamento', msg })
+    } finally { setSyncingCondPags(false) }
   }
 
   async function testToken() {
@@ -817,6 +841,26 @@ export default function EmpresaPage() {
             missingFields={!company.apiCliente || !company.apiToken ? 'Configure apiToken e apiCliente para habilitar.' : undefined}
             onSync={syncCustomers}
             btnLabel="Sincronizar Clientes"
+          />
+
+          <SyncCard
+            title="Sincronizar Transportadoras"
+            description={<>Importa transportadoras via <code className="bg-[var(--bg-subtle)] px-1 rounded text-[var(--text-secondary)]">apiTransp</code> e atualiza a lista disponível nos pedidos.</>}
+            disabled={syncingTransportadoras || !company.apiTransp || !company.apiToken}
+            loading={syncingTransportadoras}
+            missingFields={!company.apiTransp || !company.apiToken ? 'Configure apiToken e apiTransp para habilitar.' : undefined}
+            onSync={syncTransportadoras}
+            btnLabel="Sincronizar Transportadoras"
+          />
+
+          <SyncCard
+            title="Sincronizar Condições de Pagamento"
+            description={<>Importa condições de pagamento via <code className="bg-[var(--bg-subtle)] px-1 rounded text-[var(--text-secondary)]">apiCondPag</code> e atualiza as opções disponíveis nos pedidos.</>}
+            disabled={syncingCondPags || !company.apiCondPag || !company.apiToken}
+            loading={syncingCondPags}
+            missingFields={!company.apiCondPag || !company.apiToken ? 'Configure apiToken e apiCondPag para habilitar.' : undefined}
+            onSync={syncCondPags}
+            btnLabel="Sincronizar Cond. Pagamento"
           />
         </div>
       )}

@@ -341,3 +341,121 @@ export async function syncCustomers(companyId: string) {
 
   return { synced, total: totalRecords || totalFetched, errors }
 }
+
+// ─── Sync Transportadoras ─────────────────────────────────────────────────────
+
+const SYNC_TRANSP_PAGE_SIZE = 50
+
+export async function syncTransportadoras(companyId: string) {
+  const company = await prisma.company.findUniqueOrThrow({ where: { id: companyId } })
+
+  if (!company.apiTransp) throw new Error('URL apiTransp não configurada')
+
+  const creds     = getCredentials(company)
+  const MAX_PAGES = 500
+
+  type TranspData = { protheusCode: string; nome: string }
+  const validRecords: TranspData[] = []
+  let totalRecords = 0
+  let totalFetched = 0
+  let deslocamento = 1
+
+  while (deslocamento <= MAX_PAGES) {
+    const body = { limite: SYNC_TRANSP_PAGE_SIZE, deslocamento, INTERV: 0 }
+    const raw = await protheusPost(companyId, company.apiTransp, body, creds) as Record<string, unknown>
+
+    const paginas       = (raw['paginas'] ?? {}) as Record<string, unknown>
+    const transportadoras = Array.isArray(raw['Transportadoras']) ? raw['Transportadoras'] as Record<string, unknown>[] : []
+
+    if (deslocamento === 1) totalRecords = toNum(paginas['total'])
+    if (transportadoras.length === 0) break
+
+    for (const t of transportadoras) {
+      const protheusCode = toStr(t['A4_COD'])
+      if (!protheusCode) continue
+      validRecords.push({ protheusCode, nome: toStr(t['A4_NOME'], protheusCode) })
+    }
+
+    totalFetched += transportadoras.length
+    if (totalRecords > 0 && totalFetched >= totalRecords) break
+    if (transportadoras.length < SYNC_TRANSP_PAGE_SIZE) break
+    deslocamento += 1
+  }
+
+  let synced = 0
+  const errors: string[] = []
+
+  for (const t of validRecords) {
+    try {
+      await prisma.transportadora.upsert({
+        where: { companyId_protheusCode: { companyId, protheusCode: t.protheusCode } },
+        update: { nome: t.nome },
+        create: { companyId, protheusCode: t.protheusCode, nome: t.nome },
+      })
+      synced++
+    } catch (err: unknown) {
+      errors.push(`${t.protheusCode}: ${err instanceof Error ? err.message : 'Erro desconhecido'}`)
+    }
+  }
+
+  return { synced, total: totalRecords || totalFetched, errors }
+}
+
+// ─── Sync Condições de Pagamento ──────────────────────────────────────────────
+
+const SYNC_CONDPAG_PAGE_SIZE = 50
+
+export async function syncCondPags(companyId: string) {
+  const company = await prisma.company.findUniqueOrThrow({ where: { id: companyId } })
+
+  if (!company.apiCondPag) throw new Error('URL apiCondPag não configurada')
+
+  const creds     = getCredentials(company)
+  const MAX_PAGES = 500
+
+  type CondPagData = { protheusCode: string; nome: string }
+  const validRecords: CondPagData[] = []
+  let totalRecords = 0
+  let totalFetched = 0
+  let deslocamento = 1
+
+  while (deslocamento <= MAX_PAGES) {
+    const body = { limite: SYNC_CONDPAG_PAGE_SIZE, deslocamento, INTERV: 0 }
+    const raw = await protheusPost(companyId, company.apiCondPag, body, creds) as Record<string, unknown>
+
+    const paginas = (raw['paginas'] ?? {}) as Record<string, unknown>
+    const condpags = Array.isArray(raw['condpag']) ? raw['condpag'] as Record<string, unknown>[] : []
+
+    if (deslocamento === 1) totalRecords = toNum(paginas['total'])
+    if (condpags.length === 0) break
+
+    for (const c of condpags) {
+      const protheusCode = toStr(c['E4_CODIGO'])
+      if (!protheusCode) continue
+      validRecords.push({ protheusCode, nome: toStr(c['E4_DESCRI'], protheusCode) })
+    }
+
+    totalFetched += condpags.length
+    if (totalRecords > 0 && totalFetched >= totalRecords) break
+    if (condpags.length < SYNC_CONDPAG_PAGE_SIZE) break
+    deslocamento += 1
+  }
+
+  let synced = 0
+  const errors: string[] = []
+
+  for (const c of validRecords) {
+    try {
+      await prisma.condPag.upsert({
+        where: { companyId_protheusCode: { companyId, protheusCode: c.protheusCode } },
+        update: { nome: c.nome },
+        create: { companyId, protheusCode: c.protheusCode, nome: c.nome },
+      })
+      synced++
+    } catch (err: unknown) {
+      errors.push(`${c.protheusCode}: ${err instanceof Error ? err.message : 'Erro desconhecido'}`)
+    }
+  }
+
+  return { synced, total: totalRecords || totalFetched, errors }
+}

@@ -3,7 +3,7 @@ import { z } from 'zod'
 import axios from 'axios'
 import { prisma } from '@addere/db'
 import { authenticate } from '../../middleware/authenticate'
-import { syncProducts, syncCustomers } from './sync.service'
+import { syncProducts, syncCustomers, syncTransportadoras, syncCondPags } from './sync.service'
 import { protheusPost } from './protheus.client'
 import { decryptCredential } from '../../lib/protheus-crypto'
 import { assertSafeUrl } from '../../lib/url-validator'
@@ -246,6 +246,50 @@ export default async function syncRoutes(app: FastifyInstance) {
     } catch (err) {
       const msg = (err instanceof Error) ? err.message : 'Erro desconhecido'
       app.log.error({ err }, 'Falha ao sincronizar clientes com Protheus')
+      return reply.status(502).send({ message: msg })
+    }
+  })
+
+  // POST /sync/transportadoras — importa transportadoras do Protheus
+  app.post('/transportadoras', { preHandler: authenticate, config: { rateLimit: { max: 3, timeWindow: '1 minute' } } }, async (request, reply) => {
+    const { role, companyId: userCompanyId } = request.user as { role: string; companyId: string | null }
+
+    if (role === 'SALESPERSON') return reply.status(403).send({ message: 'Acesso negado' })
+
+    const bodyParsed = companyIdSchema.safeParse(request.body)
+    if (!bodyParsed.success) return reply.status(400).send({ message: 'companyId inválido' })
+    const { companyId } = bodyParsed.data
+
+    if (role === 'ADMIN' && companyId !== userCompanyId) return reply.status(403).send({ message: 'Acesso negado' })
+
+    try {
+      const result = await syncTransportadoras(companyId)
+      return reply.send(result)
+    } catch (err) {
+      const msg = (err instanceof Error) ? err.message : 'Erro desconhecido'
+      app.log.error({ err }, 'Falha ao sincronizar transportadoras com Protheus')
+      return reply.status(502).send({ message: msg })
+    }
+  })
+
+  // POST /sync/cond-pags — importa condições de pagamento do Protheus
+  app.post('/cond-pags', { preHandler: authenticate, config: { rateLimit: { max: 3, timeWindow: '1 minute' } } }, async (request, reply) => {
+    const { role, companyId: userCompanyId } = request.user as { role: string; companyId: string | null }
+
+    if (role === 'SALESPERSON') return reply.status(403).send({ message: 'Acesso negado' })
+
+    const bodyParsed = companyIdSchema.safeParse(request.body)
+    if (!bodyParsed.success) return reply.status(400).send({ message: 'companyId inválido' })
+    const { companyId } = bodyParsed.data
+
+    if (role === 'ADMIN' && companyId !== userCompanyId) return reply.status(403).send({ message: 'Acesso negado' })
+
+    try {
+      const result = await syncCondPags(companyId)
+      return reply.send(result)
+    } catch (err) {
+      const msg = (err instanceof Error) ? err.message : 'Erro desconhecido'
+      app.log.error({ err }, 'Falha ao sincronizar condições de pagamento com Protheus')
       return reply.status(502).send({ message: msg })
     }
   })

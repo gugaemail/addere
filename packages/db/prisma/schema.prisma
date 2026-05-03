@@ -209,6 +209,7 @@ model Transportadora {
 
   orders Order[]
 
+  @@unique([companyId, protheusCode])
   @@map("transportadoras")
 }
 
@@ -228,6 +229,7 @@ model CondPag {
 
   orders Order[]
 
+  @@unique([companyId, protheusCode])
   @@map("cond_pags")
 }
 
