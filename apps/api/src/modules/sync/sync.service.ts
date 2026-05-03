@@ -1,7 +1,6 @@
 import { prisma } from '@addere/db'
 import { protheusPost, CompanyCredentials } from './protheus.client'
-import { mapRecord, extractRecords, toStr, toNum } from './field-mapper'
-import { DEFAULT_MAPPINGS } from './default-mappings'
+import { toStr, toNum } from './field-mapper'
 import { decryptCredential } from '../../lib/protheus-crypto'
 
 
@@ -160,7 +159,7 @@ export async function syncProducts(companyId: string) {
 
 // ─── Sync Clientes ────────────────────────────────────────────────────────────
 
-const SYNC_CUSTOMERS_PAGE_SIZE = 100
+const SYNC_CUSTOMERS_PAGE_SIZE = 50
 const UPSERT_CHUNK_SIZE = 500
 
 type CustomerData = {
@@ -219,7 +218,6 @@ async function upsertCustomersChunked(
   for (let i = 0; i < records.length; i += UPSERT_CHUNK_SIZE) {
     const chunk = records.slice(i, i + UPSERT_CHUNK_SIZE)
     try {
-      // Tentativa rápida: todos os registros do chunk em uma transação
       await prisma.$transaction(chunk.map((c) => prisma.customer.upsert({
         where: { companyId_loja_protheusCode: { companyId, loja: c.loja, protheusCode: c.protheusCode } },
         update: {
@@ -250,9 +248,9 @@ async function upsertCustomersChunked(
         },
       })))
       synced += chunk.length
-    } catch (chunkErr: unknown) {
-      // Fallback individual: salva o máximo possível e coleta erros por registro.
-      // Necessário quando clientes multi-loja compartilham o mesmo CNPJ (P2002 em @@unique([companyId, document])).
+    } catch {
+      // Fallback individual quando clientes multi-loja compartilham o mesmo CNPJ
+      // (P2002 em @@unique([companyId, document])).
       for (const c of chunk) {
         try {
           await upsertOne(companyId, c)
@@ -280,49 +278,55 @@ export async function syncCustomers(companyId: string) {
 
   if (!company.apiCliente) throw new Error('URL apiCliente não configurada')
 
-  const creds   = getCredentials(company)
-  const mapping = DEFAULT_MAPPINGS.customers
+  const creds     = getCredentials(company)
   const MAX_PAGES = 500
 
   const validRecords: CustomerData[] = []
+  let totalRecords = 0
   let totalFetched = 0
   let deslocamento = 1
 
   while (deslocamento <= MAX_PAGES) {
     const body = { limite: SYNC_CUSTOMERS_PAGE_SIZE, deslocamento, INTERV: 0 }
-    const rawResponse = await protheusPost(companyId, company.apiCliente, body, creds)
+    const rawResponse = await protheusPost(companyId, company.apiCliente, body, creds) as Record<string, unknown>
 
-    const records = extractRecords(rawResponse, mapping.responseKey)
-    if (records.length === 0) break
+    const paginas  = (rawResponse['paginas'] ?? {}) as Record<string, unknown>
+    const clientes = Array.isArray(rawResponse['clientes']) ? rawResponse['clientes'] as Record<string, unknown>[] : []
 
-    for (const raw of records) {
-      const mapped = mapRecord(raw, mapping.fields)
-      const protheusCode = toStr(mapped['protheusCode'])
+    if (deslocamento === 1) {
+      totalRecords = toNum(paginas['total'])
+    }
+
+    if (clientes.length === 0) break
+
+    for (const raw of clientes) {
+      const protheusCode = toStr(raw['A1_COD'])
       if (!protheusCode) continue
-      const loja = toStr(mapped['loja'], '01')
+
       validRecords.push({
         protheusCode,
-        loja,
-        name:      toStr(mapped['name'], protheusCode),
-        document:  toStr(mapped['document'])  || null,
-        email:     toStr(mapped['email'])     || null,
-        phone:     buildPhone(toStr(mapped['phoneDdd']), toStr(mapped['phone'])),
-        address:   toStr(mapped['address'])   || null,
-        municipio: toStr(mapped['municipio']) || null,
-        bairro:    toStr(mapped['bairro'])    || null,
-        cep:       toStr(mapped['cep'])       || null,
-        uf:        toStr(mapped['uf'])        || null,
+        loja:      toStr(raw['A1_LOJA'], '01'),
+        name:      toStr(raw['A1_NOME'], protheusCode),
+        document:  toStr(raw['A1_CGC'])    || null,
+        email:     toStr(raw['A1_EMAIL'])  || null,
+        phone:     buildPhone(toStr(raw['A1_DDD']), toStr(raw['A1_TEL'])),
+        address:   toStr(raw['A1_END'])    || null,
+        municipio: toStr(raw['A1_MUN'])    || null,
+        bairro:    toStr(raw['A1_BAIRRO']) || null,
+        cep:       toStr(raw['A1_CEP'])    || null,
+        uf:        toStr(raw['A1_EST'])    || null,
       })
     }
 
-    totalFetched += records.length
+    totalFetched += clientes.length
 
-    if (records.length < SYNC_CUSTOMERS_PAGE_SIZE) break
+    if (totalRecords > 0 && totalFetched >= totalRecords) break
+    if (clientes.length < SYNC_CUSTOMERS_PAGE_SIZE) break
 
     deslocamento += 1
   }
 
-  // Deduplica por document: o Protheus pode retornar o mesmo CNPJ em múltiplas lojas
+  // Deduplica por document: o Protheus retorna o mesmo CNPJ em múltiplas lojas
   // (A1_LOJA='01', '02'...). A constraint @@unique([companyId, document]) aceita apenas um
   // registro por CNPJ — mantemos a primeira ocorrência (geralmente loja='01').
   const seenDocuments = new Set<string>()
@@ -335,5 +339,5 @@ export async function syncCustomers(companyId: string) {
 
   const { synced, errors } = await upsertCustomersChunked(companyId, deduped)
 
-  return { synced, total: totalFetched, errors }
+  return { synced, total: totalRecords || totalFetched, errors }
 }
