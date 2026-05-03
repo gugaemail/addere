@@ -109,7 +109,10 @@ export async function protheusPost(
   const token = await getToken(companyId, creds)
   try {
     const response = await withTimeout(
-      axios.post(url, body, { headers: { ...PROTHEUS_HEADERS(token), 'Content-Type': 'application/json' } }),
+      axios.post(url, body, {
+        headers: { ...PROTHEUS_HEADERS(token), 'Content-Type': 'application/json' },
+        maxRedirects: 0,
+      }),
       60000,
       'enviar dados ao Protheus'
     )
