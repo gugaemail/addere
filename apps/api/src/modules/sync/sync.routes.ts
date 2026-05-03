@@ -201,14 +201,15 @@ export default async function syncRoutes(app: FastifyInstance) {
     }
 
     // ── Passo 2: buscar página 1 de clientes ─────────────────────────────────
+    const requestBody = { limite: 100, deslocamento: 1 }
     try {
       const t0 = Date.now()
-      const custRes = await axios.get(company.apiCliente, {
-        headers: { Authorization: `Bearer ${token}` },
+      const custRes = await axios.post(company.apiCliente, requestBody, {
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
         timeout: 30000,
       })
       const ms = Date.now() - t0
-      return reply.send({ ok: true, status: custRes.status, ms, data: custRes.data })
+      return reply.send({ ok: true, status: custRes.status, ms, requestBody, data: custRes.data })
     } catch (err: unknown) {
       const e = err as { response?: { status: number; data: unknown }; message: string }
       return reply.send({ ok: false, step: 'clientes', error: e.message, status: e.response?.status, data: e.response?.data })

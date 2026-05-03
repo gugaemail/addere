@@ -281,7 +281,7 @@ export async function syncCustomers(companyId: string) {
   const custBody      = (config?.customers as Record<string, unknown> | undefined)?.body as Record<string, unknown> | undefined ?? {}
   const pageKey       = (config?.customers as Record<string, unknown> | undefined)?.pageKey as string | undefined ?? 'deslocamento'
   const limitKey      = (config?.customers as Record<string, unknown> | undefined)?.limitKey as string | undefined ?? 'limite'
-  const isPaginated   = custMethod === 'POST'
+  const isPaginated   = custMethod !== 'GET'
   const MAX_PAGES     = 500
 
   const validRecords: CustomerData[] = []

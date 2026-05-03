@@ -129,7 +129,7 @@ export function ProtheusConfigForm({ company, onSaved }: Props) {
           <div className="grid grid-cols-1 gap-3">
             <InputField label="Token de autenticação (POST)" value={apiToken} onChange={setApiToken} placeholder="http://..." />
             <InputField label="Produtos (POST)" value={apiPord} onChange={setApiPord} placeholder="http://..." />
-            <InputField label="Clientes (GET)" value={apiCliente} onChange={setApiCliente} placeholder="http://..." />
+            <InputField label="Clientes (POST)" value={apiCliente} onChange={setApiCliente} placeholder="http://..." />
             <InputField label="Pedido (POST)" value={apiPedido} onChange={setApiPedido} placeholder="http://..." />
             <InputField label="Consulta pedido (GET)" value={apiConsPed} onChange={setApiConsPed} placeholder="http://..." />
             <InputField label="Transportadoras (GET)" value={apiTransp} onChange={setApiTransp} placeholder="http://..." />
@@ -184,7 +184,7 @@ export function ProtheusConfigForm({ company, onSaved }: Props) {
         <div className="grid grid-cols-2 gap-4 text-sm">
           <ConfigRow label="Token (auth) POST"       value={company.apiToken} />
           <ConfigRow label="Produtos (POST)"         value={company.apiPord} />
-          <ConfigRow label="Clientes (GET)"          value={company.apiCliente} />
+          <ConfigRow label="Clientes (POST)"          value={company.apiCliente} />
           <ConfigRow label="Pedido (POST)"           value={company.apiPedido} />
           <ConfigRow label="Consulta pedido (GET)"   value={company.apiConsPed} />
           <ConfigRow label="Transportadoras (GET)"   value={company.apiTransp} />
