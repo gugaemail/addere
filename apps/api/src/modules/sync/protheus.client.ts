@@ -39,10 +39,11 @@ async function getToken(companyId: string, creds: CompanyCredentials): Promise<s
   params.set('username', creds.usrProtheus)
   params.set('password', creds.passProtheus)
 
-  await assertSafeUrl(creds.apiToken, 'apiToken')
+  const tokenUrl = normalizePathLower(creds.apiToken)
+  await assertSafeUrl(tokenUrl, 'apiToken')
 
   const response = await withTimeout(
-    axios.post(creds.apiToken, params, {
+    axios.post(tokenUrl, params, {
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
         'Connection': 'close',
@@ -67,6 +68,17 @@ async function getToken(companyId: string, creds: CompanyCredentials): Promise<s
   return token
 }
 
+// Protheus redireciona paths uppercase→lowercase (ex: WSCLI→wscli).
+// O redirect 301 faz o axios converter POST→GET, quebrando a chamada.
+// Normalizar o path antes evita o redirect.
+function normalizePathLower(url: string): string {
+  try {
+    const u = new URL(url)
+    u.pathname = u.pathname.toLowerCase()
+    return u.href
+  } catch { return url }
+}
+
 function enrichAxiosError(err: unknown, url: string): never {
   const e = err as { response?: { status: number; data: unknown }; message: string }
   if (e.response) {
@@ -83,16 +95,17 @@ export async function protheusGet(
   url: string,
   creds: CompanyCredentials
 ): Promise<unknown> {
-  await assertSafeUrl(url, 'url')
+  const safeUrl = normalizePathLower(url)
+  await assertSafeUrl(safeUrl, 'url')
   const token = await getToken(companyId, creds)
   try {
-    const response = await axios.get(url, {
+    const response = await axios.get(safeUrl, {
       headers: { Authorization: `Bearer ${token}`, 'Connection': 'close' },
       timeout: 60000,
     })
     return response.data
   } catch (err) {
-    return enrichAxiosError(err, url)
+    return enrichAxiosError(err, safeUrl)
   }
 }
 
@@ -102,7 +115,8 @@ export async function protheusPost(
   body: unknown,
   creds: CompanyCredentials
 ): Promise<unknown> {
-  await assertSafeUrl(url, 'url')
+  const safeUrl = normalizePathLower(url)
+  await assertSafeUrl(safeUrl, 'url')
   const token = await getToken(companyId, creds)
 
   const headers = {
@@ -112,26 +126,10 @@ export async function protheusPost(
   }
 
   try {
-    // maxRedirects:0 + validateStatus<400 para capturar 3xx manualmente e re-enviar como POST.
-    // O axios converte POST→GET ao seguir 301/302 (RFC padrão), o que quebra APIs Protheus.
-    const response = await axios.post(url, body, {
-      headers,
-      timeout: 60000,
-      maxRedirects: 0,
-      validateStatus: (s) => s < 400,
-    })
-
-    if (response.status >= 300) {
-      const location = response.headers['location'] as string | undefined
-      if (!location) throw new Error(`Redirect ${response.status} sem header Location`)
-      await assertSafeUrl(location, 'redirect url')
-      const r2 = await axios.post(location, body, { headers, timeout: 60000 })
-      return r2.data
-    }
-
+    const response = await axios.post(safeUrl, body, { headers, timeout: 60000 })
     return response.data
   } catch (err) {
-    return enrichAxiosError(err, url)
+    return enrichAxiosError(err, safeUrl)
   }
 }
 
