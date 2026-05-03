@@ -64,6 +64,17 @@ async function getToken(companyId: string, creds: CompanyCredentials): Promise<s
   return token
 }
 
+function enrichAxiosError(err: unknown, url: string): never {
+  const e = err as { response?: { status: number; data: unknown }; message: string }
+  if (e.response) {
+    const detail = typeof e.response.data === 'object'
+      ? JSON.stringify(e.response.data)
+      : String(e.response.data ?? '')
+    throw new Error(`Protheus ${e.response.status} em ${url}${detail ? ': ' + detail : ''}`)
+  }
+  throw err as Error
+}
+
 export async function protheusGet(
   companyId: string,
   url: string,
@@ -71,12 +82,16 @@ export async function protheusGet(
 ): Promise<unknown> {
   await assertSafeUrl(url, 'url')
   const token = await getToken(companyId, creds)
-  const response = await withTimeout(
-    axios.get(url, { headers: { Authorization: `Bearer ${token}` } }),
-    30000,
-    'buscar dados Protheus'
-  )
-  return response.data
+  try {
+    const response = await withTimeout(
+      axios.get(url, { headers: { Authorization: `Bearer ${token}` } }),
+      30000,
+      'buscar dados Protheus'
+    )
+    return response.data
+  } catch (err) {
+    enrichAxiosError(err, url)
+  }
 }
 
 export async function protheusPost(
@@ -87,12 +102,16 @@ export async function protheusPost(
 ): Promise<unknown> {
   await assertSafeUrl(url, 'url')
   const token = await getToken(companyId, creds)
-  const response = await withTimeout(
-    axios.post(url, body, { headers: { Authorization: `Bearer ${token}` } }),
-    30000,
-    'enviar dados ao Protheus'
-  )
-  return response.data
+  try {
+    const response = await withTimeout(
+      axios.post(url, body, { headers: { Authorization: `Bearer ${token}` } }),
+      30000,
+      'enviar dados ao Protheus'
+    )
+    return response.data
+  } catch (err) {
+    enrichAxiosError(err, url)
+  }
 }
 
 // Invalida o cache de token de uma empresa (útil quando credenciais mudam)
