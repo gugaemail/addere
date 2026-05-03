@@ -75,11 +75,6 @@ function enrichAxiosError(err: unknown, url: string): never {
   throw err as Error
 }
 
-const PROTHEUS_HEADERS = (token: string) => ({
-  Authorization: `Bearer ${token}`,
-  'Connection': 'close',
-})
-
 export async function protheusGet(
   companyId: string,
   url: string,
@@ -88,14 +83,13 @@ export async function protheusGet(
   await assertSafeUrl(url, 'url')
   const token = await getToken(companyId, creds)
   try {
-    const response = await withTimeout(
-      axios.get(url, { headers: PROTHEUS_HEADERS(token) }),
-      60000,
-      'buscar dados Protheus'
-    )
+    const response = await axios.get(url, {
+      headers: { Authorization: `Bearer ${token}` },
+      timeout: 60000,
+    })
     return response.data
   } catch (err) {
-    enrichAxiosError(err, url)
+    return enrichAxiosError(err, url)
   }
 }
 
@@ -108,17 +102,16 @@ export async function protheusPost(
   await assertSafeUrl(url, 'url')
   const token = await getToken(companyId, creds)
   try {
-    const response = await withTimeout(
-      axios.post(url, body, {
-        headers: { ...PROTHEUS_HEADERS(token), 'Content-Type': 'application/json' },
-        maxRedirects: 0,
-      }),
-      60000,
-      'enviar dados ao Protheus'
-    )
+    const response = await axios.post(url, body, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      timeout: 60000,
+    })
     return response.data
   } catch (err) {
-    enrichAxiosError(err, url)
+    return enrichAxiosError(err, url)
   }
 }
 
