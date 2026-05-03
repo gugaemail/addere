@@ -201,13 +201,21 @@ export default async function syncRoutes(app: FastifyInstance) {
     }
 
     // ── Passo 2: buscar página 1 de clientes ─────────────────────────────────
-    const requestBody = { limite: 100, deslocamento: 1, INTERV: 0 }
+    const requestBody = { limite: 50, deslocamento: 1, INTERV: 0 }
+    const custHeaders = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', 'Connection': 'close' }
     try {
       const t0 = Date.now()
-      const custRes = await axios.post(company.apiCliente, requestBody, {
-        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      let custRes = await axios.post(company.apiCliente, requestBody, {
+        headers: custHeaders,
         timeout: 30000,
+        maxRedirects: 0,
+        validateStatus: (s) => s < 400,
       })
+      // Re-envia como POST se houver redirect (axios converte POST→GET em 301/302)
+      if (custRes.status >= 300) {
+        const location = custRes.headers['location'] as string
+        custRes = await axios.post(location, requestBody, { headers: custHeaders, timeout: 30000 })
+      }
       const ms = Date.now() - t0
       return reply.send({ ok: true, status: custRes.status, ms, requestBody, data: custRes.data })
     } catch (err: unknown) {

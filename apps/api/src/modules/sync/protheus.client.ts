@@ -104,15 +104,31 @@ export async function protheusPost(
 ): Promise<unknown> {
   await assertSafeUrl(url, 'url')
   const token = await getToken(companyId, creds)
+
+  const headers = {
+    Authorization: `Bearer ${token}`,
+    'Content-Type': 'application/json',
+    'Connection': 'close',
+  }
+
   try {
+    // maxRedirects:0 + validateStatus<400 para capturar 3xx manualmente e re-enviar como POST.
+    // O axios converte POST→GET ao seguir 301/302 (RFC padrão), o que quebra APIs Protheus.
     const response = await axios.post(url, body, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json',
-        'Connection': 'close',
-      },
+      headers,
       timeout: 60000,
+      maxRedirects: 0,
+      validateStatus: (s) => s < 400,
     })
+
+    if (response.status >= 300) {
+      const location = response.headers['location'] as string | undefined
+      if (!location) throw new Error(`Redirect ${response.status} sem header Location`)
+      await assertSafeUrl(location, 'redirect url')
+      const r2 = await axios.post(location, body, { headers, timeout: 60000 })
+      return r2.data
+    }
+
     return response.data
   } catch (err) {
     return enrichAxiosError(err, url)
