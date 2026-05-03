@@ -1,5 +1,5 @@
 import { prisma } from '@addere/db'
-import { protheusGet, protheusPost, CompanyCredentials } from './protheus.client'
+import { protheusPost, CompanyCredentials } from './protheus.client'
 import { mapRecord, extractRecords, toStr, toNum } from './field-mapper'
 import { DEFAULT_MAPPINGS } from './default-mappings'
 import { decryptCredential } from '../../lib/protheus-crypto'
@@ -280,30 +280,17 @@ export async function syncCustomers(companyId: string) {
 
   if (!company.apiCliente) throw new Error('URL apiCliente não configurada')
 
-  const creds  = getCredentials(company)
-  const config = creds.syncConfig as Record<string, unknown> | null
-  const mapping = (config?.customers as typeof DEFAULT_MAPPINGS.customers | undefined) ?? DEFAULT_MAPPINGS.customers
-
-  const custMethod    = (config?.customers as Record<string, unknown> | undefined)?.method as string | undefined
-  const custBody      = (config?.customers as Record<string, unknown> | undefined)?.body as Record<string, unknown> | undefined ?? {}
-  const pageKey       = (config?.customers as Record<string, unknown> | undefined)?.pageKey as string | undefined ?? 'deslocamento'
-  const limitKey      = (config?.customers as Record<string, unknown> | undefined)?.limitKey as string | undefined ?? 'limite'
-  const isPaginated   = custMethod !== 'GET'
-  const MAX_PAGES     = 500
+  const creds   = getCredentials(company)
+  const mapping = DEFAULT_MAPPINGS.customers
+  const MAX_PAGES = 500
 
   const validRecords: CustomerData[] = []
   let totalFetched = 0
   let deslocamento = 1
 
-  // Paginação: suportada quando método é POST (mesmo padrão de syncProducts)
   while (deslocamento <= MAX_PAGES) {
-    let rawResponse: unknown
-    if (isPaginated) {
-      const body = { INTERV: 0, ...custBody, [limitKey]: SYNC_CUSTOMERS_PAGE_SIZE, [pageKey]: deslocamento }
-      rawResponse = await protheusPost(companyId, company.apiCliente, body, creds)
-    } else {
-      rawResponse = await protheusGet(companyId, company.apiCliente, creds)
-    }
+    const body = { limite: SYNC_CUSTOMERS_PAGE_SIZE, deslocamento, INTERV: 0 }
+    const rawResponse = await protheusPost(companyId, company.apiCliente, body, creds)
 
     const records = extractRecords(rawResponse, mapping.responseKey)
     if (records.length === 0) break
@@ -330,8 +317,7 @@ export async function syncCustomers(companyId: string) {
 
     totalFetched += records.length
 
-    // Se não é paginado ou recebeu menos que o limite, encerra
-    if (!isPaginated || records.length < SYNC_CUSTOMERS_PAGE_SIZE) break
+    if (records.length < SYNC_CUSTOMERS_PAGE_SIZE) break
 
     deslocamento += 1
   }
