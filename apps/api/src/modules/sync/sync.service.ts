@@ -268,6 +268,13 @@ async function upsertCustomersChunked(
   return { synced, errors }
 }
 
+function buildPhone(ddd: string, tel: string): string | null {
+  const d = ddd.trim()
+  const t = tel.trim()
+  if (!t) return null
+  return d ? `(${d}) ${t}` : t
+}
+
 export async function syncCustomers(companyId: string) {
   const company = await prisma.company.findUniqueOrThrow({ where: { id: companyId } })
 
@@ -312,7 +319,7 @@ export async function syncCustomers(companyId: string) {
         name:      toStr(mapped['name'], protheusCode),
         document:  toStr(mapped['document'])  || null,
         email:     toStr(mapped['email'])     || null,
-        phone:     toStr(mapped['phone'])     || null,
+        phone:     buildPhone(toStr(mapped['phoneDdd']), toStr(mapped['phone'])),
         address:   toStr(mapped['address'])   || null,
         municipio: toStr(mapped['municipio']) || null,
         bairro:    toStr(mapped['bairro'])    || null,

@@ -17,13 +17,14 @@ export const DEFAULT_MAPPINGS = {
     },
   },
   customers: {
-    responseKey: 'data',
+    responseKey: 'clientes',
     fields: {
       protheusCode: 'A1_COD',
       loja:         'A1_LOJA',
       name:         'A1_NOME',
       document:     'A1_CGC',
       email:        'A1_EMAIL',
+      phoneDdd:     'A1_DDD',
       phone:        'A1_TEL',
       address:      'A1_END',
       municipio:    'A1_MUN',
