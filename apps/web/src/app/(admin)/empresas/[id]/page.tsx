@@ -121,9 +121,10 @@ export default function EmpresaPage() {
 
   // Modal de diagnóstico (compartilhado entre Testar Token e Testar Produtos)
   const [confirmCancel,   setConfirmCancel]   = useState<string | null>(null)
-  const [testingToken,    setTestingToken]    = useState(false)
-  const [testingProducts, setTestingProducts] = useState(false)
-  const [rawModalTitle,   setRawModalTitle]   = useState('')
+  const [testingToken,     setTestingToken]     = useState(false)
+  const [testingProducts,  setTestingProducts]  = useState(false)
+  const [testingCustomers, setTestingCustomers] = useState(false)
+  const [rawModalTitle,    setRawModalTitle]    = useState('')
   const [tokenTestResult, setTokenTestResult] = useState<unknown>(null)
   const [showTokenModal,  setShowTokenModal]  = useState(false)
 
@@ -254,6 +255,22 @@ export default function EmpresaPage() {
       setTokenTestResult(e.response?.data ?? { error: e.message })
     } finally {
       setTestingProducts(false)
+      setShowTokenModal(true)
+    }
+  }
+
+  async function testCustomers() {
+    setTestingCustomers(true)
+    setTokenTestResult(null)
+    setRawModalTitle('Testar Clientes')
+    try {
+      const { data } = await api.post('/sync/test-customers', { companyId: id })
+      setTokenTestResult(data)
+    } catch (err: unknown) {
+      const e = err as { response?: { data?: unknown }; message: string }
+      setTokenTestResult(e.response?.data ?? { error: e.message })
+    } finally {
+      setTestingCustomers(false)
       setShowTokenModal(true)
     }
   }
@@ -747,6 +764,28 @@ export default function EmpresaPage() {
                 </svg>
               )}
               {testingProducts ? 'Testando…' : 'Testar Produtos'}
+            </button>
+          </div>
+
+          <div className="p-4 rounded-xl border border-[var(--border)] bg-[var(--bg-subtle)] flex items-center justify-between gap-4">
+            <div>
+              <p className="text-sm font-medium text-[var(--text-primary)]">Testar API de Clientes</p>
+              <p className="text-xs text-[var(--text-muted)] mt-0.5">
+                Busca página 1 via <code className="bg-[var(--surface)] px-1 rounded">apiCliente</code> e exibe a resposta bruta — sem salvar no banco.
+              </p>
+            </div>
+            <button
+              onClick={testCustomers}
+              disabled={testingCustomers || !company.apiCliente || !company.apiToken || !company.usrProtheus || !company.passProtheus}
+              className="shrink-0 px-4 py-2 rounded-lg text-sm font-medium bg-brand-500 text-white hover:bg-brand-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+            >
+              {testingCustomers && (
+                <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+                </svg>
+              )}
+              {testingCustomers ? 'Testando…' : 'Testar Clientes'}
             </button>
           </div>
 
