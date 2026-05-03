@@ -299,7 +299,7 @@ export async function syncCustomers(companyId: string) {
   while (deslocamento <= MAX_PAGES) {
     let rawResponse: unknown
     if (isPaginated) {
-      const body = { ...custBody, [limitKey]: SYNC_CUSTOMERS_PAGE_SIZE, [pageKey]: deslocamento }
+      const body = { INTERV: 0, ...custBody, [limitKey]: SYNC_CUSTOMERS_PAGE_SIZE, [pageKey]: deslocamento }
       rawResponse = await protheusPost(companyId, company.apiCliente, body, creds)
     } else {
       rawResponse = await protheusGet(companyId, company.apiCliente, creds)

@@ -201,7 +201,7 @@ export default async function syncRoutes(app: FastifyInstance) {
     }
 
     // ── Passo 2: buscar página 1 de clientes ─────────────────────────────────
-    const requestBody = { limite: 100, deslocamento: 1 }
+    const requestBody = { limite: 100, deslocamento: 1, INTERV: 0 }
     try {
       const t0 = Date.now()
       const custRes = await axios.post(company.apiCliente, requestBody, {
