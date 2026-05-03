@@ -4,6 +4,7 @@ import axios from 'axios'
 import { prisma } from '@addere/db'
 import { authenticate } from '../../middleware/authenticate'
 import { syncProducts, syncCustomers } from './sync.service'
+import { protheusPost } from './protheus.client'
 import { decryptCredential } from '../../lib/protheus-crypto'
 import { assertSafeUrl } from '../../lib/url-validator'
 
@@ -174,45 +175,22 @@ export default async function syncRoutes(app: FastifyInstance) {
       return reply.status(422).send({ message: 'Configure apiToken, usrProtheus e passProtheus antes de testar.' })
     }
 
-    // ── Passo 1: obter token ──────────────────────────────────────────────────
-    let token: string
-    try {
-      await assertSafeUrl(company.apiToken, 'apiToken')
-      await assertSafeUrl(company.apiCliente, 'apiCliente')
-
-      const senha = decryptCredential(company.passProtheus)
-      const params = new URLSearchParams()
-      params.set('grant_type', 'password')
-      params.set('username', company.usrProtheus)
-      params.set('password', senha)
-
-      const tokenRes = await axios.post(company.apiToken, params, {
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        timeout: 15000,
-      })
-      token = (tokenRes.data as Record<string, unknown>)['access_token'] as string
-        ?? (tokenRes.data as Record<string, unknown>)['token'] as string
-      if (!token) {
-        return reply.send({ ok: false, step: 'token', error: 'Token não encontrado na resposta', tokenData: tokenRes.data })
-      }
-    } catch (err: unknown) {
-      const e = err as { response?: { status: number; data: unknown }; message: string }
-      return reply.send({ ok: false, step: 'token', error: e.message, status: e.response?.status, data: e.response?.data })
+    const creds = {
+      apiToken:     company.apiToken,
+      usrProtheus:  company.usrProtheus,
+      passProtheus: decryptCredential(company.passProtheus),
+      syncConfig:   company.syncConfig as Record<string, unknown> | null,
     }
-
-    // ── Passo 2: buscar página 1 de clientes ─────────────────────────────────
     const requestBody = { limite: 50, deslocamento: 1, INTERV: 0 }
+
     try {
       const t0 = Date.now()
-      const custRes = await axios.post(company.apiCliente, requestBody, {
-        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-        timeout: 30000,
-      })
+      const data = await protheusPost(companyId, company.apiCliente, requestBody, creds)
       const ms = Date.now() - t0
-      return reply.send({ ok: true, status: custRes.status, ms, requestBody, data: custRes.data })
+      return reply.send({ ok: true, ms, requestBody, data })
     } catch (err: unknown) {
-      const e = err as { response?: { status: number; data: unknown }; message: string }
-      return reply.send({ ok: false, step: 'clientes', error: e.message, status: e.response?.status, data: e.response?.data })
+      const e = err as { message: string }
+      return reply.send({ ok: false, step: 'clientes', error: e.message })
     }
   })
 
