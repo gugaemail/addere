@@ -43,7 +43,10 @@ async function getToken(companyId: string, creds: CompanyCredentials): Promise<s
 
   const response = await withTimeout(
     axios.post(creds.apiToken, params, {
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Connection': 'close',
+      },
     }),
     15000,
     'obter token Protheus'
@@ -84,7 +87,7 @@ export async function protheusGet(
   const token = await getToken(companyId, creds)
   try {
     const response = await axios.get(url, {
-      headers: { Authorization: `Bearer ${token}` },
+      headers: { Authorization: `Bearer ${token}`, 'Connection': 'close' },
       timeout: 60000,
     })
     return response.data
@@ -106,6 +109,7 @@ export async function protheusPost(
       headers: {
         Authorization: `Bearer ${token}`,
         'Content-Type': 'application/json',
+        'Connection': 'close',
       },
       timeout: 60000,
     })
