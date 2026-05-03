@@ -75,6 +75,11 @@ function enrichAxiosError(err: unknown, url: string): never {
   throw err as Error
 }
 
+const PROTHEUS_HEADERS = (token: string) => ({
+  Authorization: `Bearer ${token}`,
+  'Connection': 'close',
+})
+
 export async function protheusGet(
   companyId: string,
   url: string,
@@ -84,8 +89,8 @@ export async function protheusGet(
   const token = await getToken(companyId, creds)
   try {
     const response = await withTimeout(
-      axios.get(url, { headers: { Authorization: `Bearer ${token}` } }),
-      30000,
+      axios.get(url, { headers: PROTHEUS_HEADERS(token) }),
+      60000,
       'buscar dados Protheus'
     )
     return response.data
@@ -104,8 +109,8 @@ export async function protheusPost(
   const token = await getToken(companyId, creds)
   try {
     const response = await withTimeout(
-      axios.post(url, body, { headers: { Authorization: `Bearer ${token}` } }),
-      30000,
+      axios.post(url, body, { headers: { ...PROTHEUS_HEADERS(token), 'Content-Type': 'application/json' } }),
+      60000,
       'enviar dados ao Protheus'
     )
     return response.data
