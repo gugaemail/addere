@@ -10,7 +10,19 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        brand:   'var(--color-brand)',
+        brand: {
+          DEFAULT: '#1B4FA8',
+          50:  '#EEF4FF',
+          100: '#E8F4FF',
+          200: '#C3D9F7',
+          300: '#90BAF0',
+          400: '#5695E5',
+          500: '#2A72D0',
+          600: '#1B4FA8',
+          700: '#154291',
+          800: '#0F3275',
+          900: '#0D2045',
+        },
         accent:  'var(--color-accent)',
         navy:    'var(--color-navy)',
         tint:    'var(--color-tint)',
