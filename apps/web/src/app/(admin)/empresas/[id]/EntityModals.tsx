@@ -7,7 +7,7 @@ import { Modal, Field, ModalActions, ErrorMsg } from './CreateBranchModal'
 // ─── Tipos ─────────────────────────────────────────────────────────────────────
 
 interface Branch    { id: string; name: string; cnpj: string | null; idProtheus: string | null; active: boolean }
-interface User      { id: string; name: string; email: string; role: 'ADMIN' | 'SALESPERSON'; active: boolean }
+interface User      { id: string; name: string; email: string; role: 'ADMIN' | 'SALESPERSON'; active: boolean; idVendProt: string | null }
 interface Customer  { id: string; name: string; document: string | null; email: string | null; phone: string | null; protheusCode: string | null; loja: string | null; address: string | null; municipio: string | null; bairro: string | null; cep: string | null; uf: string | null; active: boolean }
 interface Product   { id: string; name: string; protheusCode: string | null; price: string; unit: string; stock: string; saldo: string; description: string | null; active: boolean }
 
@@ -93,12 +93,13 @@ interface UserModalProps {
 }
 
 export function UserModal({ companyId, mode, user, onClose, onSaved }: UserModalProps) {
-  const [name,     setName]     = useState(user?.name  ?? '')
-  const [email,    setEmail]    = useState(mode === 'copy' ? '' : (user?.email ?? ''))
-  const [password, setPassword] = useState('')
-  const [role,     setRole]     = useState<'ADMIN' | 'SALESPERSON'>(user?.role ?? 'SALESPERSON')
-  const [error,    setError]    = useState<string | null>(null)
-  const [loading,  setLoading]  = useState(false)
+  const [name,       setName]       = useState(user?.name       ?? '')
+  const [email,      setEmail]      = useState(mode === 'copy' ? '' : (user?.email ?? ''))
+  const [password,   setPassword]   = useState('')
+  const [role,       setRole]       = useState<'ADMIN' | 'SALESPERSON'>(user?.role ?? 'SALESPERSON')
+  const [idVendProt, setIdVendProt] = useState(user?.idVendProt ?? '')
+  const [error,      setError]      = useState<string | null>(null)
+  const [loading,    setLoading]    = useState(false)
 
   const title = mode === 'create' ? 'Novo Usuário' : mode === 'copy' ? 'Copiar Usuário' : 'Editar Usuário'
   const isNew = mode !== 'edit'
@@ -111,9 +112,13 @@ export function UserModal({ companyId, mode, user, onClose, onSaved }: UserModal
       if (mode === 'edit' && user) {
         const body: Record<string, unknown> = { name, email, role }
         if (password) body.password = password
+        if (role === 'SALESPERSON') body.idVendProt = idVendProt || null
         await api.patch(`/companies/${companyId}/users/${user.id}`, body)
       } else {
-        await api.post(`/companies/${companyId}/users`, { name, email, password, role })
+        await api.post(`/companies/${companyId}/users`, {
+          name, email, password, role,
+          ...(role === 'SALESPERSON' && { idVendProt: idVendProt || null }),
+        })
       }
       onSaved()
     } catch (err: unknown) {
@@ -152,6 +157,14 @@ export function UserModal({ companyId, mode, user, onClose, onSaved }: UserModal
             <option value="ADMIN">Administrador</option>
           </select>
         </div>
+        {role === 'SALESPERSON' && (
+          <Field
+            label="Cód. Vendedor (Protheus)"
+            value={idVendProt}
+            onChange={setIdVendProt}
+            placeholder="Código do vendedor no ERP (ex: 001)"
+          />
+        )}
         <ModalActions loading={loading} onClose={onClose} submitLabel={mode === 'edit' ? 'Salvar' : 'Criar'} />
         {error && <ErrorMsg message={error} />}
       </form>

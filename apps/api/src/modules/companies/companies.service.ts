@@ -23,7 +23,7 @@ export async function getCompanyById(id: string) {
       branches: { orderBy: { name: 'asc' } },
       users: {
         where: { active: true },
-        select: { id: true, name: true, email: true, role: true, active: true, createdAt: true },
+        select: { id: true, name: true, email: true, role: true, active: true, idVendProt: true, createdAt: true },
         orderBy: { name: 'asc' },
       },
       _count: { select: { orders: true } },
@@ -155,17 +155,18 @@ export async function toggleBranchActive(companyId: string, id: string, active: 
 // ─── Users (por empresa) ────────────────────────────────────────────────────
 
 export interface CreateUserInput {
-  name: string
-  email: string
-  password: string
-  role: 'ADMIN' | 'SALESPERSON'
+  name:       string
+  email:      string
+  password:   string
+  role:       'ADMIN' | 'SALESPERSON'
+  idVendProt?: string | null
 }
 
 export async function createUser(companyId: string, input: CreateUserInput) {
   const passwordHash = await bcrypt.hash(input.password, 12)
   return prisma.user.create({
-    data: { ...input, password: passwordHash, companyId },
-    select: { id: true, name: true, email: true, role: true, active: true, createdAt: true },
+    data: { ...input, password: passwordHash, companyId, idVendProt: input.idVendProt ?? null },
+    select: { id: true, name: true, email: true, role: true, active: true, idVendProt: true, createdAt: true },
   })
 }
 
@@ -204,19 +205,21 @@ export async function updateBranch(companyId: string, id: string, input: UpdateB
 // ─── Users (update) ──────────────────────────────────────────────────────────
 
 export interface UpdateUserInput {
-  name?:     string
-  email?:    string
-  password?: string
-  role?:     'ADMIN' | 'SALESPERSON'
+  name?:       string
+  email?:      string
+  password?:   string
+  role?:       'ADMIN' | 'SALESPERSON'
+  idVendProt?: string | null
 }
 
 export async function updateUser(companyId: string, id: string, input: UpdateUserInput) {
   const exists = await prisma.user.findFirst({ where: { id, companyId } })
   if (!exists) throw new Error('Usuário não encontrado')
   const data: Record<string, unknown> = {}
-  if (input.name  !== undefined) data.name  = input.name
-  if (input.email !== undefined) data.email = input.email
-  if (input.role  !== undefined) data.role  = input.role
+  if (input.name       !== undefined) data.name       = input.name
+  if (input.email      !== undefined) data.email      = input.email
+  if (input.role       !== undefined) data.role       = input.role
+  if (input.idVendProt !== undefined) data.idVendProt = input.idVendProt ?? null
   if (input.password) data.password = await bcrypt.hash(input.password, 12)
 
   // Invalida todas as sessões ativas ao trocar role ou senha
@@ -228,7 +231,7 @@ export async function updateUser(companyId: string, id: string, input: UpdateUse
   return prisma.user.update({
     where: { id },
     data,
-    select: { id: true, name: true, email: true, role: true, active: true, createdAt: true },
+    select: { id: true, name: true, email: true, role: true, active: true, idVendProt: true, createdAt: true },
   })
 }
 

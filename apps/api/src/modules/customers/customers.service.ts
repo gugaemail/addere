@@ -2,11 +2,18 @@ import { prisma } from '@addere/db'
 
 const DEFAULT_LIMIT = 500
 
-export async function listCustomers(companyId: string, search?: string) {
+export async function listCustomers(companyId: string, search?: string, userId?: string) {
+  let vendorCode: string | null = null
+  if (userId) {
+    const user = await prisma.user.findUnique({ where: { id: userId }, select: { idVendProt: true } })
+    vendorCode = user?.idVendProt ?? null
+  }
+
   return prisma.customer.findMany({
     where: {
       companyId,
       active: true,
+      ...(vendorCode && { vendorCode }),
       ...(search && {
         OR: [
           { name: { contains: search, mode: 'insensitive' } },

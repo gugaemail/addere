@@ -174,22 +174,24 @@ type CustomerData = {
   bairro:       string | null
   cep:          string | null
   uf:           string | null
+  vendorCode:   string | null
 }
 
 async function upsertOne(companyId: string, c: CustomerData): Promise<void> {
   await prisma.customer.upsert({
     where: { companyId_loja_protheusCode: { companyId, loja: c.loja, protheusCode: c.protheusCode } },
     update: {
-      name:      c.name,
-      document:  c.document,
-      email:     c.email,
-      phone:     c.phone,
-      address:   c.address,
-      municipio: c.municipio,
-      bairro:    c.bairro,
-      cep:       c.cep,
-      uf:        c.uf,
-      active:    true,
+      name:       c.name,
+      document:   c.document,
+      email:      c.email,
+      phone:      c.phone,
+      address:    c.address,
+      municipio:  c.municipio,
+      bairro:     c.bairro,
+      cep:        c.cep,
+      uf:         c.uf,
+      vendorCode: c.vendorCode,
+      active:     true,
     },
     create: {
       companyId,
@@ -204,6 +206,7 @@ async function upsertOne(companyId: string, c: CustomerData): Promise<void> {
       bairro:       c.bairro,
       cep:          c.cep,
       uf:           c.uf,
+      vendorCode:   c.vendorCode,
     },
   })
 }
@@ -221,16 +224,17 @@ async function upsertCustomersChunked(
       await prisma.$transaction(chunk.map((c) => prisma.customer.upsert({
         where: { companyId_loja_protheusCode: { companyId, loja: c.loja, protheusCode: c.protheusCode } },
         update: {
-          name:      c.name,
-          document:  c.document,
-          email:     c.email,
-          phone:     c.phone,
-          address:   c.address,
-          municipio: c.municipio,
-          bairro:    c.bairro,
-          cep:       c.cep,
-          uf:        c.uf,
-          active:    true,
+          name:       c.name,
+          document:   c.document,
+          email:      c.email,
+          phone:      c.phone,
+          address:    c.address,
+          municipio:  c.municipio,
+          bairro:     c.bairro,
+          cep:        c.cep,
+          uf:         c.uf,
+          vendorCode: c.vendorCode,
+          active:     true,
         },
         create: {
           companyId,
@@ -245,6 +249,7 @@ async function upsertCustomersChunked(
           bairro:       c.bairro,
           cep:          c.cep,
           uf:           c.uf,
+          vendorCode:   c.vendorCode,
         },
       })))
       synced += chunk.length
@@ -305,16 +310,17 @@ export async function syncCustomers(companyId: string) {
 
       validRecords.push({
         protheusCode,
-        loja:      toStr(raw['A1_LOJA'], '01'),
-        name:      toStr(raw['A1_NOME'], protheusCode),
-        document:  toStr(raw['A1_CGC'])    || null,
-        email:     toStr(raw['A1_EMAIL'])  || null,
-        phone:     buildPhone(toStr(raw['A1_DDD']), toStr(raw['A1_TEL'])),
-        address:   toStr(raw['A1_END'])    || null,
-        municipio: toStr(raw['A1_MUN'])    || null,
-        bairro:    toStr(raw['A1_BAIRRO']) || null,
-        cep:       toStr(raw['A1_CEP'])    || null,
-        uf:        toStr(raw['A1_EST'])    || null,
+        loja:       toStr(raw['A1_LOJA'], '01'),
+        name:       toStr(raw['A1_NOME'], protheusCode),
+        document:   toStr(raw['A1_CGC'])    || null,
+        email:      toStr(raw['A1_EMAIL'])  || null,
+        phone:      buildPhone(toStr(raw['A1_DDD']), toStr(raw['A1_TEL'])),
+        address:    toStr(raw['A1_END'])    || null,
+        municipio:  toStr(raw['A1_MUN'])    || null,
+        bairro:     toStr(raw['A1_BAIRRO']) || null,
+        cep:        toStr(raw['A1_CEP'])    || null,
+        uf:         toStr(raw['A1_EST'])    || null,
+        vendorCode: toStr(raw['A1_VEND'])   || null,
       })
     }
 

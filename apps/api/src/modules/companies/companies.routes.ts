@@ -38,10 +38,11 @@ const createBranchSchema = z.object({
 })
 
 const createUserSchema = z.object({
-  name: z.string().min(1),
-  email: z.string().email(),
-  password: z.string().min(8),
-  role: z.enum(['ADMIN', 'SALESPERSON']),
+  name:       z.string().min(1),
+  email:      z.string().email(),
+  password:   z.string().min(8),
+  role:       z.enum(['ADMIN', 'SALESPERSON']),
+  idVendProt: z.string().optional().nullable(),
 })
 
 const toggleActiveSchema = z.object({
@@ -55,10 +56,11 @@ const updateBranchSchema = z.object({
 })
 
 const updateUserSchema = z.object({
-  name:     z.string().min(1).optional(),
-  email:    z.string().email().optional(),
-  password: z.string().min(8).optional(),
-  role:     z.enum(['ADMIN', 'SALESPERSON']).optional(),
+  name:       z.string().min(1).optional(),
+  email:      z.string().email().optional(),
+  password:   z.string().min(8).optional(),
+  role:       z.enum(['ADMIN', 'SALESPERSON']).optional(),
+  idVendProt: z.string().optional().nullable(),
 })
 
 const createCustomerSchema = z.object({

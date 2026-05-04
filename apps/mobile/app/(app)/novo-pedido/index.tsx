@@ -15,7 +15,9 @@ import { useClientes } from '../../../src/hooks/useClientes'
 import { useProdutos } from '../../../src/hooks/useProdutos'
 import { useCriarPedido } from '../../../src/hooks/usePedidos'
 import { useBranches } from '../../../src/hooks/useBranches'
-import type { Branch, Customer, Product, CreateOrderItemInput } from '@addere/types'
+import { useTransportadoras } from '../../../src/hooks/useTransportadoras'
+import { useCondPags } from '../../../src/hooks/useCondPags'
+import type { Branch, Customer, Product, Transportadora, CondPag, CreateOrderItemInput } from '@addere/types'
 
 type Step = 1 | 2 | 3
 
@@ -190,15 +192,60 @@ function Step2({
 
 // ─── Step 3: Resumo e confirmação (editável) ──────────────────────────────
 
+function PickerField({
+  label,
+  selected,
+  items,
+  onSelect,
+  loading,
+}: {
+  label: string
+  selected: { id: string; nome: string } | null
+  items: { id: string; nome: string }[]
+  onSelect: (item: { id: string; nome: string } | null) => void
+  loading?: boolean
+}) {
+  const [open, setOpen] = useState(false)
+  return (
+    <View style={styles.summaryBox}>
+      <Text style={styles.summaryLabel}>{label}</Text>
+      <TouchableOpacity style={styles.pickerBtn} onPress={() => setOpen((v) => !v)}>
+        <Text style={selected ? styles.pickerBtnText : styles.pickerBtnPlaceholder}>
+          {loading ? 'Carregando...' : selected ? selected.nome : `Selecionar ${label.toLowerCase()}...`}
+        </Text>
+        <Text style={styles.pickerBtnIcon}>{open ? '▲' : '▼'}</Text>
+      </TouchableOpacity>
+      {open && (
+        <View style={styles.pickerList}>
+          <TouchableOpacity style={styles.pickerItem} onPress={() => { onSelect(null); setOpen(false) }}>
+            <Text style={styles.pickerItemText}>— Nenhum —</Text>
+          </TouchableOpacity>
+          {items.map((item) => (
+            <TouchableOpacity key={item.id} style={styles.pickerItem} onPress={() => { onSelect(item); setOpen(false) }}>
+              <Text style={[styles.pickerItemText, selected?.id === item.id && styles.pickerItemSelected]}>
+                {item.nome}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      )}
+    </View>
+  )
+}
+
 function Step3({
   customer,
   branch,
   cart,
   mennota,
   notes,
+  transportadora,
+  condPag,
   onCartChange,
   onMennotaChange,
   onNotesChange,
+  onTransportChange,
+  onCondChange,
   onConfirm,
   onBack,
   onCancel,
@@ -209,14 +256,21 @@ function Step3({
   cart: CartItem[]
   mennota: string
   notes: string
+  transportadora: Transportadora | null
+  condPag: CondPag | null
   onCartChange: (cart: CartItem[]) => void
   onMennotaChange: (mennota: string) => void
   onNotesChange: (notes: string) => void
+  onTransportChange: (t: Transportadora | null) => void
+  onCondChange: (c: CondPag | null) => void
   onConfirm: () => void
   onBack: () => void
   onCancel: () => void
   isLoading: boolean
 }) {
+  const { data: transportadoras = [], isLoading: loadingTransp } = useTransportadoras()
+  const { data: condPags = [], isLoading: loadingCond } = useCondPags()
+
   const total = cart.reduce(
     (sum, i) => sum + i.unitPrice * i.quantity * (1 - i.discount / 100),
     0
@@ -311,6 +365,22 @@ function Step3({
         ))}
       </View>
 
+      <PickerField
+        label="Transportadora"
+        selected={transportadora ? { id: transportadora.id, nome: transportadora.nome } : null}
+        items={transportadoras.map((t) => ({ id: t.id, nome: t.nome }))}
+        onSelect={(item) => onTransportChange(item ? (transportadoras.find((t) => t.id === item.id) ?? null) : null)}
+        loading={loadingTransp}
+      />
+
+      <PickerField
+        label="Cond. Pagamento"
+        selected={condPag ? { id: condPag.id, nome: condPag.nome } : null}
+        items={condPags.map((c) => ({ id: c.id, nome: c.nome }))}
+        onSelect={(item) => onCondChange(item ? (condPags.find((c) => c.id === item.id) ?? null) : null)}
+        loading={loadingCond}
+      />
+
       <View style={styles.summaryBox}>
         <Text style={styles.summaryLabel}>Obs. Nota Fiscal</Text>
         <TextInput
@@ -371,6 +441,8 @@ export default function NovoPedidoScreen() {
   const [cart, setCart] = useState<CartItem[]>([])
   const [mennota, setMennota] = useState('')
   const [notes, setNotes] = useState('')
+  const [transportadora, setTransportadora] = useState<Transportadora | null>(null)
+  const [condPag, setCondPag] = useState<CondPag | null>(null)
 
   const { mutate: criarPedido, isPending } = useCriarPedido()
 
@@ -391,7 +463,15 @@ export default function NovoPedidoScreen() {
     }))
 
     criarPedido(
-      { customerId: customer.id, branchId: branch.id, items, mennota: mennota || undefined, notes: notes || undefined },
+      {
+        customerId:  customer.id,
+        branchId:    branch.id,
+        items,
+        mennota:     mennota      || undefined,
+        notes:       notes        || undefined,
+        transportId: transportadora?.id,
+        condId:      condPag?.id,
+      },
       {
         onSuccess: () => {
           Alert.alert('Pedido criado', 'Pedido salvo com sucesso!', [
@@ -438,9 +518,13 @@ export default function NovoPedidoScreen() {
             cart={cart}
             mennota={mennota}
             notes={notes}
+            transportadora={transportadora}
+            condPag={condPag}
             onCartChange={setCart}
             onMennotaChange={setMennota}
             onNotesChange={setNotes}
+            onTransportChange={setTransportadora}
+            onCondChange={setCondPag}
             onConfirm={handleConfirm}
             onBack={() => setStep(2)}
             onCancel={() => router.back()}
@@ -500,4 +584,12 @@ const styles = StyleSheet.create({
   priceInput: { borderWidth: 1, borderColor: '#d1d5db', borderRadius: 6, padding: 6, fontSize: 13, minWidth: 80, backgroundColor: '#f9fafb' },
   itemSubtotalValue: { fontSize: 13, fontWeight: '700', color: '#111827' },
   notesInput: { borderWidth: 1, borderColor: '#d1d5db', borderRadius: 8, padding: 10, fontSize: 14, minHeight: 80, backgroundColor: '#f9fafb' },
+  pickerBtn: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderWidth: 1, borderColor: '#d1d5db', borderRadius: 8, padding: 10, backgroundColor: '#f9fafb' },
+  pickerBtnText: { fontSize: 14, color: '#111827' },
+  pickerBtnPlaceholder: { fontSize: 14, color: '#9ca3af' },
+  pickerBtnIcon: { fontSize: 12, color: '#6b7280' },
+  pickerList: { marginTop: 4, borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 8, backgroundColor: '#fff', overflow: 'hidden' },
+  pickerItem: { paddingVertical: 10, paddingHorizontal: 12, borderBottomWidth: 1, borderBottomColor: '#f3f4f6' },
+  pickerItemText: { fontSize: 14, color: '#374151' },
+  pickerItemSelected: { color: '#2563eb', fontWeight: '700' },
 })

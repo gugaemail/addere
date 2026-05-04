@@ -138,6 +138,7 @@ model Customer {
   id           String  @id @default(uuid())
   protheusCode String? // código do cliente no ERP Protheus
   loja         String? // código da loja (chave composta com protheusCode)
+  vendorCode   String? // código do vendedor responsável (A1_VEND no Protheus)
   name         String
   document     String? // CPF ou CNPJ (único por empresa)
   email        String?

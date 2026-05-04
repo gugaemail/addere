@@ -8,7 +8,7 @@ export default async function customersRoutes(app: FastifyInstance) {
     const { companyId } = request.user
     if (!companyId) return reply.status(403).send({ message: 'Rota disponível apenas para usuários de uma empresa' })
     const { search } = request.query as { search?: string }
-    const customers = await listCustomers(companyId, search)
+    const customers = await listCustomers(companyId, search, request.user.sub)
     return reply.send(customers)
   })
 
