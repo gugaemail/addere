@@ -1,7 +1,8 @@
-import { View, Text, FlatList, TouchableOpacity, StyleSheet } from 'react-native'
+import React from 'react'
+import { View, Text, FlatList, TouchableOpacity, StyleSheet, Alert, ActivityIndicator } from 'react-native'
 import { useRouter } from 'expo-router'
-import { Plus } from 'lucide-react-native'
-import { usePedidos } from '../../../src/hooks/usePedidos'
+import { Plus, RefreshCw } from 'lucide-react-native'
+import { usePedidos, useSincronizarPedido } from '../../../src/hooks/usePedidos'
 import { OrderRowSkeleton, EmptyState } from '../../../src/components/Skeleton'
 import { Badge } from '../../../src/components/ui/Badge'
 import type { Order } from '@addere/types'
@@ -19,20 +20,38 @@ const STATUS_LABEL: Record<string, string> = {
   CANCELLED: 'Cancelado',
 }
 
-function OrderCard({ order }: { order: Order }) {
+function OrderCard({ order, syncingId, onSync }: {
+  order: Order
+  syncingId: string | null
+  onSync: (id: string) => void
+}) {
   const variant = STATUS_BADGE[order.status] ?? 'neutral'
+  const isSyncing = syncingId === order.id
+
   return (
     <View style={s.card}>
       <View style={{ flex: 1 }}>
         <Text style={s.customer}>{order.customer.name}</Text>
-        <Text style={s.sub}>
-          {new Date(order.createdAt).toLocaleDateString('pt-BR')}
-        </Text>
+        <Text style={s.sub}>{new Date(order.createdAt).toLocaleDateString('pt-BR')}</Text>
         <Text style={s.sub}>{order.items.length} item(s)</Text>
       </View>
       <View style={{ alignItems: 'flex-end', gap: 6 }}>
         <Text style={s.total}>R$ {Number(order.total).toFixed(2)}</Text>
         <Badge variant={variant}>{STATUS_LABEL[order.status]}</Badge>
+        {order.status === 'PENDING' && (
+          <TouchableOpacity
+            style={[s.syncBtn, isSyncing && { opacity: 0.5 }]}
+            onPress={() => onSync(order.id)}
+            disabled={isSyncing || syncingId !== null}
+            activeOpacity={0.75}
+          >
+            {isSyncing
+              ? <ActivityIndicator size={12} color="#fff" />
+              : <RefreshCw size={12} color="#fff" strokeWidth={2} />
+            }
+            <Text style={s.syncBtnText}>{isSyncing ? 'Enviando...' : 'Sincronizar'}</Text>
+          </TouchableOpacity>
+        )}
       </View>
     </View>
   )
@@ -41,6 +60,24 @@ function OrderCard({ order }: { order: Order }) {
 export default function PedidosScreen() {
   const router = useRouter()
   const { data: orders, isLoading, refetch } = usePedidos()
+  const { mutate: sincronizar } = useSincronizarPedido()
+  const [syncingId, setSyncingId] = React.useState<string | null>(null)
+
+  function handleSync(orderId: string) {
+    setSyncingId(orderId)
+    sincronizar(orderId, {
+      onSuccess: () => {
+        setSyncingId(null)
+        Alert.alert('Sucesso', 'Pedido enviado ao Protheus com sucesso!')
+      },
+      onError: (err: unknown) => {
+        setSyncingId(null)
+        const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
+          ?? 'Não foi possível sincronizar o pedido.'
+        Alert.alert('Erro', msg)
+      },
+    })
+  }
 
   return (
     <View style={s.container}>
@@ -52,7 +89,9 @@ export default function PedidosScreen() {
         <FlatList
           data={orders}
           keyExtractor={(item) => item.id}
-          renderItem={({ item }) => <OrderCard order={item} />}
+          renderItem={({ item }) => (
+            <OrderCard order={item} syncingId={syncingId} onSync={handleSync} />
+          )}
           onRefresh={refetch}
           refreshing={false}
           ListEmptyComponent={
@@ -111,6 +150,20 @@ const s = StyleSheet.create({
     fontFamily: 'PlusJakartaSans_600SemiBold',
     fontSize: 16,
     color: '#0D2045',
+  },
+  syncBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#1B4FA8',
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+  },
+  syncBtnText: {
+    color: '#fff',
+    fontSize: 11,
+    fontFamily: 'Inter_400Regular',
   },
   fab: {
     position: 'absolute',

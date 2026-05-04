@@ -36,3 +36,17 @@ export function useCriarPedido() {
     },
   })
 }
+
+export function useSincronizarPedido() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (orderId: string) => {
+      const { data } = await api.post(`/orders/${orderId}/sync`)
+      return data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['orders'] })
+    },
+  })
+}
