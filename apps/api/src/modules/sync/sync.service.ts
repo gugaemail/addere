@@ -555,15 +555,25 @@ export async function syncOrderToProtheus(orderId: string, companyId: string) {
     }],
   }
 
-  const response = await protheusPost(companyId, company.apiPedido, payload, creds) as Record<string, unknown>
+  const rawResponse = await protheusPost(companyId, company.apiPedido, payload, creds)
 
-  // Tenta extrair o número do pedido gerado no Protheus (campo pode variar por versão da API)
-  const protheusOrderId = toStr(response['numero'] ?? response['C5_NUM'] ?? response['pedido'] ?? '') || null
+  // Protheus retorna array: [{ "Retorno": "100", "Mensagem": "...", "Pedido": "012283" }]
+  const responseArray = Array.isArray(rawResponse) ? rawResponse as Record<string, unknown>[] : [rawResponse as Record<string, unknown>]
+  const first = responseArray[0] ?? {}
+  const retorno = toStr(first['Retorno'])
+
+  if (retorno !== '100') {
+    const mensagem = toStr(first['Mensagem']) || 'Erro ao gravar pedido no Protheus'
+    throw new Error(mensagem)
+  }
+
+  const protheusOrderId = toStr(first['Pedido']) || null
+  if (!protheusOrderId) throw new Error('Pedido gravado no Protheus mas número do pedido não foi retornado')
 
   await prisma.order.update({
     where: { id: orderId },
     data: { status: 'SYNCED', protheusOrderId, syncedAt: new Date() },
   })
 
-  return { protheusOrderId, payload, response }
+  return { protheusOrderId, mensagem: toStr(first['Mensagem']) }
 }

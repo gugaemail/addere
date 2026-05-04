@@ -34,6 +34,9 @@ function OrderCard({ order, syncingId, onSync }: {
         <Text style={s.customer}>{order.customer.name}</Text>
         <Text style={s.sub}>{new Date(order.createdAt).toLocaleDateString('pt-BR')}</Text>
         <Text style={s.sub}>{order.items.length} item(s)</Text>
+        {order.protheusOrderId && (
+          <Text style={s.protheusId}>Pedido Protheus: {order.protheusOrderId}</Text>
+        )}
       </View>
       <View style={{ alignItems: 'flex-end', gap: 6 }}>
         <Text style={s.total}>R$ {Number(order.total).toFixed(2)}</Text>
@@ -159,6 +162,12 @@ const s = StyleSheet.create({
     borderRadius: 6,
     paddingHorizontal: 8,
     paddingVertical: 5,
+  },
+  protheusId: {
+    fontFamily: 'Inter_400Regular',
+    fontSize: 12,
+    color: '#1B4FA8',
+    marginTop: 3,
   },
   syncBtnText: {
     color: '#fff',
