@@ -459,3 +459,88 @@ export async function syncCondPags(companyId: string) {
 
   return { synced, total: totalRecords || totalFetched, errors }
 }
+
+// ─── Sync Pedido → Protheus ───────────────────────────────────────────────────
+
+function formatDateDDMMYYYY(date: Date): string {
+  const dd   = String(date.getDate()).padStart(2, '0')
+  const mm   = String(date.getMonth() + 1).padStart(2, '0')
+  const yyyy = date.getFullYear()
+  return `${dd}/${mm}/${yyyy}`
+}
+
+export async function syncOrderToProtheus(orderId: string, companyId: string) {
+  const order = await prisma.order.findFirst({
+    where: { id: orderId, companyId },
+    include: {
+      branch:         true,
+      customer:       true,
+      user:           true,
+      transportadora: true,
+      condPag:        true,
+      items: { include: { product: true } },
+    },
+  })
+
+  if (!order) throw new Error('Pedido não encontrado')
+  if (order.status !== 'PENDING') throw new Error('Apenas pedidos com status PENDING podem ser sincronizados')
+
+  const company = await prisma.company.findUniqueOrThrow({ where: { id: companyId } })
+  if (!company.apiPedido) throw new Error('URL apiPedido não configurada')
+
+  const creds = getCredentials(company)
+
+  if (!order.branch.idProtheus)     throw new Error('Filial sem código Protheus configurado')
+  if (!order.customer.protheusCode) throw new Error('Cliente sem código Protheus configurado')
+  if (!order.user.idVendProt)       throw new Error('Vendedor sem código Protheus configurado (idVendProt)')
+
+  const emissaoStr = formatDateDDMMYYYY(order.emissao ?? new Date())
+
+  const itens = order.items.map((item) => {
+    if (!item.product.protheusCode) throw new Error(`Produto "${item.product.name}" sem código Protheus configurado`)
+
+    const discount  = Number(item.discount)   // percentual 0-100
+    const qty       = Number(item.quantity)
+    const unitPrice = Number(item.unitPrice)
+    const valdesc   = Number((unitPrice * qty * discount / 100).toFixed(2))
+
+    return {
+      C6_FILIAL:  order.branch.idProtheus,
+      C6_PRODUTO: item.product.protheusCode,
+      C6_QTDVEN:  String(qty),
+      C6_PRCVEN:  String(unitPrice),
+      C6_PRUNIT:  String(unitPrice),
+      C6_VALDESC: String(valdesc),
+      C6_DESCONT: String(discount),
+    }
+  })
+
+  const payload = {
+    PEDIDO: [{
+      C5_FILIAL:  order.branch.idProtheus,
+      C5_CLIENTE: order.customer.protheusCode,
+      C5_LOJA:    order.customer.loja ?? '01',
+      C5_XIDPED:  order.id,
+      C5_EMISSAO: emissaoStr,
+      C5_VEND1:   order.user.idVendProt,
+      C5_DESCONT: '0',
+      C5_TRANSP:  order.transportadora?.protheusCode ?? '',
+      C5_MENNOTA: order.mennota ?? '',
+      C5_XOBS:    order.notes ?? '',
+      C5_CONDPAG: order.condPag?.protheusCode ?? '',
+      ITENS: itens,
+    }],
+  }
+
+  const response = await protheusPost(companyId, company.apiPedido, payload, creds) as Record<string, unknown>
+
+  // Tenta extrair o número do pedido gerado no Protheus (campo pode variar por versão da API)
+  const protheusOrderId = toStr(response['numero'] ?? response['C5_NUM'] ?? response['pedido'] ?? '') || null
+
+  await prisma.order.update({
+    where: { id: orderId },
+    data: { status: 'SYNCED', protheusOrderId, syncedAt: new Date() },
+  })
+
+  return { protheusOrderId, payload, response }
+}

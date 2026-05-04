@@ -194,8 +194,10 @@ function Step3({
   customer,
   branch,
   cart,
+  mennota,
   notes,
   onCartChange,
+  onMennotaChange,
   onNotesChange,
   onConfirm,
   onBack,
@@ -205,8 +207,10 @@ function Step3({
   customer: Customer
   branch: Branch
   cart: CartItem[]
+  mennota: string
   notes: string
   onCartChange: (cart: CartItem[]) => void
+  onMennotaChange: (mennota: string) => void
   onNotesChange: (notes: string) => void
   onConfirm: () => void
   onBack: () => void
@@ -308,10 +312,23 @@ function Step3({
       </View>
 
       <View style={styles.summaryBox}>
-        <Text style={styles.summaryLabel}>Observação</Text>
+        <Text style={styles.summaryLabel}>Obs. Nota Fiscal</Text>
         <TextInput
           style={styles.notesInput}
-          placeholder="Digite uma observação (opcional)..."
+          placeholder="Mensagem para a nota fiscal (opcional)..."
+          value={mennota}
+          onChangeText={onMennotaChange}
+          multiline
+          numberOfLines={3}
+          textAlignVertical="top"
+        />
+      </View>
+
+      <View style={styles.summaryBox}>
+        <Text style={styles.summaryLabel}>Obs. Interna</Text>
+        <TextInput
+          style={styles.notesInput}
+          placeholder="Observação interna (não sai na nota)..."
           value={notes}
           onChangeText={onNotesChange}
           multiline
@@ -352,6 +369,7 @@ export default function NovoPedidoScreen() {
   const [customer, setCustomer] = useState<Customer | null>(null)
   const [branch, setBranch] = useState<Branch | null>(null)
   const [cart, setCart] = useState<CartItem[]>([])
+  const [mennota, setMennota] = useState('')
   const [notes, setNotes] = useState('')
 
   const { mutate: criarPedido, isPending } = useCriarPedido()
@@ -373,7 +391,7 @@ export default function NovoPedidoScreen() {
     }))
 
     criarPedido(
-      { customerId: customer.id, branchId: branch.id, items, notes: notes || undefined },
+      { customerId: customer.id, branchId: branch.id, items, mennota: mennota || undefined, notes: notes || undefined },
       {
         onSuccess: () => {
           Alert.alert('Pedido criado', 'Pedido salvo com sucesso!', [
@@ -418,8 +436,10 @@ export default function NovoPedidoScreen() {
             customer={customer}
             branch={branch}
             cart={cart}
+            mennota={mennota}
             notes={notes}
             onCartChange={setCart}
+            onMennotaChange={setMennota}
             onNotesChange={setNotes}
             onConfirm={handleConfirm}
             onBack={() => setStep(2)}
