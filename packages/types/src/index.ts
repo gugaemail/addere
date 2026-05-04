@@ -98,6 +98,7 @@ export interface Customer {
   bairro: string | null
   cep: string | null
   uf: string | null
+  ultcom: string | null
   active: boolean
   createdAt: string
 }

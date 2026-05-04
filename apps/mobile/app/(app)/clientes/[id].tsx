@@ -3,6 +3,23 @@ import { useLocalSearchParams, Stack } from 'expo-router'
 import { useCliente } from '../../../src/hooks/useClientes'
 import type { Order } from '@addere/types'
 
+function formatDocument(doc: string | null | undefined): string | null {
+  if (!doc) return null
+  const digits = doc.replace(/\D/g, '')
+  if (digits.length === 11) {
+    return digits.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4')
+  }
+  if (digits.length === 14) {
+    return digits.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, '$1.$2.$3/$4-$5')
+  }
+  return doc
+}
+
+function formatUltcom(ultcom: string | null | undefined): string | null {
+  if (!ultcom) return null
+  return new Date(ultcom).toLocaleDateString('pt-BR')
+}
+
 const STATUS_COLOR: Record<string, string> = {
   PENDING: '#f59e0b',
   SYNCED: '#16a34a',
@@ -59,10 +76,13 @@ export default function ClienteDetailScreen() {
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Dados do cliente</Text>
         <InfoRow label="Nome" value={customer.name} />
-        <InfoRow label="Documento" value={customer.document} />
+        <InfoRow label="Documento" value={formatDocument(customer.document)} />
         <InfoRow label="Email" value={customer.email} />
         <InfoRow label="Telefone" value={customer.phone} />
         <InfoRow label="Endereço" value={customer.address} />
+        <InfoRow label="Cidade" value={customer.municipio} />
+        <InfoRow label="Estado" value={customer.uf} />
+        <InfoRow label="Última compra" value={formatUltcom(customer.ultcom)} />
         {customer.protheusCode && <InfoRow label="Cód. Protheus" value={customer.protheusCode} />}
       </View>
 

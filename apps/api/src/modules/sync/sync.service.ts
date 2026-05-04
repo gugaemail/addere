@@ -174,7 +174,19 @@ type CustomerData = {
   bairro:       string | null
   cep:          string | null
   uf:           string | null
+  ultcom:       Date | null
   vendorCode:   string | null
+}
+
+/** Parseia data no formato YYYYMMDD retornado pelo Protheus */
+function parseProtheusDate(value: unknown): Date | null {
+  const s = toStr(value as string)
+  if (!s || s.length !== 8) return null
+  const year  = parseInt(s.slice(0, 4), 10)
+  const month = parseInt(s.slice(4, 6), 10) - 1
+  const day   = parseInt(s.slice(6, 8), 10)
+  const d = new Date(year, month, day)
+  return isNaN(d.getTime()) ? null : d
 }
 
 async function upsertOne(companyId: string, c: CustomerData): Promise<void> {
@@ -190,6 +202,7 @@ async function upsertOne(companyId: string, c: CustomerData): Promise<void> {
       bairro:     c.bairro,
       cep:        c.cep,
       uf:         c.uf,
+      ultcom:     c.ultcom,
       vendorCode: c.vendorCode,
       active:     true,
     },
@@ -206,6 +219,7 @@ async function upsertOne(companyId: string, c: CustomerData): Promise<void> {
       bairro:       c.bairro,
       cep:          c.cep,
       uf:           c.uf,
+      ultcom:       c.ultcom,
       vendorCode:   c.vendorCode,
     },
   })
@@ -233,6 +247,7 @@ async function upsertCustomersChunked(
           bairro:     c.bairro,
           cep:        c.cep,
           uf:         c.uf,
+          ultcom:     c.ultcom,
           vendorCode: c.vendorCode,
           active:     true,
         },
@@ -249,6 +264,7 @@ async function upsertCustomersChunked(
           bairro:       c.bairro,
           cep:          c.cep,
           uf:           c.uf,
+          ultcom:       c.ultcom,
           vendorCode:   c.vendorCode,
         },
       })))
@@ -320,6 +336,7 @@ export async function syncCustomers(companyId: string) {
         bairro:     toStr(raw['A1_BAIRRO']) || null,
         cep:        toStr(raw['A1_CEP'])    || null,
         uf:         toStr(raw['A1_EST'])    || null,
+        ultcom:     parseProtheusDate(raw['A1_ULTCOM']),
         vendorCode: toStr(raw['A1_VEND'])   || null,
       })
     }

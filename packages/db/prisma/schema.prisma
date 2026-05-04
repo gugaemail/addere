@@ -148,6 +148,7 @@ model Customer {
   bairro       String?
   cep          String?
   uf           String?
+  ultcom       DateTime? // data da última compra no Protheus (A1_ULTCOM)
   active       Boolean @default(true) // soft delete
 
   companyId String
