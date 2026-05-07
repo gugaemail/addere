@@ -619,7 +619,12 @@ export async function syncOrderToProtheus(orderId: string, companyId: string) {
         C6_PRCVEN:  String(unitPrice),
         C6_PRUNIT:  String(unitPrice),
         C6_VALDESC: String(valdesc),
-        ...(order.customer.tes ? { C6_TES: order.customer.tes } : {}),
+        ...(order.customer.tes            ? { C6_TES:     order.customer.tes }                : {}),
+        ...(item.largura      != null     ? { C6_XLARGUR: String(Number(item.largura)) }      : {}),
+        ...(item.espessura    != null     ? { C6_XEXPESS: String(Number(item.espessura)) }    : {}),
+        ...(item.encolhimento             ? { C6_XENCOLH: item.encolhimento }                 : {}),
+        ...(item.xcrav                    ? { C6_XCRAV:   item.xcrav }                        : {}),
+        ...(item.tara         != null     ? { C6_XTARA:   String(Number(item.tara)) }         : {}),
       }
     })
 

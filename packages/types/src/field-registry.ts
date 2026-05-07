@@ -29,9 +29,14 @@ export const FIELD_REGISTRY: FieldDefinition[] = [
   { key: 'order.protheusStatus', entity: 'order',     label: 'Status Protheus',     screens: ['pedidoDetail'],                               affectsInput: false },
 
   // OrderItem
-  { key: 'orderItem.discount',   entity: 'orderItem', label: 'Desconto',            screens: ['novoPedido', 'pedidoDetail'],                  affectsInput: true  },
-  { key: 'orderItem.descricao',  entity: 'orderItem', label: 'Descrição do Item',   screens: ['novoPedido', 'pedidoDetail'],                  affectsInput: true  },
-  { key: 'orderItem.unitPrice',  entity: 'orderItem', label: 'Preço Editável',      screens: ['novoPedido'],                                 affectsInput: true  },
+  { key: 'orderItem.discount',      entity: 'orderItem', label: 'Desconto',            screens: ['novoPedido', 'pedidoDetail'],  affectsInput: true  },
+  { key: 'orderItem.descricao',     entity: 'orderItem', label: 'Descrição do Item',   screens: ['novoPedido', 'pedidoDetail'],  affectsInput: true  },
+  { key: 'orderItem.unitPrice',     entity: 'orderItem', label: 'Preço Editável',      screens: ['novoPedido'],                 affectsInput: true  },
+  { key: 'orderItem.largura',       entity: 'orderItem', label: 'Largura',             screens: ['novoPedido', 'pedidoDetail'],  affectsInput: true  },
+  { key: 'orderItem.espessura',     entity: 'orderItem', label: 'Espessura',           screens: ['novoPedido', 'pedidoDetail'],  affectsInput: true  },
+  { key: 'orderItem.encolhimento',  entity: 'orderItem', label: 'Encolhimento',        screens: ['novoPedido', 'pedidoDetail'],  affectsInput: true  },
+  { key: 'orderItem.xcrav',         entity: 'orderItem', label: 'Largura Crav.',       screens: ['novoPedido', 'pedidoDetail'],  affectsInput: true  },
+  { key: 'orderItem.tara',          entity: 'orderItem', label: 'Tara',                screens: ['novoPedido', 'pedidoDetail'],  affectsInput: true  },
 
   // Product
   { key: 'product.stock',        entity: 'product',   label: 'Estoque',             screens: ['produtoList'],                                affectsInput: false },

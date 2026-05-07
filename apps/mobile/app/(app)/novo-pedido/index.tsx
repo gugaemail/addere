@@ -24,10 +24,15 @@ import type { Branch, Customer, Product, Transportadora, CondPag, CreateOrderIte
 type Step = 1 | 2 | 3
 
 interface CartItem {
-  product: Product
-  quantity: number
-  discount: number
-  unitPrice: number
+  product:      Product
+  quantity:     number
+  discount:     number
+  unitPrice:    number
+  largura?:     number
+  espessura?:   number
+  encolhimento?: string
+  xcrav?:       string
+  tara?:        number
 }
 
 function StepIndicator({ current }: { current: Step }) {
@@ -277,6 +282,11 @@ function Step3({
   const showMennota        = useFieldVisible('order.mennota')
   const showNotes          = useFieldVisible('order.notes')
   const showUnitPrice      = useFieldVisible('orderItem.unitPrice')
+  const showLargura        = useFieldVisible('orderItem.largura')
+  const showEspessura      = useFieldVisible('orderItem.espessura')
+  const showEncolhimento   = useFieldVisible('orderItem.encolhimento')
+  const showXcrav          = useFieldVisible('orderItem.xcrav')
+  const showTara           = useFieldVisible('orderItem.tara')
 
   const total = cart.reduce(
     (sum, i) => sum + i.unitPrice * i.quantity * (1 - i.discount / 100),
@@ -299,6 +309,23 @@ function Step3({
 
   function removeItem(productId: string) {
     onCartChange(cart.filter((i) => i.product.id !== productId))
+  }
+
+  function updateNumField(productId: string, field: 'largura' | 'espessura' | 'tara', raw: string) {
+    const value = parseFloat(raw.replace(',', '.'))
+    if (isNaN(value) || value < 0) return
+    onCartChange(cart.map((i) => i.product.id === productId ? { ...i, [field]: value } : i))
+  }
+
+  function updateStrField(productId: string, field: 'encolhimento', value: string) {
+    onCartChange(cart.map((i) => i.product.id === productId ? { ...i, [field]: value } : i))
+  }
+
+  function toggleXcrav(productId: string) {
+    onCartChange(cart.map((i) => i.product.id === productId
+      ? { ...i, xcrav: i.xcrav === '1' ? '2' : '1' }
+      : i
+    ))
   }
 
   function handleCancel() {
@@ -370,6 +397,73 @@ function Step3({
                 </Text>
               </View>
             </View>
+
+            {/* Campos extras por item */}
+            {(showLargura || showEspessura || showTara) && (
+              <View style={styles.itemExtraRow}>
+                {showLargura && (
+                  <View style={styles.itemExtraField}>
+                    <Text style={styles.itemControlLabel}>Largura</Text>
+                    <TextInput
+                      style={styles.priceInput}
+                      keyboardType="decimal-pad"
+                      placeholder="0"
+                      defaultValue={item.largura != null ? String(item.largura) : ''}
+                      onEndEditing={(e) => updateNumField(item.product.id, 'largura', e.nativeEvent.text)}
+                    />
+                  </View>
+                )}
+                {showEspessura && (
+                  <View style={styles.itemExtraField}>
+                    <Text style={styles.itemControlLabel}>Espessura</Text>
+                    <TextInput
+                      style={styles.priceInput}
+                      keyboardType="decimal-pad"
+                      placeholder="0"
+                      defaultValue={item.espessura != null ? String(item.espessura) : ''}
+                      onEndEditing={(e) => updateNumField(item.product.id, 'espessura', e.nativeEvent.text)}
+                    />
+                  </View>
+                )}
+                {showTara && (
+                  <View style={styles.itemExtraField}>
+                    <Text style={styles.itemControlLabel}>Tara</Text>
+                    <TextInput
+                      style={styles.priceInput}
+                      keyboardType="decimal-pad"
+                      placeholder="0"
+                      defaultValue={item.tara != null ? String(item.tara) : ''}
+                      onEndEditing={(e) => updateNumField(item.product.id, 'tara', e.nativeEvent.text)}
+                    />
+                  </View>
+                )}
+              </View>
+            )}
+            {showEncolhimento && (
+              <View style={styles.itemExtraFull}>
+                <Text style={styles.itemControlLabel}>Encolhimento</Text>
+                <TextInput
+                  style={styles.priceInput}
+                  placeholder="Texto"
+                  defaultValue={item.encolhimento ?? ''}
+                  onEndEditing={(e) => updateStrField(item.product.id, 'encolhimento', e.nativeEvent.text)}
+                />
+              </View>
+            )}
+            {showXcrav && (
+              <View style={styles.itemExtraFull}>
+                <Text style={styles.itemControlLabel}>Largura Crav.</Text>
+                <TouchableOpacity
+                  style={[styles.xcravBtn, item.xcrav === '1' && styles.xcravBtnActive]}
+                  onPress={() => toggleXcrav(item.product.id)}
+                  activeOpacity={0.8}
+                >
+                  <Text style={[styles.xcravBtnText, item.xcrav === '1' && styles.xcravBtnTextActive]}>
+                    {item.xcrav === '1' ? 'Sim' : 'Não'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            )}
           </View>
         ))}
       </View>
@@ -488,10 +582,15 @@ export default function NovoPedidoScreen() {
     if (!customer || !branch || cart.length === 0) return
 
     const items: CreateOrderItemInput[] = cart.map((i) => ({
-      productId: i.product.id,
-      quantity: i.quantity,
-      discount: i.discount,
-      unitPrice: i.unitPrice,
+      productId:    i.product.id,
+      quantity:     i.quantity,
+      discount:     i.discount,
+      unitPrice:    i.unitPrice,
+      largura:      i.largura,
+      espessura:    i.espessura,
+      encolhimento: i.encolhimento,
+      xcrav:        i.xcrav,
+      tara:         i.tara,
     }))
 
     criarPedido(
@@ -615,6 +714,13 @@ const styles = StyleSheet.create({
   itemControlLabel: { fontSize: 10, color: '#9ca3af', marginBottom: 4 },
   priceInput: { borderWidth: 1, borderColor: '#d1d5db', borderRadius: 6, padding: 6, fontSize: 13, minWidth: 80, backgroundColor: '#f9fafb' },
   itemSubtotalValue: { fontSize: 13, fontWeight: '700', color: '#111827' },
+  itemExtraRow: { flexDirection: 'row', gap: 8, marginTop: 8, flexWrap: 'wrap' },
+  itemExtraField: { flex: 1, minWidth: 80 },
+  itemExtraFull: { marginTop: 8 },
+  xcravBtn: { borderWidth: 1, borderColor: '#d1d5db', borderRadius: 6, paddingHorizontal: 16, paddingVertical: 6, alignSelf: 'flex-start', backgroundColor: '#f9fafb' },
+  xcravBtnActive: { backgroundColor: '#1B4FA8', borderColor: '#1B4FA8' },
+  xcravBtnText: { fontSize: 13, color: '#374151', fontFamily: 'Inter_400Regular' },
+  xcravBtnTextActive: { color: '#FFFFFF' },
   notesInput: { borderWidth: 1, borderColor: '#d1d5db', borderRadius: 8, padding: 10, fontSize: 14, minHeight: 80, backgroundColor: '#f9fafb' },
   pickerBtn: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderWidth: 1, borderColor: '#d1d5db', borderRadius: 8, padding: 10, backgroundColor: '#f9fafb' },
   pickerBtnText: { fontSize: 14, color: '#111827' },

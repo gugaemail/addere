@@ -101,6 +101,11 @@ export default function PedidoDetailScreen() {
   const showProtheusStatus  = useFieldVisible('order.protheusStatus')
   const showDiscount        = useFieldVisible('orderItem.discount')
   const showDescricao       = useFieldVisible('orderItem.descricao')
+  const showLargura         = useFieldVisible('orderItem.largura')
+  const showEspessura       = useFieldVisible('orderItem.espessura')
+  const showEncolhimento    = useFieldVisible('orderItem.encolhimento')
+  const showXcrav           = useFieldVisible('orderItem.xcrav')
+  const showTara            = useFieldVisible('orderItem.tara')
 
   return (
     <ScrollView style={s.container} contentContainerStyle={{ padding: 16, paddingBottom: 32 }}>
@@ -140,6 +145,15 @@ export default function PedidoDetailScreen() {
                 {fmtQtd(item.quantity)} {item.product.unit} × R$ {fmtMoeda(item.unitPrice)}
                 {showDiscount && Number(item.discount) > 0 ? `  (${fmtQtd(item.discount)}% desc.)` : ''}
               </Text>
+              {(showLargura || showEspessura || showTara) && (
+                <Text style={s.itemDetail}>
+                  {showLargura    && item.largura   ? `Larg: ${fmtQtd(item.largura)}  ` : ''}
+                  {showEspessura  && item.espessura ? `Esp: ${fmtQtd(item.espessura)}  ` : ''}
+                  {showTara       && item.tara      ? `Tara: ${fmtQtd(item.tara)}` : ''}
+                </Text>
+              )}
+              {showEncolhimento && item.encolhimento ? <Text style={s.itemDesc}>Encolh: {item.encolhimento}</Text> : null}
+              {showXcrav && item.xcrav ? <Text style={s.itemDesc}>Larg. Crav: {item.xcrav === '1' ? 'Sim' : 'Não'}</Text> : null}
             </View>
             <Text style={s.itemTotal}>R$ {fmtMoeda(item.total)}</Text>
           </View>

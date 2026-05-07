@@ -140,7 +140,12 @@ export interface OrderItemDetail {
   unitPrice: string
   discount: string
   total: string
-  descricao: string | null
+  descricao:    string | null
+  largura:      string | null
+  espessura:    string | null
+  encolhimento: string | null
+  xcrav:        string | null
+  tara:         string | null
 }
 
 export interface Order {
@@ -162,11 +167,16 @@ export interface Order {
 }
 
 export interface CreateOrderItemInput {
-  productId: string
-  quantity: number
-  discount?: number
-  descricao?: string
-  unitPrice?: number
+  productId:    string
+  quantity:     number
+  discount?:    number
+  descricao?:   string
+  unitPrice?:   number
+  largura?:     number
+  espessura?:   number
+  encolhimento?: string
+  xcrav?:       string
+  tara?:        number
 }
 
 export interface CreateOrderInput {

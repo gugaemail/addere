@@ -87,12 +87,17 @@ export async function createOrder(userId: string, companyId: string, input: Crea
     const totalCents      = Math.round(priceCents * qty1000 / 1000 * (10000 - discountBP) / 10000)
 
     return {
-      productId: item.productId,
-      quantity:  item.quantity,
+      productId:    item.productId,
+      quantity:     item.quantity,
       unitPrice,
       discount,
-      total:     totalCents / 100,
-      descricao: item.descricao,
+      total:        totalCents / 100,
+      descricao:    item.descricao,
+      largura:      item.largura,
+      espessura:    item.espessura,
+      encolhimento: item.encolhimento,
+      xcrav:        item.xcrav,
+      tara:         item.tara,
     }
   })
 

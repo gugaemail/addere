@@ -294,7 +294,12 @@ model OrderItem {
   unitPrice Decimal @db.Decimal(10, 2)
   discount  Decimal @default(0) @db.Decimal(5, 2) // percentual de desconto
   total     Decimal @db.Decimal(10, 2)
-  descricao String? // descrição do item (sobrescreve nome do produto se informado)
+  descricao    String?           // descrição do item (sobrescreve nome do produto se informado)
+  largura      Decimal? @db.Decimal(10, 3) // C6_XLARGUR
+  espessura    Decimal? @db.Decimal(10, 3) // C6_XEXPESS
+  encolhimento String?           // C6_XENCOLH
+  xcrav        String?           // C6_XCRAV: "1"=Sim, "2"=Não
+  tara         Decimal? @db.Decimal(10, 3) // C6_XTARA
 
   orderId String
   order   Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
