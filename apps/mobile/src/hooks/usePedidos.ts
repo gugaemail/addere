@@ -61,3 +61,12 @@ export function useSincronizarPedido() {
     },
   })
 }
+
+export function useConsultarStatusPedido() {
+  return useMutation({
+    mutationFn: async (orderId: string) => {
+      const { data } = await api.get<{ protheusOrderId: string; codigo: string; status: string }>(`/orders/${orderId}/status`)
+      return data
+    },
+  })
+}

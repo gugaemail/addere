@@ -1,8 +1,8 @@
 import React from 'react'
 import { View, Text, FlatList, TouchableOpacity, StyleSheet, Alert, ActivityIndicator } from 'react-native'
 import { useRouter } from 'expo-router'
-import { Plus, RefreshCw } from 'lucide-react-native'
-import { usePedidos, useSincronizarPedido } from '../../../src/hooks/usePedidos'
+import { Plus, RefreshCw, SearchCheck } from 'lucide-react-native'
+import { usePedidos, useSincronizarPedido, useConsultarStatusPedido } from '../../../src/hooks/usePedidos'
 import { OrderRowSkeleton, EmptyState } from '../../../src/components/Skeleton'
 import { Badge } from '../../../src/components/ui/Badge'
 import type { Order } from '@addere/types'
@@ -20,14 +20,17 @@ const STATUS_LABEL: Record<string, string> = {
   CANCELLED: 'Cancelado',
 }
 
-function OrderCard({ order, syncingId, onSync, onPress }: {
+function OrderCard({ order, syncingId, checkingId, onSync, onCheckStatus, onPress }: {
   order: Order
   syncingId: string | null
+  checkingId: string | null
   onSync: (id: string) => void
+  onCheckStatus: (id: string) => void
   onPress: () => void
 }) {
   const variant = STATUS_BADGE[order.status] ?? 'neutral'
   const isSyncing = syncingId === order.id
+  const isChecking = checkingId === order.id
 
   return (
     <TouchableOpacity onPress={onPress} activeOpacity={0.75} style={s.card}>
@@ -56,6 +59,20 @@ function OrderCard({ order, syncingId, onSync, onPress }: {
             <Text style={s.syncBtnText}>{isSyncing ? 'Enviando...' : 'Sincronizar'}</Text>
           </TouchableOpacity>
         )}
+        {order.status === 'SYNCED' && order.protheusOrderId && (
+          <TouchableOpacity
+            style={[s.statusBtn, isChecking && { opacity: 0.5 }]}
+            onPress={() => onCheckStatus(order.id)}
+            disabled={isChecking}
+            activeOpacity={0.75}
+          >
+            {isChecking
+              ? <ActivityIndicator size={12} color="#1B4FA8" />
+              : <SearchCheck size={12} color="#1B4FA8" strokeWidth={2} />
+            }
+            <Text style={s.statusBtnText}>{isChecking ? 'Consultando...' : 'Ver Status'}</Text>
+          </TouchableOpacity>
+        )}
       </View>
     </TouchableOpacity>
   )
@@ -65,7 +82,9 @@ export default function PedidosScreen() {
   const router = useRouter()
   const { data: orders, isLoading, refetch } = usePedidos()
   const { mutate: sincronizar } = useSincronizarPedido()
+  const { mutate: consultarStatus } = useConsultarStatusPedido()
   const [syncingId, setSyncingId] = React.useState<string | null>(null)
+  const [checkingId, setCheckingId] = React.useState<string | null>(null)
 
   function handleSync(orderId: string) {
     setSyncingId(orderId)
@@ -78,6 +97,25 @@ export default function PedidosScreen() {
         setSyncingId(null)
         const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
           ?? 'Não foi possível sincronizar o pedido.'
+        Alert.alert('Erro', msg)
+      },
+    })
+  }
+
+  function handleCheckStatus(orderId: string) {
+    setCheckingId(orderId)
+    consultarStatus(orderId, {
+      onSuccess: (result) => {
+        setCheckingId(null)
+        Alert.alert(
+          `Pedido ${result.protheusOrderId}`,
+          `Status: ${result.status}\nCódigo: ${result.codigo}`
+        )
+      },
+      onError: (err: unknown) => {
+        setCheckingId(null)
+        const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
+          ?? 'Não foi possível consultar o status.'
         Alert.alert('Erro', msg)
       },
     })
@@ -97,7 +135,9 @@ export default function PedidosScreen() {
             <OrderCard
               order={item}
               syncingId={syncingId}
+              checkingId={checkingId}
               onSync={handleSync}
+              onCheckStatus={handleCheckStatus}
               onPress={() => router.push(`/(app)/pedidos/${item.id}`)}
             />
           )}
@@ -177,6 +217,22 @@ const s = StyleSheet.create({
   },
   syncBtnText: {
     color: '#fff',
+    fontSize: 11,
+    fontFamily: 'Inter_400Regular',
+  },
+  statusBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#E8F4FF',
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#1B4FA8',
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+  },
+  statusBtnText: {
+    color: '#1B4FA8',
     fontSize: 11,
     fontFamily: 'Inter_400Regular',
   },
