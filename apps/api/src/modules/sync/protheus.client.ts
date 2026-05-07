@@ -176,6 +176,10 @@ export async function protheusPost(
       'Content-Type': 'application/json',
     }, 60000)
   } catch (err) {
+    const e = err as { code?: string; message?: string }
+    if (e.code === 'ECONNRESET' || e.message === 'socket hang up') {
+      throw new Error('Protheus encerrou a conexão sem responder. Verifique os logs do servidor Protheus (possível campo inválido ou erro interno).')
+    }
     return enrichError(err, url)
   }
 }
