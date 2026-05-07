@@ -586,11 +586,14 @@ export async function syncOrderToProtheus(orderId: string, companyId: string) {
       }
     })
 
+    const loja = order.customer.loja ?? '01'
     const payload = {
       PEDIDO: [{
         C5_FILIAL:  order.branch.idProtheus,
         C5_CLIENTE: order.customer.protheusCode,
-        C5_LOJA:    order.customer.loja ?? '01',
+        C5_CLIENT:  order.customer.protheusCode,
+        C5_LOJA:    loja,
+        C5_LOJACLI: loja,
         C5_XIDPED:  order.id,
         C5_EMISSAO: emissaoStr,
         C5_VEND1:   order.user.idVendProt,
@@ -680,11 +683,14 @@ export async function testOrderSync(orderId: string, companyId: string) {
     }
   })
 
+  const loja = order.customer.loja ?? '01'
   const payload = {
     PEDIDO: [{
       C5_FILIAL:  order.branch.idProtheus,
       C5_CLIENTE: order.customer.protheusCode,
-      C5_LOJA:    order.customer.loja ?? '01',
+      C5_CLIENT:  order.customer.protheusCode,
+      C5_LOJA:    loja,
+      C5_LOJACLI: loja,
       C5_XIDPED:  order.id,
       C5_EMISSAO: emissaoStr,
       C5_VEND1:   order.user.idVendProt,
