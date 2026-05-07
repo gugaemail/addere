@@ -55,6 +55,20 @@ export default function PedidoDetailScreen() {
   const { mutate: sincronizar, isPending: isSyncing } = useSincronizarPedido()
   const { mutate: consultarStatus, isPending: isChecking } = useConsultarStatusPedido()
 
+  const showTransportadora  = useFieldVisible('order.transportadora')
+  const showCondPag         = useFieldVisible('order.condPag')
+  const showEmissao         = useFieldVisible('order.emissao')
+  const showMennota         = useFieldVisible('order.mennota')
+  const showNotes           = useFieldVisible('order.notes')
+  const showProtheusStatus  = useFieldVisible('order.protheusStatus')
+  const showDiscount        = useFieldVisible('orderItem.discount')
+  const showDescricao       = useFieldVisible('orderItem.descricao')
+  const showLargura         = useFieldVisible('orderItem.largura')
+  const showEspessura       = useFieldVisible('orderItem.espessura')
+  const showEncolhimento    = useFieldVisible('orderItem.encolhimento')
+  const showXcrav           = useFieldVisible('orderItem.xcrav')
+  const showTara            = useFieldVisible('orderItem.tara')
+
   function handleSync() {
     sincronizar(id, {
       onSuccess: () => Alert.alert('Sucesso', 'Pedido enviado ao Protheus com sucesso!'),
@@ -93,19 +107,6 @@ export default function PedidoDetailScreen() {
   }
 
   const variant = STATUS_BADGE[order.status] ?? 'neutral'
-  const showTransportadora  = useFieldVisible('order.transportadora')
-  const showCondPag         = useFieldVisible('order.condPag')
-  const showEmissao         = useFieldVisible('order.emissao')
-  const showMennota         = useFieldVisible('order.mennota')
-  const showNotes           = useFieldVisible('order.notes')
-  const showProtheusStatus  = useFieldVisible('order.protheusStatus')
-  const showDiscount        = useFieldVisible('orderItem.discount')
-  const showDescricao       = useFieldVisible('orderItem.descricao')
-  const showLargura         = useFieldVisible('orderItem.largura')
-  const showEspessura       = useFieldVisible('orderItem.espessura')
-  const showEncolhimento    = useFieldVisible('orderItem.encolhimento')
-  const showXcrav           = useFieldVisible('orderItem.xcrav')
-  const showTara            = useFieldVisible('orderItem.tara')
 
   return (
     <ScrollView style={s.container} contentContainerStyle={{ padding: 16, paddingBottom: 32 }}>
