@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { View, Text, FlatList, TextInput, ActivityIndicator, StyleSheet } from 'react-native'
+import { View, Text, FlatList, TextInput, TouchableOpacity, ActivityIndicator, StyleSheet } from 'react-native'
+import { X } from 'lucide-react-native'
 import { useProdutos } from '../../../src/hooks/useProdutos'
 import { Badge } from '../../../src/components/ui/Badge'
 import type { Product } from '@addere/types'
@@ -44,13 +45,20 @@ export default function ProdutosScreen() {
 
   return (
     <View style={s.container}>
-      <TextInput
-        style={s.search}
-        placeholder="Buscar por nome ou código..."
-        placeholderTextColor="#94A3B8"
-        value={search}
-        onChangeText={setSearch}
-      />
+      <View style={s.searchContainer}>
+        <TextInput
+          style={s.searchInput}
+          placeholder="Buscar por nome ou código..."
+          placeholderTextColor="#94A3B8"
+          value={search}
+          onChangeText={setSearch}
+        />
+        {search.length > 0 && (
+          <TouchableOpacity onPress={() => setSearch('')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <X size={16} color="#94A3B8" strokeWidth={2} />
+          </TouchableOpacity>
+        )}
+      </View>
 
       {isLoading ? (
         <ActivityIndicator color="#1B4FA8" style={{ marginTop: 24 }} />
@@ -76,7 +84,7 @@ const s = StyleSheet.create({
     flex: 1,
     backgroundColor: '#F8FAFC',
   },
-  search: {
+  searchContainer: {
     margin: 16,
     backgroundColor: '#FFFFFF',
     borderRadius: 10,
@@ -84,9 +92,16 @@ const s = StyleSheet.create({
     borderColor: '#E2E8F0',
     paddingHorizontal: 14,
     paddingVertical: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  searchInput: {
+    flex: 1,
     fontFamily: 'Inter_400Regular',
     fontSize: 14,
     color: '#0D2045',
+    padding: 0,
   },
   card: {
     backgroundColor: '#FFFFFF',
