@@ -13,9 +13,13 @@
       "expo-secure-store",
       "expo-sqlite"
     ],
+    "splash": {
+      "backgroundColor": "#0D2045",
+      "resizeMode": "contain"
+    },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#ffffff"
+        "backgroundColor": "#0D2045"
       }
     },
     "ios": {
