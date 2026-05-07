@@ -150,6 +150,11 @@ model Customer {
   cep          String?
   uf           String?
   ultcom       DateTime? // data da última compra no Protheus (A1_ULTCOM)
+  msblql       String?   // A1_MSBLQL: "1"=bloqueado, "2"=liberado — inativa cliente se "1"
+  transpPadrao String?   // A1_TRANSP: código da transportadora padrão do cliente
+  condPagPadrao String?  // A1_COND: código da condição de pagamento padrão do cliente
+  tes          String?   // A1_TES: código TES (enviado ao Protheus no pedido)
+  xcodemp      String?   // A1_XCODEMP: código da filial Protheus de faturamento
   active       Boolean @default(true) // soft delete
 
   companyId String

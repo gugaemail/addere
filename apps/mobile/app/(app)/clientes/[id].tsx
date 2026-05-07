@@ -74,8 +74,12 @@ export default function ClienteDetailScreen() {
   const showPhone     = useFieldVisible('customer.phone')
   const showAddress   = useFieldVisible('customer.address')
   const showMunicipio = useFieldVisible('customer.municipio')
-  const showUf        = useFieldVisible('customer.uf')
-  const showUltcom    = useFieldVisible('customer.ultcom')
+  const showUf           = useFieldVisible('customer.uf')
+  const showUltcom       = useFieldVisible('customer.ultcom')
+  const showTranspPadrao = useFieldVisible('customer.transpPadrao')
+  const showCondPagPadrao= useFieldVisible('customer.condPagPadrao')
+  const showTes          = useFieldVisible('customer.tes')
+  const showXcodemp      = useFieldVisible('customer.xcodemp')
 
   if (isLoading) return <ActivityIndicator style={{ flex: 1, marginTop: 40 }} />
   if (error || !customer) return (
@@ -99,7 +103,11 @@ export default function ClienteDetailScreen() {
         {showAddress   && <InfoRow label="Endereço"       value={customer.address} />}
         {showMunicipio && <InfoRow label="Cidade"         value={customer.municipio} />}
         {showUf        && <InfoRow label="Estado"         value={customer.uf} />}
-        {showUltcom    && <InfoRow label="Última compra"  value={formatUltcom(customer.ultcom)} />}
+        {showUltcom        && <InfoRow label="Última compra"        value={formatUltcom(customer.ultcom)} />}
+        {showTranspPadrao  && <InfoRow label="Transportadora padrão" value={customer.transpPadrao} />}
+        {showCondPagPadrao && <InfoRow label="Cond. Pagamento padrão" value={customer.condPagPadrao} />}
+        {showTes           && <InfoRow label="Código TES"            value={customer.tes} />}
+        {showXcodemp       && <InfoRow label="Filial de faturamento"  value={customer.xcodemp} />}
         {customer.protheusCode && <InfoRow label="Cód. Protheus" value={customer.protheusCode} />}
       </View>
 

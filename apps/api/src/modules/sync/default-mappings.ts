@@ -31,6 +31,11 @@ export const DEFAULT_MAPPINGS = {
       bairro:       'A1_BAIRRO',
       cep:          'A1_CEP',
       uf:           'A1_EST',
+      msblql:       'A1_MSBLQL',
+      transpPadrao: 'A1_TRANSP',
+      condPagPadrao:'A1_COND',
+      tes:          'A1_TES',
+      xcodemp:      'A1_XCODEMP',
     },
   },
   transportadoras: {

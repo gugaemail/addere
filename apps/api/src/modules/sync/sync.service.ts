@@ -163,19 +163,24 @@ const SYNC_CUSTOMERS_PAGE_SIZE = 50
 const UPSERT_CHUNK_SIZE = 500
 
 type CustomerData = {
-  protheusCode: string
-  loja:         string
-  name:         string
-  document:     string | null
-  email:        string | null
-  phone:        string | null
-  address:      string | null
-  municipio:    string | null
-  bairro:       string | null
-  cep:          string | null
-  uf:           string | null
-  ultcom:       Date | null
-  vendorCode:   string | null
+  protheusCode:  string
+  loja:          string
+  name:          string
+  document:      string | null
+  email:         string | null
+  phone:         string | null
+  address:       string | null
+  municipio:     string | null
+  bairro:        string | null
+  cep:           string | null
+  uf:            string | null
+  ultcom:        Date | null
+  vendorCode:    string | null
+  msblql:        string | null
+  transpPadrao:  string | null
+  condPagPadrao: string | null
+  tes:           string | null
+  xcodemp:       string | null
 }
 
 /** Parseia data no formato YYYYMMDD retornado pelo Protheus */
@@ -190,37 +195,49 @@ function parseProtheusDate(value: unknown): Date | null {
 }
 
 async function upsertOne(companyId: string, c: CustomerData): Promise<void> {
+  const active = c.msblql !== '1'
   await prisma.customer.upsert({
     where: { companyId_loja_protheusCode: { companyId, loja: c.loja, protheusCode: c.protheusCode } },
     update: {
-      name:       c.name,
-      document:   c.document,
-      email:      c.email,
-      phone:      c.phone,
-      address:    c.address,
-      municipio:  c.municipio,
-      bairro:     c.bairro,
-      cep:        c.cep,
-      uf:         c.uf,
-      ultcom:     c.ultcom,
-      vendorCode: c.vendorCode,
-      active:     true,
+      name:          c.name,
+      document:      c.document,
+      email:         c.email,
+      phone:         c.phone,
+      address:       c.address,
+      municipio:     c.municipio,
+      bairro:        c.bairro,
+      cep:           c.cep,
+      uf:            c.uf,
+      ultcom:        c.ultcom,
+      vendorCode:    c.vendorCode,
+      msblql:        c.msblql,
+      transpPadrao:  c.transpPadrao,
+      condPagPadrao: c.condPagPadrao,
+      tes:           c.tes,
+      xcodemp:       c.xcodemp,
+      active,
     },
     create: {
       companyId,
-      protheusCode: c.protheusCode,
-      loja:         c.loja,
-      name:         c.name,
-      document:     c.document,
-      email:        c.email,
-      phone:        c.phone,
-      address:      c.address,
-      municipio:    c.municipio,
-      bairro:       c.bairro,
-      cep:          c.cep,
-      uf:           c.uf,
-      ultcom:       c.ultcom,
-      vendorCode:   c.vendorCode,
+      protheusCode:  c.protheusCode,
+      loja:          c.loja,
+      name:          c.name,
+      document:      c.document,
+      email:         c.email,
+      phone:         c.phone,
+      address:       c.address,
+      municipio:     c.municipio,
+      bairro:        c.bairro,
+      cep:           c.cep,
+      uf:            c.uf,
+      ultcom:        c.ultcom,
+      vendorCode:    c.vendorCode,
+      msblql:        c.msblql,
+      transpPadrao:  c.transpPadrao,
+      condPagPadrao: c.condPagPadrao,
+      tes:           c.tes,
+      xcodemp:       c.xcodemp,
+      active,
     },
   })
 }
@@ -235,39 +252,53 @@ async function upsertCustomersChunked(
   for (let i = 0; i < records.length; i += UPSERT_CHUNK_SIZE) {
     const chunk = records.slice(i, i + UPSERT_CHUNK_SIZE)
     try {
-      await prisma.$transaction(chunk.map((c) => prisma.customer.upsert({
-        where: { companyId_loja_protheusCode: { companyId, loja: c.loja, protheusCode: c.protheusCode } },
-        update: {
-          name:       c.name,
-          document:   c.document,
-          email:      c.email,
-          phone:      c.phone,
-          address:    c.address,
-          municipio:  c.municipio,
-          bairro:     c.bairro,
-          cep:        c.cep,
-          uf:         c.uf,
-          ultcom:     c.ultcom,
-          vendorCode: c.vendorCode,
-          active:     true,
-        },
-        create: {
-          companyId,
-          protheusCode: c.protheusCode,
-          loja:         c.loja,
-          name:         c.name,
-          document:     c.document,
-          email:        c.email,
-          phone:        c.phone,
-          address:      c.address,
-          municipio:    c.municipio,
-          bairro:       c.bairro,
-          cep:          c.cep,
-          uf:           c.uf,
-          ultcom:       c.ultcom,
-          vendorCode:   c.vendorCode,
-        },
-      })))
+      await prisma.$transaction(chunk.map((c) => {
+        const active = c.msblql !== '1'
+        return prisma.customer.upsert({
+          where: { companyId_loja_protheusCode: { companyId, loja: c.loja, protheusCode: c.protheusCode } },
+          update: {
+            name:          c.name,
+            document:      c.document,
+            email:         c.email,
+            phone:         c.phone,
+            address:       c.address,
+            municipio:     c.municipio,
+            bairro:        c.bairro,
+            cep:           c.cep,
+            uf:            c.uf,
+            ultcom:        c.ultcom,
+            vendorCode:    c.vendorCode,
+            msblql:        c.msblql,
+            transpPadrao:  c.transpPadrao,
+            condPagPadrao: c.condPagPadrao,
+            tes:           c.tes,
+            xcodemp:       c.xcodemp,
+            active,
+          },
+          create: {
+            companyId,
+            protheusCode:  c.protheusCode,
+            loja:          c.loja,
+            name:          c.name,
+            document:      c.document,
+            email:         c.email,
+            phone:         c.phone,
+            address:       c.address,
+            municipio:     c.municipio,
+            bairro:        c.bairro,
+            cep:           c.cep,
+            uf:            c.uf,
+            ultcom:        c.ultcom,
+            vendorCode:    c.vendorCode,
+            msblql:        c.msblql,
+            transpPadrao:  c.transpPadrao,
+            condPagPadrao: c.condPagPadrao,
+            tes:           c.tes,
+            xcodemp:       c.xcodemp,
+            active,
+          },
+        })
+      }))
       synced += chunk.length
     } catch {
       // Fallback individual quando clientes multi-loja compartilham o mesmo CNPJ
@@ -336,8 +367,13 @@ export async function syncCustomers(companyId: string) {
         bairro:     toStr(raw['A1_BAIRRO']) || null,
         cep:        toStr(raw['A1_CEP'])    || null,
         uf:         toStr(raw['A1_EST'])    || null,
-        ultcom:     parseProtheusDate(raw['A1_ULTCOM']),
-        vendorCode: toStr(raw['A1_VEND'])   || null,
+        ultcom:        parseProtheusDate(raw['A1_ULTCOM']),
+        vendorCode:    toStr(raw['A1_VEND'])      || null,
+        msblql:        toStr(raw['A1_MSBLQL'])    || null,
+        transpPadrao:  toStr(raw['A1_TRANSP'])    || null,
+        condPagPadrao: toStr(raw['A1_COND'])      || null,
+        tes:           toStr(raw['A1_TES'])        || null,
+        xcodemp:       toStr(raw['A1_XCODEMP'])   || null,
       })
     }
 
@@ -583,6 +619,7 @@ export async function syncOrderToProtheus(orderId: string, companyId: string) {
         C6_PRCVEN:  String(unitPrice),
         C6_PRUNIT:  String(unitPrice),
         C6_VALDESC: String(valdesc),
+        ...(order.customer.tes ? { C6_TES: order.customer.tes } : {}),
       }
     })
 

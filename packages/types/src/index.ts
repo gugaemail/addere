@@ -101,6 +101,11 @@ export interface Customer {
   cep: string | null
   uf: string | null
   ultcom: string | null
+  msblql: string | null
+  transpPadrao: string | null
+  condPagPadrao: string | null
+  tes: string | null
+  xcodemp: string | null
   active: boolean
   createdAt: string
 }

@@ -15,6 +15,10 @@ export const FIELD_REGISTRY: FieldDefinition[] = [
   { key: 'customer.municipio',   entity: 'customer',  label: 'Cidade',              screens: ['clienteDetail'],                              affectsInput: false },
   { key: 'customer.uf',          entity: 'customer',  label: 'Estado',              screens: ['clienteDetail'],                              affectsInput: false },
   { key: 'customer.ultcom',      entity: 'customer',  label: 'Última Compra',       screens: ['clienteDetail'],                              affectsInput: false },
+  { key: 'customer.transpPadrao',entity: 'customer',  label: 'Transportadora Padrão',screens: ['clienteDetail'],                             affectsInput: false },
+  { key: 'customer.condPagPadrao',entity: 'customer', label: 'Cond. Pagamento Padrão',screens: ['clienteDetail'],                            affectsInput: false },
+  { key: 'customer.tes',         entity: 'customer',  label: 'Código TES',           screens: ['clienteDetail'],                              affectsInput: false },
+  { key: 'customer.xcodemp',     entity: 'customer',  label: 'Filial de Faturamento',screens: ['clienteDetail'],                              affectsInput: false },
 
   // Order
   { key: 'order.emissao',        entity: 'order',     label: 'Data de Emissão',     screens: ['novoPedido', 'pedidoDetail'],                  affectsInput: true  },

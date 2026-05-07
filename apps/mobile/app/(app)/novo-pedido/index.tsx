@@ -15,6 +15,7 @@ import { useClientes } from '../../../src/hooks/useClientes'
 import { useProdutos } from '../../../src/hooks/useProdutos'
 import { useCriarPedido } from '../../../src/hooks/usePedidos'
 import { useBranches } from '../../../src/hooks/useBranches'
+import { useEffect } from 'react'
 import { useTransportadoras } from '../../../src/hooks/useTransportadoras'
 import { useCondPags } from '../../../src/hooks/useCondPags'
 import { useFieldVisible } from '../../../src/hooks/useFieldConfig'
@@ -461,6 +462,21 @@ export default function NovoPedidoScreen() {
   const [condPag, setCondPag] = useState<CondPag | null>(null)
 
   const { mutate: criarPedido, isPending } = useCriarPedido()
+  const { data: transportadoras = [] } = useTransportadoras()
+  const { data: condPags = [] }        = useCondPags()
+
+  // Auto-preenche transportadora e condPag a partir dos padrões do cliente
+  useEffect(() => {
+    if (!customer) return
+    const t = customer.transpPadrao
+      ? transportadoras.find((x) => x.protheusCode === customer.transpPadrao) ?? null
+      : null
+    const c = customer.condPagPadrao
+      ? condPags.find((x) => x.protheusCode === customer.condPagPadrao) ?? null
+      : null
+    setTransportadora(t)
+    setCondPag(c)
+  }, [customer?.id, transportadoras, condPags])
 
   function handleStep1Complete(c: Customer, b: Branch) {
     setCustomer(c)
