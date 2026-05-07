@@ -4,6 +4,16 @@ import { useProdutos } from '../../../src/hooks/useProdutos'
 import { Badge } from '../../../src/components/ui/Badge'
 import type { Product } from '@addere/types'
 
+function fmtMoeda(value: number) {
+  return value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+}
+
+function fmtQtd(value: number) {
+  return value % 1 === 0
+    ? value.toLocaleString('pt-BR')
+    : value.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 3 })
+}
+
 function ProductCard({ product }: { product: Product }) {
   const stockNum = Number(product.stock)
   return (
@@ -18,10 +28,10 @@ function ProductCard({ product }: { product: Product }) {
         )}
       </View>
       <View style={s.right}>
-        <Text style={s.price}>R$ {Number(product.price).toFixed(2)}</Text>
+        <Text style={s.price}>R$ {fmtMoeda(Number(product.price))}</Text>
         <Text style={s.unit}>{product.unit}</Text>
         <Badge variant={stockNum > 0 ? 'success' : 'danger'}>
-          {stockNum > 0 ? `${stockNum} em estoque` : 'Sem estoque'}
+          {stockNum > 0 ? `${fmtQtd(stockNum)} em estoque` : 'Sem estoque'}
         </Badge>
       </View>
     </View>
