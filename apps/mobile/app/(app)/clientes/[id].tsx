@@ -100,7 +100,7 @@ export default function ClienteDetailScreen() {
         <Text style={styles.empty}>Nenhum pedido para este cliente.</Text>
       ) : (
         orders.map((o) => (
-          <OrderCard key={o.id} order={o} onPress={() => router.push(`/(app)/pedidos/${o.id}`)} />
+          <OrderCard key={o.id} order={o} onPress={() => router.push(`/(app)/clientes/pedido/${o.id}`)} />
         ))
       )}
     </ScrollView>

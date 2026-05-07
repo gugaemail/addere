@@ -18,6 +18,19 @@ export default function ClientesLayout() {
           },
         }}
       />
+      <Stack.Screen
+        name="pedido/[id]"
+        options={{
+          title: 'Detalhe do Pedido',
+          headerStyle: { backgroundColor: '#FFFFFF' },
+          headerTintColor: '#0D2045',
+          headerShadowVisible: false,
+          headerTitleStyle: {
+            fontFamily: 'PlusJakartaSans_600SemiBold',
+            fontSize: 16,
+          },
+        }}
+      />
     </Stack>
   )
 }
