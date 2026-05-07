@@ -1,6 +1,7 @@
 import { prisma } from '@addere/db'
 import bcrypt from 'bcryptjs'
 import { encryptCredential, decryptCredential } from '../../lib/protheus-crypto'
+import { invalidateToken } from '../sync/protheus.client'
 
 const MAX_PAGE_SIZE = 500
 
@@ -84,6 +85,11 @@ export async function updateCompanyProtheus(id: string, input: UpdateCompanyProt
   }
 
   const company = await prisma.company.update({ where: { id }, data })
+
+  // Invalida token em cache se credenciais de autenticação mudaram
+  const credentialChanged = input.apiToken !== undefined || input.usrProtheus !== undefined || input.passProtheus !== undefined
+  if (credentialChanged) invalidateToken(id)
+
   return { ...company, passProtheus: company.passProtheus ? '••••••••' : null }
 }
 

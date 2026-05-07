@@ -41,7 +41,7 @@ export function encryptCredential(plaintext: string): string {
 export function decryptCredential(value: string): string {
   if (!value.startsWith(ENCRYPTED_PREFIX)) {
     // Credencial em plaintext (formato legado anterior à criptografia) — deve ser migrada
-    console.warn('[protheus-crypto] credencial não criptografada detectada; execute a migração para enc: format')
+    process.emitWarning('Credencial Protheus não criptografada detectada; execute a migração para enc: format', 'Protheus')
     return value
   }
 

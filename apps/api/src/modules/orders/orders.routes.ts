@@ -19,13 +19,14 @@ export default async function ordersRoutes(app: FastifyInstance) {
     if (!companyId) return reply.status(403).send({ message: 'Rota disponível apenas para usuários de uma empresa' })
     const { limit } = request.query as { limit?: string }
     const MAX_PAGE_SIZE = 500
-    const parsedLimit = limit ? Math.min(Number(limit), MAX_PAGE_SIZE) : 100
+    const raw = parseInt(limit ?? '', 10)
+    const parsedLimit = Number.isFinite(raw) && raw > 0 ? Math.min(raw, MAX_PAGE_SIZE) : 100
     const orders = await listOrders(request.user.sub, companyId, parsedLimit)
     return reply.send(orders)
   })
 
   // POST /orders
-  app.post('/', { preHandler: authenticate }, async (request: FastifyRequest, reply: FastifyReply) => {
+  app.post('/', { preHandler: authenticate, config: { rateLimit: { max: 60, timeWindow: '1 minute' } } }, async (request: FastifyRequest, reply: FastifyReply) => {
     const { companyId } = request.user
     if (!companyId) return reply.status(403).send({ message: 'Rota disponível apenas para usuários de uma empresa' })
 
@@ -43,7 +44,7 @@ export default async function ordersRoutes(app: FastifyInstance) {
   })
 
   // POST /orders/:id/sync — envia pedido PENDING ao Protheus
-  app.post('/:id/sync', { preHandler: authenticate }, async (request: FastifyRequest, reply: FastifyReply) => {
+  app.post('/:id/sync', { preHandler: authenticate, config: { rateLimit: { max: 10, timeWindow: '1 minute' } } }, async (request: FastifyRequest, reply: FastifyReply) => {
     const { companyId } = request.user
     if (!companyId) return reply.status(403).send({ message: 'Rota disponível apenas para usuários de uma empresa' })
     const { id } = request.params as { id: string }

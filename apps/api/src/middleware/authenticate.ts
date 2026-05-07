@@ -4,8 +4,9 @@ import { FastifyRequest, FastifyReply } from 'fastify'
 export async function authenticate(request: FastifyRequest, reply: FastifyReply): Promise<void> {
   try {
     await request.jwtVerify()
-  } catch {
-    reply.status(401).send({ message: 'Token inválido ou expirado' })
+  } catch (err) {
+    request.log.warn({ err, ip: request.ip }, 'JWT verification failed')
+    return reply.status(401).send({ message: 'Token inválido ou expirado' })
   }
 }
 

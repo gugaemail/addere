@@ -405,19 +405,34 @@ export async function syncTransportadoras(companyId: string) {
     deslocamento += 1
   }
 
+  const CHUNK_SIZE = 500
   let synced = 0
   const errors: string[] = []
 
-  for (const t of validRecords) {
+  for (let i = 0; i < validRecords.length; i += CHUNK_SIZE) {
+    const chunk = validRecords.slice(i, i + CHUNK_SIZE)
     try {
-      await prisma.transportadora.upsert({
-        where: { companyId_protheusCode: { companyId, protheusCode: t.protheusCode } },
-        update: { nome: t.nome },
-        create: { companyId, protheusCode: t.protheusCode, nome: t.nome },
-      })
-      synced++
+      await prisma.$transaction(chunk.map((t) =>
+        prisma.transportadora.upsert({
+          where: { companyId_protheusCode: { companyId, protheusCode: t.protheusCode } },
+          update: { nome: t.nome },
+          create: { companyId, protheusCode: t.protheusCode, nome: t.nome },
+        })
+      ))
+      synced += chunk.length
     } catch (err: unknown) {
-      errors.push(`${t.protheusCode}: ${err instanceof Error ? err.message : 'Erro desconhecido'}`)
+      for (const t of chunk) {
+        try {
+          await prisma.transportadora.upsert({
+            where: { companyId_protheusCode: { companyId, protheusCode: t.protheusCode } },
+            update: { nome: t.nome },
+            create: { companyId, protheusCode: t.protheusCode, nome: t.nome },
+          })
+          synced++
+        } catch (e: unknown) {
+          errors.push(`${t.protheusCode}: ${e instanceof Error ? e.message : 'Erro desconhecido'}`)
+        }
+      }
     }
   }
 
@@ -464,19 +479,34 @@ export async function syncCondPags(companyId: string) {
     deslocamento += 1
   }
 
+  const CHUNK_SIZE = 500
   let synced = 0
   const errors: string[] = []
 
-  for (const c of validRecords) {
+  for (let i = 0; i < validRecords.length; i += CHUNK_SIZE) {
+    const chunk = validRecords.slice(i, i + CHUNK_SIZE)
     try {
-      await prisma.condPag.upsert({
-        where: { companyId_protheusCode: { companyId, protheusCode: c.protheusCode } },
-        update: { nome: c.nome },
-        create: { companyId, protheusCode: c.protheusCode, nome: c.nome },
-      })
-      synced++
+      await prisma.$transaction(chunk.map((c) =>
+        prisma.condPag.upsert({
+          where: { companyId_protheusCode: { companyId, protheusCode: c.protheusCode } },
+          update: { nome: c.nome },
+          create: { companyId, protheusCode: c.protheusCode, nome: c.nome },
+        })
+      ))
+      synced += chunk.length
     } catch (err: unknown) {
-      errors.push(`${c.protheusCode}: ${err instanceof Error ? err.message : 'Erro desconhecido'}`)
+      for (const c of chunk) {
+        try {
+          await prisma.condPag.upsert({
+            where: { companyId_protheusCode: { companyId, protheusCode: c.protheusCode } },
+            update: { nome: c.nome },
+            create: { companyId, protheusCode: c.protheusCode, nome: c.nome },
+          })
+          synced++
+        } catch (e: unknown) {
+          errors.push(`${c.protheusCode}: ${e instanceof Error ? e.message : 'Erro desconhecido'}`)
+        }
+      }
     }
   }
 
@@ -493,87 +523,110 @@ function formatDateDDMMYYYY(date: Date): string {
 }
 
 export async function syncOrderToProtheus(orderId: string, companyId: string) {
-  const order = await prisma.order.findFirst({
-    where: { id: orderId, companyId },
-    include: {
-      branch:         true,
-      customer:       true,
-      user:           true,
-      transportadora: true,
-      condPag:        true,
-      items: { include: { product: true } },
-    },
+  // Atomic claim: garante que apenas uma requisição concorrente processa o pedido.
+  // updateMany retorna count=0 se o pedido não estiver em PENDING, evitando race condition.
+  const claimed = await prisma.order.updateMany({
+    where: { id: orderId, companyId, status: 'PENDING' },
+    data:  { status: 'SYNCED' },
   })
 
-  if (!order) throw new Error('Pedido não encontrado')
-  if (order.status !== 'PENDING') throw new Error('Apenas pedidos com status PENDING podem ser sincronizados')
+  if (claimed.count === 0) {
+    const exists = await prisma.order.findFirst({ where: { id: orderId, companyId } })
+    throw new Error(exists
+      ? 'Apenas pedidos com status PENDING podem ser sincronizados'
+      : 'Pedido não encontrado'
+    )
+  }
 
-  const company = await prisma.company.findUniqueOrThrow({ where: { id: companyId } })
-  if (!company.apiPedido) throw new Error('URL apiPedido não configurada')
+  // Carrega detalhes do pedido e da empresa em paralelo agora que somos donos do lock
+  const [order, company] = await Promise.all([
+    prisma.order.findUniqueOrThrow({
+      where: { id: orderId },
+      include: {
+        branch:         true,
+        customer:       true,
+        user:           true,
+        transportadora: true,
+        condPag:        true,
+        items: { include: { product: true } },
+      },
+    }),
+    prisma.company.findUniqueOrThrow({ where: { id: companyId } }),
+  ])
 
-  const creds = getCredentials(company)
+  // Reverte o lock em caso de qualquer falha após o claim
+  const revertToPending = () => prisma.order.update({ where: { id: orderId }, data: { status: 'PENDING' } })
 
-  if (!order.branch.idProtheus)     throw new Error('Filial sem código Protheus configurado')
-  if (!order.customer.protheusCode) throw new Error('Cliente sem código Protheus configurado')
-  if (!order.user.idVendProt)       throw new Error('Vendedor sem código Protheus configurado (idVendProt)')
+  try {
+    if (!company.apiPedido) throw new Error('URL apiPedido não configurada')
 
-  const emissaoStr = formatDateDDMMYYYY(order.emissao ?? new Date())
+    const creds = getCredentials(company)
 
-  const itens = order.items.map((item) => {
-    if (!item.product.protheusCode) throw new Error(`Produto "${item.product.name}" sem código Protheus configurado`)
+    if (!order.branch.idProtheus)     throw new Error('Filial sem código Protheus configurado')
+    if (!order.customer.protheusCode) throw new Error('Cliente sem código Protheus configurado')
+    if (!order.user.idVendProt)       throw new Error('Vendedor sem código Protheus configurado (idVendProt)')
 
-    const discount  = Number(item.discount)   // percentual 0-100
-    const qty       = Number(item.quantity)
-    const unitPrice = Number(item.unitPrice)
-    const valdesc   = Number((unitPrice * qty * discount / 100).toFixed(2))
+    const emissaoStr = formatDateDDMMYYYY(order.emissao ?? new Date())
 
-    return {
-      C6_FILIAL:  order.branch.idProtheus,
-      C6_PRODUTO: item.product.protheusCode,
-      C6_QTDVEN:  String(qty),
-      C6_PRCVEN:  String(unitPrice),
-      C6_PRUNIT:  String(unitPrice),
-      C6_VALDESC: String(valdesc),
-      C6_DESCONT: String(discount),
+    const itens = order.items.map((item) => {
+      if (!item.product.protheusCode) throw new Error(`Produto "${item.product.name}" sem código Protheus configurado`)
+
+      const discount  = Number(item.discount)
+      const qty       = Number(item.quantity)
+      const unitPrice = Number(item.unitPrice)
+      const valdesc   = Number((unitPrice * qty * discount / 100).toFixed(2))
+
+      return {
+        C6_FILIAL:  order.branch.idProtheus,
+        C6_PRODUTO: item.product.protheusCode,
+        C6_QTDVEN:  String(qty),
+        C6_PRCVEN:  String(unitPrice),
+        C6_PRUNIT:  String(unitPrice),
+        C6_VALDESC: String(valdesc),
+        C6_DESCONT: String(discount),
+      }
+    })
+
+    const payload = {
+      PEDIDO: [{
+        C5_FILIAL:  order.branch.idProtheus,
+        C5_CLIENTE: order.customer.protheusCode,
+        C5_LOJA:    order.customer.loja ?? '01',
+        C5_XIDPED:  order.id,
+        C5_EMISSAO: emissaoStr,
+        C5_VEND1:   order.user.idVendProt,
+        C5_DESCONT: '0',
+        C5_TRANSP:  order.transportadora?.protheusCode ?? '',
+        C5_MENNOTA: order.mennota ?? '',
+        C5_XOBS:    order.notes ?? '',
+        C5_CONDPAG: order.condPag?.protheusCode ?? '',
+        ITENS: itens,
+      }],
     }
-  })
 
-  const payload = {
-    PEDIDO: [{
-      C5_FILIAL:  order.branch.idProtheus,
-      C5_CLIENTE: order.customer.protheusCode,
-      C5_LOJA:    order.customer.loja ?? '01',
-      C5_XIDPED:  order.id,
-      C5_EMISSAO: emissaoStr,
-      C5_VEND1:   order.user.idVendProt,
-      C5_DESCONT: '0',
-      C5_TRANSP:  order.transportadora?.protheusCode ?? '',
-      C5_MENNOTA: order.mennota ?? '',
-      C5_XOBS:    order.notes ?? '',
-      C5_CONDPAG: order.condPag?.protheusCode ?? '',
-      ITENS: itens,
-    }],
+    const rawResponse = await protheusPost(companyId, company.apiPedido, payload, creds)
+
+    // Protheus retorna array: [{ "Retorno": "100", "Mensagem": "...", "Pedido": "012283" }]
+    const responseArray = Array.isArray(rawResponse) ? rawResponse as Record<string, unknown>[] : [rawResponse as Record<string, unknown>]
+    const first = responseArray[0] ?? {}
+    const retorno = toStr(first['Retorno'])
+
+    if (retorno !== '100') {
+      const mensagem = toStr(first['Mensagem']) || 'Erro ao gravar pedido no Protheus'
+      throw new Error(mensagem)
+    }
+
+    const protheusOrderId = toStr(first['Pedido']) || null
+    if (!protheusOrderId) throw new Error('Pedido gravado no Protheus mas número do pedido não foi retornado')
+
+    await prisma.order.update({
+      where: { id: orderId },
+      data: { protheusOrderId, syncedAt: new Date() },
+    })
+
+    return { protheusOrderId, mensagem: toStr(first['Mensagem']) }
+  } catch (err) {
+    await revertToPending()
+    throw err
   }
-
-  const rawResponse = await protheusPost(companyId, company.apiPedido, payload, creds)
-
-  // Protheus retorna array: [{ "Retorno": "100", "Mensagem": "...", "Pedido": "012283" }]
-  const responseArray = Array.isArray(rawResponse) ? rawResponse as Record<string, unknown>[] : [rawResponse as Record<string, unknown>]
-  const first = responseArray[0] ?? {}
-  const retorno = toStr(first['Retorno'])
-
-  if (retorno !== '100') {
-    const mensagem = toStr(first['Mensagem']) || 'Erro ao gravar pedido no Protheus'
-    throw new Error(mensagem)
-  }
-
-  const protheusOrderId = toStr(first['Pedido']) || null
-  if (!protheusOrderId) throw new Error('Pedido gravado no Protheus mas número do pedido não foi retornado')
-
-  await prisma.order.update({
-    where: { id: orderId },
-    data: { status: 'SYNCED', protheusOrderId, syncedAt: new Date() },
-  })
-
-  return { protheusOrderId, mensagem: toStr(first['Mensagem']) }
 }
