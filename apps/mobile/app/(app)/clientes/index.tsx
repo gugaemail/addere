@@ -4,6 +4,7 @@ import { useRouter } from 'expo-router'
 import { ChevronRight, X } from 'lucide-react-native'
 import { useClientes } from '../../../src/hooks/useClientes'
 import { ClienteItemSkeleton, EmptyState } from '../../../src/components/Skeleton'
+import { useFieldVisible } from '../../../src/hooks/useFieldConfig'
 import type { Customer } from '@addere/types'
 
 function formatDocument(doc: string | null | undefined): string | null {
@@ -15,12 +16,14 @@ function formatDocument(doc: string | null | undefined): string | null {
 }
 
 function ClienteItem({ customer, onPress }: { customer: Customer; onPress: () => void }) {
+  const showDocument = useFieldVisible('customer.document')
+  const showPhone    = useFieldVisible('customer.phone')
   return (
     <TouchableOpacity style={s.card} onPress={onPress} activeOpacity={0.75}>
       <View style={{ flex: 1 }}>
         <Text style={s.name}>{customer.name}</Text>
-        {customer.document && <Text style={s.sub}>{formatDocument(customer.document)}</Text>}
-        {customer.phone    && <Text style={s.sub}>{customer.phone}</Text>}
+        {showDocument && customer.document && <Text style={s.sub}>{formatDocument(customer.document)}</Text>}
+        {showPhone    && customer.phone    && <Text style={s.sub}>{customer.phone}</Text>}
       </View>
       <ChevronRight size={18} color="#94A3B8" />
     </TouchableOpacity>

@@ -1,4 +1,6 @@
 // Tipos compartilhados entre API, web e mobile
+export type { FieldDefinition } from './field-registry'
+export { FIELD_REGISTRY, FIELD_REGISTRY_KEYS } from './field-registry'
 
 // ─── Auth ──────────────────────────────────────────────────────────────────
 
@@ -180,6 +182,12 @@ export interface DashboardStats {
   pendingOrders: number
   syncedOrders: number
   totalRevenue: string  // Decimal serializado como string
+}
+
+// ─── Field Config ──────────────────────────────────────────────────────────
+
+export interface CompanyFieldConfig {
+  hidden: string[]  // lista de keys do FIELD_REGISTRY que estão ocultas para a empresa
 }
 
 // ─── Erros ─────────────────────────────────────────────────────────────────

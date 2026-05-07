@@ -17,6 +17,7 @@ import { useCriarPedido } from '../../../src/hooks/usePedidos'
 import { useBranches } from '../../../src/hooks/useBranches'
 import { useTransportadoras } from '../../../src/hooks/useTransportadoras'
 import { useCondPags } from '../../../src/hooks/useCondPags'
+import { useFieldVisible } from '../../../src/hooks/useFieldConfig'
 import type { Branch, Customer, Product, Transportadora, CondPag, CreateOrderItemInput } from '@addere/types'
 
 type Step = 1 | 2 | 3
@@ -270,6 +271,11 @@ function Step3({
 }) {
   const { data: transportadoras = [], isLoading: loadingTransp } = useTransportadoras()
   const { data: condPags = [], isLoading: loadingCond } = useCondPags()
+  const showTransportadora = useFieldVisible('order.transportadora')
+  const showCondPag        = useFieldVisible('order.condPag')
+  const showMennota        = useFieldVisible('order.mennota')
+  const showNotes          = useFieldVisible('order.notes')
+  const showUnitPrice      = useFieldVisible('orderItem.unitPrice')
 
   const total = cart.reduce(
     (sum, i) => sum + i.unitPrice * i.quantity * (1 - i.discount / 100),
@@ -345,15 +351,17 @@ function Step3({
                   </TouchableOpacity>
                 </View>
               </View>
-              <View style={styles.itemEditPrice}>
-                <Text style={styles.itemControlLabel}>Preço unit. (R$)</Text>
-                <TextInput
-                  style={styles.priceInput}
-                  keyboardType="decimal-pad"
-                  defaultValue={item.unitPrice.toFixed(2)}
-                  onEndEditing={(e) => updatePrice(item.product.id, e.nativeEvent.text)}
-                />
-              </View>
+              {showUnitPrice && (
+                <View style={styles.itemEditPrice}>
+                  <Text style={styles.itemControlLabel}>Preço unit. (R$)</Text>
+                  <TextInput
+                    style={styles.priceInput}
+                    keyboardType="decimal-pad"
+                    defaultValue={item.unitPrice.toFixed(2)}
+                    onEndEditing={(e) => updatePrice(item.product.id, e.nativeEvent.text)}
+                  />
+                </View>
+              )}
               <View style={styles.itemEditSubtotal}>
                 <Text style={styles.itemControlLabel}>Subtotal</Text>
                 <Text style={styles.itemSubtotalValue}>
@@ -365,47 +373,55 @@ function Step3({
         ))}
       </View>
 
-      <PickerField
-        label="Transportadora"
-        selected={transportadora ? { id: transportadora.id, nome: transportadora.nome } : null}
-        items={transportadoras.map((t) => ({ id: t.id, nome: t.nome }))}
-        onSelect={(item) => onTransportChange(item ? (transportadoras.find((t) => t.id === item.id) ?? null) : null)}
-        loading={loadingTransp}
-      />
-
-      <PickerField
-        label="Cond. Pagamento"
-        selected={condPag ? { id: condPag.id, nome: condPag.nome } : null}
-        items={condPags.map((c) => ({ id: c.id, nome: c.nome }))}
-        onSelect={(item) => onCondChange(item ? (condPags.find((c) => c.id === item.id) ?? null) : null)}
-        loading={loadingCond}
-      />
-
-      <View style={styles.summaryBox}>
-        <Text style={styles.summaryLabel}>Obs. Nota Fiscal</Text>
-        <TextInput
-          style={styles.notesInput}
-          placeholder="Mensagem para a nota fiscal (opcional)..."
-          value={mennota}
-          onChangeText={onMennotaChange}
-          multiline
-          numberOfLines={3}
-          textAlignVertical="top"
+      {showTransportadora && (
+        <PickerField
+          label="Transportadora"
+          selected={transportadora ? { id: transportadora.id, nome: transportadora.nome } : null}
+          items={transportadoras.map((t) => ({ id: t.id, nome: t.nome }))}
+          onSelect={(item) => onTransportChange(item ? (transportadoras.find((t) => t.id === item.id) ?? null) : null)}
+          loading={loadingTransp}
         />
-      </View>
+      )}
 
-      <View style={styles.summaryBox}>
-        <Text style={styles.summaryLabel}>Obs. Interna</Text>
-        <TextInput
-          style={styles.notesInput}
-          placeholder="Observação interna (não sai na nota)..."
-          value={notes}
-          onChangeText={onNotesChange}
-          multiline
-          numberOfLines={3}
-          textAlignVertical="top"
+      {showCondPag && (
+        <PickerField
+          label="Cond. Pagamento"
+          selected={condPag ? { id: condPag.id, nome: condPag.nome } : null}
+          items={condPags.map((c) => ({ id: c.id, nome: c.nome }))}
+          onSelect={(item) => onCondChange(item ? (condPags.find((c) => c.id === item.id) ?? null) : null)}
+          loading={loadingCond}
         />
-      </View>
+      )}
+
+      {showMennota && (
+        <View style={styles.summaryBox}>
+          <Text style={styles.summaryLabel}>Obs. Nota Fiscal</Text>
+          <TextInput
+            style={styles.notesInput}
+            placeholder="Mensagem para a nota fiscal (opcional)..."
+            value={mennota}
+            onChangeText={onMennotaChange}
+            multiline
+            numberOfLines={3}
+            textAlignVertical="top"
+          />
+        </View>
+      )}
+
+      {showNotes && (
+        <View style={styles.summaryBox}>
+          <Text style={styles.summaryLabel}>Obs. Interna</Text>
+          <TextInput
+            style={styles.notesInput}
+            placeholder="Observação interna (não sai na nota)..."
+            value={notes}
+            onChangeText={onNotesChange}
+            multiline
+            numberOfLines={3}
+            textAlignVertical="top"
+          />
+        </View>
+      )}
 
       <View style={[styles.summaryBox, { flexDirection: 'row', justifyContent: 'space-between' }]}>
         <Text style={styles.totalLabel}>Total</Text>

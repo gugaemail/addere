@@ -2,6 +2,7 @@ import { View, Text, ScrollView, ActivityIndicator, StyleSheet, TouchableOpacity
 import { useLocalSearchParams, Stack, useRouter } from 'expo-router'
 import { ChevronRight } from 'lucide-react-native'
 import { useCliente } from '../../../src/hooks/useClientes'
+import { useFieldVisible } from '../../../src/hooks/useFieldConfig'
 import type { Order } from '@addere/types'
 
 function fmtMoeda(value: string | number) {
@@ -68,6 +69,13 @@ export default function ClienteDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>()
   const router = useRouter()
   const { data: customer, isLoading, error } = useCliente(id)
+  const showDocument  = useFieldVisible('customer.document')
+  const showEmail     = useFieldVisible('customer.email')
+  const showPhone     = useFieldVisible('customer.phone')
+  const showAddress   = useFieldVisible('customer.address')
+  const showMunicipio = useFieldVisible('customer.municipio')
+  const showUf        = useFieldVisible('customer.uf')
+  const showUltcom    = useFieldVisible('customer.ultcom')
 
   if (isLoading) return <ActivityIndicator style={{ flex: 1, marginTop: 40 }} />
   if (error || !customer) return (
@@ -85,13 +93,13 @@ export default function ClienteDetailScreen() {
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Dados do cliente</Text>
         <InfoRow label="Nome" value={customer.name} />
-        <InfoRow label="Documento" value={formatDocument(customer.document)} />
-        <InfoRow label="Email" value={customer.email} />
-        <InfoRow label="Telefone" value={customer.phone} />
-        <InfoRow label="Endereço" value={customer.address} />
-        <InfoRow label="Cidade" value={customer.municipio} />
-        <InfoRow label="Estado" value={customer.uf} />
-        <InfoRow label="Última compra" value={formatUltcom(customer.ultcom)} />
+        {showDocument  && <InfoRow label="Documento"     value={formatDocument(customer.document)} />}
+        {showEmail     && <InfoRow label="Email"          value={customer.email} />}
+        {showPhone     && <InfoRow label="Telefone"       value={customer.phone} />}
+        {showAddress   && <InfoRow label="Endereço"       value={customer.address} />}
+        {showMunicipio && <InfoRow label="Cidade"         value={customer.municipio} />}
+        {showUf        && <InfoRow label="Estado"         value={customer.uf} />}
+        {showUltcom    && <InfoRow label="Última compra"  value={formatUltcom(customer.ultcom)} />}
         {customer.protheusCode && <InfoRow label="Cód. Protheus" value={customer.protheusCode} />}
       </View>
 

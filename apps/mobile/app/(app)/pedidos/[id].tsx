@@ -4,6 +4,7 @@ import { useLocalSearchParams, Stack } from 'expo-router'
 import { RefreshCw, SearchCheck } from 'lucide-react-native'
 import { usePedido, useSincronizarPedido, useConsultarStatusPedido } from '../../../src/hooks/usePedidos'
 import { Badge } from '../../../src/components/ui/Badge'
+import { useFieldVisible } from '../../../src/hooks/useFieldConfig'
 import { useQueryClient } from '@tanstack/react-query'
 
 type BadgeVariant = 'warning' | 'success' | 'danger' | 'neutral'
@@ -92,6 +93,14 @@ export default function PedidoDetailScreen() {
   }
 
   const variant = STATUS_BADGE[order.status] ?? 'neutral'
+  const showTransportadora  = useFieldVisible('order.transportadora')
+  const showCondPag         = useFieldVisible('order.condPag')
+  const showEmissao         = useFieldVisible('order.emissao')
+  const showMennota         = useFieldVisible('order.mennota')
+  const showNotes           = useFieldVisible('order.notes')
+  const showProtheusStatus  = useFieldVisible('order.protheusStatus')
+  const showDiscount        = useFieldVisible('orderItem.discount')
+  const showDescricao       = useFieldVisible('orderItem.descricao')
 
   return (
     <ScrollView style={s.container} contentContainerStyle={{ padding: 16, paddingBottom: 32 }}>
@@ -101,13 +110,13 @@ export default function PedidoDetailScreen() {
         <View style={s.statusRow}>
           <Badge variant={variant}>{STATUS_LABEL[order.status]}</Badge>
         </View>
-        <InfoRow label="Cliente"          value={order.customer.name} />
-        <InfoRow label="CNPJ/CPF"         value={order.customer.document} />
-        <InfoRow label="Filial"           value={order.branch?.name ?? null} />
-        <InfoRow label="Transportadora"   value={order.transportadora?.nome ?? null} />
-        <InfoRow label="Cond. Pagamento"  value={order.condPag?.nome ?? null} />
-        <InfoRow label="Data"             value={new Date(order.createdAt).toLocaleDateString('pt-BR')} />
-        {order.emissao && (
+        <InfoRow label="Cliente"         value={order.customer.name} />
+        <InfoRow label="CNPJ/CPF"        value={order.customer.document} />
+        <InfoRow label="Filial"          value={order.branch?.name ?? null} />
+        {showTransportadora && <InfoRow label="Transportadora"  value={order.transportadora?.nome ?? null} />}
+        {showCondPag        && <InfoRow label="Cond. Pagamento" value={order.condPag?.nome ?? null} />}
+        <InfoRow label="Data" value={new Date(order.createdAt).toLocaleDateString('pt-BR')} />
+        {showEmissao && order.emissao && (
           <InfoRow label="Emissão" value={new Date(order.emissao).toLocaleDateString('pt-BR')} />
         )}
         {order.protheusOrderId && (
@@ -116,7 +125,7 @@ export default function PedidoDetailScreen() {
         {order.syncedAt && (
           <InfoRow label="Sincronizado em" value={new Date(order.syncedAt).toLocaleDateString('pt-BR')} />
         )}
-        {order.protheusStatus && (
+        {showProtheusStatus && order.protheusStatus && (
           <InfoRow label="Status Protheus" value={order.protheusStatus} />
         )}
       </Section>
@@ -126,10 +135,10 @@ export default function PedidoDetailScreen() {
           <View key={item.id} style={[s.itemRow, idx < order.items.length - 1 && s.itemBorder]}>
             <View style={{ flex: 1 }}>
               <Text style={s.itemName}>{item.product.name}</Text>
-              {item.descricao ? <Text style={s.itemDesc}>{item.descricao}</Text> : null}
+              {showDescricao && item.descricao ? <Text style={s.itemDesc}>{item.descricao}</Text> : null}
               <Text style={s.itemDetail}>
                 {fmtQtd(item.quantity)} {item.product.unit} × R$ {fmtMoeda(item.unitPrice)}
-                {Number(item.discount) > 0 ? `  (${fmtQtd(item.discount)}% desc.)` : ''}
+                {showDiscount && Number(item.discount) > 0 ? `  (${fmtQtd(item.discount)}% desc.)` : ''}
               </Text>
             </View>
             <Text style={s.itemTotal}>R$ {fmtMoeda(item.total)}</Text>
@@ -137,13 +146,13 @@ export default function PedidoDetailScreen() {
         ))}
       </Section>
 
-      {order.mennota ? (
+      {showMennota && order.mennota ? (
         <Section title="Mensagem para Nota Fiscal">
           <Text style={s.notes}>{order.mennota}</Text>
         </Section>
       ) : null}
 
-      {order.notes ? (
+      {showNotes && order.notes ? (
         <Section title="Observação Interna">
           <Text style={s.notes}>{order.notes}</Text>
         </Section>

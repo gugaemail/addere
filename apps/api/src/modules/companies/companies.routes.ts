@@ -1,6 +1,6 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify'
 import { z } from 'zod'
-import { requireSuperAdmin } from '../../middleware/authenticate'
+import { authenticate, requireSuperAdmin } from '../../middleware/authenticate'
 import {
   listCompanies,
   getCompanyById,
@@ -23,7 +23,10 @@ import {
   listCompanyOrders,
   cancelOrder,
   updateCompanyProtheus,
+  getCompanyFieldConfig,
+  updateCompanyFieldConfig,
 } from './companies.service'
+import { FIELD_REGISTRY_KEYS } from '@addere/types'
 
 const createCompanySchema = z.object({
   name: z.string().min(1),
@@ -368,5 +371,35 @@ export default async function companiesRoutes(app: FastifyInstance) {
     } catch (err) {
       return reply.status(422).send({ message: (err as Error).message })
     }
+  })
+
+  // GET /companies/:id/field-config — retorna config de visibilidade de uma empresa (superadmin)
+  app.get('/:id/field-config', { preHandler: requireSuperAdmin }, async (request: FastifyRequest, reply: FastifyReply) => {
+    const { id } = request.params as { id: string }
+    const config = await getCompanyFieldConfig(id)
+    return reply.send(config)
+  })
+
+  // GET /companies/me/field-config — retorna config de visibilidade da empresa do usuário logado
+  app.get('/me/field-config', { preHandler: authenticate }, async (request: FastifyRequest, reply: FastifyReply) => {
+    const { companyId } = request.user
+    if (!companyId) return reply.send({ hidden: [] })
+    const config = await getCompanyFieldConfig(companyId)
+    return reply.send(config)
+  })
+
+  // PATCH /companies/:id/field-config — admin atualiza visibilidade de campos da empresa
+  app.patch('/:id/field-config', { preHandler: requireSuperAdmin }, async (request: FastifyRequest, reply: FastifyReply) => {
+    const { id } = request.params as { id: string }
+    const body = request.body as { hidden?: unknown }
+    if (!Array.isArray(body.hidden)) {
+      return reply.status(400).send({ message: 'Campo "hidden" deve ser um array de strings' })
+    }
+    const invalidKeys = (body.hidden as string[]).filter((k) => !FIELD_REGISTRY_KEYS.has(k))
+    if (invalidKeys.length > 0) {
+      return reply.status(400).send({ message: `Chaves inválidas: ${invalidKeys.join(', ')}` })
+    }
+    const config = await updateCompanyFieldConfig(id, body.hidden as string[])
+    return reply.send(config)
   })
 }

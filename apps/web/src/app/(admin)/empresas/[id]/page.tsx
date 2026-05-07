@@ -11,6 +11,7 @@ import {
 } from './EntityModals'
 import { ProtheusConfigForm } from './ProtheusConfigForm'
 import { ConfirmModal } from './ConfirmModal'
+import { FIELD_REGISTRY } from '@addere/types'
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -52,7 +53,7 @@ interface CompanyDetail {
 }
 interface SyncResult { synced: number; total: number; errors: string[] }
 
-type Tab = 'filiais' | 'usuarios' | 'clientes' | 'produtos' | 'pedidos' | 'protheus'
+type Tab = 'filiais' | 'usuarios' | 'clientes' | 'produtos' | 'pedidos' | 'protheus' | 'campos'
 type ModalState<T> = { mode: 'create' | 'edit' | 'copy'; item?: T } | null
 type SortConfig = { col: string; dir: 'asc' | 'desc' } | null
 
@@ -102,6 +103,9 @@ export default function EmpresaPage() {
   const [products,  setProducts]  = useState<Product[]>([])
   const [orders,    setOrders]    = useState<Order[]>([])
   const [expandedOrder, setExpandedOrder] = useState<string | null>(null)
+  const [hiddenFields,   setHiddenFields]   = useState<string[]>([])
+  const [savingFields,   setSavingFields]   = useState(false)
+  const [fieldsSaved,    setFieldsSaved]    = useState(false)
 
   // Modais legados (criar)
   const [showBranchModal, setShowBranchModal] = useState(false)
@@ -156,6 +160,19 @@ export default function EmpresaPage() {
     setCompany(data)
     setLoading(false)
   }
+  async function fetchFieldConfig() {
+    try {
+      const { data } = await api.get<{ hidden: string[] }>(`/companies/${id}/field-config`)
+      setHiddenFields(data.hidden ?? [])
+    } catch { /* ignora */ }
+  }
+  async function saveFieldConfig() {
+    setSavingFields(true)
+    await api.patch(`/companies/${id}/field-config`, { hidden: hiddenFields })
+    setSavingFields(false)
+    setFieldsSaved(true)
+    setTimeout(() => setFieldsSaved(false), 3000)
+  }
   async function fetchCustomers() {
     const { data } = await api.get<Customer[]>(`/companies/${id}/customers`)
     setCustomers(data)
@@ -174,6 +191,7 @@ export default function EmpresaPage() {
     if (tab === 'clientes') fetchCustomers()
     if (tab === 'produtos') fetchProducts()
     if (tab === 'pedidos')  fetchOrders()
+    if (tab === 'campos')   fetchFieldConfig()
   }, [tab])
 
   // ── Toggles ──────────────────────────────────────────────────────────────
@@ -313,6 +331,7 @@ export default function EmpresaPage() {
     { key: 'produtos', label: 'Produtos' },
     { key: 'pedidos',  label: 'Pedidos' },
     { key: 'protheus', label: 'Protheus' },
+    { key: 'campos',   label: 'Campos' },
   ]
 
   // ── Dados filtrados / ordenados / paginados ───────────────────────────────
@@ -971,6 +990,72 @@ export default function EmpresaPage() {
                 {JSON.stringify(tokenTestResult, null, 2)}
               </pre>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Tab: Campos ── */}
+      {tab === 'campos' && (
+        <div className="space-y-6">
+          <div>
+            <h2 className="text-base font-semibold text-[var(--text-primary)]">Visibilidade de campos</h2>
+            <p className="text-sm text-[var(--text-muted)] mt-1">
+              Campos desmarcados ficam ocultos no app mobile para todos os usuários desta empresa.
+            </p>
+          </div>
+
+          {(['customer', 'order', 'orderItem', 'product'] as const).map((entity) => {
+            const entityLabel: Record<string, string> = {
+              customer: 'Cliente', order: 'Pedido', orderItem: 'Item do Pedido', product: 'Produto',
+            }
+            const fields = FIELD_REGISTRY.filter((f) => f.entity === entity)
+            return (
+              <div key={entity} className="rounded-xl border border-[var(--border)] overflow-hidden">
+                <div className="px-4 py-3 bg-[var(--bg-subtle)] border-b border-[var(--border)]">
+                  <h3 className="text-sm font-semibold text-[var(--text-primary)]">{entityLabel[entity]}</h3>
+                </div>
+                <div className="divide-y divide-[var(--border)]">
+                  {fields.map((field) => {
+                    const isHidden = hiddenFields.includes(field.key)
+                    return (
+                      <label key={field.key} className="flex items-center justify-between gap-4 px-4 py-3 cursor-pointer hover:bg-[var(--bg-subtle)] transition-colors">
+                        <div>
+                          <p className="text-sm font-medium text-[var(--text-primary)]">{field.label}</p>
+                          <p className="text-xs text-[var(--text-muted)]">
+                            {field.affectsInput ? 'Oculta exibição e formulário' : 'Oculta apenas exibição'}
+                          </p>
+                        </div>
+                        <input
+                          type="checkbox"
+                          checked={!isHidden}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setHiddenFields((prev) => prev.filter((k) => k !== field.key))
+                            } else {
+                              setHiddenFields((prev) => [...prev, field.key])
+                            }
+                          }}
+                          className="w-4 h-4 accent-brand-500 cursor-pointer"
+                        />
+                      </label>
+                    )
+                  })}
+                </div>
+              </div>
+            )
+          })}
+
+          <div className="flex items-center gap-4">
+            <button
+              onClick={saveFieldConfig}
+              disabled={savingFields}
+              className="px-5 py-2.5 rounded-lg text-sm font-semibold bg-brand-500 text-white hover:bg-brand-600 disabled:opacity-50 transition-colors"
+            >
+              {savingFields ? 'Salvando…' : 'Salvar configuração'}
+            </button>
+            {fieldsSaved && (
+              <span className="text-sm text-green-600 font-medium">Configuração salva!</span>
+            )}
           </div>
         </div>
       )}

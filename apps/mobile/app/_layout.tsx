@@ -4,15 +4,18 @@ import { QueryClientProvider } from '@tanstack/react-query'
 import { useFonts } from '../src/hooks/useFonts'
 import { queryClient } from '../src/lib/query-client'
 import { useAuthStore } from '../src/store/auth.store'
+import { useCompanyStore } from '../src/store/company.store'
 import { SplashScreen } from '../src/screens/SplashScreen'
 
 function AuthGuard() {
   const router = useRouter()
   const segments = useSegments()
   const { accessToken, hydrated, hydrate } = useAuthStore()
+  const hydrateFieldConfig = useCompanyStore((s) => s.hydrateFieldConfig)
 
   useEffect(() => {
     hydrate()
+    hydrateFieldConfig()
   }, [])
 
   useEffect(() => {

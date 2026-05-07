@@ -93,6 +93,19 @@ export async function updateCompanyProtheus(id: string, input: UpdateCompanyProt
   return { ...company, passProtheus: company.passProtheus ? '••••••••' : null }
 }
 
+// ─── Field Config ────────────────────────────────────────────────────────────
+
+export async function getCompanyFieldConfig(companyId: string) {
+  const company = await prisma.company.findUnique({ where: { id: companyId }, select: { fieldConfig: true } })
+  const cfg = company?.fieldConfig as { hidden?: string[] } | null
+  return { hidden: cfg?.hidden ?? [] }
+}
+
+export async function updateCompanyFieldConfig(companyId: string, hidden: string[]) {
+  await prisma.company.update({ where: { id: companyId }, data: { fieldConfig: { hidden } } })
+  return { hidden }
+}
+
 // ─── Customers (por empresa) ─────────────────────────────────────────────────
 
 export async function listCompanyCustomers(companyId: string, limit?: number, page?: number) {

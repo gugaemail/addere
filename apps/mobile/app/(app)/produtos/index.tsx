@@ -3,6 +3,7 @@ import { View, Text, FlatList, TextInput, TouchableOpacity, ActivityIndicator, S
 import { X } from 'lucide-react-native'
 import { useProdutos } from '../../../src/hooks/useProdutos'
 import { Badge } from '../../../src/components/ui/Badge'
+import { useFieldVisible } from '../../../src/hooks/useFieldConfig'
 import type { Product } from '@addere/types'
 
 function fmtMoeda(value: number) {
@@ -16,24 +17,29 @@ function fmtQtd(value: number) {
 }
 
 function ProductCard({ product }: { product: Product }) {
-  const stockNum = Number(product.stock)
+  const stockNum         = Number(product.stock)
+  const showStock        = useFieldVisible('product.stock')
+  const showDescription  = useFieldVisible('product.description')
+  const showProtheusCode = useFieldVisible('product.protheusCode')
   return (
     <View style={s.card}>
       <View style={{ flex: 1 }}>
         <Text style={s.name}>{product.name}</Text>
-        {product.protheusCode && (
+        {showProtheusCode && product.protheusCode && (
           <Text style={s.sub}>Cód: {product.protheusCode}</Text>
         )}
-        {product.description && (
+        {showDescription && product.description && (
           <Text style={s.desc} numberOfLines={2}>{product.description}</Text>
         )}
       </View>
       <View style={s.right}>
         <Text style={s.price}>R$ {fmtMoeda(Number(product.price))}</Text>
         <Text style={s.unit}>{product.unit}</Text>
-        <Badge variant={stockNum > 0 ? 'success' : 'danger'}>
-          {stockNum > 0 ? `${fmtQtd(stockNum)} em estoque` : 'Sem estoque'}
-        </Badge>
+        {showStock && (
+          <Badge variant={stockNum > 0 ? 'success' : 'danger'}>
+            {stockNum > 0 ? `${fmtQtd(stockNum)} em estoque` : 'Sem estoque'}
+          </Badge>
+        )}
       </View>
     </View>
   )
