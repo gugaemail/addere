@@ -8,6 +8,13 @@ const orderInclude = {
   },
 } as const
 
+export async function getOrder(userId: string, companyId: string, orderId: string) {
+  return prisma.order.findFirst({
+    where: { id: orderId, userId, companyId },
+    include: orderInclude,
+  })
+}
+
 export async function listOrders(userId: string, companyId: string, limit?: number) {
   return prisma.order.findMany({
     where: { userId, companyId },

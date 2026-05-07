@@ -3,8 +3,21 @@ import { brandScreenOptions } from '../../../src/navigation/BrandHeader'
 
 export default function PedidosLayout() {
   return (
-    <Stack screenOptions={brandScreenOptions}>
-      <Stack.Screen name="index" />
+    <Stack>
+      <Stack.Screen name="index" options={brandScreenOptions} />
+      <Stack.Screen
+        name="[id]"
+        options={{
+          title: 'Detalhe do Pedido',
+          headerStyle: { backgroundColor: '#FFFFFF' },
+          headerTintColor: '#0D2045',
+          headerShadowVisible: false,
+          headerTitleStyle: {
+            fontFamily: 'PlusJakartaSans_600SemiBold',
+            fontSize: 16,
+          },
+        }}
+      />
     </Stack>
   )
 }

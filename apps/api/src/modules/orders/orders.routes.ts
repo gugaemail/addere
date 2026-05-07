@@ -1,7 +1,7 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify'
 import { authenticate } from '../../middleware/authenticate'
 import { createOrderSchema } from './orders.schema'
-import { listOrders, getOrderStats, createOrder, cancelOrder, resetOrderToPending } from './orders.service'
+import { listOrders, getOrderStats, getOrder, createOrder, cancelOrder, resetOrderToPending } from './orders.service'
 import { syncOrderToProtheus } from '../sync/sync.service'
 
 export default async function ordersRoutes(app: FastifyInstance) {
@@ -23,6 +23,16 @@ export default async function ordersRoutes(app: FastifyInstance) {
     const parsedLimit = Number.isFinite(raw) && raw > 0 ? Math.min(raw, MAX_PAGE_SIZE) : 100
     const orders = await listOrders(request.user.sub, companyId, parsedLimit)
     return reply.send(orders)
+  })
+
+  // GET /orders/:id
+  app.get('/:id', { preHandler: authenticate }, async (request: FastifyRequest, reply: FastifyReply) => {
+    const { companyId } = request.user
+    if (!companyId) return reply.status(403).send({ message: 'Rota disponível apenas para usuários de uma empresa' })
+    const { id } = request.params as { id: string }
+    const order = await getOrder(request.user.sub, companyId, id)
+    if (!order) return reply.status(404).send({ message: 'Pedido não encontrado' })
+    return reply.send(order)
   })
 
   // POST /orders

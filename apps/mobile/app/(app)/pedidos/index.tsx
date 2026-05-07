@@ -20,16 +20,17 @@ const STATUS_LABEL: Record<string, string> = {
   CANCELLED: 'Cancelado',
 }
 
-function OrderCard({ order, syncingId, onSync }: {
+function OrderCard({ order, syncingId, onSync, onPress }: {
   order: Order
   syncingId: string | null
   onSync: (id: string) => void
+  onPress: () => void
 }) {
   const variant = STATUS_BADGE[order.status] ?? 'neutral'
   const isSyncing = syncingId === order.id
 
   return (
-    <View style={s.card}>
+    <TouchableOpacity onPress={onPress} activeOpacity={0.75} style={s.card}>
       <View style={{ flex: 1 }}>
         <Text style={s.customer}>{order.customer.name}</Text>
         <Text style={s.sub}>{new Date(order.createdAt).toLocaleDateString('pt-BR')}</Text>
@@ -56,7 +57,7 @@ function OrderCard({ order, syncingId, onSync }: {
           </TouchableOpacity>
         )}
       </View>
-    </View>
+    </TouchableOpacity>
   )
 }
 
@@ -93,7 +94,12 @@ export default function PedidosScreen() {
           data={orders}
           keyExtractor={(item) => item.id}
           renderItem={({ item }) => (
-            <OrderCard order={item} syncingId={syncingId} onSync={handleSync} />
+            <OrderCard
+              order={item}
+              syncingId={syncingId}
+              onSync={handleSync}
+              onPress={() => router.push(`/(app)/pedidos/${item.id}`)}
+            />
           )}
           onRefresh={refetch}
           refreshing={false}

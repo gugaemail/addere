@@ -2,6 +2,17 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '../lib/api'
 import type { Order, DashboardStats, CreateOrderInput } from '@addere/types'
 
+export function usePedido(id: string) {
+  return useQuery({
+    queryKey: ['orders', id],
+    queryFn: async () => {
+      const { data } = await api.get<Order>(`/orders/${id}`)
+      return data
+    },
+    enabled: !!id,
+  })
+}
+
 export function usePedidos(limit?: number) {
   return useQuery({
     queryKey: ['orders', limit],
