@@ -245,9 +245,10 @@ model Order {
   total           Decimal     @db.Decimal(10, 2)
   notes           String?
   protheusOrderId String?     @unique // ID do pedido no ERP após sincronização
+  protheusStatus  String?               // último status consultado no Protheus
   syncedAt        DateTime?   // data/hora da sincronização com o Protheus
   emissao         DateTime?   // data de criação do pedido (informada pelo usuário)
-  mennota         String?     // mensagem/observação da nota
+  mennota         String?     // mensagem para nota fiscal
 
   userId String
   user   User   @relation(fields: [userId], references: [id])

@@ -141,12 +141,16 @@ export interface Order {
   status: OrderStatus
   total: string
   notes: string | null
+  mennota: string | null
   protheusOrderId: string | null
+  protheusStatus: string | null
   syncedAt: string | null
   emissao: string | null
-  mennota: string | null
   createdAt: string
   customer: Pick<Customer, 'id' | 'name' | 'document'>
+  branch: { id: string; name: string; idProtheus: string | null } | null
+  transportadora: { id: string; nome: string } | null
+  condPag: { id: string; nome: string } | null
   items: OrderItemDetail[]
 }
 

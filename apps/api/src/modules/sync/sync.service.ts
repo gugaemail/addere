@@ -658,6 +658,13 @@ export async function consultOrderStatus(orderId: string, companyId: string) {
   const codigo = toStr(rawResponse['codigo'])
   const status = toStr(rawResponse['status'])
 
+  if (status) {
+    await prisma.order.update({
+      where: { id: orderId },
+      data: { protheusStatus: status },
+    })
+  }
+
   return { protheusOrderId: order.protheusOrderId, codigo, status }
 }
 

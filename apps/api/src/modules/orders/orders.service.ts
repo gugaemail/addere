@@ -2,7 +2,10 @@ import { prisma } from '@addere/db'
 import type { CreateOrderInput } from './orders.schema'
 
 const orderInclude = {
-  customer: { select: { id: true, name: true, document: true } },
+  customer:       { select: { id: true, name: true, document: true } },
+  branch:         { select: { id: true, name: true, idProtheus: true } },
+  transportadora: { select: { id: true, nome: true } },
+  condPag:        { select: { id: true, nome: true } },
   items: {
     include: { product: { select: { id: true, name: true, unit: true } } },
   },
