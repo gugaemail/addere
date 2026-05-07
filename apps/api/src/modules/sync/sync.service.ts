@@ -583,7 +583,6 @@ export async function syncOrderToProtheus(orderId: string, companyId: string) {
         C6_PRCVEN:  String(unitPrice),
         C6_PRUNIT:  String(unitPrice),
         C6_VALDESC: String(valdesc),
-        C6_DESCONT: String(discount),
       }
     })
 
@@ -592,7 +591,6 @@ export async function syncOrderToProtheus(orderId: string, companyId: string) {
         C5_FILIAL:  order.branch.idProtheus,
         C5_CLIENTE: order.customer.protheusCode,
         C5_LOJA:    order.customer.loja ?? '01',
-        C5_XIDPED:  order.id,
         C5_EMISSAO: emissaoStr,
         C5_VEND1:   order.user.idVendProt,
         C5_DESCONT: '0',
@@ -678,7 +676,6 @@ export async function testOrderSync(orderId: string, companyId: string) {
       C6_PRCVEN:  String(unitPrice),
       C6_PRUNIT:  String(unitPrice),
       C6_VALDESC: String(valdesc),
-      C6_DESCONT: String(discount),
     }
   })
 
@@ -687,7 +684,6 @@ export async function testOrderSync(orderId: string, companyId: string) {
       C5_FILIAL:  order.branch.idProtheus,
       C5_CLIENTE: order.customer.protheusCode,
       C5_LOJA:    order.customer.loja ?? '01',
-      C5_XIDPED:  order.id,
       C5_EMISSAO: emissaoStr,
       C5_VEND1:   order.user.idVendProt,
       C5_DESCONT: '0',
