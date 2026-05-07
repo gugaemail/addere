@@ -2,7 +2,7 @@ import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify'
 import { authenticate } from '../../middleware/authenticate'
 import { createOrderSchema } from './orders.schema'
 import { listOrders, getOrderStats, getOrder, createOrder, cancelOrder, resetOrderToPending } from './orders.service'
-import { syncOrderToProtheus } from '../sync/sync.service'
+import { syncOrderToProtheus, consultOrderStatus } from '../sync/sync.service'
 
 export default async function ordersRoutes(app: FastifyInstance) {
   // GET /orders/stats — deve vir antes de /:id para não conflitar
@@ -48,6 +48,19 @@ export default async function ordersRoutes(app: FastifyInstance) {
     try {
       const order = await createOrder(request.user.sub, companyId, result.data)
       return reply.status(201).send(order)
+    } catch (err) {
+      return reply.status(422).send({ message: (err as Error).message })
+    }
+  })
+
+  // GET /orders/:id/status — consulta status do pedido no Protheus via apiConsPed
+  app.get('/:id/status', { preHandler: authenticate }, async (request: FastifyRequest, reply: FastifyReply) => {
+    const { companyId } = request.user
+    if (!companyId) return reply.status(403).send({ message: 'Rota disponível apenas para usuários de uma empresa' })
+    const { id } = request.params as { id: string }
+    try {
+      const result = await consultOrderStatus(id, companyId)
+      return reply.send(result)
     } catch (err) {
       return reply.status(422).send({ message: (err as Error).message })
     }

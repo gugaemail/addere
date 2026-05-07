@@ -636,6 +636,31 @@ export async function syncOrderToProtheus(orderId: string, companyId: string) {
   }
 }
 
+export async function consultOrderStatus(orderId: string, companyId: string) {
+  const [order, company] = await Promise.all([
+    prisma.order.findFirst({
+      where: { id: orderId, companyId },
+      include: { branch: true },
+    }),
+    prisma.company.findUniqueOrThrow({ where: { id: companyId } }),
+  ])
+
+  if (!order) throw new Error('Pedido não encontrado')
+  if (!order.protheusOrderId) throw new Error('Pedido ainda não foi sincronizado com o Protheus (sem número de pedido)')
+  if (!company.apiConsPed) throw new Error('URL apiConsPed não configurada')
+  if (!order.branch.idProtheus) throw new Error('Filial sem código Protheus configurado')
+
+  const creds = getCredentials(company)
+  const payload = { C5_FILIAL: order.branch.idProtheus, C5_NUM: order.protheusOrderId }
+
+  const rawResponse = await protheusPost(companyId, company.apiConsPed, payload, creds) as Record<string, unknown>
+
+  const codigo = toStr(rawResponse['codigo'])
+  const status = toStr(rawResponse['status'])
+
+  return { protheusOrderId: order.protheusOrderId, codigo, status }
+}
+
 // Dry run: monta o payload e chama o Protheus sem alterar o status do pedido no banco.
 // Útil para depuração — pode ser chamado em pedidos PENDING ou SYNCED.
 export async function testOrderSync(orderId: string, companyId: string) {
