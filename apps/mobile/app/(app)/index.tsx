@@ -114,7 +114,7 @@ export default function DashboardScreen() {
         </View>
       ) : (
         <FlatList
-          data={recentOrders}
+          data={recentOrders?.slice(0, 5)}
           keyExtractor={(item) => item.id}
           renderItem={({ item }) => <OrderRow order={item} />}
           scrollEnabled={false}
