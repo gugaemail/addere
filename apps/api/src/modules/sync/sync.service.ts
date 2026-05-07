@@ -604,7 +604,10 @@ export async function syncOrderToProtheus(orderId: string, companyId: string) {
       }],
     }
 
+    console.log(JSON.stringify({ event: 'sync-order-payload', orderId, payload }))
+    const t0 = Date.now()
     const rawResponse = await protheusPost(companyId, company.apiPedido, payload, creds)
+    console.log(JSON.stringify({ event: 'sync-order-response', orderId, ms: Date.now() - t0, rawResponse }))
 
     // Protheus retorna array: [{ "Retorno": "100", "Mensagem": "...", "Pedido": "012283" }]
     const responseArray = Array.isArray(rawResponse) ? rawResponse as Record<string, unknown>[] : [rawResponse as Record<string, unknown>]
@@ -629,4 +632,76 @@ export async function syncOrderToProtheus(orderId: string, companyId: string) {
     await revertToPending()
     throw err
   }
+}
+
+// Dry run: monta o payload e chama o Protheus sem alterar o status do pedido no banco.
+// Útil para depuração — pode ser chamado em pedidos PENDING ou SYNCED.
+export async function testOrderSync(orderId: string, companyId: string) {
+  const [order, company] = await Promise.all([
+    prisma.order.findFirst({
+      where: { id: orderId, companyId },
+      include: {
+        branch:         true,
+        customer:       true,
+        user:           true,
+        transportadora: true,
+        condPag:        true,
+        items: { include: { product: true } },
+      },
+    }),
+    prisma.company.findUniqueOrThrow({ where: { id: companyId } }),
+  ])
+
+  if (!order) throw new Error('Pedido não encontrado')
+  if (!company.apiPedido) throw new Error('URL apiPedido não configurada')
+
+  const creds = getCredentials(company)
+
+  if (!order.branch.idProtheus)     throw new Error('Filial sem código Protheus configurado')
+  if (!order.customer.protheusCode) throw new Error('Cliente sem código Protheus configurado')
+  if (!order.user.idVendProt)       throw new Error('Vendedor sem código Protheus configurado (idVendProt)')
+
+  const emissaoStr = formatDateDDMMYYYY(order.emissao ?? new Date())
+
+  const itens = order.items.map((item) => {
+    if (!item.product.protheusCode) throw new Error(`Produto "${item.product.name}" sem código Protheus configurado`)
+
+    const discount  = Number(item.discount)
+    const qty       = Number(item.quantity)
+    const unitPrice = Number(item.unitPrice)
+    const valdesc   = Number((unitPrice * qty * discount / 100).toFixed(2))
+
+    return {
+      C6_FILIAL:  order.branch.idProtheus,
+      C6_PRODUTO: item.product.protheusCode,
+      C6_QTDVEN:  String(qty),
+      C6_PRCVEN:  String(unitPrice),
+      C6_PRUNIT:  String(unitPrice),
+      C6_VALDESC: String(valdesc),
+      C6_DESCONT: String(discount),
+    }
+  })
+
+  const payload = {
+    PEDIDO: [{
+      C5_FILIAL:  order.branch.idProtheus,
+      C5_CLIENTE: order.customer.protheusCode,
+      C5_LOJA:    order.customer.loja ?? '01',
+      C5_XIDPED:  order.id,
+      C5_EMISSAO: emissaoStr,
+      C5_VEND1:   order.user.idVendProt,
+      C5_DESCONT: '0',
+      C5_TRANSP:  order.transportadora?.protheusCode ?? '',
+      C5_MENNOTA: order.mennota ?? '',
+      C5_XOBS:    order.notes ?? '',
+      C5_CONDPAG: order.condPag?.protheusCode ?? '',
+      ITENS: itens,
+    }],
+  }
+
+  const t0 = Date.now()
+  const rawResponse = await protheusPost(companyId, company.apiPedido, payload, creds)
+  const ms = Date.now() - t0
+
+  return { ok: true, orderStatus: order.status, ms, payload, rawResponse }
 }

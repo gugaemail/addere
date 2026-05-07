@@ -33,6 +33,17 @@ export async function getOrderStats(userId: string, companyId: string) {
   }
 }
 
+export async function resetOrderToPending(companyId: string, orderId: string) {
+  const order = await prisma.order.findFirst({ where: { id: orderId, companyId } })
+  if (!order) throw new Error('Pedido não encontrado')
+  if (order.status !== 'SYNCED') throw new Error('Apenas pedidos com status SYNCED podem ser revertidos para PENDING')
+  return prisma.order.update({
+    where: { id: orderId },
+    data: { status: 'PENDING', protheusOrderId: null, syncedAt: null },
+    include: orderInclude,
+  })
+}
+
 export async function cancelOrder(userId: string, companyId: string, orderId: string) {
   const order = await prisma.order.findFirst({ where: { id: orderId, userId, companyId } })
   if (!order) throw new Error('Pedido não encontrado')

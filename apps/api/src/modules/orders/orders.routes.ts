@@ -1,7 +1,7 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify'
 import { authenticate } from '../../middleware/authenticate'
 import { createOrderSchema } from './orders.schema'
-import { listOrders, getOrderStats, createOrder, cancelOrder } from './orders.service'
+import { listOrders, getOrderStats, createOrder, cancelOrder, resetOrderToPending } from './orders.service'
 import { syncOrderToProtheus } from '../sync/sync.service'
 
 export default async function ordersRoutes(app: FastifyInstance) {
@@ -51,6 +51,20 @@ export default async function ordersRoutes(app: FastifyInstance) {
     try {
       const result = await syncOrderToProtheus(id, companyId)
       return reply.send(result)
+    } catch (err) {
+      return reply.status(422).send({ message: (err as Error).message })
+    }
+  })
+
+  // PATCH /orders/:id/reset-pending — reverte pedido SYNCED para PENDING (admin/superadmin apenas)
+  app.patch('/:id/reset-pending', { preHandler: authenticate }, async (request: FastifyRequest, reply: FastifyReply) => {
+    const { companyId, role } = request.user
+    if (!companyId) return reply.status(403).send({ message: 'Rota disponível apenas para usuários de uma empresa' })
+    if (role === 'SALESPERSON') return reply.status(403).send({ message: 'Apenas administradores podem reverter pedidos para PENDING' })
+    const { id } = request.params as { id: string }
+    try {
+      const order = await resetOrderToPending(companyId, id)
+      return reply.send(order)
     } catch (err) {
       return reply.status(422).send({ message: (err as Error).message })
     }

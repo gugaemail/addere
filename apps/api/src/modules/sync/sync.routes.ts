@@ -3,7 +3,7 @@ import { z } from 'zod'
 import axios from 'axios'
 import { prisma } from '@addere/db'
 import { authenticate } from '../../middleware/authenticate'
-import { syncProducts, syncCustomers, syncTransportadoras, syncCondPags } from './sync.service'
+import { syncProducts, syncCustomers, syncTransportadoras, syncCondPags, testOrderSync } from './sync.service'
 import { protheusPost } from './protheus.client'
 import { decryptCredential } from '../../lib/protheus-crypto'
 import { assertSafeUrl } from '../../lib/url-validator'
@@ -191,6 +191,23 @@ export default async function syncRoutes(app: FastifyInstance) {
     } catch (err: unknown) {
       const e = err as { message: string }
       return reply.send({ ok: false, step: 'clientes', error: e.message })
+    }
+  })
+
+  // POST /sync/test-order/:id — dry run: monta payload e chama Protheus sem alterar status do pedido
+  app.post('/test-order/:id', { preHandler: authenticate }, async (request, reply) => {
+    const { role, companyId } = request.user as { role: string; companyId: string | null }
+
+    if (role === 'SALESPERSON') return reply.status(403).send({ message: 'Acesso negado' })
+    if (!companyId) return reply.status(403).send({ message: 'Rota disponível apenas para usuários de uma empresa' })
+
+    const { id } = request.params as { id: string }
+    try {
+      const result = await testOrderSync(id, companyId)
+      return reply.send(result)
+    } catch (err: unknown) {
+      const e = err as { message: string }
+      return reply.send({ ok: false, error: e.message })
     }
   })
 
