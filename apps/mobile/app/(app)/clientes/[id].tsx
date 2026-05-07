@@ -1,7 +1,12 @@
-import { View, Text, ScrollView, ActivityIndicator, StyleSheet } from 'react-native'
-import { useLocalSearchParams, Stack } from 'expo-router'
+import { View, Text, ScrollView, ActivityIndicator, StyleSheet, TouchableOpacity } from 'react-native'
+import { useLocalSearchParams, Stack, useRouter } from 'expo-router'
+import { ChevronRight } from 'lucide-react-native'
 import { useCliente } from '../../../src/hooks/useClientes'
 import type { Order } from '@addere/types'
+
+function fmtMoeda(value: string | number) {
+  return Number(value).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+}
 
 function formatDocument(doc: string | null | undefined): string | null {
   if (!doc) return null
@@ -41,23 +46,27 @@ function InfoRow({ label, value }: { label: string; value?: string | null }) {
   )
 }
 
-function OrderCard({ order }: { order: Order }) {
+function OrderCard({ order, onPress }: { order: Order; onPress: () => void }) {
   return (
-    <View style={styles.orderCard}>
-      <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-        <Text style={styles.orderDate}>{new Date(order.createdAt).toLocaleDateString('pt-BR')}</Text>
-        <Text style={[styles.orderStatus, { color: STATUS_COLOR[order.status] }]}>
-          {STATUS_LABEL[order.status]}
-        </Text>
+    <TouchableOpacity style={styles.orderCard} onPress={onPress} activeOpacity={0.75}>
+      <View style={{ flex: 1 }}>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Text style={styles.orderDate}>{new Date(order.createdAt).toLocaleDateString('pt-BR')}</Text>
+          <Text style={[styles.orderStatus, { color: STATUS_COLOR[order.status] }]}>
+            {STATUS_LABEL[order.status]}
+          </Text>
+        </View>
+        <Text style={styles.orderTotal}>R$ {fmtMoeda(order.total)}</Text>
+        <Text style={styles.orderItems}>{order.items.length} item(s)</Text>
       </View>
-      <Text style={styles.orderTotal}>R$ {Number(order.total).toFixed(2)}</Text>
-      <Text style={styles.orderItems}>{order.items.length} item(s)</Text>
-    </View>
+      <ChevronRight size={16} color="#94A3B8" style={{ marginLeft: 8 }} />
+    </TouchableOpacity>
   )
 }
 
 export default function ClienteDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>()
+  const router = useRouter()
   const { data: customer, isLoading, error } = useCliente(id)
 
   if (isLoading) return <ActivityIndicator style={{ flex: 1, marginTop: 40 }} />
@@ -90,7 +99,9 @@ export default function ClienteDetailScreen() {
       {orders.length === 0 ? (
         <Text style={styles.empty}>Nenhum pedido para este cliente.</Text>
       ) : (
-        orders.map((o) => <OrderCard key={o.id} order={o} />)
+        orders.map((o) => (
+          <OrderCard key={o.id} order={o} onPress={() => router.push(`/(app)/pedidos/${o.id}`)} />
+        ))
       )}
     </ScrollView>
   )
@@ -104,7 +115,7 @@ const styles = StyleSheet.create({
   infoRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: '#f3f4f6' },
   infoLabel: { color: '#6b7280', fontSize: 13 },
   infoValue: { color: '#111827', fontSize: 13, fontWeight: '500', maxWidth: '60%', textAlign: 'right' },
-  orderCard: { backgroundColor: '#fff', borderRadius: 8, padding: 12, marginBottom: 8, shadowColor: '#000', shadowOpacity: 0.04, elevation: 1 },
+  orderCard: { backgroundColor: '#fff', borderRadius: 8, padding: 12, marginBottom: 8, shadowColor: '#000', shadowOpacity: 0.04, elevation: 1, flexDirection: 'row', alignItems: 'center' },
   orderDate: { color: '#6b7280', fontSize: 13 },
   orderStatus: { fontSize: 12, fontWeight: '600' },
   orderTotal: { fontSize: 18, fontWeight: '700', color: '#111827', marginTop: 4 },
