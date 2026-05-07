@@ -3,7 +3,7 @@ import { z } from 'zod'
 import axios from 'axios'
 import { prisma } from '@addere/db'
 import { authenticate } from '../../middleware/authenticate'
-import { syncProducts, syncCustomers, syncTransportadoras, syncCondPags, testOrderSync } from './sync.service'
+import { syncProducts, syncCustomers, syncTransportadoras, syncCondPags, testOrderSync, fetchMetaVendedor } from './sync.service'
 import { protheusPost } from './protheus.client'
 import { decryptCredential } from '../../lib/protheus-crypto'
 import { assertSafeUrl } from '../../lib/url-validator'
@@ -307,6 +307,19 @@ export default async function syncRoutes(app: FastifyInstance) {
     } catch (err) {
       const msg = (err instanceof Error) ? err.message : 'Erro desconhecido'
       app.log.error({ err }, 'Falha ao sincronizar condições de pagamento com Protheus')
+      return reply.status(502).send({ message: msg })
+    }
+  })
+
+  // GET /sync/metas — meta do vendedor no mês atual via apiMetaVend
+  app.get('/metas', { preHandler: authenticate }, async (request, reply) => {
+    const { companyId } = request.user as { companyId: string | null }
+    if (!companyId) return reply.status(403).send({ message: 'Rota disponível apenas para usuários de uma empresa' })
+    try {
+      const result = await fetchMetaVendedor(request.user.sub, companyId)
+      return reply.send(result)
+    } catch (err) {
+      const msg = (err instanceof Error) ? err.message : 'Erro desconhecido'
       return reply.status(502).send({ message: msg })
     }
   })

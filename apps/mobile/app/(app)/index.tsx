@@ -1,5 +1,5 @@
 import { View, Text, FlatList, StyleSheet, ScrollView, TouchableOpacity } from 'react-native'
-import { useDashboardStats, usePedidos } from '../../src/hooks/usePedidos'
+import { useDashboardStats, usePedidos, useMetaVendedor } from '../../src/hooks/usePedidos'
 import { useAuthStore } from '../../src/store/auth.store'
 import { useLogout } from '../../src/hooks/useAuth'
 import { useTheme } from '../../src/theme'
@@ -23,8 +23,9 @@ const STAT_ACCENT = ['#1B4FA8', '#f59e0b', '#16a34a', '#29BEFF']
 export default function DashboardScreen() {
   const user    = useAuthStore((s) => s.user)
   const theme   = useTheme()
-  const { data: stats, isLoading: loadingStats }       = useDashboardStats()
+  const { data: stats, isLoading: loadingStats }         = useDashboardStats()
   const { data: recentOrders, isLoading: loadingOrders } = usePedidos(5)
+  const { data: meta }                                   = useMetaVendedor()
   const { mutate: logout } = useLogout()
 
   const statItems = [
@@ -57,6 +58,19 @@ export default function DashboardScreen() {
               <Text style={s.statLabel}>{item.label}</Text>
             </View>
           ))}
+        </View>
+      )}
+
+      {/* Meta do mês */}
+      {meta && (
+        <View style={s.metaCard}>
+          <View>
+            <Text style={s.metaLabel}>Meta do mês</Text>
+            <Text style={s.metaPeriodo}>{meta.periodo.slice(0, 4)}/{meta.periodo.slice(4)}</Text>
+          </View>
+          <Text style={s.metaValue}>
+            R$ {Number(meta.meta).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+          </Text>
         </View>
       )}
 
@@ -154,6 +168,31 @@ const s = StyleSheet.create({
     fontSize: 12,
     marginTop: 2,
     color: '#64748B',
+  },
+  metaCard: {
+    backgroundColor: '#0D2045',
+    borderRadius: 12,
+    padding: 16,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  metaLabel: {
+    fontFamily: 'Inter_400Regular',
+    fontSize: 12,
+    color: '#29BEFF',
+    marginBottom: 2,
+  },
+  metaPeriodo: {
+    fontFamily: 'Inter_400Regular',
+    fontSize: 12,
+    color: '#94A3B8',
+  },
+  metaValue: {
+    fontFamily: 'PlusJakartaSans_700Bold',
+    fontSize: 20,
+    color: '#FFFFFF',
   },
   sectionTitle: {
     fontSize: 15,

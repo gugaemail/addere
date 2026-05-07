@@ -62,6 +62,17 @@ export function useSincronizarPedido() {
   })
 }
 
+export function useMetaVendedor() {
+  return useQuery({
+    queryKey: ['meta-vendedor'],
+    queryFn: async () => {
+      const { data } = await api.get<{ periodo: string; meta: string }>('/sync/metas')
+      return data
+    },
+    staleTime: 5 * 60 * 1000,
+  })
+}
+
 export function useConsultarStatusPedido() {
   return useMutation({
     mutationFn: async (orderId: string) => {

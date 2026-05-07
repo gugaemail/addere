@@ -741,3 +741,24 @@ export async function testOrderSync(orderId: string, companyId: string) {
 
   return { ok: true, orderStatus: order.status, ms, payload, rawResponse }
 }
+
+export async function fetchMetaVendedor(userId: string, companyId: string) {
+  const [user, company] = await Promise.all([
+    prisma.user.findUniqueOrThrow({ where: { id: userId } }),
+    prisma.company.findUniqueOrThrow({ where: { id: companyId } }),
+  ])
+
+  if (!user.idVendProt) throw new Error('Usuário sem código de vendedor Protheus (idVendProt)')
+  if (!company.apiMetaVend) throw new Error('URL apiMetaVend não configurada')
+
+  const creds = getCredentials(company)
+  const now = new Date()
+  const anomes = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}`
+
+  const rawResponse = await protheusPost(companyId, company.apiMetaVend, { CODVEND: user.idVendProt, ANOMES: anomes }, creds) as Record<string, unknown>
+
+  return {
+    periodo: toStr(rawResponse['periodo']),
+    meta:    toStr(rawResponse['meta']),
+  }
+}
