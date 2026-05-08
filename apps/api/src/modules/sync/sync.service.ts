@@ -619,12 +619,12 @@ export async function syncOrderToProtheus(orderId: string, companyId: string) {
         C6_PRCVEN:  String(unitPrice),
         C6_PRUNIT:  String(unitPrice),
         C6_VALDESC: String(valdesc),
-        ...(order.customer.tes            ? { C6_TES:     order.customer.tes }                : {}),
-        ...(item.largura      != null     ? { C6_XLARGUR: String(Number(item.largura)) }      : {}),
-        ...(item.espessura    != null     ? { C6_XEXPESS: String(Number(item.espessura)) }    : {}),
-        ...(item.encolhimento             ? { C6_XENCOLH: item.encolhimento }                 : {}),
-        ...(item.xcrav                    ? { C6_XCRAV:   item.xcrav }                        : {}),
-        ...(item.tara         != null     ? { C6_XTARA:   String(Number(item.tara)) }         : {}),
+        ...(order.customer.tes ? { C6_TES: order.customer.tes } : {}),
+        C6_XLARGUR: item.largura   != null ? String(Number(item.largura))   : '0',
+        C6_XEXPESS: item.espessura != null ? String(Number(item.espessura)) : '0',
+        C6_XENCOLH: item.encolhimento ?? '',
+        C6_XCRAV:   item.xcrav        ?? '',
+        C6_XTARA:   item.tara   != null ? String(Number(item.tara))         : '0',
       }
     })
 
@@ -673,6 +673,8 @@ export async function syncOrderToProtheus(orderId: string, companyId: string) {
 
     return { protheusOrderId, mensagem: toStr(first['Mensagem']) }
   } catch (err) {
+    const e = err as { response?: { data?: unknown }; message?: string }
+    console.log(JSON.stringify({ event: 'sync-order-error', orderId, message: e.message, protheusResponse: e.response?.data }))
     await revertToPending()
     throw err
   }
