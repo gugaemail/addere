@@ -1,4 +1,5 @@
 const APP_ENV = process.env.EXPO_PUBLIC_APP_ENV ?? 'development'
+const APP_VERSION = process.env.EXPO_PUBLIC_APP_VERSION ?? '1.0.0'
 
 const variants = {
   development: {
@@ -22,7 +23,7 @@ module.exports = {
   expo: {
     name: variant.name,
     slug: 'addere',
-    version: '1.0.0',
+    version: APP_VERSION,
     scheme: 'addere',
     platforms: ['ios', 'android'],
     plugins: ['expo-router', 'expo-secure-store', 'expo-sqlite'],
@@ -41,6 +42,7 @@ module.exports = {
     },
     extra: {
       appEnv: APP_ENV,
+      appVersion: APP_VERSION,
     },
   },
 }

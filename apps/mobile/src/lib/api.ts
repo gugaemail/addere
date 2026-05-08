@@ -1,9 +1,9 @@
 import axios from 'axios'
-import { ENV } from '../config/env'
+import { env } from '../config/env'
 import { useAuthStore } from '../store/auth.store'
 
 export const api = axios.create({
-  baseURL: ENV.API_URL,
+  baseURL: env.apiUrl,
   withCredentials: true, // envia cookies (refresh token HttpOnly)
 })
 
@@ -44,7 +44,7 @@ api.interceptors.response.use(
 
     try {
       const { data } = await axios.post(
-        `${ENV.API_URL}/auth/refresh`,
+        `${env.apiUrl}/auth/refresh`,
         {},
         { withCredentials: true }
       )

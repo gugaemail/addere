@@ -1,10 +1,18 @@
-type AppEnv = 'development' | 'staging' | 'production'
+import { z } from 'zod'
 
-export const ENV = {
-  API_URL: process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3333',
-  APP_ENV: (process.env.EXPO_PUBLIC_APP_ENV ?? 'development') as AppEnv,
-} as const
+const envSchema = z.object({
+  apiUrl: z.string().url(),
+  protheuUrl: z.string().url(),
+  sentryDsn: z.string().min(1),
+  appEnv: z.enum(['development', 'staging', 'production']),
+  appVersion: z.string().regex(/^\d+\.\d+\.\d+$/),
+})
 
-export const IS_DEV = ENV.APP_ENV === 'development'
-export const IS_STAGING = ENV.APP_ENV === 'staging'
-export const IS_PRODUCTION = ENV.APP_ENV === 'production'
+// Validar no boot — se inválido, throw com mensagem clara
+export const env = envSchema.parse({
+  apiUrl: process.env.EXPO_PUBLIC_API_URL,
+  protheuUrl: process.env.EXPO_PUBLIC_PROTHEUS_URL,
+  sentryDsn: process.env.EXPO_PUBLIC_SENTRY_DSN,
+  appEnv: process.env.EXPO_PUBLIC_APP_ENV,
+  appVersion: process.env.EXPO_PUBLIC_APP_VERSION,
+})

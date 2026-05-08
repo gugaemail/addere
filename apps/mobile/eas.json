@@ -8,21 +8,30 @@
       "distribution": "internal",
       "env": {
         "EXPO_PUBLIC_APP_ENV": "development",
-        "EXPO_PUBLIC_API_URL": "http://192.168.15.7:3333"
+        "EXPO_PUBLIC_API_URL": "http://192.168.15.7:3333",
+        "EXPO_PUBLIC_PROTHEUS_URL": "http://192.168.15.7:8080",
+        "EXPO_PUBLIC_SENTRY_DSN": "https://placeholder@sentry.io/0000000",
+        "EXPO_PUBLIC_APP_VERSION": "1.0.0"
       }
     },
     "preview": {
       "distribution": "internal",
       "env": {
         "EXPO_PUBLIC_APP_ENV": "staging",
-        "EXPO_PUBLIC_API_URL": "https://addere-api-staging.onrender.com"
+        "EXPO_PUBLIC_API_URL": "https://addere-api-staging.onrender.com",
+        "EXPO_PUBLIC_PROTHEUS_URL": "https://protheus-staging.seudominio.com.br",
+        "EXPO_PUBLIC_SENTRY_DSN": "https://xxx@sentry.io/yyy",
+        "EXPO_PUBLIC_APP_VERSION": "1.0.0"
       }
     },
     "production": {
       "autoIncrement": true,
       "env": {
         "EXPO_PUBLIC_APP_ENV": "production",
-        "EXPO_PUBLIC_API_URL": "https://addere-api.onrender.com"
+        "EXPO_PUBLIC_API_URL": "https://addere-api.onrender.com",
+        "EXPO_PUBLIC_PROTHEUS_URL": "https://protheus.seudominio.com.br",
+        "EXPO_PUBLIC_SENTRY_DSN": "https://xxx@sentry.io/yyy",
+        "EXPO_PUBLIC_APP_VERSION": "1.0.0"
       }
     }
   },

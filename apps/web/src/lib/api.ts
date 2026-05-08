@@ -1,9 +1,8 @@
 import axios from 'axios'
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3333'
+import { env } from '../config/env'
 
 export const api = axios.create({
-  baseURL: API_URL,
+  baseURL: env.apiUrl,
   withCredentials: true, // envia o cookie de refreshToken
 })
 
@@ -65,7 +64,7 @@ api.interceptors.response.use(
     _refreshing = true
 
     try {
-      const { data } = await axios.post(`${API_URL}/auth/refresh`, {}, { withCredentials: true })
+      const { data } = await axios.post(`${env.apiUrl}/auth/refresh`, {}, { withCredentials: true })
       setAccessToken(data.accessToken)
       _refreshQueue.forEach((cb) => cb(data.accessToken))
       original.headers.Authorization = `Bearer ${data.accessToken}`
