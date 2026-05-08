@@ -10,8 +10,10 @@
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
+    "@addere/db": "*",
     "@addere/types": "*",
     "@hookform/resolvers": "^3.9.0",
+    "@react-email/components": "^0.0.22",
     "@sentry/nextjs": "^10.52.0",
     "@tanstack/react-query": "^5.51.1",
     "axios": "^1.15.0",
@@ -20,6 +22,8 @@
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-hook-form": "^7.52.1",
+    "recharts": "^2.12.7",
+    "resend": "^4.0.0",
     "tailwind-merge": "^2.4.0",
     "zod": "^3.23.8"
   },

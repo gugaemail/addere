@@ -10,6 +10,7 @@ import { useAuthStore } from '../src/store/auth.store'
 import { useCompanyStore } from '../src/store/company.store'
 import { useSyncStore } from '../src/store/syncStore'
 import { startSyncListener } from '../src/services/syncEngine'
+import { pilotTracker } from '../src/services/pilotTracking'
 import { AppErrorBoundary } from '../src/components/ErrorBoundary'
 import { SplashScreen } from '../src/screens/SplashScreen'
 
@@ -51,6 +52,12 @@ function AuthGuard() {
   useEffect(() => {
     const cleanup = startSyncListener()
     return cleanup
+  }, [])
+
+  useEffect(() => {
+    pilotTracker.track({ type: 'SESSION_STARTED' })
+    pilotTracker.startAutoFlush()
+    return () => pilotTracker.stopAutoFlush()
   }, [])
 
   useEffect(() => {

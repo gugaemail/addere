@@ -4,6 +4,7 @@ import * as Sentry from '@sentry/react-native'
 import { api } from '../lib/api'
 import { queryClient } from '../lib/query-client'
 import { useSyncStore } from '../store/syncStore'
+import { pilotTracker } from './pilotTracking'
 import type { SyncQueueItem } from '../types/sync'
 import type { CreateOrderInput } from '@addere/types'
 
@@ -26,6 +27,11 @@ async function processItem(item: SyncQueueItem): Promise<void> {
     }
     markSynced(item.id)
     queryClient.invalidateQueries({ queryKey: ['orders'] })
+
+    if (item.type === 'order') {
+      const queuedDurationMs = Date.now() - new Date(item.createdAt).getTime()
+      pilotTracker.track({ type: 'ORDER_SYNCED', metadata: { queuedDurationMs } })
+    }
   } catch (err: unknown) {
     const msg =
       (err as { response?: { data?: { message?: string } } })?.response?.data?.message ??
@@ -45,6 +51,13 @@ async function processItem(item: SyncQueueItem): Promise<void> {
         },
         tags: { module: 'sync_engine' },
       })
+
+      if (item.type === 'order') {
+        pilotTracker.track({
+          type: 'ORDER_SYNC_FAILED',
+          metadata: { attempts: item.attempts + 1, lastError: msg },
+        })
+      }
     }
   }
 }

@@ -16,6 +16,7 @@ import syncRoutes from './modules/sync/sync.routes'
 import { initSchedulers } from './modules/sync/scheduler'
 import transportadorasRoutes from './modules/transportadoras/transportadoras.routes'
 import condpagsRoutes from './modules/condpags/condpags.routes'
+import { pilotRoutes } from './modules/pilot/pilot.routes'
 
 export async function buildApp(): Promise<FastifyInstance> {
   const app = Fastify({
@@ -54,6 +55,7 @@ export async function buildApp(): Promise<FastifyInstance> {
   await app.register(syncRoutes, { prefix: '/sync' })
   await app.register(transportadorasRoutes, { prefix: '/transportadoras' })
   await app.register(condpagsRoutes, { prefix: '/condpags' })
+  await app.register(pilotRoutes)
 
   // Inicia schedulers de auto-sync após o servidor estar pronto
   app.addHook('onReady', async () => {

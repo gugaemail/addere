@@ -16,6 +16,7 @@ interface SyncStoreState {
   isSyncing: boolean
   lastSyncAt: string | null
   networkAvailable: boolean
+  justSyncedOrderAt: string | null
 
   enqueue: (type: SyncQueueItem['type'], payload: unknown) => string
   markSyncing: (id: string) => void
@@ -26,6 +27,7 @@ interface SyncStoreState {
   clearSynced: () => void
   setIsSyncing: (value: boolean) => void
   setLastSyncAt: (at: string) => void
+  clearJustSyncedOrder: () => void
 }
 
 export const useSyncStore = create<SyncStoreState>()(
@@ -35,6 +37,7 @@ export const useSyncStore = create<SyncStoreState>()(
       isSyncing: false,
       lastSyncAt: null,
       networkAvailable: true,
+      justSyncedOrderAt: null,
 
       enqueue: (type, payload) => {
         const id = generateId()
@@ -61,14 +64,18 @@ export const useSyncStore = create<SyncStoreState>()(
         })),
 
       markSynced: (id) =>
-        set((s) => ({
-          queue: s.queue.map((item) =>
-            item.id === id
-              ? { ...item, status: 'synced' as SyncStatus, syncedAt: new Date().toISOString() }
-              : item,
-          ),
-          lastSyncAt: new Date().toISOString(),
-        })),
+        set((s) => {
+          const syncedItem = s.queue.find((i) => i.id === id)
+          return {
+            queue: s.queue.map((item) =>
+              item.id === id
+                ? { ...item, status: 'synced' as SyncStatus, syncedAt: new Date().toISOString() }
+                : item,
+            ),
+            lastSyncAt: new Date().toISOString(),
+            justSyncedOrderAt: syncedItem?.type === 'order' ? new Date().toISOString() : s.justSyncedOrderAt,
+          }
+        }),
 
       markError: (id, error) =>
         set((s) => ({
@@ -95,6 +102,8 @@ export const useSyncStore = create<SyncStoreState>()(
       setIsSyncing: (value) => set({ isSyncing: value }),
 
       setLastSyncAt: (at) => set({ lastSyncAt: at }),
+
+      clearJustSyncedOrder: () => set({ justSyncedOrderAt: null }),
     }),
     {
       name: 'addere-sync-queue',

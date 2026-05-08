@@ -223,6 +223,79 @@ export const DEFAULT_SYNC_SCHEDULE: SyncSchedule = {
   customers: { interv: 0, scheduleMin: 0, auto: false },
 }
 
+// ─── Pilot ─────────────────────────────────────────────────────────────────
+
+export type PilotStatus = 'ACTIVE' | 'COMPLETED' | 'CANCELLED'
+
+export type PilotEventType =
+  | 'ORDER_STARTED'
+  | 'ORDER_COMPLETED'
+  | 'ORDER_SYNCED'
+  | 'ORDER_SYNC_FAILED'
+  | 'SESSION_STARTED'
+  | 'CATALOG_LOADED'
+
+export interface Pilot {
+  id: string
+  clientName: string
+  startDate: string
+  endDate: string
+  status: PilotStatus
+  companyId: string
+  createdAt: string
+}
+
+export interface PilotEventInput {
+  type: PilotEventType
+  metadata?: Record<string, unknown>
+  occurredAt: string
+}
+
+export interface PilotFeedbackInput {
+  orderId?: string
+  rating: 'positive' | 'negative'
+  comment?: string
+}
+
+export interface PilotMetrics {
+  avgOrderDurationMs: number | null
+  syncSuccessRate: number | null
+  offlineOrderRate: number | null
+  avgQueueDurationMs: number | null
+  totalOrders: number
+}
+
+export interface PilotMetricDelta {
+  current: number | null
+  previous: number | null
+  deltaPercent: number | null
+}
+
+export interface PilotDashboardMetrics {
+  pilot: Pilot
+  since: string
+  avgOrderDuration: PilotMetricDelta
+  syncSuccessRate: PilotMetricDelta
+  offlineOrderRate: PilotMetricDelta
+  avgQueueDuration: PilotMetricDelta
+  totalOrders: PilotMetricDelta
+  dailyOrders: Array<{ date: string; total: number; offline: number }>
+  repActivity: Array<{
+    repId: string
+    repName: string
+    ordersToday: number
+    ordersTotal: number
+    lastActiveAt: string | null
+    syncRate: number | null
+  }>
+  recentNegativeFeedbacks: Array<{
+    id: string
+    repName: string
+    comment: string | null
+    createdAt: string
+  }>
+}
+
 // ─── Erros ─────────────────────────────────────────────────────────────────
 
 export interface ApiError {

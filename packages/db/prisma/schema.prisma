@@ -16,14 +16,29 @@ datasource db {
 // ─────────────────────────────────────────
 
 enum Role {
-  SUPERADMIN  // administrador da plataforma (painel web)
-  ADMIN       // administrador da empresa (app mobile)
+  SUPERADMIN // administrador da plataforma (painel web)
+  ADMIN // administrador da empresa (app mobile)
   SALESPERSON // vendedor (app mobile)
 }
 
 enum OrderStatus {
-  PENDING    // criado localmente, aguardando sincronização
-  SYNCED     // enviado com sucesso ao Protheus
+  PENDING // criado localmente, aguardando sincronização
+  SYNCED // enviado com sucesso ao Protheus
+  CANCELLED
+}
+
+enum PilotEventType {
+  ORDER_STARTED
+  ORDER_COMPLETED
+  ORDER_SYNCED
+  ORDER_SYNC_FAILED
+  SESSION_STARTED
+  CATALOG_LOADED
+}
+
+enum PilotStatus {
+  ACTIVE
+  COMPLETED
   CANCELLED
 }
 
@@ -32,11 +47,11 @@ enum OrderStatus {
 // ─────────────────────────────────────────
 
 model Company {
-  id          String  @id @default(uuid())
-  name        String
-  cnpj        String  @unique
-  idProtheus  String? // código da empresa no ERP Protheus
-  active      Boolean @default(true)
+  id         String  @id @default(uuid())
+  name       String
+  cnpj       String  @unique
+  idProtheus String? // código da empresa no ERP Protheus
+  active     Boolean @default(true)
 
   // URLs das APIs Protheus configuradas por empresa
   apiToken     String? // POST autenticação — retorna Bearer token
@@ -49,9 +64,9 @@ model Company {
   apiTransp    String? // GET transportadoras
   usrProtheus  String? // usuário para autenticação na API Protheus
   passProtheus String? // senha para autenticação na API Protheus
-  syncConfig   Json?   // mapeamento de campos Protheus por entidade (JSONB)
-  fieldConfig  Json?   // visibilidade de campos por empresa: { hidden: string[] }
-  syncSchedule Json?   // agendamento de sync: { products: {...}, customers: {...} }
+  syncConfig   Json? // mapeamento de campos Protheus por entidade (JSONB)
+  fieldConfig  Json? // visibilidade de campos por empresa: { hidden: string[] }
+  syncSchedule Json? // agendamento de sync: { products: {...}, customers: {...} }
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -63,6 +78,7 @@ model Company {
   orders          Order[]
   transportadoras Transportadora[]
   condPags        CondPag[]
+  pilots          Pilot[]
 
   @@map("companies")
 }
@@ -94,13 +110,13 @@ model Branch {
 // ─────────────────────────────────────────
 
 model User {
-  id          String  @id @default(uuid())
-  name        String
-  email       String  @unique
-  password    String
-  role        Role    @default(SALESPERSON)
-  active      Boolean @default(true) // soft delete
-  idVendProt  String? // código do vendedor no Protheus
+  id         String  @id @default(uuid())
+  name       String
+  email      String  @unique
+  password   String
+  role       Role    @default(SALESPERSON)
+  active     Boolean @default(true) // soft delete
+  idVendProt String? // código do vendedor no Protheus
 
   // null para SUPERADMIN; obrigatório para ADMIN e SALESPERSON
   companyId String?
@@ -109,8 +125,10 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  refreshTokens RefreshToken[]
-  orders        Order[]
+  refreshTokens  RefreshToken[]
+  orders         Order[]
+  pilotEvents    PilotEvent[]    @relation("UserPilotEvents")
+  pilotFeedbacks PilotFeedback[] @relation("UserPilotFeedbacks")
 
   @@map("users")
 }
@@ -137,26 +155,26 @@ model RefreshToken {
 // ─────────────────────────────────────────
 
 model Customer {
-  id           String  @id @default(uuid())
-  protheusCode String? // código do cliente no ERP Protheus
-  loja         String? // código da loja (chave composta com protheusCode)
-  vendorCode   String? // código do vendedor responsável (A1_VEND no Protheus)
-  name         String
-  document     String? // CPF ou CNPJ (único por empresa)
-  email        String?
-  phone        String?
-  address      String?
-  municipio    String?
-  bairro       String?
-  cep          String?
-  uf           String?
-  ultcom       DateTime? // data da última compra no Protheus (A1_ULTCOM)
-  msblql       String?   // A1_MSBLQL: "1"=bloqueado, "2"=liberado — inativa cliente se "1"
-  transpPadrao String?   // A1_TRANSP: código da transportadora padrão do cliente
-  condPagPadrao String?  // A1_COND: código da condição de pagamento padrão do cliente
-  tes          String?   // A1_TES: código TES (enviado ao Protheus no pedido)
-  xcodemp      String?   // A1_XCODEMP: código da filial Protheus de faturamento
-  active       Boolean @default(true) // soft delete
+  id            String    @id @default(uuid())
+  protheusCode  String? // código do cliente no ERP Protheus
+  loja          String? // código da loja (chave composta com protheusCode)
+  vendorCode    String? // código do vendedor responsável (A1_VEND no Protheus)
+  name          String
+  document      String? // CPF ou CNPJ (único por empresa)
+  email         String?
+  phone         String?
+  address       String?
+  municipio     String?
+  bairro        String?
+  cep           String?
+  uf            String?
+  ultcom        DateTime? // data da última compra no Protheus (A1_ULTCOM)
+  msblql        String? // A1_MSBLQL: "1"=bloqueado, "2"=liberado — inativa cliente se "1"
+  transpPadrao  String? // A1_TRANSP: código da transportadora padrão do cliente
+  condPagPadrao String? // A1_COND: código da condição de pagamento padrão do cliente
+  tes           String? // A1_TES: código TES (enviado ao Protheus no pedido)
+  xcodemp       String? // A1_XCODEMP: código da filial Protheus de faturamento
+  active        Boolean   @default(true) // soft delete
 
   companyId String
   company   Company @relation(fields: [companyId], references: [id])
@@ -252,10 +270,10 @@ model Order {
   total           Decimal     @db.Decimal(10, 2)
   notes           String?
   protheusOrderId String?     @unique // ID do pedido no ERP após sincronização
-  protheusStatus  String?               // último status consultado no Protheus
-  syncedAt        DateTime?   // data/hora da sincronização com o Protheus
-  emissao         DateTime?   // data de criação do pedido (informada pelo usuário)
-  mennota         String?     // mensagem para nota fiscal
+  protheusStatus  String? // último status consultado no Protheus
+  syncedAt        DateTime? // data/hora da sincronização com o Protheus
+  emissao         DateTime? // data de criação do pedido (informada pelo usuário)
+  mennota         String? // mensagem para nota fiscal
 
   userId String
   user   User   @relation(fields: [userId], references: [id])
@@ -269,10 +287,10 @@ model Order {
   branchId String
   branch   Branch @relation(fields: [branchId], references: [id])
 
-  transportId String?
+  transportId    String?
   transportadora Transportadora? @relation(fields: [transportId], references: [id])
 
-  condId String?
+  condId  String?
   condPag CondPag? @relation(fields: [condId], references: [id])
 
   createdAt DateTime @default(now())
@@ -290,16 +308,16 @@ model Order {
 // ─────────────────────────────────────────
 
 model OrderItem {
-  id        String  @id @default(uuid())
-  quantity  Decimal @db.Decimal(10, 3)
-  unitPrice Decimal @db.Decimal(10, 2)
-  discount  Decimal @default(0) @db.Decimal(5, 2) // percentual de desconto
-  total     Decimal @db.Decimal(10, 2)
-  descricao    String?           // descrição do item (sobrescreve nome do produto se informado)
+  id           String   @id @default(uuid())
+  quantity     Decimal  @db.Decimal(10, 3)
+  unitPrice    Decimal  @db.Decimal(10, 2)
+  discount     Decimal  @default(0) @db.Decimal(5, 2) // percentual de desconto
+  total        Decimal  @db.Decimal(10, 2)
+  descricao    String? // descrição do item (sobrescreve nome do produto se informado)
   largura      Decimal? @db.Decimal(10, 3) // C6_XLARGUR
   espessura    Decimal? @db.Decimal(10, 3) // C6_XEXPESS
-  encolhimento String?           // C6_XENCOLH
-  xcrav        String?           // C6_XCRAV: "1"=Sim, "2"=Não
+  encolhimento String? // C6_XENCOLH
+  xcrav        String? // C6_XCRAV: "1"=Sim, "2"=Não
   tara         Decimal? @db.Decimal(10, 3) // C6_XTARA
 
   orderId String
@@ -311,4 +329,65 @@ model OrderItem {
   createdAt DateTime @default(now())
 
   @@map("order_items")
+}
+
+// ─────────────────────────────────────────
+// Pilot — piloto comercial por empresa
+// ─────────────────────────────────────────
+
+model Pilot {
+  id         String      @id @default(cuid())
+  clientName String
+  startDate  DateTime
+  endDate    DateTime
+  status     PilotStatus @default(ACTIVE)
+
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id])
+
+  events    PilotEvent[]
+  feedbacks PilotFeedback[]
+
+  createdAt DateTime @default(now())
+
+  @@map("pilots")
+}
+
+// ─────────────────────────────────────────
+// PilotEvent — eventos rastreados do piloto
+// ─────────────────────────────────────────
+
+model PilotEvent {
+  id         String         @id @default(cuid())
+  pilotId    String
+  repId      String
+  eventType  PilotEventType
+  metadata   Json           @default("{}")
+  occurredAt DateTime       @default(now())
+
+  pilot Pilot @relation(fields: [pilotId], references: [id])
+  rep   User  @relation("UserPilotEvents", fields: [repId], references: [id])
+
+  @@index([pilotId, eventType, occurredAt])
+  @@map("pilot_events")
+}
+
+// ─────────────────────────────────────────
+// PilotFeedback — avaliações dos representantes
+// ─────────────────────────────────────────
+
+model PilotFeedback {
+  id      String  @id @default(cuid())
+  pilotId String
+  repId   String
+  orderId String?
+  rating  String // 'positive' | 'negative'
+  comment String?
+
+  pilot Pilot @relation(fields: [pilotId], references: [id])
+  rep   User  @relation("UserPilotFeedbacks", fields: [repId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@map("pilot_feedbacks")
 }

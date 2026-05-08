@@ -1,10 +1,26 @@
+import { useState, useEffect } from 'react'
+import { View } from 'react-native'
 import { Tabs } from 'expo-router'
 import { LayoutDashboard, Users, Package, ClipboardList } from 'lucide-react-native'
 import { brandScreenOptions } from '../../src/navigation/BrandHeader'
+import { OnboardingFlow, shouldShowOnboarding } from '../../src/components/onboarding/OnboardingFlow'
+import { FeedbackPrompt } from '../../src/components/FeedbackPrompt'
 
 export default function AppLayout() {
+  const [showOnboarding, setShowOnboarding] = useState(false)
+
+  useEffect(() => {
+    shouldShowOnboarding().then(setShowOnboarding)
+  }, [])
+
   return (
-    <Tabs
+    <View style={{ flex: 1 }}>
+      <OnboardingFlow
+        visible={showOnboarding}
+        onComplete={() => setShowOnboarding(false)}
+      />
+      <FeedbackPrompt />
+      <Tabs
       screenOptions={{
         ...brandScreenOptions,
         tabBarActiveTintColor:   '#1B4FA8',
@@ -68,5 +84,6 @@ export default function AppLayout() {
         options={{ href: null }}
       />
     </Tabs>
+    </View>
   )
 }
