@@ -1,8 +1,9 @@
 import axios from 'axios'
+import { ENV } from '../config/env'
 import { useAuthStore } from '../store/auth.store'
 
 export const api = axios.create({
-  baseURL: process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3333',
+  baseURL: ENV.API_URL,
   withCredentials: true, // envia cookies (refresh token HttpOnly)
 })
 
@@ -43,7 +44,7 @@ api.interceptors.response.use(
 
     try {
       const { data } = await axios.post(
-        `${process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3333'}/auth/refresh`,
+        `${ENV.API_URL}/auth/refresh`,
         {},
         { withCredentials: true }
       )

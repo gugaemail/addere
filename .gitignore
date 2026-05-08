@@ -1,5 +1,11 @@
 node_modules
-.env
-.env.local
 dist
 .expo
+
+# Variáveis de ambiente — nunca commitar valores reais
+.env
+.env.local
+.env.development
+.env.staging
+.env.production
+# .env.example é commitado intencionalmente

@@ -4,9 +4,12 @@
   "private": true,
   "main": "expo-router/entry",
   "scripts": {
-    "start": "expo start",
+    "start": "expo start --env-file .env.development",
+    "start:staging": "expo start --env-file .env.staging",
+    "start:production": "expo start --env-file .env.production",
     "android": "expo run:android",
     "ios": "expo run:ios",
+    "build:dev": "eas build --profile development --platform all",
     "build:preview": "eas build --profile preview --platform all",
     "build:production": "eas build --profile production --platform all",
     "lint": "eslint . --ext .ts,.tsx",
