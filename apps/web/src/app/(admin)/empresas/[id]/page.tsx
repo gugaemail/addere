@@ -759,221 +759,211 @@ export default function EmpresaPage() {
       )}
 
       {/* ── Tab: Protheus ── */}
-      {tab === 'protheus' && (
-        <div className="space-y-4">
-          <ProtheusConfigForm
-            company={company}
-            onSaved={(updated) => {
-              setCompany((prev) => prev ? { ...prev, ...updated } : prev)
-              fetchCompany()
-            }}
-          />
+      {tab === 'protheus' && (() => {
+        const hasActiveBranch = company.branches.some((b) => b.active && b.idProtheus)
+        const missingProd = !company.apiPord || !company.apiToken
+          ? 'Configure apiToken e apiPord para habilitar.'
+          : !hasActiveBranch ? 'Nenhuma filial ativa com Código Protheus configurado (aba Filiais).' : undefined
+        const spinnerSvg = (
+          <svg className="w-4 h-4 animate-spin shrink-0" fill="none" viewBox="0 0 24 24">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+          </svg>
+        )
+        const warnSvg = (
+          <svg className="w-3.5 h-3.5 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z" />
+          </svg>
+        )
+        const cardHeader = (title: string, subtitle?: string) => (
+          <div className="px-4 py-3 bg-[var(--bg-subtle)] border-b border-[var(--border)]">
+            <h3 className="text-sm font-semibold text-[var(--text-primary)]">{title}</h3>
+            {subtitle && <p className="text-xs text-[var(--text-muted)] mt-0.5">{subtitle}</p>}
+          </div>
+        )
+        const scheduleSection = (entity: 'products' | 'customers') => {
+          const s = schedule[entity]
+          return (
+            <div className="border-t border-[var(--border)] pt-4 mt-4 space-y-3">
+              <p className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wide">Sincronização Automática</p>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs text-[var(--text-muted)] mb-1">INTERV (min)</label>
+                  <input type="number" min={0} value={s.interv}
+                    onChange={(e) => setSchedule((prev) => ({ ...prev, [entity]: { ...prev[entity], interv: Number(e.target.value) } }))}
+                    className="w-full bg-[var(--bg-subtle)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-brand-500" />
+                  <p className="text-xs text-[var(--text-muted)] mt-1">0 = busca todos</p>
+                </div>
+                <div>
+                  <label className="block text-xs text-[var(--text-muted)] mb-1">Intervalo auto-sync (min)</label>
+                  <input type="number" min={0} value={s.scheduleMin} disabled={!s.auto}
+                    onChange={(e) => setSchedule((prev) => ({ ...prev, [entity]: { ...prev[entity], scheduleMin: Number(e.target.value) } }))}
+                    className="w-full bg-[var(--bg-subtle)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-brand-500 disabled:opacity-40" />
+                  <p className="text-xs text-[var(--text-muted)] mt-1">0 = desabilitado</p>
+                </div>
+              </div>
+              <label className="flex items-center gap-3 cursor-pointer select-none">
+                <input type="checkbox" checked={s.auto}
+                  onChange={(e) => setSchedule((prev) => ({ ...prev, [entity]: { ...prev[entity], auto: e.target.checked } }))}
+                  className="w-4 h-4 accent-brand-500 cursor-pointer" />
+                <span className="text-sm text-[var(--text-primary)]">
+                  Auto-sync {s.auto
+                    ? <span className="text-green-500 font-medium">Ativo{s.scheduleMin > 0 ? ` — a cada ${s.scheduleMin} min` : ''}</span>
+                    : <span className="text-[var(--text-muted)]">Inativo</span>}
+                </span>
+              </label>
+            </div>
+          )
+        }
+        return (
+          <div className="space-y-4">
+            <ProtheusConfigForm
+              company={company}
+              onSaved={(updated) => { setCompany((prev) => prev ? { ...prev, ...updated } : prev); fetchCompany() }}
+            />
 
-          {syncResult && (
-            <div className="flex items-start gap-2 p-3.5 bg-green-500/10 border border-green-500/20 rounded-lg">
-              <svg className="w-4 h-4 shrink-0 mt-0.5 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
-              </svg>
-              <div>
-                <p className="text-sm font-medium text-green-600 dark:text-green-400">
-                  {syncResult.entity}: {syncResult.result.synced} de {syncResult.result.total} sincronizados.
-                </p>
-                {syncResult.result.errors.length > 0 && (
-                  <ul className="mt-1.5 text-xs text-red-500 space-y-1 list-disc list-inside">
-                    {syncResult.result.errors.map((e, i) => <li key={i}>{e}</li>)}
-                  </ul>
-                )}
+            {syncResult && (
+              <div className="flex items-start gap-2 p-3.5 bg-green-500/10 border border-green-500/20 rounded-lg">
+                <svg className="w-4 h-4 shrink-0 mt-0.5 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                </svg>
+                <div>
+                  <p className="text-sm font-medium text-green-600">{syncResult.entity}: {syncResult.result.synced} de {syncResult.result.total} sincronizados.</p>
+                  {syncResult.result.errors.length > 0 && (
+                    <ul className="mt-1.5 text-xs text-red-500 space-y-1 list-disc list-inside">
+                      {syncResult.result.errors.map((e, i) => <li key={i}>{e}</li>)}
+                    </ul>
+                  )}
+                </div>
+              </div>
+            )}
+            {syncError && (
+              <div className="flex items-start gap-2 p-3.5 bg-red-500/10 border border-red-500/20 rounded-lg">
+                <svg className="w-4 h-4 shrink-0 mt-0.5 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z" />
+                </svg>
+                <p className="text-sm text-red-500">{syncError.msg}</p>
+              </div>
+            )}
+
+            {/* ── Autenticação ── */}
+            <div className="rounded-xl border border-[var(--border)] bg-[var(--bg-surface)] overflow-hidden">
+              {cardHeader('Autenticação', 'Valide a conexão com o Protheus antes de sincronizar.')}
+              <div className="p-4 flex items-center justify-between gap-4">
+                <div>
+                  <p className="text-sm font-medium text-[var(--text-primary)]">Testar autenticação Protheus</p>
+                  <p className="text-xs text-[var(--text-muted)] mt-0.5">Chama o endpoint <code className="bg-[var(--bg-subtle)] px-1 rounded">apiToken</code> e exibe a resposta bruta para diagnóstico.</p>
+                </div>
+                <button onClick={testToken} disabled={testingToken || !company.apiToken || !company.usrProtheus || !company.passProtheus}
+                  className="shrink-0 px-4 py-2 rounded-lg text-sm font-medium bg-brand-500 text-white hover:bg-brand-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center gap-2">
+                  {testingToken && spinnerSvg}{testingToken ? 'Testando…' : 'Testar Token'}
+                </button>
               </div>
             </div>
-          )}
-          {syncError && (
-            <div className="flex items-start gap-2 p-3.5 bg-red-500/10 border border-red-500/20 rounded-lg">
-              <svg className="w-4 h-4 shrink-0 mt-0.5 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z" />
-              </svg>
-              <p className="text-sm text-red-500">{syncError.msg}</p>
-            </div>
-          )}
 
-          <div className="p-4 rounded-xl border border-[var(--border)] bg-[var(--bg-subtle)] flex items-center justify-between gap-4">
-            <div>
-              <p className="text-sm font-medium text-[var(--text-primary)]">Testar autenticação Protheus</p>
-              <p className="text-xs text-[var(--text-muted)] mt-0.5">
-                Chama o endpoint <code className="bg-[var(--surface)] px-1 rounded">apiToken</code> e exibe a resposta bruta para diagnóstico.
-              </p>
-            </div>
-            <button
-              onClick={testToken}
-              disabled={testingToken || !company.apiToken || !company.usrProtheus || !company.passProtheus}
-              className="shrink-0 px-4 py-2 rounded-lg text-sm font-medium bg-brand-500 text-white hover:bg-brand-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
-            >
-              {testingToken && (
-                <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
-                </svg>
-              )}
-              {testingToken ? 'Testando…' : 'Testar Token'}
-            </button>
-          </div>
-
-          <div className="p-4 rounded-xl border border-[var(--border)] bg-[var(--bg-subtle)] flex items-center justify-between gap-4">
-            <div>
-              <p className="text-sm font-medium text-[var(--text-primary)]">Testar API de Produtos</p>
-              <p className="text-xs text-[var(--text-muted)] mt-0.5">
-                Busca página 1 via <code className="bg-[var(--surface)] px-1 rounded">apiPord</code> e exibe a resposta bruta — sem salvar no banco.
-              </p>
-            </div>
-            <button
-              onClick={testProducts}
-              disabled={testingProducts || !company.apiPord || !company.apiToken || !company.usrProtheus || !company.passProtheus}
-              className="shrink-0 px-4 py-2 rounded-lg text-sm font-medium bg-brand-500 text-white hover:bg-brand-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
-            >
-              {testingProducts && (
-                <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
-                </svg>
-              )}
-              {testingProducts ? 'Testando…' : 'Testar Produtos'}
-            </button>
-          </div>
-
-          <div className="p-4 rounded-xl border border-[var(--border)] bg-[var(--bg-subtle)] flex items-center justify-between gap-4">
-            <div>
-              <p className="text-sm font-medium text-[var(--text-primary)]">Testar API de Clientes</p>
-              <p className="text-xs text-[var(--text-muted)] mt-0.5">
-                Busca página 1 via <code className="bg-[var(--surface)] px-1 rounded">apiCliente</code> e exibe a resposta bruta — sem salvar no banco.
-              </p>
-            </div>
-            <button
-              onClick={testCustomers}
-              disabled={testingCustomers || !company.apiCliente || !company.apiToken || !company.usrProtheus || !company.passProtheus}
-              className="shrink-0 px-4 py-2 rounded-lg text-sm font-medium bg-brand-500 text-white hover:bg-brand-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
-            >
-              {testingCustomers && (
-                <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
-                </svg>
-              )}
-              {testingCustomers ? 'Testando…' : 'Testar Clientes'}
-            </button>
-          </div>
-
-          {(() => {
-            const hasActiveBranch = company.branches.some((b) => b.active && b.idProtheus)
-            const missingProd = !company.apiPord || !company.apiToken
-              ? 'Configure apiToken e apiPord para habilitar.'
-              : !hasActiveBranch
-              ? 'Nenhuma filial ativa com Código Protheus configurado (aba Filiais).'
-              : undefined
-            return (
-              <SyncCard
-                title="Sincronizar Produtos"
-                description={<>Importa produtos via <code className="bg-[var(--bg-subtle)] px-1 rounded text-[var(--text-secondary)]">apiPord</code> e atualiza o catálogo da empresa.</>}
-                disabled={syncingProducts || !!missingProd}
-                loading={syncingProducts}
-                missingFields={missingProd}
-                onSync={syncProducts}
-                btnLabel="Sincronizar Produtos"
-              />
-            )
-          })()}
-
-          <SyncCard
-            title="Sincronizar Clientes"
-            description={<>Importa clientes via <code className="bg-[var(--bg-subtle)] px-1 rounded text-[var(--text-secondary)]">apiCliente</code> e atualiza a base de clientes.</>}
-            disabled={syncingCustomers || !company.apiCliente || !company.apiToken}
-            loading={syncingCustomers}
-            missingFields={!company.apiCliente || !company.apiToken ? 'Configure apiToken e apiCliente para habilitar.' : undefined}
-            onSync={syncCustomers}
-            btnLabel="Sincronizar Clientes"
-          />
-
-          <SyncCard
-            title="Sincronizar Transportadoras"
-            description={<>Importa transportadoras via <code className="bg-[var(--bg-subtle)] px-1 rounded text-[var(--text-secondary)]">apiTransp</code> e atualiza a lista disponível nos pedidos.</>}
-            disabled={syncingTransportadoras || !company.apiTransp || !company.apiToken}
-            loading={syncingTransportadoras}
-            missingFields={!company.apiTransp || !company.apiToken ? 'Configure apiToken e apiTransp para habilitar.' : undefined}
-            onSync={syncTransportadoras}
-            btnLabel="Sincronizar Transportadoras"
-          />
-
-          <SyncCard
-            title="Sincronizar Condições de Pagamento"
-            description={<>Importa condições de pagamento via <code className="bg-[var(--bg-subtle)] px-1 rounded text-[var(--text-secondary)]">apiCondPag</code> e atualiza as opções disponíveis nos pedidos.</>}
-            disabled={syncingCondPags || !company.apiCondPag || !company.apiToken}
-            loading={syncingCondPags}
-            missingFields={!company.apiCondPag || !company.apiToken ? 'Configure apiToken e apiCondPag para habilitar.' : undefined}
-            onSync={syncCondPags}
-            btnLabel="Sincronizar Cond. Pagamento"
-          />
-
-          {/* ── Sincronização Automática ── */}
-          <div className="rounded-xl border border-[var(--border)] overflow-hidden">
-            <div className="px-4 py-3 bg-[var(--bg-subtle)] border-b border-[var(--border)]">
-              <h3 className="text-sm font-semibold text-[var(--text-primary)]">Sincronização Automática</h3>
-              <p className="text-xs text-[var(--text-muted)] mt-0.5">Configure o INTERV e o agendamento de auto-sync por entidade. O INTERV também é usado nos botões manuais acima.</p>
-            </div>
-            <div className="divide-y divide-[var(--border)]">
-              {(['products', 'customers'] as const).map((entity) => {
-                const label = entity === 'products' ? 'Produtos' : 'Clientes'
-                const s = schedule[entity]
-                return (
-                  <div key={entity} className="px-4 py-4 space-y-3">
-                    <p className="text-sm font-semibold text-[var(--text-primary)]">{label}</p>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-xs text-[var(--text-muted)] mb-1">INTERV (min) — filtro última alteração</label>
-                        <input
-                          type="number" min={0} value={s.interv}
-                          onChange={(e) => setSchedule((prev) => ({ ...prev, [entity]: { ...prev[entity], interv: Number(e.target.value) } }))}
-                          className="w-full bg-[var(--bg-subtle)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-brand-500"
-                        />
-                        <p className="text-xs text-[var(--text-muted)] mt-1">0 = busca todos os registros</p>
-                      </div>
-                      <div>
-                        <label className="block text-xs text-[var(--text-muted)] mb-1">Intervalo auto-sync (min)</label>
-                        <input
-                          type="number" min={0} value={s.scheduleMin} disabled={!s.auto}
-                          onChange={(e) => setSchedule((prev) => ({ ...prev, [entity]: { ...prev[entity], scheduleMin: Number(e.target.value) } }))}
-                          className="w-full bg-[var(--bg-subtle)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-brand-500 disabled:opacity-40"
-                        />
-                        <p className="text-xs text-[var(--text-muted)] mt-1">0 = desabilitado</p>
-                      </div>
+            {/* ── Produtos ── */}
+            <div className="rounded-xl border border-[var(--border)] bg-[var(--bg-surface)] overflow-hidden">
+              {cardHeader('Produtos')}
+              <div className="p-4">
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="border border-[var(--border)] rounded-lg p-3 flex flex-col justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-medium text-[var(--text-primary)]">Testar API</p>
+                      <p className="text-xs text-[var(--text-muted)] mt-0.5">Busca página 1 via <code className="bg-[var(--bg-subtle)] px-1 rounded">apiPord</code> — sem salvar no banco.</p>
                     </div>
-                    <label className="flex items-center gap-3 cursor-pointer select-none">
-                      <input
-                        type="checkbox" checked={s.auto}
-                        onChange={(e) => setSchedule((prev) => ({ ...prev, [entity]: { ...prev[entity], auto: e.target.checked } }))}
-                        className="w-4 h-4 accent-brand-500 cursor-pointer"
-                      />
-                      <span className="text-sm text-[var(--text-primary)]">
-                        Auto-sync {s.auto ? <span className="text-green-500 font-medium">Ativo</span> : <span className="text-[var(--text-muted)]">Inativo</span>}
-                        {s.auto && s.scheduleMin > 0 && (
-                          <span className="text-[var(--text-muted)] ml-1">— sincroniza a cada {s.scheduleMin} min</span>
-                        )}
-                      </span>
-                    </label>
+                    <button onClick={testProducts} disabled={testingProducts || !company.apiPord || !company.apiToken || !company.usrProtheus || !company.passProtheus}
+                      className="w-full px-3 py-2 rounded-lg text-sm font-medium border border-[var(--border)] text-[var(--text-secondary)] hover:bg-[var(--bg-subtle)] disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2">
+                      {testingProducts && spinnerSvg}{testingProducts ? 'Testando…' : 'Testar API'}
+                    </button>
                   </div>
-                )
-              })}
+                  <div className="border border-[var(--border)] rounded-lg p-3 flex flex-col justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-medium text-[var(--text-primary)]">Sincronizar</p>
+                      <p className="text-xs text-[var(--text-muted)] mt-0.5">Importa via <code className="bg-[var(--bg-subtle)] px-1 rounded">apiPord</code> e atualiza o catálogo.</p>
+                      {missingProd && <p className="flex items-start gap-1 mt-1.5 text-xs text-yellow-600">{warnSvg}{missingProd}</p>}
+                    </div>
+                    <button onClick={syncProducts} disabled={syncingProducts || !!missingProd}
+                      className="w-full px-3 py-2 rounded-lg text-sm font-medium bg-brand-600 text-white hover:bg-brand-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2">
+                      {syncingProducts && spinnerSvg}{syncingProducts ? 'Sincronizando…' : 'Sincronizar Produtos'}
+                    </button>
+                  </div>
+                </div>
+                {scheduleSection('products')}
+              </div>
             </div>
-            <div className="px-4 py-3 border-t border-[var(--border)] flex items-center gap-4">
-              <button
-                onClick={saveSyncSchedule}
-                disabled={savingSchedule}
-                className="px-5 py-2.5 rounded-lg text-sm font-semibold bg-brand-500 text-white hover:bg-brand-600 disabled:opacity-50 transition-colors"
-              >
-                {savingSchedule ? 'Salvando…' : 'Salvar configuração'}
+
+            {/* ── Clientes ── */}
+            <div className="rounded-xl border border-[var(--border)] bg-[var(--bg-surface)] overflow-hidden">
+              {cardHeader('Clientes')}
+              <div className="p-4">
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="border border-[var(--border)] rounded-lg p-3 flex flex-col justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-medium text-[var(--text-primary)]">Testar API</p>
+                      <p className="text-xs text-[var(--text-muted)] mt-0.5">Busca página 1 via <code className="bg-[var(--bg-subtle)] px-1 rounded">apiCliente</code> — sem salvar no banco.</p>
+                    </div>
+                    <button onClick={testCustomers} disabled={testingCustomers || !company.apiCliente || !company.apiToken || !company.usrProtheus || !company.passProtheus}
+                      className="w-full px-3 py-2 rounded-lg text-sm font-medium border border-[var(--border)] text-[var(--text-secondary)] hover:bg-[var(--bg-subtle)] disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2">
+                      {testingCustomers && spinnerSvg}{testingCustomers ? 'Testando…' : 'Testar API'}
+                    </button>
+                  </div>
+                  <div className="border border-[var(--border)] rounded-lg p-3 flex flex-col justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-medium text-[var(--text-primary)]">Sincronizar</p>
+                      <p className="text-xs text-[var(--text-muted)] mt-0.5">Importa via <code className="bg-[var(--bg-subtle)] px-1 rounded">apiCliente</code> e atualiza a base.</p>
+                      {(!company.apiCliente || !company.apiToken) && <p className="flex items-start gap-1 mt-1.5 text-xs text-yellow-600">{warnSvg}Configure apiToken e apiCliente para habilitar.</p>}
+                    </div>
+                    <button onClick={syncCustomers} disabled={syncingCustomers || !company.apiCliente || !company.apiToken}
+                      className="w-full px-3 py-2 rounded-lg text-sm font-medium bg-brand-600 text-white hover:bg-brand-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2">
+                      {syncingCustomers && spinnerSvg}{syncingCustomers ? 'Sincronizando…' : 'Sincronizar Clientes'}
+                    </button>
+                  </div>
+                </div>
+                {scheduleSection('customers')}
+              </div>
+            </div>
+
+            {/* ── Transportadoras ── */}
+            <div className="rounded-xl border border-[var(--border)] bg-[var(--bg-surface)] overflow-hidden">
+              {cardHeader('Transportadoras')}
+              <div className="p-4 flex items-center justify-between gap-4">
+                <div>
+                  <p className="text-xs text-[var(--text-muted)]">Importa via <code className="bg-[var(--bg-subtle)] px-1 rounded">apiTransp</code> e atualiza a lista disponível nos pedidos.</p>
+                  {(!company.apiTransp || !company.apiToken) && <p className="flex items-center gap-1 mt-1.5 text-xs text-yellow-600">{warnSvg}Configure apiToken e apiTransp para habilitar.</p>}
+                </div>
+                <button onClick={syncTransportadoras} disabled={syncingTransportadoras || !company.apiTransp || !company.apiToken}
+                  className="shrink-0 px-4 py-2 rounded-lg text-sm font-medium bg-brand-600 text-white hover:bg-brand-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2">
+                  {syncingTransportadoras && spinnerSvg}{syncingTransportadoras ? 'Sincronizando…' : 'Sincronizar Transportadoras'}
+                </button>
+              </div>
+            </div>
+
+            {/* ── Condições de Pagamento ── */}
+            <div className="rounded-xl border border-[var(--border)] bg-[var(--bg-surface)] overflow-hidden">
+              {cardHeader('Condições de Pagamento')}
+              <div className="p-4 flex items-center justify-between gap-4">
+                <div>
+                  <p className="text-xs text-[var(--text-muted)]">Importa via <code className="bg-[var(--bg-subtle)] px-1 rounded">apiCondPag</code> e atualiza as opções disponíveis nos pedidos.</p>
+                  {(!company.apiCondPag || !company.apiToken) && <p className="flex items-center gap-1 mt-1.5 text-xs text-yellow-600">{warnSvg}Configure apiToken e apiCondPag para habilitar.</p>}
+                </div>
+                <button onClick={syncCondPags} disabled={syncingCondPags || !company.apiCondPag || !company.apiToken}
+                  className="shrink-0 px-4 py-2 rounded-lg text-sm font-medium bg-brand-600 text-white hover:bg-brand-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2">
+                  {syncingCondPags && spinnerSvg}{syncingCondPags ? 'Sincronizando…' : 'Sincronizar Cond. Pagamento'}
+                </button>
+              </div>
+            </div>
+
+            {/* ── Salvar auto-sync ── */}
+            <div className="flex items-center gap-4 pt-1">
+              <button onClick={saveSyncSchedule} disabled={savingSchedule}
+                className="px-5 py-2.5 rounded-lg text-sm font-semibold bg-brand-500 text-white hover:bg-brand-600 disabled:opacity-50 transition-colors">
+                {savingSchedule ? 'Salvando…' : 'Salvar configuração auto-sync'}
               </button>
               {scheduleSaved && <span className="text-sm text-green-600 font-medium">Configuração salva!</span>}
             </div>
           </div>
-        </div>
-      )}
+        )
+      })()}
 
       {/* ── Modais legados (criar) ── */}
       {showBranchModal && (
