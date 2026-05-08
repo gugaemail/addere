@@ -421,7 +421,33 @@ export function ProductModal({ companyId, mode, product, onClose, onSaved }: Pro
   const [error,        setError]        = useState<string | null>(null)
   const [loading,      setLoading]      = useState(false)
 
-  const title = mode === 'create' ? 'Novo Produto' : mode === 'copy' ? 'Copiar Produto' : 'Editar Produto'
+  const title = mode === 'create' ? 'Novo Produto'
+              : mode === 'copy'   ? 'Copiar Produto'
+              : mode === 'view'   ? 'Dados do Produto'
+              : 'Editar Produto'
+
+  if (mode === 'view' && product) {
+    return (
+      <Modal title={title} onClose={onClose}>
+        <div className="space-y-1">
+          <ViewRow label="Nome"           value={product.name} />
+          <ViewRow label="Cód. Protheus"  value={product.protheusCode} />
+          <ViewRow label="Unidade"        value={product.unit} />
+          <ViewRow label="Descrição"      value={product.description} />
+          <ViewRow label="Preço (R$)"     value={Number(product.price).toLocaleString('pt-BR', { minimumFractionDigits: 2 })} />
+          <ViewRow label="Estoque"        value={Number(product.stock).toLocaleString('pt-BR', { maximumFractionDigits: 3 })} />
+          <ViewRow label="Saldo"          value={Number(product.saldo).toLocaleString('pt-BR', { maximumFractionDigits: 3 })} />
+          <ViewRow label="Status"         value={product.active ? 'Ativo' : 'Inativo'} />
+        </div>
+        <div className="mt-4 pt-4 border-t border-[var(--border)]">
+          <button type="button" onClick={onClose}
+            className="w-full border border-[var(--border)] text-[var(--text-secondary)] text-sm font-medium rounded-lg py-2.5 hover:bg-[var(--bg-subtle)] transition-colors">
+            Fechar
+          </button>
+        </div>
+      </Modal>
+    )
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()

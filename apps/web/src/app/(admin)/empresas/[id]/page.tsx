@@ -624,6 +624,7 @@ export default function EmpresaPage() {
                     <ActionMenu
                       label="produto"
                       active={p.active}
+                      onView={() => setProductModal({ mode: 'view', item: p })}
                       onEdit={() => setProductModal({ mode: 'edit', item: p })}
                       onCopy={() => setProductModal({ mode: 'copy', item: p })}
                       onToggle={() => toggleProduct(p.id, !p.active)}
