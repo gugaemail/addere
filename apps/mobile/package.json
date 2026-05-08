@@ -10,14 +10,26 @@
     "build:preview": "eas build --profile preview --platform all",
     "build:production": "eas build --profile production --platform all",
     "lint": "eslint . --ext .ts,.tsx",
-    "type-check": "tsc --noEmit"
+    "type-check": "tsc --noEmit",
+    "test": "jest"
+  },
+  "jest": {
+    "preset": "jest-expo",
+    "transformIgnorePatterns": [
+      "node_modules/(?!((jest-)?react-native|@react-native(-community)?)|expo(nent)?|@expo(nent)?/.*|@expo-google-fonts/.*|react-navigation|@react-navigation/.*|@unimodules/.*|unimodules|sentry-expo|native-base|react-native-svg|zustand)"
+    ],
+    "moduleNameMapper": {
+      "^@addere/types$": "<rootDir>/../../packages/types/src/index.ts"
+    }
   },
   "dependencies": {
     "@addere/types": "*",
     "@expo-google-fonts/inter": "^0.4.2",
     "@expo-google-fonts/plus-jakarta-sans": "^0.4.2",
+    "@react-native-community/netinfo": "11.4.1",
     "@react-navigation/native": "^7.0.14",
     "@tanstack/react-query": "^5.51.1",
+    "@types/jest": "29.5.14",
     "axios": "^1.15.0",
     "expo": "~54.0.0",
     "expo-linking": "~8.0.11",
@@ -25,6 +37,8 @@
     "expo-secure-store": "~15.0.8",
     "expo-sqlite": "~16.0.10",
     "expo-status-bar": "~3.0.9",
+    "jest": "~29.7.0",
+    "jest-expo": "~54.0.17",
     "lucide-react-native": "^1.8.0",
     "react": "19.1.0",
     "react-native": "0.81.5",

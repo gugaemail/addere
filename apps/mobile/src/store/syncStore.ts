@@ -1,0 +1,129 @@
+import { create } from 'zustand'
+import { persist, createJSONStorage } from 'zustand/middleware'
+import AsyncStorage from '@react-native-async-storage/async-storage'
+import type { SyncQueueItem, SyncStatus } from '../types/sync'
+
+function generateId(): string {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0
+    const v = c === 'x' ? r : (r & 0x3) | 0x8
+    return v.toString(16)
+  })
+}
+
+interface SyncStoreState {
+  queue: SyncQueueItem[]
+  isSyncing: boolean
+  lastSyncAt: string | null
+  networkAvailable: boolean
+
+  enqueue: (type: SyncQueueItem['type'], payload: unknown) => string
+  markSyncing: (id: string) => void
+  markSynced: (id: string) => void
+  markError: (id: string, error: string) => void
+  removeItem: (id: string) => void
+  setNetworkAvailable: (available: boolean) => void
+  clearSynced: () => void
+  setIsSyncing: (value: boolean) => void
+  setLastSyncAt: (at: string) => void
+}
+
+export const useSyncStore = create<SyncStoreState>()(
+  persist(
+    (set) => ({
+      queue: [],
+      isSyncing: false,
+      lastSyncAt: null,
+      networkAvailable: true,
+
+      enqueue: (type, payload) => {
+        const id = generateId()
+        const item: SyncQueueItem = {
+          id,
+          type,
+          payload,
+          status: 'pending',
+          attempts: 0,
+          maxAttempts: 5,
+          lastError: null,
+          createdAt: new Date().toISOString(),
+          syncedAt: null,
+        }
+        set((s) => ({ queue: [...s.queue, item] }))
+        return id
+      },
+
+      markSyncing: (id) =>
+        set((s) => ({
+          queue: s.queue.map((item) =>
+            item.id === id ? { ...item, status: 'syncing' as SyncStatus } : item,
+          ),
+        })),
+
+      markSynced: (id) =>
+        set((s) => ({
+          queue: s.queue.map((item) =>
+            item.id === id
+              ? { ...item, status: 'synced' as SyncStatus, syncedAt: new Date().toISOString() }
+              : item,
+          ),
+          lastSyncAt: new Date().toISOString(),
+        })),
+
+      markError: (id, error) =>
+        set((s) => ({
+          queue: s.queue.map((item) =>
+            item.id === id
+              ? {
+                  ...item,
+                  status: 'error' as SyncStatus,
+                  attempts: item.attempts + 1,
+                  lastError: error,
+                }
+              : item,
+          ),
+        })),
+
+      removeItem: (id) =>
+        set((s) => ({ queue: s.queue.filter((item) => item.id !== id) })),
+
+      setNetworkAvailable: (available) => set({ networkAvailable: available }),
+
+      clearSynced: () =>
+        set((s) => ({ queue: s.queue.filter((item) => item.status !== 'synced') })),
+
+      setIsSyncing: (value) => set({ isSyncing: value }),
+
+      setLastSyncAt: (at) => set({ lastSyncAt: at }),
+    }),
+    {
+      name: 'addere-sync-queue',
+      storage: createJSONStorage(() => AsyncStorage),
+      partialize: (state) => ({
+        queue: state.queue,
+        lastSyncAt: state.lastSyncAt,
+      }),
+    },
+  ),
+)
+
+export const selectPendingCount = (state: SyncStoreState) =>
+  state.queue.filter(
+    (item) =>
+      item.status === 'pending' ||
+      (item.status === 'error' && item.attempts < item.maxAttempts),
+  ).length
+
+export const selectHasPending = (state: SyncStoreState) =>
+  selectPendingCount(state) > 0
+
+export const selectPendingItems = (state: SyncStoreState) =>
+  state.queue.filter(
+    (item) =>
+      item.status === 'pending' ||
+      item.status === 'syncing' ||
+      (item.status === 'error' && item.attempts < item.maxAttempts),
+  )
+
+export const selectErrorItems = (state: SyncStoreState) =>
+  state.queue.filter((item) => item.status === 'error')

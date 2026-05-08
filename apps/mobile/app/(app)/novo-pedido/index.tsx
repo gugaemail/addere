@@ -13,8 +13,8 @@ import {
 import { useRouter, Stack } from 'expo-router'
 import { useClientes } from '../../../src/hooks/useClientes'
 import { useProdutos } from '../../../src/hooks/useProdutos'
-import { useCriarPedido } from '../../../src/hooks/usePedidos'
 import { useBranches } from '../../../src/hooks/useBranches'
+import { submitOrder } from '../../../src/utils/createOrder'
 import { useEffect } from 'react'
 import { useTransportadoras } from '../../../src/hooks/useTransportadoras'
 import { useCondPags } from '../../../src/hooks/useCondPags'
@@ -555,7 +555,7 @@ export default function NovoPedidoScreen() {
   const [transportadora, setTransportadora] = useState<Transportadora | null>(null)
   const [condPag, setCondPag] = useState<CondPag | null>(null)
 
-  const { mutate: criarPedido, isPending } = useCriarPedido()
+  const [isPending, setIsPending] = useState(false)
   const { data: transportadoras = [] } = useTransportadoras()
   const { data: condPags = [] }        = useCondPags()
 
@@ -578,8 +578,10 @@ export default function NovoPedidoScreen() {
     setStep(2)
   }
 
-  function handleConfirm() {
+  async function handleConfirm() {
     if (!customer || !branch || cart.length === 0) return
+
+    setIsPending(true)
 
     const items: CreateOrderItemInput[] = cart.map((i) => ({
       productId:    i.product.id,
@@ -593,32 +595,29 @@ export default function NovoPedidoScreen() {
       tara:         i.tara,
     }))
 
-    criarPedido(
-      {
-        customerId:  customer.id,
-        branchId:    branch.id,
-        items,
-        mennota:     mennota      || undefined,
-        notes:       notes        || undefined,
-        transportId: transportadora?.id,
-        condId:      condPag?.id,
-      },
-      {
-        onSuccess: () => {
-          Alert.alert('Pedido criado', 'Pedido salvo com sucesso!', [
-            { text: 'OK', onPress: () => router.replace('/(app)/pedidos') },
-          ])
-        },
-        onError: (error: any) => {
-          const data = error?.response?.data
-          const msg = data?.message ?? 'Não foi possível criar o pedido. Tente novamente.'
-          const detail = data?.errors
-            ? JSON.stringify(data.errors.fieldErrors ?? data.errors, null, 2)
-            : null
-          Alert.alert('Erro', detail ? `${msg}\n\n${detail}` : msg)
-        },
-      }
-    )
+    const result = await submitOrder({
+      customerId:  customer.id,
+      branchId:    branch.id,
+      items,
+      mennota:     mennota      || undefined,
+      notes:       notes        || undefined,
+      transportId: transportadora?.id,
+      condId:      condPag?.id,
+    })
+
+    setIsPending(false)
+
+    if (result.synced) {
+      Alert.alert('Pedido criado', 'Pedido salvo com sucesso!', [
+        { text: 'OK', onPress: () => router.replace('/(app)/pedidos') },
+      ])
+    } else {
+      Alert.alert(
+        'Pedido salvo offline',
+        'Sem conexão. O pedido foi salvo e será enviado automaticamente ao reconectar.',
+        [{ text: 'OK', onPress: () => router.replace('/(app)/pedidos') }],
+      )
+    }
   }
 
   const stepLabel = ['Selecionar cliente / filial', 'Adicionar produtos', 'Confirmar']
