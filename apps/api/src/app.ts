@@ -13,6 +13,7 @@ import ordersRoutes from './modules/orders/orders.routes'
 import companiesRoutes from './modules/companies/companies.routes'
 import branchesRoutes from './modules/branches/branches.routes'
 import syncRoutes from './modules/sync/sync.routes'
+import { initSchedulers } from './modules/sync/scheduler'
 import transportadorasRoutes from './modules/transportadoras/transportadoras.routes'
 import condpagsRoutes from './modules/condpags/condpags.routes'
 
@@ -53,6 +54,11 @@ export async function buildApp(): Promise<FastifyInstance> {
   await app.register(syncRoutes, { prefix: '/sync' })
   await app.register(transportadorasRoutes, { prefix: '/transportadoras' })
   await app.register(condpagsRoutes, { prefix: '/condpags' })
+
+  // Inicia schedulers de auto-sync após o servidor estar pronto
+  app.addHook('onReady', async () => {
+    await initSchedulers()
+  })
 
   return app
 }

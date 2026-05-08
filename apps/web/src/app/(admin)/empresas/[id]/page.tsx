@@ -127,6 +127,14 @@ export default function EmpresaPage() {
   const [syncResult,  setSyncResult]  = useState<{ entity: string; result: SyncResult } | null>(null)
   const [syncError,   setSyncError]   = useState<{ entity: string; msg: string } | null>(null)
 
+  // Sync Schedule
+  const [schedule, setSchedule] = useState({
+    products:  { interv: 0, scheduleMin: 0, auto: false },
+    customers: { interv: 0, scheduleMin: 0, auto: false },
+  })
+  const [savingSchedule, setSavingSchedule] = useState(false)
+  const [scheduleSaved,  setScheduleSaved]  = useState(false)
+
   // Modal de diagnóstico (compartilhado entre Testar Token e Testar Produtos)
   const [confirmCancel,   setConfirmCancel]   = useState<string | null>(null)
   const [testingToken,     setTestingToken]     = useState(false)
@@ -187,6 +195,22 @@ export default function EmpresaPage() {
     const { data } = await api.get<Order[]>(`/companies/${id}/orders`)
     setOrders(data)
   }
+  async function fetchSyncSchedule() {
+    try {
+      const { data } = await api.get(`/companies/${id}/sync-schedule`)
+      setSchedule(data)
+    } catch { /* ignora */ }
+  }
+  async function saveSyncSchedule() {
+    setSavingSchedule(true)
+    try {
+      await api.patch(`/companies/${id}/sync-schedule`, schedule)
+      setScheduleSaved(true)
+      setTimeout(() => setScheduleSaved(false), 3000)
+    } finally {
+      setSavingSchedule(false)
+    }
+  }
 
   useEffect(() => { fetchCompany() }, [id])
   useEffect(() => {
@@ -194,6 +218,7 @@ export default function EmpresaPage() {
     if (tab === 'produtos') fetchProducts()
     if (tab === 'pedidos')  fetchOrders()
     if (tab === 'campos')   fetchFieldConfig()
+    if (tab === 'protheus') fetchSyncSchedule()
   }, [tab])
 
   // ── Toggles ──────────────────────────────────────────────────────────────
@@ -885,6 +910,68 @@ export default function EmpresaPage() {
             onSync={syncCondPags}
             btnLabel="Sincronizar Cond. Pagamento"
           />
+
+          {/* ── Sincronização Automática ── */}
+          <div className="rounded-xl border border-[var(--border)] overflow-hidden">
+            <div className="px-4 py-3 bg-[var(--bg-subtle)] border-b border-[var(--border)]">
+              <h3 className="text-sm font-semibold text-[var(--text-primary)]">Sincronização Automática</h3>
+              <p className="text-xs text-[var(--text-muted)] mt-0.5">Configure o INTERV e o agendamento de auto-sync por entidade. O INTERV também é usado nos botões manuais acima.</p>
+            </div>
+            <div className="divide-y divide-[var(--border)]">
+              {(['products', 'customers'] as const).map((entity) => {
+                const label = entity === 'products' ? 'Produtos' : 'Clientes'
+                const s = schedule[entity]
+                return (
+                  <div key={entity} className="px-4 py-4 space-y-3">
+                    <p className="text-sm font-semibold text-[var(--text-primary)]">{label}</p>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs text-[var(--text-muted)] mb-1">INTERV (min) — filtro última alteração</label>
+                        <input
+                          type="number" min={0} value={s.interv}
+                          onChange={(e) => setSchedule((prev) => ({ ...prev, [entity]: { ...prev[entity], interv: Number(e.target.value) } }))}
+                          className="w-full bg-[var(--bg-subtle)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-brand-500"
+                        />
+                        <p className="text-xs text-[var(--text-muted)] mt-1">0 = busca todos os registros</p>
+                      </div>
+                      <div>
+                        <label className="block text-xs text-[var(--text-muted)] mb-1">Intervalo auto-sync (min)</label>
+                        <input
+                          type="number" min={0} value={s.scheduleMin} disabled={!s.auto}
+                          onChange={(e) => setSchedule((prev) => ({ ...prev, [entity]: { ...prev[entity], scheduleMin: Number(e.target.value) } }))}
+                          className="w-full bg-[var(--bg-subtle)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-brand-500 disabled:opacity-40"
+                        />
+                        <p className="text-xs text-[var(--text-muted)] mt-1">0 = desabilitado</p>
+                      </div>
+                    </div>
+                    <label className="flex items-center gap-3 cursor-pointer select-none">
+                      <input
+                        type="checkbox" checked={s.auto}
+                        onChange={(e) => setSchedule((prev) => ({ ...prev, [entity]: { ...prev[entity], auto: e.target.checked } }))}
+                        className="w-4 h-4 accent-brand-500 cursor-pointer"
+                      />
+                      <span className="text-sm text-[var(--text-primary)]">
+                        Auto-sync {s.auto ? <span className="text-green-500 font-medium">Ativo</span> : <span className="text-[var(--text-muted)]">Inativo</span>}
+                        {s.auto && s.scheduleMin > 0 && (
+                          <span className="text-[var(--text-muted)] ml-1">— sincroniza a cada {s.scheduleMin} min</span>
+                        )}
+                      </span>
+                    </label>
+                  </div>
+                )
+              })}
+            </div>
+            <div className="px-4 py-3 border-t border-[var(--border)] flex items-center gap-4">
+              <button
+                onClick={saveSyncSchedule}
+                disabled={savingSchedule}
+                className="px-5 py-2.5 rounded-lg text-sm font-semibold bg-brand-500 text-white hover:bg-brand-600 disabled:opacity-50 transition-colors"
+              >
+                {savingSchedule ? 'Salvando…' : 'Salvar configuração'}
+              </button>
+              {scheduleSaved && <span className="text-sm text-green-600 font-medium">Configuração salva!</span>}
+            </div>
+          </div>
         </div>
       )}
 

@@ -205,6 +205,24 @@ export interface CompanyFieldConfig {
   hidden: string[]  // lista de keys do FIELD_REGISTRY que estão ocultas para a empresa
 }
 
+// ─── Sync Schedule ─────────────────────────────────────────────────────────
+
+export interface SyncScheduleEntity {
+  interv:      number   // INTERV enviado ao Protheus (0 = todos, N = alterados nos últimos N min)
+  scheduleMin: number   // intervalo de auto-sync em minutos (0 = desabilitado)
+  auto:        boolean  // auto-sync ligado/desligado
+}
+
+export interface SyncSchedule {
+  products:  SyncScheduleEntity
+  customers: SyncScheduleEntity
+}
+
+export const DEFAULT_SYNC_SCHEDULE: SyncSchedule = {
+  products:  { interv: 0, scheduleMin: 0, auto: false },
+  customers: { interv: 0, scheduleMin: 0, auto: false },
+}
+
 // ─── Erros ─────────────────────────────────────────────────────────────────
 
 export interface ApiError {

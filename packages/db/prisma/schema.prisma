@@ -51,6 +51,7 @@ model Company {
   passProtheus String? // senha para autenticação na API Protheus
   syncConfig   Json?   // mapeamento de campos Protheus por entidade (JSONB)
   fieldConfig  Json?   // visibilidade de campos por empresa: { hidden: string[] }
+  syncSchedule Json?   // agendamento de sync: { products: {...}, customers: {...} }
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

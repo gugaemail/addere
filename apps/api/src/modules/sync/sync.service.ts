@@ -2,6 +2,8 @@ import { prisma } from '@addere/db'
 import { protheusPost, CompanyCredentials } from './protheus.client'
 import { toStr, toNum } from './field-mapper'
 import { decryptCredential } from '../../lib/protheus-crypto'
+import type { SyncSchedule } from '@addere/types'
+import { DEFAULT_SYNC_SCHEDULE } from '@addere/types'
 
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -59,8 +61,10 @@ export async function syncProducts(companyId: string) {
   if (!branch) throw new Error('Nenhuma filial ativa encontrada para a empresa')
   if (!branch.idProtheus) throw new Error('Filial sem código Protheus configurado')
 
-  const filial = branch.idProtheus
-  const creds  = getCredentials(company)
+  const filial   = branch.idProtheus
+  const creds    = getCredentials(company)
+  const schedule = (company.syncSchedule as SyncSchedule | null) ?? DEFAULT_SYNC_SCHEDULE
+  const INTERV   = schedule.products.interv ?? 0
   const errors: string[] = []
   const validRecords: ProductData[] = []
 
@@ -76,7 +80,7 @@ export async function syncProducts(companyId: string) {
       deslocamento,
       B2_FILIAL:   filial,
       DA1_FILIAL:  filial,
-      INTERV:      0,
+      INTERV,
     }
 
     const rawResponse = await protheusPost(companyId, company.apiPord, body, creds) as Record<string, unknown>
@@ -330,8 +334,10 @@ export async function syncCustomers(companyId: string) {
 
   if (!company.apiCliente) throw new Error('URL apiCliente não configurada')
 
-  const creds     = getCredentials(company)
-  const MAX_PAGES = 500
+  const creds        = getCredentials(company)
+  const scheduleC    = (company.syncSchedule as SyncSchedule | null) ?? DEFAULT_SYNC_SCHEDULE
+  const INTERV       = scheduleC.customers.interv ?? 0
+  const MAX_PAGES    = 500
 
   const validRecords: CustomerData[] = []
   let totalRecords = 0
@@ -339,7 +345,7 @@ export async function syncCustomers(companyId: string) {
   let deslocamento = 1
 
   while (deslocamento <= MAX_PAGES) {
-    const body = { limite: SYNC_CUSTOMERS_PAGE_SIZE, deslocamento, INTERV: 0 }
+    const body = { limite: SYNC_CUSTOMERS_PAGE_SIZE, deslocamento, INTERV }
     const rawResponse = await protheusPost(companyId, company.apiCliente, body, creds) as Record<string, unknown>
 
     const paginas  = (rawResponse['paginas'] ?? {}) as Record<string, unknown>

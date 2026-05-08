@@ -23,6 +23,8 @@ import {
   listCompanyOrders,
   cancelOrder,
   updateCompany,
+  getSyncSchedule,
+  updateSyncSchedule,
   updateCompanyProtheus,
   getCompanyFieldConfig,
   updateCompanyFieldConfig,
@@ -394,6 +396,31 @@ export default async function companiesRoutes(app: FastifyInstance) {
     const { id } = request.params as { id: string }
     const config = await getCompanyFieldConfig(id)
     return reply.send(config)
+  })
+
+  // GET /companies/:id/sync-schedule — retorna configuração de agendamento
+  app.get('/:id/sync-schedule', { preHandler: requireSuperAdmin }, async (request: FastifyRequest, reply: FastifyReply) => {
+    const { id } = request.params as { id: string }
+    const schedule = await getSyncSchedule(id)
+    return reply.send(schedule)
+  })
+
+  // PATCH /companies/:id/sync-schedule — salva configuração e reinicia timers
+  app.patch('/:id/sync-schedule', { preHandler: requireSuperAdmin }, async (request: FastifyRequest, reply: FastifyReply) => {
+    const { id } = request.params as { id: string }
+    const body = request.body as { products?: unknown; customers?: unknown }
+    if (!body.products && !body.customers) {
+      return reply.status(400).send({ message: 'Corpo inválido: products ou customers obrigatório' })
+    }
+    const current = await getSyncSchedule(id)
+    const schedule = {
+      products:  { ...current.products,  ...(body.products  as object ?? {}) },
+      customers: { ...current.customers, ...(body.customers as object ?? {}) },
+    }
+    await updateSyncSchedule(id, schedule)
+    const { applySchedule } = await import('../sync/scheduler')
+    applySchedule(id, schedule)
+    return reply.send(schedule)
   })
 
   // GET /companies/me/field-config — retorna config de visibilidade da empresa do usuário logado

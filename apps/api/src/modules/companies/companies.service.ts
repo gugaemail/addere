@@ -97,6 +97,25 @@ export async function updateCompanyProtheus(id: string, input: UpdateCompanyProt
   return { ...company, passProtheus: company.passProtheus ? '••••••••' : null }
 }
 
+// ─── Sync Schedule ───────────────────────────────────────────────────────────
+
+import type { SyncSchedule } from '@addere/types'
+import { DEFAULT_SYNC_SCHEDULE } from '@addere/types'
+
+export async function getSyncSchedule(companyId: string): Promise<SyncSchedule> {
+  const company = await prisma.company.findUnique({ where: { id: companyId }, select: { syncSchedule: true } })
+  const s = company?.syncSchedule as Partial<SyncSchedule> | null
+  return {
+    products:  { ...DEFAULT_SYNC_SCHEDULE.products,  ...(s?.products  ?? {}) },
+    customers: { ...DEFAULT_SYNC_SCHEDULE.customers, ...(s?.customers ?? {}) },
+  }
+}
+
+export async function updateSyncSchedule(companyId: string, schedule: SyncSchedule): Promise<SyncSchedule> {
+  await prisma.company.update({ where: { id: companyId }, data: { syncSchedule: schedule as object } })
+  return schedule
+}
+
 // ─── Field Config ────────────────────────────────────────────────────────────
 
 export async function getCompanyFieldConfig(companyId: string) {
