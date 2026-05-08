@@ -2,13 +2,32 @@ import { useEffect } from 'react'
 import { Stack, useRouter, useSegments } from 'expo-router'
 import { QueryClientProvider } from '@tanstack/react-query'
 import NetInfo from '@react-native-community/netinfo'
+import * as Sentry from '@sentry/react-native'
+import { env } from '../src/config/env'
 import { useFonts } from '../src/hooks/useFonts'
 import { queryClient } from '../src/lib/query-client'
 import { useAuthStore } from '../src/store/auth.store'
 import { useCompanyStore } from '../src/store/company.store'
 import { useSyncStore } from '../src/store/syncStore'
 import { startSyncListener } from '../src/services/syncEngine'
+import { AppErrorBoundary } from '../src/components/ErrorBoundary'
 import { SplashScreen } from '../src/screens/SplashScreen'
+
+Sentry.init({
+  dsn: env.sentryDsn,
+  environment: env.appEnv,
+  release: env.appVersion,
+  enabled: env.appEnv !== 'development',
+  tracesSampleRate: env.appEnv === 'production' ? 0.2 : 1.0,
+
+  beforeSend(event) {
+    // Nunca enviar dados de pedidos em claro
+    if (event.extra?.payload) {
+      event.extra.payload = '[REDACTED]'
+    }
+    return event
+  },
+})
 
 function AuthGuard() {
   const router = useRouter()
@@ -58,9 +77,11 @@ export default function RootLayout() {
   if (!fontsLoaded) return <SplashScreen />
 
   return (
-    <QueryClientProvider client={queryClient}>
-      <AuthGuard />
-      <Stack screenOptions={{ headerShown: false }} />
-    </QueryClientProvider>
+    <AppErrorBoundary>
+      <QueryClientProvider client={queryClient}>
+        <AuthGuard />
+        <Stack screenOptions={{ headerShown: false }} />
+      </QueryClientProvider>
+    </AppErrorBoundary>
   )
 }

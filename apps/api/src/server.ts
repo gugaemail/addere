@@ -1,9 +1,10 @@
 import 'dotenv/config'
+import { env } from './lib/env'
 import { buildApp } from './app'
 
 async function start() {
   const app = await buildApp()
-  const port = Number(process.env.PORT ?? 3333)
+  const port = Number(env.PORT)
 
   try {
     await app.listen({ port, host: '0.0.0.0' })

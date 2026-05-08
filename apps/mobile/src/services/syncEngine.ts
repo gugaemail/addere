@@ -1,5 +1,6 @@
 import { AppState, AppStateStatus } from 'react-native'
 import NetInfo from '@react-native-community/netinfo'
+import * as Sentry from '@sentry/react-native'
 import { api } from '../lib/api'
 import { queryClient } from '../lib/query-client'
 import { useSyncStore } from '../store/syncStore'
@@ -30,6 +31,21 @@ async function processItem(item: SyncQueueItem): Promise<void> {
       (err as { response?: { data?: { message?: string } } })?.response?.data?.message ??
       (err instanceof Error ? err.message : 'Erro desconhecido')
     markError(item.id, msg)
+
+    if (item.attempts + 1 >= item.maxAttempts) {
+      Sentry.captureEvent({
+        message: 'Pedido atingiu máximo de tentativas sem sync',
+        level: 'error',
+        extra: {
+          itemId: item.id,
+          type: item.type,
+          attempts: item.attempts + 1,
+          lastError: msg,
+          createdAt: item.createdAt,
+        },
+        tags: { module: 'sync_engine' },
+      })
+    }
   }
 }
 

@@ -3,9 +3,10 @@ dist
 .expo
 
 # Variáveis de ambiente — nunca commitar valores reais
+# Padrão cobre todos os projetos do monorepo (apps/api, apps/web, apps/mobile)
 .env
 .env.local
 .env.development
 .env.staging
 .env.production
-# .env.example é commitado intencionalmente
+# .env.example e .env.local.example são commitados intencionalmente

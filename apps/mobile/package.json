@@ -14,7 +14,10 @@
     "build:production": "eas build --profile production --platform all",
     "lint": "eslint . --ext .ts,.tsx",
     "type-check": "tsc --noEmit",
-    "test": "jest"
+    "test": "jest",
+    "test:e2e:ios": "detox test --configuration ios.sim.debug",
+    "test:e2e:android": "detox test --configuration android.emu.debug",
+    "test:e2e:build:ios": "detox build --configuration ios.sim.debug"
   },
   "jest": {
     "preset": "jest-expo",
@@ -31,6 +34,7 @@
     "@expo-google-fonts/plus-jakarta-sans": "^0.4.2",
     "@react-native-community/netinfo": "11.4.1",
     "@react-navigation/native": "^7.0.14",
+    "@sentry/react-native": "~7.2.0",
     "@tanstack/react-query": "^5.51.1",
     "@types/jest": "29.5.14",
     "axios": "^1.15.0",
@@ -53,7 +57,9 @@
   },
   "devDependencies": {
     "@babel/core": "^7.24.0",
+    "@types/detox": "^17.14.3",
     "@types/react": "~19.1.10",
+    "detox": "^20.51.1",
     "typescript": "~5.9.2"
   }
 }
