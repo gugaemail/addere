@@ -53,7 +53,7 @@ export function CreateBranchModal({ companyId, onClose, onCreated }: Props) {
 
 // ─── Utilitários de formulário compartilhados ─────────────────────────────────
 
-export function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
+export function Modal({ title, onClose, children, wide }: { title: string; onClose: () => void; children: React.ReactNode; wide?: boolean }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       {/* Backdrop */}
@@ -62,7 +62,7 @@ export function Modal({ title, onClose, children }: { title: string; onClose: ()
         onClick={onClose}
       />
       {/* Card */}
-      <div className="relative bg-[var(--bg-surface)] border border-[var(--border)] rounded-2xl shadow-modal w-full max-w-md p-6 space-y-5 animate-modal-in">
+      <div className={`relative bg-[var(--bg-surface)] border border-[var(--border)] rounded-2xl shadow-modal w-full ${wide ? 'max-w-2xl' : 'max-w-md'} p-6 space-y-5 animate-modal-in`}>
         <div className="flex items-center justify-between">
           <h2 className="text-base font-semibold tracking-tight text-[var(--text-primary)]">{title}</h2>
           <button

@@ -8,10 +8,16 @@ import { Modal, Field, ModalActions, ErrorMsg } from './CreateBranchModal'
 
 interface Branch    { id: string; name: string; cnpj: string | null; idProtheus: string | null; active: boolean }
 interface User      { id: string; name: string; email: string; role: 'ADMIN' | 'SALESPERSON'; active: boolean; idVendProt: string | null }
-interface Customer  { id: string; name: string; document: string | null; email: string | null; phone: string | null; protheusCode: string | null; loja: string | null; address: string | null; municipio: string | null; bairro: string | null; cep: string | null; uf: string | null; active: boolean }
+interface Customer  {
+  id: string; name: string; document: string | null; email: string | null; phone: string | null
+  protheusCode: string | null; loja: string | null; address: string | null; municipio: string | null
+  bairro: string | null; cep: string | null; uf: string | null; vendorCode: string | null
+  msblql: string | null; transpPadrao: string | null; condPagPadrao: string | null
+  tes: string | null; xcodemp: string | null; active: boolean
+}
 interface Product   { id: string; name: string; protheusCode: string | null; price: string; unit: string; stock: string; saldo: string; description: string | null; active: boolean }
 
-type ModalMode = 'create' | 'edit' | 'copy'
+type ModalMode = 'create' | 'edit' | 'copy' | 'view'
 
 // ─── Helper campo numérico ─────────────────────────────────────────────────────
 
@@ -172,6 +178,44 @@ export function UserModal({ companyId, mode, user, onClose, onSaved }: UserModal
   )
 }
 
+// ─── Máscaras ────────────────────────────────────────────────────────────────
+
+function maskDocument(v: string): string {
+  const d = v.replace(/\D/g, '').slice(0, 14)
+  if (d.length <= 11) {
+    if (d.length > 9) return `${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6, 9)}-${d.slice(9)}`
+    if (d.length > 6) return `${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6)}`
+    if (d.length > 3) return `${d.slice(0, 3)}.${d.slice(3)}`
+    return d
+  }
+  if (d.length > 12) return `${d.slice(0, 2)}.${d.slice(2, 5)}.${d.slice(5, 8)}/${d.slice(8, 12)}-${d.slice(12)}`
+  if (d.length > 8)  return `${d.slice(0, 2)}.${d.slice(2, 5)}.${d.slice(5, 8)}/${d.slice(8)}`
+  if (d.length > 5)  return `${d.slice(0, 2)}.${d.slice(2, 5)}.${d.slice(5)}`
+  if (d.length > 2)  return `${d.slice(0, 2)}.${d.slice(2)}`
+  return d
+}
+
+function maskCEP(v: string): string {
+  const d = v.replace(/\D/g, '').slice(0, 8)
+  if (d.length > 5) return `${d.slice(0, 5)}-${d.slice(5)}`
+  return d
+}
+
+function formatDocumentDisplay(v: string | null): string {
+  if (!v) return '—'
+  const d = v.replace(/\D/g, '')
+  if (d.length === 11) return d.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4')
+  if (d.length === 14) return d.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, '$1.$2.$3/$4-$5')
+  return v
+}
+
+function formatCEPDisplay(v: string | null): string {
+  if (!v) return '—'
+  const d = v.replace(/\D/g, '')
+  if (d.length === 8) return `${d.slice(0, 5)}-${d.slice(5)}`
+  return v
+}
+
 // ─── Modal Cliente ────────────────────────────────────────────────────────────
 
 interface CustomerModalProps {
@@ -182,22 +226,41 @@ interface CustomerModalProps {
   onSaved: () => void
 }
 
-export function CustomerModal({ companyId, mode, customer, onClose, onSaved }: CustomerModalProps) {
-  const [name,         setName]         = useState(customer?.name         ?? '')
-  const [protheusCode, setProtheusCode] = useState(mode === 'copy' ? '' : (customer?.protheusCode ?? ''))
-  const [loja,         setLoja]         = useState(mode === 'copy' ? '' : (customer?.loja         ?? ''))
-  const [document,     setDocument]     = useState(customer?.document     ?? '')
-  const [email,        setEmail]        = useState(customer?.email        ?? '')
-  const [phone,        setPhone]        = useState(customer?.phone        ?? '')
-  const [address,      setAddress]      = useState(customer?.address      ?? '')
-  const [municipio,    setMunicipio]    = useState(customer?.municipio    ?? '')
-  const [bairro,       setBairro]       = useState(customer?.bairro       ?? '')
-  const [cep,          setCep]          = useState(customer?.cep          ?? '')
-  const [uf,           setUf]           = useState(customer?.uf           ?? '')
-  const [error,        setError]        = useState<string | null>(null)
-  const [loading,      setLoading]      = useState(false)
+function ViewRow({ label, value }: { label: string; value: string | null | undefined }) {
+  return (
+    <div className="flex justify-between py-2 border-b border-[var(--border)] last:border-0">
+      <span className="text-sm text-[var(--text-muted)] shrink-0 mr-4">{label}</span>
+      <span className="text-sm text-[var(--text-primary)] text-right break-all">{value || '—'}</span>
+    </div>
+  )
+}
 
-  const title = mode === 'create' ? 'Novo Cliente' : mode === 'copy' ? 'Copiar Cliente' : 'Editar Cliente'
+export function CustomerModal({ companyId, mode, customer, onClose, onSaved }: CustomerModalProps) {
+  const [name,          setName]          = useState(customer?.name          ?? '')
+  const [protheusCode,  setProtheusCode]  = useState(mode === 'copy' ? '' : (customer?.protheusCode  ?? ''))
+  const [loja,          setLoja]          = useState(mode === 'copy' ? '' : (customer?.loja          ?? ''))
+  const [document,      setDocument]      = useState(customer?.document      ?? '')
+  const [email,         setEmail]         = useState(customer?.email         ?? '')
+  const [phone,         setPhone]         = useState(customer?.phone         ?? '')
+  const [address,       setAddress]       = useState(customer?.address       ?? '')
+  const [municipio,     setMunicipio]     = useState(customer?.municipio     ?? '')
+  const [bairro,        setBairro]        = useState(customer?.bairro        ?? '')
+  const [cep,           setCep]           = useState(customer?.cep           ?? '')
+  const [uf,            setUf]            = useState(customer?.uf            ?? '')
+  const [vendorCode,    setVendorCode]    = useState(customer?.vendorCode    ?? '')
+  const [msblql,        setMsblql]        = useState(customer?.msblql        ?? '2')
+  const [transpPadrao,  setTranspPadrao]  = useState(customer?.transpPadrao  ?? '')
+  const [condPagPadrao, setCondPagPadrao] = useState(customer?.condPagPadrao ?? '')
+  const [tes,           setTes]           = useState(customer?.tes           ?? '')
+  const [xcodemp,       setXcodemp]       = useState(customer?.xcodemp       ?? '')
+  const [error,         setError]         = useState<string | null>(null)
+  const [loading,       setLoading]       = useState(false)
+
+  const isView  = mode === 'view'
+  const title   = mode === 'create' ? 'Novo Cliente'
+                : mode === 'copy'   ? 'Copiar Cliente'
+                : mode === 'view'   ? 'Dados do Cliente'
+                : 'Editar Cliente'
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -206,16 +269,22 @@ export function CustomerModal({ companyId, mode, customer, onClose, onSaved }: C
     try {
       const body = {
         name,
-        protheusCode: protheusCode || undefined,
-        loja:         loja         || undefined,
-        document:     document     || undefined,
-        email:        email        || undefined,
-        phone:        phone        || undefined,
-        address:      address      || undefined,
-        municipio:    municipio    || undefined,
-        bairro:       bairro       || undefined,
-        cep:          cep          || undefined,
-        uf:           uf           || undefined,
+        protheusCode:  protheusCode  || undefined,
+        loja:          loja          || undefined,
+        document:      document.replace(/\D/g, '') || undefined,
+        email:         email         || undefined,
+        phone:         phone         || undefined,
+        address:       address       || undefined,
+        municipio:     municipio     || undefined,
+        bairro:        bairro        || undefined,
+        cep:           cep.replace(/\D/g, '') || undefined,
+        uf:            uf            || undefined,
+        vendorCode:    vendorCode    || undefined,
+        msblql:        msblql        || undefined,
+        transpPadrao:  transpPadrao  || undefined,
+        condPagPadrao: condPagPadrao || undefined,
+        tes:           tes           || undefined,
+        xcodemp:       xcodemp       || undefined,
       }
       if (mode === 'edit' && customer) {
         await api.patch(`/companies/${companyId}/customers/${customer.id}`, body)
@@ -230,26 +299,100 @@ export function CustomerModal({ companyId, mode, customer, onClose, onSaved }: C
     }
   }
 
+  if (isView && customer) {
+    return (
+      <Modal title={title} onClose={onClose} wide>
+        <div className="max-h-[70vh] overflow-y-auto pr-1 space-y-1">
+          <p className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wide mb-2">Identificação</p>
+          <ViewRow label="Nome"              value={customer.name} />
+          <ViewRow label="CPF / CNPJ"        value={formatDocumentDisplay(customer.document)} />
+          <ViewRow label="Cod. Protheus"      value={customer.protheusCode} />
+          <ViewRow label="Loja"               value={customer.loja} />
+          <ViewRow label="Cód. Vendedor"      value={customer.vendorCode} />
+          <ViewRow label="Status Protheus"    value={customer.msblql === '1' ? 'Bloqueado' : customer.msblql === '2' ? 'Liberado' : undefined} />
+
+          <p className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wide mt-4 mb-2">Contato</p>
+          <ViewRow label="E-mail"    value={customer.email} />
+          <ViewRow label="Telefone"  value={customer.phone} />
+
+          <p className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wide mt-4 mb-2">Endereço</p>
+          <ViewRow label="Endereço"   value={customer.address} />
+          <ViewRow label="Bairro"     value={customer.bairro} />
+          <ViewRow label="Município"  value={customer.municipio} />
+          <ViewRow label="UF"         value={customer.uf} />
+          <ViewRow label="CEP"        value={formatCEPDisplay(customer.cep)} />
+
+          <p className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wide mt-4 mb-2">Padrões Protheus</p>
+          <ViewRow label="Transp. Padrão"     value={customer.transpPadrao} />
+          <ViewRow label="Cond. Pgto Padrão"  value={customer.condPagPadrao} />
+          <ViewRow label="Código TES"          value={customer.tes} />
+          <ViewRow label="Filial Faturamento"  value={customer.xcodemp} />
+        </div>
+        <div className="mt-4 pt-4 border-t border-[var(--border)]">
+          <button type="button" onClick={onClose}
+            className="w-full border border-[var(--border)] text-[var(--text-secondary)] text-sm font-medium rounded-lg py-2.5 hover:bg-[var(--bg-subtle)] transition-colors">
+            Fechar
+          </button>
+        </div>
+      </Modal>
+    )
+  }
+
   return (
-    <Modal title={title} onClose={onClose}>
+    <Modal title={title} onClose={onClose} wide>
       <form onSubmit={handleSubmit} className="space-y-3 max-h-[70vh] overflow-y-auto pr-1">
+        <p className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wide">Identificação</p>
         <Field label="Nome *" value={name} onChange={setName} required />
         <div className="grid grid-cols-2 gap-3">
           <Field label="Cod. Protheus" value={protheusCode} onChange={setProtheusCode} placeholder="Opcional" />
-          <Field label="Loja" value={loja} onChange={setLoja} placeholder="01" />
+          <Field label="Loja"          value={loja}         onChange={setLoja}         placeholder="01" />
         </div>
-        <Field label="CPF / CNPJ" value={document} onChange={setDocument} placeholder="Opcional" />
-        <Field label="E-mail" value={email} onChange={setEmail} placeholder="Opcional" />
+        <div>
+          <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">CPF / CNPJ</label>
+          <input value={document} onChange={(e) => setDocument(maskDocument(e.target.value))} placeholder="000.000.000-00 ou 00.000.000/0000-00"
+            className="w-full bg-[var(--bg-subtle)] border border-[var(--border)] rounded-lg px-3 py-2.5 text-sm text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-brand-500" />
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Cód. Vendedor"      value={vendorCode}    onChange={setVendorCode}    placeholder="Opcional" />
+          <div>
+            <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">Status Protheus</label>
+            <select value={msblql} onChange={(e) => setMsblql(e.target.value)}
+              className="w-full bg-[var(--bg-subtle)] border border-[var(--border)] rounded-lg px-3 py-2.5 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-brand-500">
+              <option value="2">Liberado</option>
+              <option value="1">Bloqueado</option>
+            </select>
+          </div>
+        </div>
+
+        <p className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wide pt-1">Contato</p>
+        <Field label="E-mail"   value={email} onChange={setEmail} placeholder="Opcional" />
         <Field label="Telefone" value={phone} onChange={setPhone} placeholder="Opcional" />
+
+        <p className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wide pt-1">Endereço</p>
         <Field label="Endereço" value={address} onChange={setAddress} placeholder="Opcional" />
         <div className="grid grid-cols-2 gap-3">
           <Field label="Município" value={municipio} onChange={setMunicipio} placeholder="Opcional" />
-          <Field label="Bairro" value={bairro} onChange={setBairro} placeholder="Opcional" />
+          <Field label="Bairro"    value={bairro}    onChange={setBairro}    placeholder="Opcional" />
         </div>
-        <div className="grid grid-cols-2 gap-3">
-          <Field label="CEP" value={cep} onChange={setCep} placeholder="Opcional" />
+        <div className="grid grid-cols-3 gap-3">
+          <div className="col-span-2">
+            <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">CEP</label>
+            <input value={cep} onChange={(e) => setCep(maskCEP(e.target.value))} placeholder="00000-000"
+              className="w-full bg-[var(--bg-subtle)] border border-[var(--border)] rounded-lg px-3 py-2.5 text-sm text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-brand-500" />
+          </div>
           <Field label="UF" value={uf} onChange={setUf} placeholder="SP" />
         </div>
+
+        <p className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wide pt-1">Padrões Protheus</p>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Transp. Padrão"    value={transpPadrao}  onChange={setTranspPadrao}  placeholder="Opcional" />
+          <Field label="Cond. Pgto Padrão" value={condPagPadrao} onChange={setCondPagPadrao} placeholder="Opcional" />
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Código TES"         value={tes}     onChange={setTes}     placeholder="Opcional" />
+          <Field label="Filial Faturamento" value={xcodemp} onChange={setXcodemp} placeholder="Opcional" />
+        </div>
+
         <ModalActions loading={loading} onClose={onClose} submitLabel={mode === 'edit' ? 'Salvar' : 'Criar'} />
         {error && <ErrorMsg message={error} />}
       </form>
@@ -331,14 +474,15 @@ export function ProductModal({ companyId, mode, product, onClose, onSaved }: Pro
 // ─── Menu de ações ────────────────────────────────────────────────────────────
 
 interface ActionMenuProps {
-  onEdit:   () => void
-  onCopy:   () => void
-  onToggle: () => void
-  active:   boolean
-  label?:   string
+  onEdit:    () => void
+  onCopy:    () => void
+  onToggle:  () => void
+  onView?:   () => void
+  active:    boolean
+  label?:    string
 }
 
-export function ActionMenu({ onEdit, onCopy, onToggle, active, label }: ActionMenuProps) {
+export function ActionMenu({ onEdit, onCopy, onToggle, onView, active, label }: ActionMenuProps) {
   const [open, setOpen] = useState(false)
   const [pos, setPos] = useState({ top: 0, right: 0 })
   const btnRef = useRef<HTMLButtonElement>(null)
@@ -370,6 +514,14 @@ export function ActionMenu({ onEdit, onCopy, onToggle, active, label }: ActionMe
             className="fixed z-40 w-44 bg-[var(--bg-surface)] border border-[var(--border)] rounded-xl shadow-modal overflow-hidden"
             style={{ top: pos.top, right: pos.right }}
           >
+            {onView && (
+              <button
+                onClick={() => { setOpen(false); onView() }}
+                className="w-full text-left px-4 py-2.5 text-sm text-[var(--text-secondary)] hover:bg-[var(--bg-subtle)] transition-colors"
+              >
+                Visualizar {label}
+              </button>
+            )}
             <button
               onClick={() => { setOpen(false); onEdit() }}
               className="w-full text-left px-4 py-2.5 text-sm text-[var(--text-secondary)] hover:bg-[var(--bg-subtle)] transition-colors"

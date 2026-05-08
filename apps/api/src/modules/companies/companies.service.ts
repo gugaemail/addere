@@ -285,7 +285,9 @@ export async function updateCustomer(companyId: string, id: string, input: Updat
   if (!exists) throw new Error('Cliente não encontrado')
   const data: Record<string, unknown> = {}
   const fields: (keyof CreateCustomerInput)[] = [
-    'name', 'protheusCode', 'loja', 'document', 'email', 'phone', 'address', 'municipio', 'bairro', 'cep', 'uf',
+    'name', 'protheusCode', 'loja', 'document', 'email', 'phone', 'address',
+    'municipio', 'bairro', 'cep', 'uf', 'vendorCode',
+    'msblql', 'transpPadrao', 'condPagPadrao', 'tes', 'xcodemp',
   ]
   for (const f of fields) {
     if (input[f] !== undefined) data[f] = input[f] || null

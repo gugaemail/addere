@@ -25,6 +25,8 @@ interface Customer {
   id: string; name: string; document: string | null; email: string | null; phone: string | null
   protheusCode: string | null; loja: string | null; address: string | null
   municipio: string | null; bairro: string | null; cep: string | null; uf: string | null
+  vendorCode: string | null; msblql: string | null; transpPadrao: string | null
+  condPagPadrao: string | null; tes: string | null; xcodemp: string | null
   active: boolean; createdAt: string
 }
 interface Product {
@@ -54,7 +56,7 @@ interface CompanyDetail {
 interface SyncResult { synced: number; total: number; errors: string[] }
 
 type Tab = 'filiais' | 'usuarios' | 'clientes' | 'produtos' | 'pedidos' | 'protheus' | 'campos'
-type ModalState<T> = { mode: 'create' | 'edit' | 'copy'; item?: T } | null
+type ModalState<T> = { mode: 'create' | 'edit' | 'copy' | 'view'; item?: T } | null
 type SortConfig = { col: string; dir: 'asc' | 'desc' } | null
 
 // ─── Utilitários de tabela ────────────────────────────────────────────────────
@@ -572,6 +574,7 @@ export default function EmpresaPage() {
                     <ActionMenu
                       label="cliente"
                       active={c.active}
+                      onView={() => setCustomerModal({ mode: 'view', item: c })}
                       onEdit={() => setCustomerModal({ mode: 'edit', item: c })}
                       onCopy={() => setCustomerModal({ mode: 'copy', item: c })}
                       onToggle={() => toggleCustomer(c.id, !c.active)}
