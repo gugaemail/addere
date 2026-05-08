@@ -1,13 +1,166 @@
 'use client'
 
-import { useQuery } from '@tanstack/react-query'
-import { useSearchParams } from 'next/navigation'
-import { useMemo } from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useSearchParams, useRouter } from 'next/navigation'
+import { useMemo, useState } from 'react'
 import {
   LineChart, Line, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer,
 } from 'recharts'
 import axios from 'axios'
+import { Plus, BarChart2, CheckCircle, XCircle, Clock } from 'lucide-react'
+import { api } from '@/lib/api'
+import { CreatePilotModal } from './CreatePilotModal'
 import type { PilotDashboardMetrics, PilotMetricDelta } from '@addere/types'
+
+// ─── Tipos locais ────────────────────────────────────────────────────────────
+
+interface PilotListItem {
+  id: string
+  clientName: string
+  startDate: string
+  endDate: string
+  status: 'ACTIVE' | 'COMPLETED' | 'CANCELLED'
+  company: { id: string; name: string; cnpj: string }
+  _count: { events: number; feedbacks: number }
+}
+
+// ─── Lista de pilotos ────────────────────────────────────────────────────────
+
+function PilotList() {
+  const router = useRouter()
+  const queryClient = useQueryClient()
+  const [showCreate, setShowCreate] = useState(false)
+  const [updatingId, setUpdatingId] = useState<string | null>(null)
+
+  const { data: pilots, isLoading } = useQuery<PilotListItem[]>({
+    queryKey: ['admin-pilots'],
+    queryFn: () => api.get('/admin/pilots').then((r) => r.data),
+  })
+
+  async function handleStatusChange(id: string, status: 'COMPLETED' | 'CANCELLED') {
+    setUpdatingId(id)
+    try {
+      await api.patch(`/admin/pilots/${id}/status`, { status })
+      queryClient.invalidateQueries({ queryKey: ['admin-pilots'] })
+    } finally {
+      setUpdatingId(null)
+    }
+  }
+
+  const statusBadge = (status: PilotListItem['status']) => {
+    if (status === 'ACTIVE') return <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700 font-medium">Ativo</span>
+    if (status === 'COMPLETED') return <span className="text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 font-medium">Concluído</span>
+    return <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 font-medium">Cancelado</span>
+  }
+
+  const daysLeft = (endDate: string) => {
+    const diff = new Date(endDate).getTime() - Date.now()
+    return Math.max(0, Math.ceil(diff / (1000 * 60 * 60 * 24)))
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Pilotos comerciais</h1>
+          <p className="text-sm text-gray-500 mt-1">Gerencie os pilotos de 30 dias com clientes</p>
+        </div>
+        <button
+          onClick={() => setShowCreate(true)}
+          className="flex items-center gap-2 px-4 py-2 bg-[#1B4FA8] hover:bg-[#1a3f8f] text-white text-sm rounded-lg transition-colors"
+        >
+          <Plus size={16} />
+          Novo piloto
+        </button>
+      </div>
+
+      {isLoading ? (
+        <div className="text-center py-16 text-gray-400">Carregando pilotos...</div>
+      ) : pilots?.length === 0 ? (
+        <div className="text-center py-16 border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-xl">
+          <BarChart2 size={40} className="mx-auto mb-3 text-gray-300" />
+          <p className="text-gray-500">Nenhum piloto cadastrado</p>
+          <p className="text-sm text-gray-400 mt-1">Crie o primeiro piloto para começar o rastreamento</p>
+        </div>
+      ) : (
+        <div className="grid gap-4">
+          {pilots?.map((pilot) => (
+            <div
+              key={pilot.id}
+              className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 p-5"
+            >
+              <div className="flex items-start justify-between">
+                <div className="flex-1">
+                  <div className="flex items-center gap-3 mb-1">
+                    <h3 className="font-semibold text-gray-900 dark:text-white">{pilot.clientName}</h3>
+                    {statusBadge(pilot.status)}
+                  </div>
+                  <p className="text-sm text-gray-500">{pilot.company.name} · {pilot.company.cnpj}</p>
+                  <div className="flex items-center gap-4 mt-3 text-xs text-gray-400">
+                    <span className="flex items-center gap-1">
+                      <Clock size={12} />
+                      {new Date(pilot.startDate).toLocaleDateString('pt-BR')} →{' '}
+                      {new Date(pilot.endDate).toLocaleDateString('pt-BR')}
+                      {pilot.status === 'ACTIVE' && ` (${daysLeft(pilot.endDate)} dias restantes)`}
+                    </span>
+                    <span>{pilot._count.events.toLocaleString()} eventos</span>
+                    <span>{pilot._count.feedbacks} feedbacks</span>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 ml-4">
+                  {pilot.status === 'ACTIVE' && (
+                    <>
+                      <button
+                        onClick={() => router.push(`/piloto?pilotId=${pilot.id}`)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-[#E8F4FF] text-[#1B4FA8] hover:bg-[#d4e8ff] rounded-lg transition-colors"
+                      >
+                        <BarChart2 size={13} />
+                        Dashboard
+                      </button>
+                      <button
+                        onClick={() => handleStatusChange(pilot.id, 'COMPLETED')}
+                        disabled={updatingId === pilot.id}
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-green-50 text-green-700 hover:bg-green-100 rounded-lg transition-colors disabled:opacity-50"
+                      >
+                        <CheckCircle size={13} />
+                        Concluir
+                      </button>
+                      <button
+                        onClick={() => handleStatusChange(pilot.id, 'CANCELLED')}
+                        disabled={updatingId === pilot.id}
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-red-50 text-red-600 hover:bg-red-100 rounded-lg transition-colors disabled:opacity-50"
+                      >
+                        <XCircle size={13} />
+                        Cancelar
+                      </button>
+                    </>
+                  )}
+                  {pilot.status !== 'ACTIVE' && (
+                    <button
+                      onClick={() => router.push(`/piloto?pilotId=${pilot.id}`)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-gray-100 text-gray-600 hover:bg-gray-200 rounded-lg transition-colors"
+                    >
+                      <BarChart2 size={13} />
+                      Ver dados
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {showCreate && (
+        <CreatePilotModal
+          onClose={() => setShowCreate(false)}
+          onCreated={() => queryClient.invalidateQueries({ queryKey: ['admin-pilots'] })}
+        />
+      )}
+    </div>
+  )
+}
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
@@ -90,7 +243,11 @@ function MetricCard({ label, icon, value, goal, goalMet, near, delta, deltaInver
 
 export default function PilotoDashboard() {
   const searchParams = useSearchParams()
+  const router = useRouter()
   const pilotId = searchParams.get('pilotId') ?? ''
+
+  // Sem pilotId — mostrar lista de pilotos
+  if (!pilotId) return <PilotList />
 
   const { data, isLoading, isError } = useQuery<PilotDashboardMetrics>({
     queryKey: ['pilot-metrics', pilotId],
@@ -106,13 +263,6 @@ export default function PilotoDashboard() {
     return d
   }, [])
 
-  if (!pilotId) {
-    return (
-      <div className="flex items-center justify-center h-64 text-gray-400">
-        <p>Passe <code>?pilotId=...</code> na URL para visualizar um piloto.</p>
-      </div>
-    )
-  }
 
   if (isLoading) {
     return (
@@ -148,6 +298,12 @@ export default function PilotoDashboard() {
       {/* Header */}
       <div className="flex items-start justify-between">
         <div>
+          <button
+            onClick={() => router.push('/piloto')}
+            className="text-sm text-gray-400 hover:text-gray-600 mb-3 flex items-center gap-1 transition-colors"
+          >
+            ← Todos os pilotos
+          </button>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
             Piloto — {pilot.clientName}
           </h1>

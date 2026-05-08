@@ -2,7 +2,9 @@ import { FastifyInstance } from 'fastify'
 import { z } from 'zod'
 import { Prisma } from '@prisma/client'
 import { prisma } from '@addere/db'
-import { authenticate } from '../../middleware/authenticate'
+import { authenticate, requireSuperAdmin } from '../../middleware/authenticate'
+
+// ─── Schemas ─────────────────────────────────────────────────────────────────
 
 const pilotEventSchema = z.object({
   events: z.array(z.object({
@@ -21,7 +23,21 @@ const pilotFeedbackSchema = z.object({
   comment: z.string().max(1000).optional(),
 })
 
+const createPilotSchema = z.object({
+  clientName: z.string().min(1).max(200),
+  companyId: z.string().uuid(),
+  startDate: z.string().datetime(),
+  endDate: z.string().datetime(),
+})
+
+const updatePilotStatusSchema = z.object({
+  status: z.enum(['ACTIVE', 'COMPLETED', 'CANCELLED']),
+})
+
+// ─── Routes ──────────────────────────────────────────────────────────────────
+
 export async function pilotRoutes(app: FastifyInstance) {
+  // Recebimento de eventos do app mobile (autenticado por JWT do rep)
   app.post('/pilot/events', {
     preHandler: authenticate,
   }, async (request, reply) => {
@@ -59,6 +75,7 @@ export async function pilotRoutes(app: FastifyInstance) {
     return reply.status(204).send()
   })
 
+  // Feedback pós-sync do app mobile
   app.post('/pilot/feedback', {
     preHandler: authenticate,
   }, async (request, reply) => {
@@ -93,5 +110,99 @@ export async function pilotRoutes(app: FastifyInstance) {
     })
 
     return reply.status(204).send()
+  })
+
+  // ── Admin: CRUD de pilotos (SUPERADMIN) ──────────────────────────────────
+
+  // Listar todos os pilotos
+  app.get('/admin/pilots', {
+    preHandler: requireSuperAdmin,
+  }, async (_request, reply) => {
+    const pilots = await prisma.pilot.findMany({
+      include: {
+        company: { select: { id: true, name: true, cnpj: true } },
+        _count: { select: { events: true, feedbacks: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+    })
+    return reply.send(pilots)
+  })
+
+  // Buscar piloto por ID
+  app.get('/admin/pilots/:id', {
+    preHandler: requireSuperAdmin,
+  }, async (request, reply) => {
+    const { id } = request.params as { id: string }
+    const pilot = await prisma.pilot.findUnique({
+      where: { id },
+      include: {
+        company: { select: { id: true, name: true, cnpj: true } },
+        _count: { select: { events: true, feedbacks: true } },
+      },
+    })
+    if (!pilot) return reply.status(404).send({ message: 'Piloto não encontrado' })
+    return reply.send(pilot)
+  })
+
+  // Criar novo piloto
+  app.post('/admin/pilots', {
+    preHandler: requireSuperAdmin,
+  }, async (request, reply) => {
+    const parsed = createPilotSchema.safeParse(request.body)
+    if (!parsed.success) {
+      return reply.status(400).send({ message: 'Dados inválidos', errors: parsed.error.issues })
+    }
+
+    const company = await prisma.company.findUnique({
+      where: { id: parsed.data.companyId },
+      select: { id: true, name: true },
+    })
+    if (!company) {
+      return reply.status(404).send({ message: 'Empresa não encontrada' })
+    }
+
+    // Verificar se já existe piloto ativo para essa empresa
+    const existing = await prisma.pilot.findFirst({
+      where: { companyId: parsed.data.companyId, status: 'ACTIVE' },
+    })
+    if (existing) {
+      return reply.status(409).send({
+        message: `Empresa já possui um piloto ativo (${existing.clientName}). Encerre-o antes de criar um novo.`,
+        existingPilotId: existing.id,
+      })
+    }
+
+    const pilot = await prisma.pilot.create({
+      data: {
+        clientName: parsed.data.clientName,
+        companyId: parsed.data.companyId,
+        startDate: new Date(parsed.data.startDate),
+        endDate: new Date(parsed.data.endDate),
+        status: 'ACTIVE',
+      },
+      include: {
+        company: { select: { id: true, name: true } },
+      },
+    })
+
+    return reply.status(201).send(pilot)
+  })
+
+  // Atualizar status do piloto
+  app.patch('/admin/pilots/:id/status', {
+    preHandler: requireSuperAdmin,
+  }, async (request, reply) => {
+    const { id } = request.params as { id: string }
+    const parsed = updatePilotStatusSchema.safeParse(request.body)
+    if (!parsed.success) {
+      return reply.status(400).send({ message: 'Dados inválidos', errors: parsed.error.issues })
+    }
+
+    const pilot = await prisma.pilot.update({
+      where: { id },
+      data: { status: parsed.data.status },
+    })
+
+    return reply.send(pilot)
   })
 }

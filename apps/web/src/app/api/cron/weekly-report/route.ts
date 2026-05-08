@@ -3,8 +3,17 @@ import { prisma } from '@addere/db'
 import { sendWeeklyReport } from '@/lib/email/sendWeeklyReport'
 
 export async function GET(req: NextRequest) {
-  const secret = req.headers.get('x-cron-secret')
-  if (secret !== process.env.CRON_SECRET) {
+  // Vercel Cron envia "Authorization: Bearer <CRON_SECRET>"
+  // Chamadas manuais podem usar o header "x-cron-secret" como alternativa
+  const authHeader = req.headers.get('authorization')
+  const manualSecret = req.headers.get('x-cron-secret')
+  const expected = process.env.CRON_SECRET
+
+  const authorized =
+    (authHeader === `Bearer ${expected}`) ||
+    (manualSecret === expected)
+
+  if (!authorized) {
     return NextResponse.json({ message: 'Não autorizado' }, { status: 401 })
   }
 
