@@ -51,6 +51,10 @@ export async function toggleCompanyActive(id: string, active: boolean) {
   return prisma.company.update({ where: { id }, data: { active } })
 }
 
+export async function updateCompany(id: string, input: { name?: string; cnpj?: string; idProtheus?: string | null }) {
+  return prisma.company.update({ where: { id }, data: input })
+}
+
 export interface UpdateCompanyProtheusInput {
   apiToken?:     string
   apiPord?:      string

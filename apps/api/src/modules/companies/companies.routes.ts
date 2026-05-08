@@ -22,6 +22,7 @@ import {
   toggleProductActive,
   listCompanyOrders,
   cancelOrder,
+  updateCompany,
   updateCompanyProtheus,
   getCompanyFieldConfig,
   updateCompanyFieldConfig,
@@ -133,6 +134,21 @@ export default async function companiesRoutes(app: FastifyInstance) {
       return reply.send(company)
     } catch (err) {
       return reply.status(404).send({ message: (err as Error).message })
+    }
+  })
+
+  // PATCH /companies/:id — edita dados básicos da empresa
+  app.patch('/:id', { preHandler: requireSuperAdmin }, async (request: FastifyRequest, reply: FastifyReply) => {
+    const { id } = request.params as { id: string }
+    const { name, cnpj, idProtheus } = request.body as { name?: string; cnpj?: string; idProtheus?: string }
+    if (!name && !cnpj && idProtheus === undefined) {
+      return reply.status(400).send({ message: 'Nenhum campo para atualizar' })
+    }
+    try {
+      const company = await updateCompany(id, { name, cnpj, idProtheus: idProtheus ?? null })
+      return reply.send(company)
+    } catch (err) {
+      return reply.status(422).send({ message: (err as Error).message })
     }
   })
 
