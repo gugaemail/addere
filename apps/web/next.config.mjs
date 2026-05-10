@@ -1,5 +1,7 @@
 import { withSentryConfig } from '@sentry/nextjs'
 
+const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3333'
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   transpilePackages: ['@addere/types'],
@@ -15,8 +17,14 @@ const nextConfig = {
           { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=()' },
           {
             key: 'Content-Security-Policy',
-            value:
-              "default-src 'self'; script-src 'self' 'unsafe-eval' 'unsafe-inline' https://*.sentry.io; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https://*.sentry.io; frame-ancestors 'none';",
+            value: [
+              "default-src 'self'",
+              "script-src 'self' 'unsafe-eval' 'unsafe-inline' https://*.sentry.io",
+              "style-src 'self' 'unsafe-inline'",
+              "img-src 'self' data: https:",
+              `connect-src 'self' ${apiUrl} https://*.sentry.io`,
+              "frame-ancestors 'none'",
+            ].join('; '),
           },
         ],
       },
