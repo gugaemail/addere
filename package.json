@@ -20,6 +20,10 @@
     "db:studio": "npm run studio --workspace=packages/db",
     "types:build": "npm run build --workspace=packages/types"
   },
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
   "devDependencies": {
     "typescript": "^5.4.5"
   },
