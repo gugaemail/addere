@@ -1,10 +1,8 @@
 'use client'
 
-export const dynamic = 'force-dynamic'
-
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useSearchParams, useRouter } from 'next/navigation'
-import { useMemo, useState } from 'react'
+import { useMemo, useState, Suspense } from 'react'
 import {
   LineChart, Line, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer,
 } from 'recharts'
@@ -243,7 +241,7 @@ function MetricCard({ label, icon, value, goal, goalMet, near, delta, deltaInver
 
 // ─── Page ───────────────────────────────────────────────────────────────────
 
-export default function PilotoDashboard() {
+function PilotoDashboard() {
   const searchParams = useSearchParams()
   const router = useRouter()
   const pilotId = searchParams.get('pilotId') ?? ''
@@ -485,5 +483,13 @@ export default function PilotoDashboard() {
         </div>
       )}
     </div>
+  )
+}
+
+export default function PilotoPage() {
+  return (
+    <Suspense fallback={null}>
+      <PilotoDashboard />
+    </Suspense>
   )
 }
