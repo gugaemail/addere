@@ -5,9 +5,9 @@ services:
     runtime: node
     region: oregon
     plan: starter
-    rootDir: apps/api
-    buildCommand: npm install && npm run build
-    startCommand: node dist/server.js
+    # rootDir não definido — build roda da raiz do monorepo (necessário para npm workspaces)
+    buildCommand: npm install && npx prisma generate --schema=packages/db/prisma/schema.prisma && npm run build --workspace=@addere/api
+    startCommand: node apps/api/dist/server.js
     healthCheckPath: /health
     envVars:
       - key: NODE_ENV
@@ -34,9 +34,8 @@ services:
     runtime: node
     region: oregon
     plan: starter
-    rootDir: apps/api
-    buildCommand: npm install && npm run build
-    startCommand: node dist/server.js
+    buildCommand: npm install && npx prisma generate --schema=packages/db/prisma/schema.prisma && npm run build --workspace=@addere/api
+    startCommand: node apps/api/dist/server.js
     healthCheckPath: /health
     envVars:
       - key: NODE_ENV
