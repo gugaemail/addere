@@ -19,7 +19,7 @@ interface Branch {
   id: string; name: string; cnpj: string | null; idProtheus: string | null; active: boolean
 }
 interface User {
-  id: string; name: string; email: string; role: 'ADMIN' | 'SALESPERSON'; active: boolean
+  id: string; name: string; email: string; role: 'ADMIN' | 'SALESPERSON'; active: boolean; idVendProt: string | null
 }
 interface Customer {
   id: string; name: string; document: string | null; email: string | null; phone: string | null
