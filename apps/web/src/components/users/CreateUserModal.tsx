@@ -66,7 +66,7 @@ export function CreateUserModal({ isOpen, onClose }: CreateUserModalProps) {
           <Button type="button" variant="secondary" onClick={onClose}>
             Cancelar
           </Button>
-          <Button type="submit" isLoading={isSubmitting}>
+          <Button type="submit" loading={isSubmitting}>
             Criar usuário
           </Button>
         </div>
