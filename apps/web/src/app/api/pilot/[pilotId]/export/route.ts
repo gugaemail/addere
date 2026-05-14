@@ -18,7 +18,7 @@ export async function GET(
 
   const rows = [
     ['data', 'representante', 'duracao_ms', 'valor_total', 'itens', 'foi_offline'],
-    ...events.map((e) => {
+    ...events.map((e: { occurredAt: Date; rep: { name: string }; metadata: unknown }) => {
       const m = e.metadata as Record<string, unknown>
       return [
         e.occurredAt.toISOString(),
@@ -31,7 +31,7 @@ export async function GET(
     }),
   ]
 
-  const csv = rows.map((r) => r.map((v) => `"${v.replace(/"/g, '""')}"`).join(',')).join('\n')
+  const csv = (rows as string[][]).map((r) => r.map((v) => `"${v.replace(/"/g, '""')}"`).join(',')).join('\n')
 
   return new NextResponse(csv, {
     headers: {
