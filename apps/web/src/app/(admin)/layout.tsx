@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { api, clearAccessToken } from '@/lib/api'
 import { useTheme } from '../theme-provider'
@@ -57,7 +58,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           {NAV_ITEMS.map((item) => {
             const active = item.match(pathname)
             return (
-              <a
+              <Link
                 key={item.href}
                 href={item.href}
                 className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-colors ${
@@ -68,7 +69,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               >
                 {item.icon}
                 {item.label}
-              </a>
+              </Link>
             )
           })}
         </nav>
