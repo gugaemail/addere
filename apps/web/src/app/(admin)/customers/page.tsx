@@ -21,7 +21,7 @@ export default function CustomersPage() {
     {
       key: 'active',
       header: 'Status',
-      render: (row) => <Badge status={row.active ? 'ACTIVE' : 'INACTIVE'} />,
+      render: (row) => <Badge variant={row.active ? 'success' : 'danger'}>{row.active ? 'Ativo' : 'Inativo'}</Badge>,
     },
   ]
 
