@@ -12,12 +12,14 @@ export const api = axios.create({
 
 let _accessToken: string | null = null
 
-export function setAccessToken(token: string) {
+export function setAccessToken(token: string | null) {
   _accessToken = token
-  // Cookie indicador de sessão sem valor sensível — usado apenas pelo middleware
-  // Next.js para saber se deve redirecionar para /login
-  const expires = new Date(Date.now() + 8 * 60 * 60 * 1000).toUTCString()
-  document.cookie = `addere_session=1; expires=${expires}; path=/; SameSite=Strict`
+  if (token) {
+    const expires = new Date(Date.now() + 8 * 60 * 60 * 1000).toUTCString()
+    document.cookie = `addere_session=1; expires=${expires}; path=/; SameSite=Strict`
+  } else {
+    document.cookie = `addere_session=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`
+  }
 }
 
 export function getAccessToken(): string | null {

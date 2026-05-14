@@ -34,7 +34,7 @@ export async function GET(req: NextRequest) {
   const results: Array<{ pilotId: string; clientName: string; status: string }> = []
 
   for (const pilot of activePilots) {
-    const recipients = pilot.company.users.map((u) => u.email)
+    const recipients = pilot.company.users.map((u: { email: string }) => u.email)
     if (recipients.length === 0) {
       results.push({ pilotId: pilot.id, clientName: pilot.clientName, status: 'sem_destinatários' })
       continue
