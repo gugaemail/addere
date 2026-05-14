@@ -1,0 +1,49 @@
+name: Deploy API
+
+on:
+  push:
+    branches: [main, staging]
+    paths:
+      - 'apps/api/**'
+      - 'packages/db/**'
+      - 'packages/types/**'
+
+jobs:
+  migrate-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Instalar dependências
+        run: npm ci
+
+      - name: Build da API
+        run: npm run build:api
+
+      - name: Rodar migrations (production)
+        if: github.ref == 'refs/heads/main'
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL_PROD }}
+          DATABASE_URL_DIRECT: ${{ secrets.DATABASE_URL_DIRECT_PROD }}
+        run: npx prisma migrate deploy --schema packages/db/prisma/schema.prisma
+
+      - name: Rodar migrations (staging)
+        if: github.ref == 'refs/heads/staging'
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL_STAGING }}
+          DATABASE_URL_DIRECT: ${{ secrets.DATABASE_URL_DIRECT_STAGING }}
+        run: npx prisma migrate deploy --schema packages/db/prisma/schema.prisma
+
+      - name: Disparar deploy no Render (production)
+        if: github.ref == 'refs/heads/main'
+        run: curl -fsSX POST "${{ secrets.RENDER_DEPLOY_HOOK_PROD }}"
+
+      - name: Disparar deploy no Render (staging)
+        if: github.ref == 'refs/heads/staging'
+        run: curl -fsSX POST "${{ secrets.RENDER_DEPLOY_HOOK_STAGING }}"

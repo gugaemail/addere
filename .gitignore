@@ -10,3 +10,6 @@ dist
 .env.staging
 .env.production
 # .env.example e .env.local.example são commitados intencionalmente
+
+# Credenciais de lojas — nunca commitar
+apps/mobile/google-service-account.json
