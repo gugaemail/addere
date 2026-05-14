@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "tsx watch src/server.ts",
-    "build": "tsc --project tsconfig.json",
+    "build": "tsup src/server.ts --format cjs --no-dts --external @prisma/client --external .prisma",
     "start": "node dist/server.js",
     "lint": "eslint . --ext .ts",
     "type-check": "tsc --noEmit"
@@ -29,6 +29,7 @@
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",
     "@types/node": "^20.14.11",
+    "tsup": "^8.5.0",
     "tsx": "^4.16.2",
     "typescript": "^5.4.5"
   }
