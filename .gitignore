@@ -13,3 +13,24 @@ dist
 
 # Credenciais de lojas — nunca commitar
 apps/mobile/google-service-account.json
+
+# Build outputs
+apps/web/.next/
+apps/web/out/
+apps/web/next-env.d.ts
+*.tsbuildinfo
+
+# Compiled package outputs (gerados por tsc)
+packages/*/src/*.js
+packages/*/src/*.js.map
+packages/*/src/*.d.ts
+packages/*/src/*.d.ts.map
+
+# IDE e ferramentas locais
+.vscode/
+.claude/
+.npmrc
+
+# Logs
+*.log
+npm-debug.log*
