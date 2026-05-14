@@ -14,10 +14,13 @@ const COOKIE_MAX_AGE = 60 * 60 * 24 * 30 // 30 dias em segundos
 
 function cookieOptions(secure: boolean) {
   return {
-    httpOnly: true,           // inacessível via JavaScript no cliente
-    secure,                   // apenas HTTPS em produção
-    sameSite: 'strict' as const,
-    path: '/auth',            // cookie restrito às rotas de auth
+    httpOnly: true,
+    secure,
+    // Em produção (HTTPS): SameSite=None para permitir cross-origin entre
+    // addere-web.vercel.app e addere-api.onrender.com.
+    // Em desenvolvimento (HTTP): SameSite=Strict (same-origin apenas).
+    sameSite: (secure ? 'none' : 'strict') as 'none' | 'strict',
+    path: '/auth',
     maxAge: COOKIE_MAX_AGE,
   }
 }
