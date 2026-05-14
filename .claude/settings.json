@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(Format-Table FullName)",
+      "Bash(grep -E \"\\\\.ts$\")",
+      "Bash(Get-ChildItem -Path \"c:\\\\Projetos-Claude\\\\apps\\\\addere\\\\apps\\\\mobile\" -Directory)",
+      "PowerShell(head -50)",
+      "PowerShell(grep -i \"netinfo\\\\|expo-sqlite\" \"c:\\\\Projetos-Claude\\\\apps\\\\addere\\\\apps\\\\mobile\\\\package.json\")",
+      "PowerShell(Get-ChildItem -Path \"c:\\\\Projetos-Claude\\\\apps\\\\addere\" | Select-Object Name, @{Name=\"Type\"; Expression={if\\($_.PSIsContainer\\){\"Directory\"}else{\"File\"}}} | Format-Table -AutoSize)",
+      "PowerShell(Get-ChildItem -Path \"c:\\\\Projetos-Claude\\\\apps\\\\addere\\\\apps\\\\mobile\" -Recurse -Depth 2 | Select-Object FullName | ForEach-Object { $_.FullName.Replace\\(\"c:\\\\Projetos-Claude\\\\apps\\\\addere\\\\\", \"\"\\) })"
+    ]
+  }
+}
