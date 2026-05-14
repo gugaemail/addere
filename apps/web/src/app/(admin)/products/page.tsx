@@ -1,5 +1,7 @@
 'use client'
 
+export const dynamic = 'force-dynamic'
+
 import { useState } from 'react'
 import { useProducts } from '@/hooks/useProducts'
 import { PageHeader } from '@/components/layout/PageHeader'
