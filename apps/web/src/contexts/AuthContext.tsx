@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useEffect, useState, useCallback } from 'react'
 import axios from 'axios'
-import { api, setAuthToken } from '@/lib/api'
+import { api, setAccessToken } from '@/lib/api'
 import type { UserPublic } from '@addere/types'
 
 interface AuthContextValue {
@@ -28,7 +28,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           {},
           { withCredentials: true }
         )
-        setAuthToken(data.accessToken)
+        setAccessToken(data.accessToken)
         // Obtém o usuário atual com o novo token
         const { data: userData } = await api.get<UserPublic>('/auth/me')
         setUser(userData)
@@ -47,7 +47,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       email,
       password,
     })
-    setAuthToken(data.accessToken)
+    setAccessToken(data.accessToken)
     setUser(data.user)
   }, [])
 
@@ -55,7 +55,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       await api.post('/auth/logout')
     } finally {
-      setAuthToken(null)
+      setAccessToken(null)
       setUser(null)
     }
   }, [])
