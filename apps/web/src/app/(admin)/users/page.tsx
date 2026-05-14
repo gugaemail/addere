@@ -51,7 +51,7 @@ export default function UsersPage() {
         <Button
           size="sm"
           variant={row.active ? 'danger' : 'secondary'}
-          isLoading={toggleUser.isPending}
+          loading={toggleUser.isPending}
           onClick={() => toggleUser.mutate(row.id)}
         >
           {row.active ? 'Desativar' : 'Ativar'}
