@@ -25,7 +25,7 @@ export default function OrdersPage() {
     {
       key: 'status',
       header: 'Status',
-      render: (row) => <Badge status={row.status} />,
+      render: (row) => <Badge variant={row.status === 'SYNCED' ? 'success' : row.status === 'CANCELLED' ? 'danger' : 'warning'}>{row.status}</Badge>,
     },
     {
       key: 'protheusId',
