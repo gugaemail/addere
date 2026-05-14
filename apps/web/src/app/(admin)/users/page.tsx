@@ -1,5 +1,7 @@
 'use client'
 
+export const dynamic = 'force-dynamic'
+
 import { useState } from 'react'
 import { useUsers, useToggleUser } from '@/hooks/useUsers'
 import { useAuth } from '@/contexts/AuthContext'
