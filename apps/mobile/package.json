@@ -4,6 +4,7 @@
   "private": true,
   "main": "expo-router/entry",
   "scripts": {
+    "icons": "node scripts/generate-icons.mjs",
     "start": "expo start --env-file .env.development",
     "start:staging": "expo start --env-file .env.staging",
     "start:production": "expo start --env-file .env.production",
@@ -60,6 +61,7 @@
     "@types/detox": "^17.14.3",
     "@types/react": "~19.1.10",
     "detox": "^20.51.1",
+    "sharp": "^0.34.5",
     "typescript": "~5.9.2"
   }
 }
