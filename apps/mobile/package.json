@@ -4,6 +4,7 @@
   "private": true,
   "main": "expo-router/entry",
   "scripts": {
+    "icons": "node scripts/generate-icons.mjs",
     "start": "expo start --env-file .env.development",
     "start:staging": "expo start --env-file .env.staging",
     "start:production": "expo start --env-file .env.production",
@@ -32,6 +33,7 @@
     "@addere/types": "*",
     "@expo-google-fonts/inter": "^0.4.2",
     "@expo-google-fonts/plus-jakarta-sans": "^0.4.2",
+    "@react-native-async-storage/async-storage": "2.2.0",
     "@react-native-community/netinfo": "11.4.1",
     "@react-navigation/native": "^7.0.14",
     "@sentry/react-native": "~7.2.0",
@@ -44,9 +46,11 @@
     "expo-secure-store": "~15.0.8",
     "expo-sqlite": "~16.0.10",
     "expo-status-bar": "~3.0.9",
+    "expo-updates": "~29.0.17",
     "jest": "~29.7.0",
     "jest-expo": "~54.0.17",
     "lucide-react-native": "^1.8.0",
+    "promise": "^8.3.0",
     "react": "19.1.0",
     "react-native": "0.81.5",
     "react-native-safe-area-context": "~5.6.0",
@@ -60,6 +64,7 @@
     "@types/detox": "^17.14.3",
     "@types/react": "~19.1.10",
     "detox": "^20.51.1",
+    "sharp": "^0.34.5",
     "typescript": "~5.9.2"
   }
 }
