@@ -43,6 +43,9 @@ module.exports = {
     extra: {
       appEnv: APP_ENV,
       appVersion: APP_VERSION,
+      eas: {
+        projectId: 'a8b84402-c872-4b48-b3ba-875a21cc026e',
+      },
     },
   },
 }
