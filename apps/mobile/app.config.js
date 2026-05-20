@@ -26,7 +26,12 @@ module.exports = {
     version: APP_VERSION,
     scheme: 'addere',
     platforms: ['ios', 'android'],
-    plugins: ['expo-router', 'expo-secure-store', 'expo-sqlite', '@sentry/react-native'],
+    plugins: [
+      'expo-router',
+      'expo-secure-store',
+      'expo-sqlite',
+      ['@sentry/react-native/expo', { uploadSourceMaps: false }],
+    ],
     splash: {
       backgroundColor: '#0D2045',
       resizeMode: 'contain',
@@ -40,9 +45,18 @@ module.exports = {
     ios: {
       bundleIdentifier: variant.bundleId,
     },
+    updates: {
+      url: 'https://u.expo.dev/a8b84402-c872-4b48-b3ba-875a21cc026e',
+    },
+    runtimeVersion: {
+      policy: 'appVersion',
+    },
     extra: {
       appEnv: APP_ENV,
       appVersion: APP_VERSION,
+      eas: {
+        projectId: 'a8b84402-c872-4b48-b3ba-875a21cc026e',
+      },
     },
   },
 }

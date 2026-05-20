@@ -1,0 +1,23 @@
+<svg viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <!-- Gradiente horizontal: azul médio → navy escuro (esquerda → direita) -->
+    <linearGradient id="hGrad" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%"   stop-color="#1B4FA8"/>
+      <stop offset="100%" stop-color="#0D2045"/>
+    </linearGradient>
+    <!-- Gradiente vertical: cyan → navy escuro (topo → base) -->
+    <linearGradient id="vGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"   stop-color="#29BEFF"/>
+      <stop offset="100%" stop-color="#0D2045"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Fundo branco -->
+  <rect width="1024" height="1024" fill="#FFFFFF"/>
+
+  <!-- Barra horizontal (atrás) — braços esquerdo e direito -->
+  <rect x="100" y="372" width="824" height="280" rx="140" fill="url(#hGrad)"/>
+
+  <!-- Barra vertical (frente) — braços superior e inferior -->
+  <rect x="372" y="100" width="280" height="824" rx="140" fill="url(#vGrad)"/>
+</svg>
