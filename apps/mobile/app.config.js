@@ -26,7 +26,12 @@ module.exports = {
     version: APP_VERSION,
     scheme: 'addere',
     platforms: ['ios', 'android'],
-    plugins: ['expo-router', 'expo-secure-store', 'expo-sqlite', '@sentry/react-native'],
+    plugins: [
+      'expo-router',
+      'expo-secure-store',
+      'expo-sqlite',
+      ['@sentry/react-native/expo', { uploadSourceMaps: false }],
+    ],
     splash: {
       backgroundColor: '#0D2045',
       resizeMode: 'contain',
