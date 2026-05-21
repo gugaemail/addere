@@ -6,6 +6,7 @@ import { usePedidos, useSincronizarPedido, useConsultarStatusPedido } from '../.
 import { OrderRowSkeleton, EmptyState } from '../../../src/components/Skeleton'
 import { Badge } from '../../../src/components/ui/Badge'
 import type { Order } from '@addere/types'
+import { fmtMoeda } from '../../../src/utils/format'
 
 type BadgeVariant = 'warning' | 'success' | 'danger' | 'neutral'
 
@@ -43,7 +44,7 @@ function OrderCard({ order, syncingId, checkingId, onSync, onCheckStatus, onPres
         )}
       </View>
       <View style={{ alignItems: 'flex-end', gap: 6 }}>
-        <Text style={s.total}>R$ {Number(order.total).toFixed(2)}</Text>
+        <Text style={s.total}>R$ {fmtMoeda(order.total)}</Text>
         <Badge variant={variant}>{STATUS_LABEL[order.status]}</Badge>
         {order.status === 'PENDING' && (
           <TouchableOpacity

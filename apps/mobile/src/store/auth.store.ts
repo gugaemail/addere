@@ -1,7 +1,9 @@
 import { create } from 'zustand'
+import axios from 'axios'
 import * as SecureStore from 'expo-secure-store'
 import type { UserPublic } from '@addere/types'
 import { setSentryUser, clearSentryUser } from '../services/sentryContext'
+import { env } from '../config/env'
 
 const TOKEN_KEY = 'addere_access_token'
 const USER_KEY  = 'addere_user'
@@ -51,6 +53,34 @@ export const useAuthStore = create<AuthState>((set) => ({
       SecureStore.getItemAsync(USER_KEY),
     ])
     const user = userJson ? (JSON.parse(userJson) as UserPublic) : null
-    set({ accessToken: token ?? null, user, hydrated: true })
+
+    if (token) {
+      try {
+        // Refresh proativo: garante token fresco antes de navegar para o app
+        const { data } = await axios.post(
+          `${env.apiUrl}/auth/refresh`,
+          {},
+          { withCredentials: true }
+        )
+        const newToken: string = data.accessToken
+        await SecureStore.setItemAsync(TOKEN_KEY, newToken)
+        set({ accessToken: newToken, user, hydrated: true })
+      } catch (err) {
+        const isNetworkError = !(err as { response?: unknown }).response
+        if (isNetworkError) {
+          // Sem internet: mantém token existente para modo offline
+          set({ accessToken: token, user, hydrated: true })
+        } else {
+          // Refresh token inválido/expirado: desloga
+          await Promise.all([
+            SecureStore.deleteItemAsync(TOKEN_KEY),
+            SecureStore.deleteItemAsync(USER_KEY),
+          ])
+          set({ accessToken: null, user: null, hydrated: true })
+        }
+      }
+    } else {
+      set({ accessToken: null, user, hydrated: true })
+    }
   },
 }))

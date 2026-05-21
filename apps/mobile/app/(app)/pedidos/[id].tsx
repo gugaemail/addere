@@ -6,6 +6,7 @@ import { usePedido, useSincronizarPedido, useConsultarStatusPedido } from '../..
 import { Badge } from '../../../src/components/ui/Badge'
 import { useFieldVisible } from '../../../src/hooks/useFieldConfig'
 import { useQueryClient } from '@tanstack/react-query'
+import { fmtMoeda, formatDocument } from '../../../src/utils/format'
 
 type BadgeVariant = 'warning' | 'success' | 'danger' | 'neutral'
 
@@ -18,10 +19,6 @@ const STATUS_LABEL: Record<string, string> = {
   PENDING:   'Pendente',
   SYNCED:    'Sincronizado',
   CANCELLED: 'Cancelado',
-}
-
-function fmtMoeda(value: string | number) {
-  return Number(value).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
 function fmtQtd(value: string | number) {
@@ -117,7 +114,7 @@ export default function PedidoDetailScreen() {
           <Badge variant={variant}>{STATUS_LABEL[order.status]}</Badge>
         </View>
         <InfoRow label="Cliente"         value={order.customer.name} />
-        <InfoRow label="CNPJ/CPF"        value={order.customer.document} />
+        <InfoRow label="CNPJ/CPF"        value={formatDocument(order.customer.document)} />
         <InfoRow label="Filial"          value={order.branch?.name ?? null} />
         {showTransportadora && <InfoRow label="Transportadora"  value={order.transportadora?.nome ?? null} />}
         {showCondPag        && <InfoRow label="Cond. Pagamento" value={order.condPag?.nome ?? null} />}
