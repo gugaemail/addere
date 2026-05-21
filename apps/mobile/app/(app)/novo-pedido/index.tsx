@@ -20,6 +20,7 @@ import { useTransportadoras } from '../../../src/hooks/useTransportadoras'
 import { useCondPags } from '../../../src/hooks/useCondPags'
 import { useFieldVisible } from '../../../src/hooks/useFieldConfig'
 import type { Branch, Customer, Product, Transportadora, CondPag, CreateOrderItemInput } from '@addere/types'
+import { fmtMoeda, formatDocument } from '../../../src/utils/format'
 
 type Step = 1 | 2 | 3
 
@@ -79,7 +80,7 @@ function Step1({
             renderItem={({ item }) => (
               <TouchableOpacity style={styles.listItem} onPress={() => onComplete(selectedCustomer, item)}>
                 <Text style={styles.listItemTitle}>{item.name}</Text>
-                {item.cnpj && <Text style={styles.listItemSub}>{item.cnpj}</Text>}
+                {item.cnpj && <Text style={styles.listItemSub}>{formatDocument(item.cnpj)}</Text>}
               </TouchableOpacity>
             )}
             ListEmptyComponent={<Text style={styles.empty}>Nenhuma filial encontrada.</Text>}
@@ -107,7 +108,7 @@ function Step1({
           renderItem={({ item }) => (
             <TouchableOpacity style={styles.listItem} onPress={() => setSelectedCustomer(item)}>
               <Text style={styles.listItemTitle}>{item.name}</Text>
-              {item.document && <Text style={styles.listItemSub}>{item.document}</Text>}
+              {item.document && <Text style={styles.listItemSub}>{formatDocument(item.document)}</Text>}
             </TouchableOpacity>
           )}
           ListEmptyComponent={<Text style={styles.empty}>Nenhum cliente encontrado.</Text>}
@@ -183,7 +184,7 @@ function Step2({
           renderItem={({ item }) => (
             <TouchableOpacity style={styles.listItem} onPress={() => addToCart(item)}>
               <Text style={styles.listItemTitle}>{item.name}</Text>
-              <Text style={styles.listItemSub}>R$ {Number(item.price).toFixed(2)} / {item.unit}</Text>
+              <Text style={styles.listItemSub}>R$ {fmtMoeda(item.price)} / {item.unit}</Text>
             </TouchableOpacity>
           )}
           ListEmptyComponent={<Text style={styles.empty}>Nenhum produto encontrado.</Text>}
@@ -385,7 +386,7 @@ function Step3({
                   <TextInput
                     style={styles.priceInput}
                     keyboardType="decimal-pad"
-                    defaultValue={item.unitPrice.toFixed(2)}
+                    defaultValue={item.unitPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     onEndEditing={(e) => updatePrice(item.product.id, e.nativeEvent.text)}
                   />
                 </View>
@@ -393,7 +394,7 @@ function Step3({
               <View style={styles.itemEditSubtotal}>
                 <Text style={styles.itemControlLabel}>Subtotal</Text>
                 <Text style={styles.itemSubtotalValue}>
-                  R$ {(item.unitPrice * item.quantity * (1 - item.discount / 100)).toFixed(2)}
+                  R$ {fmtMoeda(item.unitPrice * item.quantity * (1 - item.discount / 100))}
                 </Text>
               </View>
             </View>
@@ -520,7 +521,7 @@ function Step3({
 
       <View style={[styles.summaryBox, { flexDirection: 'row', justifyContent: 'space-between' }]}>
         <Text style={styles.totalLabel}>Total</Text>
-        <Text style={styles.totalValue}>R$ {total.toFixed(2)}</Text>
+        <Text style={styles.totalValue}>R$ {fmtMoeda(total)}</Text>
       </View>
 
       <TouchableOpacity
