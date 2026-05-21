@@ -61,10 +61,9 @@ export function useLogout() {
 
   return useMutation({
     mutationFn: async () => {
-      // Soft logout: não revoga o refresh token no servidor para que a
-      // biometria continue funcionando na próxima sessão. O token fica
-      // protegido no SecureStore (hardware-encrypted + biometria obrigatória).
-      try { await api.post('/auth/logout') } catch { /* ignora */ }
+      // Soft logout: não revoga o token no servidor para que a biometria
+      // funcione na próxima sessão. O refresh token fica no SecureStore,
+      // protegido por hardware-encryption + biometria do dispositivo.
     },
     onSettled: async () => {
       await Promise.all([clearAuth(), clearFieldConfig()])
