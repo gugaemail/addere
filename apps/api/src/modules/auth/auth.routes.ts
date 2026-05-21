@@ -130,7 +130,12 @@ export default async function authRoutes(app: FastifyInstance) {
     const result = forgotPasswordSchema.safeParse(request.body)
     if (!result.success) return reply.status(400).send({ message: 'Email inválido' })
 
-    await forgotPassword(result.data.email) // não revela se email existe
+    try {
+      await forgotPassword(result.data.email)
+    } catch (err) {
+      app.log.error(err, '[auth] forgotPassword falhou')
+    }
+    // Sempre retorna sucesso para não revelar se e-mail existe ou se ocorreu erro
     return reply.send({ message: 'Se o e-mail estiver cadastrado, você receberá as instruções em breve.' })
   })
 
