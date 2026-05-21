@@ -89,7 +89,7 @@ export async function forgotPassword(email: string): Promise<void> {
 
   try {
     await resend.emails.send({
-      from: 'Addere <noreply@addere.com.br>',
+      from: 'Addere <onboarding@resend.dev>',
       to: [user.email],
       subject: 'Redefinição de senha — Addere',
       html: `
