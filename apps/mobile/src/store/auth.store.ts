@@ -56,22 +56,23 @@ export const useAuthStore = create<AuthState>((set) => ({
 
     if (token) {
       try {
-        // Refresh proativo: garante token fresco antes de navegar para o app
+        // Refresh proativo com timeout: se o servidor demorar (ex: Render hibernado),
+        // navega imediatamente com o token existente — o interceptor de 401 cuida do resto
         const { data } = await axios.post(
           `${env.apiUrl}/auth/refresh`,
           {},
-          { withCredentials: true }
+          { withCredentials: true, timeout: 4000 }
         )
         const newToken: string = data.accessToken
         await SecureStore.setItemAsync(TOKEN_KEY, newToken)
         set({ accessToken: newToken, user, hydrated: true })
       } catch (err) {
-        const isNetworkError = !(err as { response?: unknown }).response
-        if (isNetworkError) {
-          // Sem internet: mantém token existente para modo offline
+        const e = err as { response?: unknown; code?: string }
+        if (!e.response || e.code === 'ECONNABORTED') {
+          // Sem internet ou timeout: usa token existente e segue em frente
           set({ accessToken: token, user, hydrated: true })
         } else {
-          // Refresh token inválido/expirado: desloga
+          // Refresh token inválido/expirado (401/403): desloga
           await Promise.all([
             SecureStore.deleteItemAsync(TOKEN_KEY),
             SecureStore.deleteItemAsync(USER_KEY),
