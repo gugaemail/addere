@@ -6,6 +6,7 @@ import {
 import { useRouter } from 'expo-router'
 import { Input } from '../../src/components/ui/Input'
 import { Button } from '../../src/components/ui/Button'
+import { LogoMark } from '../../src/components/brand/LogoMark'
 import { api } from '../../src/lib/api'
 
 export default function EsqueciSenhaScreen() {
@@ -39,7 +40,11 @@ export default function EsqueciSenhaScreen() {
     >
       <ScrollView contentContainerStyle={s.scroll} keyboardShouldPersistTaps="handled">
         <View style={s.card}>
-          <Text style={s.title}>Recuperar senha</Text>
+          <View style={s.logoGroup}>
+            <LogoMark size={56} variant="light" />
+            <Text style={s.appName}>Addere</Text>
+            <Text style={s.title}>Recuperar senha</Text>
+          </View>
 
           {sent ? (
             <View style={s.successBox}>
@@ -88,7 +93,9 @@ const s = StyleSheet.create({
   container:   { flex: 1, backgroundColor: '#F8FAFC' },
   scroll:      { flexGrow: 1, justifyContent: 'center', padding: 24 },
   card:        { backgroundColor: '#FFFFFF', borderRadius: 20, padding: 32, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.08, shadowRadius: 4, elevation: 2 },
-  title:       { fontFamily: 'PlusJakartaSans_700Bold', fontSize: 22, color: '#0D2045', marginBottom: 12 },
+  logoGroup:   { alignItems: 'center', marginBottom: 24 },
+  appName:     { fontFamily: 'PlusJakartaSans_700Bold', fontSize: 28, color: '#0D2045', marginTop: 12 },
+  title:       { fontFamily: 'Inter_400Regular', fontSize: 14, color: '#64748B', marginTop: 4 },
   description: { fontFamily: 'Inter_400Regular', fontSize: 14, color: '#64748B', lineHeight: 20, marginBottom: 24 },
   fields:      { gap: 12 },
   button:      { marginTop: 8 },
