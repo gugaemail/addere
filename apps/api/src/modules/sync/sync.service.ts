@@ -809,6 +809,7 @@ export async function fetchMetaVendedor(userId: string, companyId: string) {
 
   return {
     periodo: toStr(rawResponse['periodo']),
+    vendido: toStr(rawResponse['vendido']),
     meta:    toStr(rawResponse['meta']),
   }
 }
