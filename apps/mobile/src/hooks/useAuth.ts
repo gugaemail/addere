@@ -1,8 +1,9 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Alert } from 'react-native'
 import AsyncStorage from '@react-native-async-storage/async-storage'
+import * as SecureStore from 'expo-secure-store'
 import * as LocalAuthentication from 'expo-local-authentication'
-import { useAuthStore } from '../store/auth.store'
+import { useAuthStore, REFRESH_TOKEN_KEY } from '../store/auth.store'
 import { useCompanyStore } from '../store/company.store'
 import { api } from '../lib/api'
 import type { LoginRequest, LoginResponse, CompanyFieldConfig } from '@addere/types'
@@ -21,6 +22,7 @@ export function useLogin() {
     },
     onSuccess: async (data) => {
       queryClient.clear() // limpa dados do usuário anterior antes de carregar os do novo
+      await SecureStore.setItemAsync(REFRESH_TOKEN_KEY, data.refreshToken)
       await setAuth(data.user, data.accessToken)
       try {
         const { data: cfg } = await api.get<CompanyFieldConfig>('/companies/me/field-config')

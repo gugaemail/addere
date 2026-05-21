@@ -5,8 +5,9 @@ import type { UserPublic } from '@addere/types'
 import { setSentryUser, clearSentryUser } from '../services/sentryContext'
 import { env } from '../config/env'
 
-const TOKEN_KEY = 'addere_access_token'
-const USER_KEY  = 'addere_user'
+const TOKEN_KEY   = 'addere_access_token'
+const USER_KEY    = 'addere_user'
+export const REFRESH_TOKEN_KEY = 'addere_refresh_token'
 
 interface AuthState {
   user: UserPublic | null
@@ -41,6 +42,7 @@ export const useAuthStore = create<AuthState>((set) => ({
     await Promise.all([
       SecureStore.deleteItemAsync(TOKEN_KEY),
       SecureStore.deleteItemAsync(USER_KEY),
+      SecureStore.deleteItemAsync(REFRESH_TOKEN_KEY),
     ])
     set({ user: null, accessToken: null })
     clearSentryUser()
@@ -55,27 +57,48 @@ export const useAuthStore = create<AuthState>((set) => ({
     const user = userJson ? (JSON.parse(userJson) as UserPublic) : null
 
     if (token) {
-      try {
-        // Refresh proativo com timeout: se o servidor demorar (ex: Render hibernado),
-        // navega imediatamente com o token existente — o interceptor de 401 cuida do resto
+      const storedRefreshToken = await SecureStore.getItemAsync(REFRESH_TOKEN_KEY)
+
+      const tryRefresh = async (body: Record<string, string> = {}) => {
         const { data } = await axios.post(
           `${env.apiUrl}/auth/refresh`,
-          {},
+          body,
           { withCredentials: true, timeout: 4000 }
         )
-        const newToken: string = data.accessToken
-        await SecureStore.setItemAsync(TOKEN_KEY, newToken)
-        set({ accessToken: newToken, user, hydrated: true })
+        return data as { accessToken: string; refreshToken: string }
+      }
+
+      try {
+        // Tenta primeiro via cookie (web/sessão ativa), depois via body (mobile persistido)
+        let data: { accessToken: string; refreshToken: string }
+        try {
+          data = await tryRefresh()
+        } catch (cookieErr) {
+          const e = cookieErr as { response?: unknown; code?: string }
+          if (storedRefreshToken && e.response) {
+            // Cookie ausente (RN não persiste), tenta com token do SecureStore
+            data = await tryRefresh({ refreshToken: storedRefreshToken })
+          } else {
+            throw cookieErr
+          }
+        }
+
+        await Promise.all([
+          SecureStore.setItemAsync(TOKEN_KEY, data.accessToken),
+          SecureStore.setItemAsync(REFRESH_TOKEN_KEY, data.refreshToken),
+        ])
+        set({ accessToken: data.accessToken, user, hydrated: true })
       } catch (err) {
         const e = err as { response?: unknown; code?: string }
         if (!e.response || e.code === 'ECONNABORTED') {
           // Sem internet ou timeout: usa token existente e segue em frente
           set({ accessToken: token, user, hydrated: true })
         } else {
-          // Refresh token inválido/expirado (401/403): desloga
+          // Refresh token inválido/expirado: desloga
           await Promise.all([
             SecureStore.deleteItemAsync(TOKEN_KEY),
             SecureStore.deleteItemAsync(USER_KEY),
+            SecureStore.deleteItemAsync(REFRESH_TOKEN_KEY),
           ])
           set({ accessToken: null, user: null, hydrated: true })
         }

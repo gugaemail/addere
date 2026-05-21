@@ -87,17 +87,21 @@ export async function forgotPassword(email: string): Promise<void> {
   const resend = new Resend(process.env.RESEND_API_KEY)
   const resetLink = `${WEB_URL}/resetar-senha?token=${token}`
 
-  await resend.emails.send({
-    from: 'Addere <noreply@addere.com.br>',
-    to: [user.email],
-    subject: 'Redefinição de senha — Addere',
-    html: `
-      <p>Olá, ${user.name}.</p>
-      <p>Recebemos uma solicitação para redefinir sua senha no Addere.</p>
-      <p><a href="${resetLink}" style="background:#1B4FA8;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;display:inline-block;">Redefinir senha</a></p>
-      <p>O link expira em ${RESET_TOKEN_EXPIRES_HOURS} hora. Se não foi você, ignore este e-mail.</p>
-    `,
-  })
+  try {
+    await resend.emails.send({
+      from: 'Addere <noreply@addere.com.br>',
+      to: [user.email],
+      subject: 'Redefinição de senha — Addere',
+      html: `
+        <p>Olá, ${user.name}.</p>
+        <p>Recebemos uma solicitação para redefinir sua senha no Addere.</p>
+        <p><a href="${resetLink}" style="background:#1B4FA8;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;display:inline-block;">Redefinir senha</a></p>
+        <p>O link expira em ${RESET_TOKEN_EXPIRES_HOURS} hora. Se não foi você, ignore este e-mail.</p>
+      `,
+    })
+  } catch (err) {
+    console.error('[auth] Falha ao enviar e-mail de reset via Resend:', err)
+  }
 }
 
 export async function resetPassword(token: string, newPassword: string): Promise<void> {
