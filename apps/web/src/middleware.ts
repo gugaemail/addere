@@ -3,7 +3,7 @@ import type { NextRequest } from 'next/server'
 
 // Cookie indicador de sessão ativa (sem valor sensível — apenas presença importa)
 const SESSION_COOKIE = 'addere_session'
-const PUBLIC_PATHS = ['/login']
+const PUBLIC_PATHS = ['/login', '/resetar-senha']
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl

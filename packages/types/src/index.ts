@@ -35,6 +35,7 @@ export interface LoginRequest {
 export interface LoginResponse {
   user: UserPublic
   accessToken: string
+  refreshToken: string  // enviado no body para que o mobile persista no SecureStore
 }
 
 // ─── Company ───────────────────────────────────────────────────────────────

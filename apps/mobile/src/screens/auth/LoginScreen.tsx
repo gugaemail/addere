@@ -13,10 +13,11 @@ import {
 import { useRouter } from 'expo-router'
 import { z } from 'zod'
 import AsyncStorage from '@react-native-async-storage/async-storage'
+import * as SecureStore from 'expo-secure-store'
 import * as LocalAuthentication from 'expo-local-authentication'
 import axios from 'axios'
 import { useLogin, BIOMETRIC_KEY } from '../../hooks/useAuth'
-import { useAuthStore } from '../../store/auth.store'
+import { useAuthStore, REFRESH_TOKEN_KEY } from '../../store/auth.store'
 import { useCompanyStore } from '../../store/company.store'
 import { api } from '../../lib/api'
 import { env } from '../../config/env'
@@ -63,11 +64,28 @@ export function LoginScreen() {
       })
       if (!result.success) { setBiometricLoading(false); return }
 
-      const { data: refreshData } = await axios.post(
-        `${env.apiUrl}/auth/refresh`,
-        {},
-        { withCredentials: true, timeout: 8000 }
-      )
+      // Tenta cookie primeiro; se falhar (RN não persiste cookie), usa token do SecureStore
+      const storedRefreshToken = await SecureStore.getItemAsync(REFRESH_TOKEN_KEY)
+      let refreshData: { accessToken: string; refreshToken: string }
+      try {
+        const { data } = await axios.post(
+          `${env.apiUrl}/auth/refresh`,
+          {},
+          { withCredentials: true, timeout: 8000 }
+        )
+        refreshData = data
+      } catch (cookieErr) {
+        if (!storedRefreshToken) throw cookieErr
+        const { data } = await axios.post(
+          `${env.apiUrl}/auth/refresh`,
+          { refreshToken: storedRefreshToken },
+          { timeout: 8000 }
+        )
+        refreshData = data
+      }
+
+      // Persiste o novo refresh token e autentica
+      await SecureStore.setItemAsync(REFRESH_TOKEN_KEY, refreshData.refreshToken)
       const { data: userData } = await api.get('/auth/me')
       await setAuth(userData, refreshData.accessToken)
       try {
@@ -81,7 +99,7 @@ export function LoginScreen() {
         'Não foi possível autenticar. Faça login com e-mail e senha.',
         [{ text: 'OK' }]
       )
-      setShowBiometric(false)
+      // Não esconde o botão — usuário pode tentar novamente ou usar email/senha
     } finally {
       setBiometricLoading(false)
     }
