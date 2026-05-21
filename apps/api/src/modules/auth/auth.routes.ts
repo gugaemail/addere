@@ -60,6 +60,7 @@ export default async function authRoutes(app: FastifyInstance) {
 
       return reply.send({
         accessToken,
+        refreshToken, // mobile persiste no SecureStore para biometria
         user: {
           id: user.id,
           name: user.name,
@@ -84,7 +85,9 @@ export default async function authRoutes(app: FastifyInstance) {
       },
     },
   }, async (request: FastifyRequest, reply: FastifyReply) => {
-    const token = request.cookies[COOKIE_NAME]
+    // Cookie (web) tem prioridade; body (mobile/biometria) é fallback
+    const bodyToken = (request.body as { refreshToken?: string } | null)?.refreshToken
+    const token = request.cookies[COOKIE_NAME] ?? bodyToken
     if (!token) {
       return reply.status(401).send({ message: 'Refresh token ausente' })
     }
@@ -101,7 +104,7 @@ export default async function authRoutes(app: FastifyInstance) {
 
       reply.setCookie(COOKIE_NAME, newToken, cookieOptions(isProduction))
 
-      return reply.send({ accessToken })
+      return reply.send({ accessToken, refreshToken: newToken })
     } catch (err) {
       return reply.status(401).send({ message: (err as Error).message })
     }
