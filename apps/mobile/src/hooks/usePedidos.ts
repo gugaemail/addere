@@ -42,8 +42,8 @@ export function useCriarPedido() {
       return data
     },
     onSuccess: () => {
-      // Invalida cache de pedidos e stats para refletir o novo pedido
       queryClient.invalidateQueries({ queryKey: ['orders'] })
+      queryClient.invalidateQueries({ queryKey: ['meta-vendedor'] })
     },
   })
 }
@@ -58,6 +58,7 @@ export function useSincronizarPedido() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['orders'] })
+      queryClient.invalidateQueries({ queryKey: ['meta-vendedor'] })
     },
   })
 }
@@ -66,10 +67,10 @@ export function useMetaVendedor() {
   return useQuery({
     queryKey: ['meta-vendedor'],
     queryFn: async () => {
-      const { data } = await api.get<{ periodo: string; meta: string }>('/sync/metas')
+      const { data } = await api.get<{ periodo: string; vendido: string; meta: string }>('/sync/metas')
       return data
     },
-    staleTime: 5 * 60 * 1000,
+    staleTime: 0,
   })
 }
 
