@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { View, Text, FlatList, StyleSheet, ScrollView, TouchableOpacity } from 'react-native'
+import { View, Text, FlatList, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { useDashboardStats, usePedidos, useMetaVendedor } from '../../src/hooks/usePedidos'
 import { useAuthStore } from '../../src/store/auth.store'
@@ -104,7 +104,13 @@ export default function DashboardScreen() {
       {/* Header */}
       <View style={s.header}>
         <Text style={s.greeting}>Olá, {user?.name?.split(' ')[0]}</Text>
-        <TouchableOpacity onPress={() => logout()} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+        <TouchableOpacity
+          onPress={() => Alert.alert('Conta', 'Deseja encerrar a sessão?', [
+            { text: 'Cancelar', style: 'cancel' },
+            { text: 'Sair', style: 'destructive', onPress: () => logout() },
+          ])}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        >
           <LogOut size={20} color="#64748B" />
         </TouchableOpacity>
       </View>

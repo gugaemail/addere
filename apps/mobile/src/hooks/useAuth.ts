@@ -1,8 +1,13 @@
 import { useMutation } from '@tanstack/react-query'
+import { Alert } from 'react-native'
+import AsyncStorage from '@react-native-async-storage/async-storage'
+import * as LocalAuthentication from 'expo-local-authentication'
 import { useAuthStore } from '../store/auth.store'
 import { useCompanyStore } from '../store/company.store'
 import { api } from '../lib/api'
 import type { LoginRequest, LoginResponse, CompanyFieldConfig } from '@addere/types'
+
+export const BIOMETRIC_KEY = 'addere_biometric_enabled'
 
 export function useLogin() {
   const setAuth = useAuthStore((s) => s.setAuth)
@@ -15,12 +20,31 @@ export function useLogin() {
     },
     onSuccess: async (data) => {
       await setAuth(data.user, data.accessToken)
-      // Carrega config de campos da empresa; ignora erro (usa cache ou default tudo visível)
       try {
         const { data: cfg } = await api.get<CompanyFieldConfig>('/companies/me/field-config')
         await setFieldConfig(cfg)
       } catch {
         // sem conexão ou empresa sem config → mantém cache existente ou tudo visível
+      }
+
+      // Oferecer biometria na primeira vez após login
+      const alreadyAsked = await AsyncStorage.getItem(BIOMETRIC_KEY)
+      if (alreadyAsked === null) {
+        const hasHardware = await LocalAuthentication.hasHardwareAsync()
+        const isEnrolled  = await LocalAuthentication.isEnrolledAsync()
+        if (hasHardware && isEnrolled) {
+          Alert.alert(
+            'Usar biometria?',
+            'Deseja usar impressão digital ou reconhecimento facial para entrar no app nas próximas vezes?',
+            [
+              { text: 'Não agora', onPress: () => AsyncStorage.setItem(BIOMETRIC_KEY, 'false') },
+              { text: 'Sim, ativar', onPress: () => AsyncStorage.setItem(BIOMETRIC_KEY, 'true') },
+            ]
+          )
+        } else {
+          // Dispositivo sem biometria — marca como perguntado para não perguntar de novo
+          await AsyncStorage.setItem(BIOMETRIC_KEY, 'false')
+        }
       }
     },
   })
