@@ -1,4 +1,6 @@
+import { useState, useEffect } from 'react'
 import { View, Text, FlatList, StyleSheet, ScrollView, TouchableOpacity } from 'react-native'
+import AsyncStorage from '@react-native-async-storage/async-storage'
 import { useDashboardStats, usePedidos, useMetaVendedor } from '../../src/hooks/usePedidos'
 import { useAuthStore } from '../../src/store/auth.store'
 import { useLogout } from '../../src/hooks/useAuth'
@@ -7,6 +9,29 @@ import { StatGridSkeleton, OrderRowSkeleton, EmptyState } from '../../src/compon
 import { Ionicons } from '@expo/vector-icons'
 import { LogOut } from 'lucide-react-native'
 import type { Order } from '@addere/types'
+
+const META_CACHE_KEY = 'addere_meta_cache'
+type MetaData = { periodo: string; vendido: string; meta: string }
+
+function useMetaComCache(): MetaData | null {
+  const [cached, setCached] = useState<MetaData | null>(null)
+  const query = useMetaVendedor()
+
+  useEffect(() => {
+    AsyncStorage.getItem(META_CACHE_KEY).then((v) => {
+      if (v) setCached(JSON.parse(v) as MetaData)
+    })
+  }, [])
+
+  useEffect(() => {
+    if (query.data) {
+      AsyncStorage.setItem(META_CACHE_KEY, JSON.stringify(query.data))
+      setCached(query.data)
+    }
+  }, [query.data])
+
+  return query.data ?? cached
+}
 
 const STATUS_LABEL: Record<string, string> = {
   PENDING:   'Pendente',
@@ -25,13 +50,15 @@ function fmtMoeda(value: number) {
 }
 
 function MetaProgress({ vendido, meta, periodo }: { vendido: number; meta: number; periodo: string }) {
-  const pct     = meta > 0 ? Math.min((vendido / meta) * 100, 100) : 0
-  const pctStr  = pct.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  const pct      = meta > 0 ? Math.min((vendido / meta) * 100, 100) : 0
+  const pctStr   = pct.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
   const barColor = pct >= 80 ? '#22C55E' : pct >= 50 ? '#F59E0B' : '#1B4FA8'
-  const mes = `${periodo.slice(0, 4)}/${periodo.slice(4)}`
+  const mes      = periodo.length === 6
+    ? `${periodo.slice(4)}/${periodo.slice(0, 4)}`
+    : '—'
 
   return (
-    <View style={s.metaCard}>
+    <View style={[s.metaCard, { borderTopColor: barColor }]}>
       <View style={s.metaHeader}>
         <Text style={s.metaTitulo}>Meta do mês — {mes}</Text>
         <Text style={[s.metaPct, { color: barColor }]}>{pctStr}%</Text>
@@ -60,7 +87,7 @@ export default function DashboardScreen() {
   const theme   = useTheme()
   const { data: stats, isLoading: loadingStats }         = useDashboardStats()
   const { data: recentOrders, isLoading: loadingOrders } = usePedidos(5)
-  const { data: meta }                                   = useMetaVendedor()
+  const metaData                                         = useMetaComCache()
   const { mutate: logout } = useLogout()
 
   const totalRevenue = Number(stats?.totalRevenue ?? 0)
@@ -96,14 +123,12 @@ export default function DashboardScreen() {
         </View>
       )}
 
-      {/* Barra de meta */}
-      {meta && stats && (
-        <MetaProgress
-          vendido={totalRevenue}
-          meta={Number(meta.meta)}
-          periodo={meta.periodo}
-        />
-      )}
+      {/* Barra de meta — sempre visível, usa cache offline quando API indisponível */}
+      <MetaProgress
+        vendido={Number(metaData?.vendido ?? 0)}
+        meta={Number(metaData?.meta ?? 0)}
+        periodo={metaData?.periodo ?? ''}
+      />
 
       {/* Últimos pedidos */}
       <Text style={s.sectionTitle}>Últimos pedidos</Text>
@@ -200,6 +225,8 @@ const s = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1,
     borderColor: '#E2E8F0',
+    borderTopWidth: 3,
+    borderTopColor: '#1B4FA8',
     padding: 16,
     marginBottom: 20,
     shadowColor: '#0D2045',

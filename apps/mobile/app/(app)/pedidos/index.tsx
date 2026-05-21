@@ -1,12 +1,58 @@
 import React from 'react'
 import { View, Text, FlatList, TouchableOpacity, StyleSheet, Alert, ActivityIndicator } from 'react-native'
 import { useRouter } from 'expo-router'
-import { Plus, RefreshCw, SearchCheck } from 'lucide-react-native'
+import { Plus, RefreshCw, SearchCheck, WifiOff, Upload } from 'lucide-react-native'
 import { usePedidos, useSincronizarPedido, useConsultarStatusPedido } from '../../../src/hooks/usePedidos'
 import { OrderRowSkeleton, EmptyState } from '../../../src/components/Skeleton'
 import { Badge } from '../../../src/components/ui/Badge'
+import { useSyncStore } from '../../../src/store/syncStore'
 import type { Order } from '@addere/types'
 import { fmtMoeda } from '../../../src/utils/format'
+
+function PendingBanner({ orders }: { orders: Order[] | undefined }) {
+  const networkAvailable = useSyncStore((s) => s.networkAvailable)
+  const isSyncing = useSyncStore((s) => s.isSyncing)
+  const pendingCount = orders?.filter((o) => o.status === 'PENDING').length ?? 0
+
+  if (!networkAvailable) {
+    return (
+      <View style={[b.bar, b.offline]}>
+        <WifiOff size={13} color="#fff" strokeWidth={1.5} />
+        <Text style={b.text}>Sem conexão — pedidos serão enviados ao reconectar</Text>
+      </View>
+    )
+  }
+
+  if (isSyncing) {
+    return (
+      <View style={[b.bar, b.syncing]}>
+        <ActivityIndicator size={13} color="#fff" />
+        <Text style={b.text}>Sincronizando...</Text>
+      </View>
+    )
+  }
+
+  if (pendingCount > 0) {
+    return (
+      <View style={[b.bar, b.pending]}>
+        <Upload size={13} color="#fff" strokeWidth={1.5} />
+        <Text style={b.text}>
+          {pendingCount} pedido{pendingCount !== 1 ? 's' : ''} pendente{pendingCount !== 1 ? 's' : ''} de sincronização
+        </Text>
+      </View>
+    )
+  }
+
+  return null
+}
+
+const b = StyleSheet.create({
+  bar: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 8, gap: 8 },
+  offline: { backgroundColor: '#EF4444' },
+  syncing: { backgroundColor: '#1B4FA8' },
+  pending: { backgroundColor: '#F59E0B' },
+  text: { flex: 1, fontFamily: 'Inter_400Regular', fontSize: 12, color: '#fff' },
+})
 
 type BadgeVariant = 'warning' | 'success' | 'danger' | 'neutral'
 
@@ -124,6 +170,7 @@ export default function PedidosScreen() {
 
   return (
     <View style={s.container}>
+      <PendingBanner orders={orders} />
       {isLoading ? (
         <View style={{ padding: 16 }}>
           {[0, 1, 2, 3].map((i) => <OrderRowSkeleton key={i} />)}
