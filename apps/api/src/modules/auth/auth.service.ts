@@ -1,6 +1,7 @@
 import { prisma } from '@addere/db'
 import bcrypt from 'bcryptjs'
 import { randomUUID } from 'crypto'
+import { Resend } from 'resend'
 import type { LoginInput } from './auth.schema'
 
 const REFRESH_TOKEN_EXPIRES_DAYS = 30
@@ -63,4 +64,57 @@ export async function rotateRefreshToken(oldToken: string) {
 
 export async function revokeRefreshToken(token: string): Promise<void> {
   await prisma.refreshToken.deleteMany({ where: { token } })
+}
+
+const WEB_URL = process.env.WEB_URL ?? 'https://addere-web.vercel.app'
+const RESET_TOKEN_EXPIRES_HOURS = 1
+
+export async function forgotPassword(email: string): Promise<void> {
+  const user = await prisma.user.findFirst({ where: { email, active: true } })
+  if (!user) return // não revelar se email existe
+
+  const token = randomUUID()
+  const expiresAt = new Date()
+  expiresAt.setHours(expiresAt.getHours() + RESET_TOKEN_EXPIRES_HOURS)
+
+  await prisma.passwordResetToken.create({ data: { token, userId: user.id, expiresAt } })
+
+  if (!process.env.RESEND_API_KEY) {
+    console.warn('[auth] RESEND_API_KEY não configurada — email de reset não enviado')
+    return
+  }
+
+  const resend = new Resend(process.env.RESEND_API_KEY)
+  const resetLink = `${WEB_URL}/resetar-senha?token=${token}`
+
+  await resend.emails.send({
+    from: 'Addere <noreply@addere.com.br>',
+    to: [user.email],
+    subject: 'Redefinição de senha — Addere',
+    html: `
+      <p>Olá, ${user.name}.</p>
+      <p>Recebemos uma solicitação para redefinir sua senha no Addere.</p>
+      <p><a href="${resetLink}" style="background:#1B4FA8;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;display:inline-block;">Redefinir senha</a></p>
+      <p>O link expira em ${RESET_TOKEN_EXPIRES_HOURS} hora. Se não foi você, ignore este e-mail.</p>
+    `,
+  })
+}
+
+export async function resetPassword(token: string, newPassword: string): Promise<void> {
+  const resetToken = await prisma.passwordResetToken.findUnique({
+    where: { token },
+    include: { user: true },
+  })
+
+  if (!resetToken || resetToken.usedAt || resetToken.expiresAt < new Date()) {
+    throw new Error('Token inválido ou expirado')
+  }
+
+  const hashedPassword = await bcrypt.hash(newPassword, 12)
+
+  await prisma.$transaction([
+    prisma.user.update({ where: { id: resetToken.userId }, data: { password: hashedPassword } }),
+    prisma.passwordResetToken.update({ where: { token }, data: { usedAt: new Date() } }),
+    prisma.refreshToken.deleteMany({ where: { userId: resetToken.userId } }),
+  ])
 }

@@ -8,6 +8,7 @@ import {
   Platform,
   ScrollView,
 } from 'react-native'
+import { useRouter } from 'expo-router'
 import { z } from 'zod'
 import { useLogin } from '../../hooks/useAuth'
 import { LogoMark } from '../../components/brand/LogoMark'
@@ -20,6 +21,7 @@ const schema = z.object({
 })
 
 export function LoginScreen() {
+  const router = useRouter()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [validationError, setValidationError] = useState<string | null>(null)
@@ -89,7 +91,7 @@ export function LoginScreen() {
               Entrar
             </Button>
 
-            <TouchableOpacity onPress={() => {}} style={styles.forgotWrapper}>
+            <TouchableOpacity onPress={() => router.push('/(auth)/esqueci-senha')} style={styles.forgotWrapper}>
               <Text style={styles.forgotText}>Esqueci minha senha</Text>
             </TouchableOpacity>
           </View>

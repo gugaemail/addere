@@ -1,10 +1,12 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify'
-import { loginSchema } from './auth.schema'
+import { loginSchema, forgotPasswordSchema, resetPasswordSchema } from './auth.schema'
 import {
   loginUser,
   createRefreshToken,
   rotateRefreshToken,
   revokeRefreshToken,
+  forgotPassword,
+  resetPassword,
 } from './auth.service'
 import { authenticate } from '../../middleware/authenticate'
 import { prisma } from '@addere/db'
@@ -113,6 +115,44 @@ export default async function authRoutes(app: FastifyInstance) {
     })
     if (!user) return reply.status(404).send({ message: 'Usuário não encontrado' })
     return reply.send(user)
+  })
+
+  // POST /auth/forgot-password — envia email de redefinição de senha
+  app.post('/forgot-password', {
+    config: {
+      rateLimit: {
+        max: 5,
+        timeWindow: '5 minutes',
+        errorResponseBuilder: () => ({ message: 'Muitas tentativas. Aguarde 5 minutos e tente novamente.' }),
+      },
+    },
+  }, async (request: FastifyRequest, reply: FastifyReply) => {
+    const result = forgotPasswordSchema.safeParse(request.body)
+    if (!result.success) return reply.status(400).send({ message: 'Email inválido' })
+
+    await forgotPassword(result.data.email) // não revela se email existe
+    return reply.send({ message: 'Se o e-mail estiver cadastrado, você receberá as instruções em breve.' })
+  })
+
+  // POST /auth/reset-password — redefine a senha com o token recebido por e-mail
+  app.post('/reset-password', {
+    config: {
+      rateLimit: {
+        max: 10,
+        timeWindow: '5 minutes',
+        errorResponseBuilder: () => ({ message: 'Muitas tentativas. Aguarde 5 minutos e tente novamente.' }),
+      },
+    },
+  }, async (request: FastifyRequest, reply: FastifyReply) => {
+    const result = resetPasswordSchema.safeParse(request.body)
+    if (!result.success) return reply.status(400).send({ message: 'Dados inválidos' })
+
+    try {
+      await resetPassword(result.data.token, result.data.newPassword)
+      return reply.send({ message: 'Senha redefinida com sucesso.' })
+    } catch (err) {
+      return reply.status(400).send({ message: (err as Error).message })
+    }
   })
 
   // POST /auth/logout — revoga o refresh token e limpa o cookie
