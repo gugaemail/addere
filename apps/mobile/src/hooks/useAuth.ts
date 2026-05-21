@@ -1,4 +1,4 @@
-import { useMutation } from '@tanstack/react-query'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Alert } from 'react-native'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import * as LocalAuthentication from 'expo-local-authentication'
@@ -10,6 +10,7 @@ import type { LoginRequest, LoginResponse, CompanyFieldConfig } from '@addere/ty
 export const BIOMETRIC_KEY = 'addere_biometric_enabled'
 
 export function useLogin() {
+  const queryClient = useQueryClient()
   const setAuth = useAuthStore((s) => s.setAuth)
   const setFieldConfig = useCompanyStore((s) => s.setFieldConfig)
 
@@ -19,6 +20,7 @@ export function useLogin() {
       return data
     },
     onSuccess: async (data) => {
+      queryClient.clear() // limpa dados do usuário anterior antes de carregar os do novo
       await setAuth(data.user, data.accessToken)
       try {
         const { data: cfg } = await api.get<CompanyFieldConfig>('/companies/me/field-config')
@@ -51,6 +53,7 @@ export function useLogin() {
 }
 
 export function useLogout() {
+  const queryClient = useQueryClient()
   const clearAuth = useAuthStore((s) => s.clearAuth)
   const clearFieldConfig = useCompanyStore((s) => s.clearFieldConfig)
 
@@ -60,6 +63,7 @@ export function useLogout() {
     },
     onSettled: async () => {
       await Promise.all([clearAuth(), clearFieldConfig()])
+      queryClient.clear()
     },
   })
 }
