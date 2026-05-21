@@ -5,10 +5,7 @@ import { useProdutos } from '../../../src/hooks/useProdutos'
 import { Badge } from '../../../src/components/ui/Badge'
 import { useFieldVisible } from '../../../src/hooks/useFieldConfig'
 import type { Product } from '@addere/types'
-
-function fmtMoeda(value: number) {
-  return value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-}
+import { fmtMoeda } from '../../../src/utils/format'
 
 function fmtQtd(value: number) {
   return value % 1 === 0

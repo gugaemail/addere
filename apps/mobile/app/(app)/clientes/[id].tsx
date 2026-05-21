@@ -4,22 +4,7 @@ import { ChevronRight } from 'lucide-react-native'
 import { useCliente } from '../../../src/hooks/useClientes'
 import { useFieldVisible } from '../../../src/hooks/useFieldConfig'
 import type { Order } from '@addere/types'
-
-function fmtMoeda(value: string | number) {
-  return Number(value).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-}
-
-function formatDocument(doc: string | null | undefined): string | null {
-  if (!doc) return null
-  const digits = doc.replace(/\D/g, '')
-  if (digits.length === 11) {
-    return digits.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4')
-  }
-  if (digits.length === 14) {
-    return digits.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, '$1.$2.$3/$4-$5')
-  }
-  return doc
-}
+import { fmtMoeda, formatDocument } from '../../../src/utils/format'
 
 function formatUltcom(ultcom: string | null | undefined): string | null {
   if (!ultcom) return null
