@@ -2,7 +2,7 @@ import React from 'react'
 import { View, Text, ScrollView, ActivityIndicator, StyleSheet, TouchableOpacity, Alert } from 'react-native'
 import { useLocalSearchParams, Stack } from 'expo-router'
 import { RefreshCw, SearchCheck } from 'lucide-react-native'
-import { usePedido, useSincronizarPedido, useConsultarStatusPedido } from '../../../src/hooks/usePedidos'
+import { usePedido, useSincronizarPedido, useConsultarStatusPedido, useCancelarPedido } from '../../../src/hooks/usePedidos'
 import { Badge } from '../../../src/components/ui/Badge'
 import { useFieldVisible } from '../../../src/hooks/useFieldConfig'
 import { useQueryClient } from '@tanstack/react-query'
@@ -49,8 +49,9 @@ export default function PedidoDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>()
   const queryClient = useQueryClient()
   const { data: order, isLoading, error } = usePedido(id)
-  const { mutate: sincronizar, isPending: isSyncing } = useSincronizarPedido()
-  const { mutate: consultarStatus, isPending: isChecking } = useConsultarStatusPedido()
+  const { mutate: sincronizar, isPending: isSyncing }       = useSincronizarPedido()
+  const { mutate: consultarStatus, isPending: isChecking }  = useConsultarStatusPedido()
+  const { mutate: cancelar, isPending: isCancelling }       = useCancelarPedido()
 
   const showTransportadora  = useFieldVisible('order.transportadora')
   const showCondPag         = useFieldVisible('order.condPag')
@@ -77,11 +78,39 @@ export default function PedidoDetailScreen() {
     })
   }
 
+  function handleCancelar() {
+    Alert.alert(
+      'Cancelar pedido',
+      'O pedido não foi encontrado no Protheus. Deseja cancelar este pedido?',
+      [
+        { text: 'Não', style: 'cancel' },
+        {
+          text: 'Cancelar pedido',
+          style: 'destructive',
+          onPress: () => cancelar(id, {
+            onSuccess: () => Alert.alert('Pedido cancelado', 'O pedido foi cancelado com sucesso.'),
+            onError: (err: unknown) => {
+              const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
+                ?? 'Não foi possível cancelar o pedido.'
+              Alert.alert('Erro', msg)
+            },
+          }),
+        },
+      ]
+    )
+  }
+
   function handleCheckStatus() {
     consultarStatus(id, {
       onSuccess: (result) => {
         queryClient.invalidateQueries({ queryKey: ['orders', id] })
-        Alert.alert(`Pedido ${result.protheusOrderId}`, `Status: ${result.status}\nCódigo: ${result.codigo}`)
+        const naoEncontrado = result.status?.toLowerCase().includes('nao encontrado')
+          || result.status?.toLowerCase().includes('não encontrado')
+        if (naoEncontrado) {
+          handleCancelar()
+        } else {
+          Alert.alert(`Pedido ${result.protheusOrderId}`, `Status: ${result.status}\nCódigo: ${result.codigo}`)
+        }
       },
       onError: (err: unknown) => {
         const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message

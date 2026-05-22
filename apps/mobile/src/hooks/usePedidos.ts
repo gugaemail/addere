@@ -74,6 +74,20 @@ export function useMetaVendedor() {
   })
 }
 
+export function useCancelarPedido() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (orderId: string) => {
+      const { data } = await api.patch(`/orders/${orderId}/cancel`)
+      return data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['orders'] })
+    },
+  })
+}
+
 export function useConsultarStatusPedido() {
   return useMutation({
     mutationFn: async (orderId: string) => {
