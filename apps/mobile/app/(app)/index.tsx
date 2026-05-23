@@ -8,10 +8,53 @@ import { useTheme } from '../../src/theme'
 import { StatGridSkeleton, OrderRowSkeleton, EmptyState } from '../../src/components/Skeleton'
 import { Ionicons } from '@expo/vector-icons'
 import { LogOut } from 'lucide-react-native'
-import type { Order } from '@addere/types'
+import type { Order, DashboardStats } from '@addere/types'
 
-const META_CACHE_KEY = 'addere_meta_cache'
+const META_CACHE_KEY   = 'addere_meta_cache'
+const STATS_CACHE_KEY  = 'addere_stats_cache'
+const ORDERS_CACHE_KEY = 'addere_orders_cache'
+
 type MetaData = { periodo: string; vendido: string; meta: string }
+
+function useStatsComCache(): DashboardStats | null {
+  const [cached, setCached] = useState<DashboardStats | null>(null)
+  const query = useDashboardStats()
+
+  useEffect(() => {
+    AsyncStorage.getItem(STATS_CACHE_KEY).then((v) => {
+      if (v) setCached(JSON.parse(v) as DashboardStats)
+    })
+  }, [])
+
+  useEffect(() => {
+    if (query.data) {
+      AsyncStorage.setItem(STATS_CACHE_KEY, JSON.stringify(query.data))
+      setCached(query.data)
+    }
+  }, [query.data])
+
+  return query.data ?? cached
+}
+
+function usePedidosComCache(): Order[] | null {
+  const [cached, setCached] = useState<Order[] | null>(null)
+  const query = usePedidos(5)
+
+  useEffect(() => {
+    AsyncStorage.getItem(ORDERS_CACHE_KEY).then((v) => {
+      if (v) setCached(JSON.parse(v) as Order[])
+    })
+  }, [])
+
+  useEffect(() => {
+    if (query.data) {
+      AsyncStorage.setItem(ORDERS_CACHE_KEY, JSON.stringify(query.data))
+      setCached(query.data)
+    }
+  }, [query.data])
+
+  return query.data ?? cached
+}
 
 function useMetaComCache(): MetaData | null {
   const [cached, setCached] = useState<MetaData | null>(null)
@@ -85,8 +128,10 @@ function MetaProgress({ vendido, meta, periodo }: { vendido: number; meta: numbe
 export default function DashboardScreen() {
   const user    = useAuthStore((s) => s.user)
   const theme   = useTheme()
-  const { data: stats, isLoading: loadingStats }         = useDashboardStats()
-  const { data: recentOrders, isLoading: loadingOrders } = usePedidos(5)
+  const stats        = useStatsComCache()
+  const recentOrders = usePedidosComCache()
+  const loadingStats   = stats === null
+  const loadingOrders  = recentOrders === null
   const metaData                                         = useMetaComCache()
   const { mutate: logout } = useLogout()
 

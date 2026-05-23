@@ -42,7 +42,7 @@ export const useAuthStore = create<AuthState>((set) => ({
     await Promise.all([
       SecureStore.deleteItemAsync(TOKEN_KEY),
       SecureStore.deleteItemAsync(USER_KEY),
-      SecureStore.deleteItemAsync(REFRESH_TOKEN_KEY),
+      // REFRESH_TOKEN_KEY é mantido para permitir re-autenticação biométrica após logout
     ])
     set({ user: null, accessToken: null })
     clearSentryUser()
