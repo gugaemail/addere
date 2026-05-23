@@ -24,12 +24,10 @@ export function useLogin() {
       queryClient.clear() // limpa dados do usuário anterior antes de carregar os do novo
       await SecureStore.setItemAsync(REFRESH_TOKEN_KEY, data.refreshToken)
       await setAuth(data.user, data.accessToken)
-      try {
-        const { data: cfg } = await api.get<CompanyFieldConfig>('/companies/me/field-config')
-        await setFieldConfig(cfg)
-      } catch {
-        // sem conexão ou empresa sem config → mantém cache existente ou tudo visível
-      }
+      // Atualiza em background sem bloquear a navegação; cache local já foi restaurado no boot
+      api.get<CompanyFieldConfig>('/companies/me/field-config')
+        .then(({ data: cfg }) => setFieldConfig(cfg))
+        .catch(() => {})
 
       // Oferecer biometria na primeira vez após login
       const alreadyAsked = await AsyncStorage.getItem(BIOMETRIC_KEY)
