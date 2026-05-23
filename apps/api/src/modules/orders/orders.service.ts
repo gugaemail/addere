@@ -57,7 +57,8 @@ export async function resetOrderToPending(companyId: string, orderId: string) {
 export async function cancelOrder(userId: string, companyId: string, orderId: string) {
   const order = await prisma.order.findFirst({ where: { id: orderId, userId, companyId } })
   if (!order) throw new Error('Pedido não encontrado')
-  if (order.status !== 'PENDING') throw new Error('Apenas pedidos pendentes podem ser cancelados')
+  if (order.status === 'CANCELLED') throw new Error('Pedido já está cancelado')
+  if (order.status !== 'PENDING' && order.status !== 'SYNCED') throw new Error('Apenas pedidos pendentes ou sincronizados podem ser cancelados')
   return prisma.order.update({ where: { id: orderId }, data: { status: 'CANCELLED' }, include: orderInclude })
 }
 

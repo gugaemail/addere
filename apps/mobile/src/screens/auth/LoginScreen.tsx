@@ -84,10 +84,14 @@ export function LoginScreen() {
         refreshData = data
       }
 
-      // Persiste o novo refresh token e autentica
-      await SecureStore.setItemAsync(REFRESH_TOKEN_KEY, refreshData.refreshToken)
-      const { data: userData } = await api.get('/auth/me')
+      // Usa axios direto com o novo token — api.get usaria o Zustand store
+      // que ainda está vazio (null), causando 401 e acionando o interceptor
+      const { data: userData } = await axios.get(
+        `${env.apiUrl}/auth/me`,
+        { headers: { Authorization: `Bearer ${refreshData.accessToken}` }, timeout: 8000 }
+      )
       await setAuth(userData, refreshData.accessToken)
+      await SecureStore.setItemAsync(REFRESH_TOKEN_KEY, refreshData.refreshToken)
       try {
         const { data: cfg } = await api.get<CompanyFieldConfig>('/companies/me/field-config')
         await setFieldConfig(cfg)
