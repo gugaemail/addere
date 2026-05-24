@@ -17,7 +17,7 @@ export function SplashScreen() {
     <View style={styles.container}>
       <Animated.View style={[styles.content, { opacity }]}>
         <LogoMark size={80} variant="dark" />
-        <Animated.Text style={styles.logoText}>addere</Animated.Text>
+        <Animated.Text style={styles.logoText}>Addere</Animated.Text>
         <Animated.Text style={styles.subtitle}>ERP Mobile</Animated.Text>
       </Animated.View>
     </View>
