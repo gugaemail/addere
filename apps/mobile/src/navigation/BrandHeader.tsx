@@ -24,7 +24,7 @@ export function BrandHeader() {
       <View style={s.row}>
         <View style={s.left}>
           <LogoMark size={28} variant="light" />
-          <Text style={s.wordmark}>addere</Text>
+          <Text style={s.wordmark}>Addere</Text>
         </View>
         <TouchableOpacity onPress={handleUserPress} style={s.userBtn} activeOpacity={0.7}>
           <User size={18} color="#1B4FA8" />
