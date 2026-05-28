@@ -148,7 +148,7 @@ function Step2({
     if (existing) {
       onCartChange(cart.map((i) => i.product.id === product.id ? { ...i, quantity: i.quantity + 1 } : i))
     } else {
-      onCartChange([...cart, { product, quantity: 1, discount: 0, unitPrice: Number(product.price) }])
+      onCartChange([...cart, { product, quantity: 1, discount: 0, unitPrice: Number(product.price), descricao: product.name }])
     }
   }
 
@@ -447,24 +447,34 @@ function Step3({
         )}
         {cart.map((item) => (
           <View key={item.product.id} style={styles.itemEditRow}>
-            <View style={styles.itemEditHeader}>
-              <Text style={styles.itemEditName} numberOfLines={2}>{item.product.name}</Text>
+            <View style={[styles.itemEditHeader, showDescricao && { justifyContent: 'flex-end' }]}>
+              {!showDescricao && <Text style={styles.itemEditName} numberOfLines={2}>{item.product.name}</Text>}
               <TouchableOpacity onPress={() => removeItem(item.product.id)} style={styles.removeBtn}>
                 <Text style={styles.removeBtnText}>×</Text>
               </TouchableOpacity>
             </View>
-            <View style={styles.itemEditControls}>
+            {showDescricao && (
+              <View style={styles.itemExtraFull}>
+                <Text style={styles.itemControlLabel}>Descrição{reqDescricao ? ' *' : ''}</Text>
+                <TextInput
+                  style={styles.priceInput}
+                  placeholder="Descrição do item"
+                  defaultValue={item.descricao ?? ''}
+                  onEndEditing={(e) => updateStrField(item.product.id, 'descricao', e.nativeEvent.text)}
+                  placeholderTextColor={colors.neutral.textSub}
+                />
+              </View>
+            )}
+            <View style={[styles.itemEditControls, { marginTop: 8 }]}>
               <View style={styles.itemEditQty}>
                 <Text style={styles.itemControlLabel}>Qtd</Text>
-                <View style={styles.qtyRow}>
-                  <TouchableOpacity onPress={() => updateQty(item.product.id, item.quantity - 1)}>
-                    <Text style={styles.qtyBtn}>−</Text>
-                  </TouchableOpacity>
-                  <Text style={styles.qtyNum}>{item.quantity}</Text>
-                  <TouchableOpacity onPress={() => updateQty(item.product.id, item.quantity + 1)}>
-                    <Text style={styles.qtyBtn}>+</Text>
-                  </TouchableOpacity>
-                </View>
+                <TextInput
+                  style={styles.priceInput}
+                  keyboardType="numeric"
+                  defaultValue={String(item.quantity)}
+                  onEndEditing={(e) => updateQty(item.product.id, Math.max(1, parseInt(e.nativeEvent.text.replace(/\D/g, ''), 10) || 1))}
+                  placeholderTextColor={colors.neutral.textSub}
+                />
               </View>
               {showUnitPrice && (
                 <View style={styles.itemEditPrice}>
@@ -474,6 +484,7 @@ function Step3({
                     keyboardType="decimal-pad"
                     defaultValue={item.unitPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     onEndEditing={(e) => updatePrice(item.product.id, e.nativeEvent.text)}
+                    placeholderTextColor={colors.neutral.textSub}
                   />
                 </View>
               )}
@@ -484,19 +495,6 @@ function Step3({
                 </Text>
               </View>
             </View>
-
-            {/* Campos extras por item */}
-            {showDescricao && (
-              <View style={styles.itemExtraFull}>
-                <Text style={styles.itemControlLabel}>Descrição{reqDescricao ? ' *' : ''}</Text>
-                <TextInput
-                  style={styles.priceInput}
-                  placeholder="Descrição do item"
-                  defaultValue={item.descricao ?? ''}
-                  onEndEditing={(e) => updateStrField(item.product.id, 'descricao', e.nativeEvent.text)}
-                />
-              </View>
-            )}
             {(showLargura || showEspessura || showTara) && (
               <View style={styles.itemExtraRow}>
                 {showLargura && (
@@ -782,7 +780,7 @@ const styles = StyleSheet.create({
   stepText: { fontFamily: 'Inter_400Regular', color: colors.neutral.textSub, fontWeight: '700' },
   stepTextActive: { color: colors.neutral.white },
   stepTitle: { fontFamily: 'PlusJakartaSans_700Bold', fontSize: 16, color: colors.brand.dark, marginBottom: 12 },
-  input: { backgroundColor: colors.neutral.white, borderRadius: 8, borderWidth: 1, borderColor: colors.neutral.border, padding: 12, fontFamily: 'Inter_400Regular', fontSize: 14, marginBottom: 8 },
+  input: { backgroundColor: colors.neutral.white, borderRadius: 8, borderWidth: 1, borderColor: colors.neutral.border, padding: 12, fontFamily: 'Inter_400Regular', fontSize: 14, marginBottom: 8, color: colors.brand.dark },
   listItem: { backgroundColor: colors.neutral.white, borderRadius: 8, padding: 14, marginBottom: 6, shadowColor: '#000', shadowOpacity: 0.03, elevation: 1 },
   listItemTitle: { fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: 14, color: colors.brand.dark },
   listItemSub: { fontFamily: 'Inter_400Regular', fontSize: 12, color: colors.neutral.textSub, marginTop: 2 },
@@ -819,7 +817,7 @@ const styles = StyleSheet.create({
   itemEditPrice: { flex: 1, alignItems: 'flex-start' },
   itemEditSubtotal: { alignItems: 'flex-end' },
   itemControlLabel: { fontFamily: 'Inter_400Regular', fontSize: 10, color: colors.neutral.textSub, marginBottom: 4 },
-  priceInput: { borderWidth: 1, borderColor: colors.neutral.border, borderRadius: 6, padding: 6, fontFamily: 'Inter_400Regular', fontSize: 13, minWidth: 80, backgroundColor: colors.neutral.bg },
+  priceInput: { borderWidth: 1, borderColor: colors.neutral.border, borderRadius: 6, padding: 6, fontFamily: 'Inter_400Regular', fontSize: 13, minWidth: 80, backgroundColor: colors.neutral.bg, color: colors.brand.dark },
   itemSubtotalValue: { fontFamily: 'PlusJakartaSans_700Bold', fontSize: 13, color: colors.brand.dark },
   itemExtraRow: { flexDirection: 'row', gap: 8, marginTop: 8, flexWrap: 'wrap' },
   itemExtraField: { flex: 1, minWidth: 80 },
@@ -828,7 +826,7 @@ const styles = StyleSheet.create({
   xcravBtnActive: { backgroundColor: colors.brand.primary, borderColor: colors.brand.primary },
   xcravBtnText: { fontFamily: 'Inter_400Regular', fontSize: 13, color: colors.neutral.text },
   xcravBtnTextActive: { color: colors.neutral.white },
-  notesInput: { borderWidth: 1, borderColor: colors.neutral.border, borderRadius: 8, padding: 10, fontFamily: 'Inter_400Regular', fontSize: 14, minHeight: 80, backgroundColor: colors.neutral.bg },
+  notesInput: { borderWidth: 1, borderColor: colors.neutral.border, borderRadius: 8, padding: 10, fontFamily: 'Inter_400Regular', fontSize: 14, minHeight: 80, backgroundColor: colors.neutral.bg, color: colors.brand.dark },
   pickerBtn: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderWidth: 1, borderColor: colors.neutral.border, borderRadius: 8, padding: 10, backgroundColor: colors.neutral.bg },
   pickerBtnText: { fontFamily: 'Inter_400Regular', fontSize: 14, color: colors.brand.dark },
   pickerBtnPlaceholder: { fontFamily: 'Inter_400Regular', fontSize: 14, color: colors.neutral.textSub },
