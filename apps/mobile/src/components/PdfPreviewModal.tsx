@@ -11,6 +11,7 @@ import {
 import { FileText, Mail, Download, MessageCircle, X } from 'lucide-react-native'
 import { generateOrderPdf } from '../services/pdfService'
 import { shareViaWhatsApp, shareViaEmail, saveToCameraRoll } from '../services/shareService'
+import { useAuthStore } from '../store/auth.store'
 import type { Order } from '@addere/types'
 
 interface Props {
@@ -44,6 +45,7 @@ function ActionBtn({ icon, label, color, onPress, disabled }: ActionBtnProps) {
 export function PdfPreviewModal({ visible, order, onClose }: Props) {
   const [loading, setLoading] = useState(false)
   const [pdfUri, setPdfUri] = useState<string | null>(null)
+  const userName = useAuthStore((s) => s.user?.name)
 
   // Limpa o PDF em cache ao abrir um novo pedido
   useEffect(() => {
@@ -82,7 +84,7 @@ export function PdfPreviewModal({ visible, order, onClose }: Props) {
     const uri = await getPdf()
     if (!uri || !order) return
     try {
-      await shareViaEmail(uri, order)
+      await shareViaEmail(uri, order, userName)
     } catch {
       Alert.alert('Erro', 'Não foi possível abrir o compositor de email.')
     }
