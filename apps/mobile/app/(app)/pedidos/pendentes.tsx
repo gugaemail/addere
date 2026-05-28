@@ -78,6 +78,7 @@ function QueueItemCard({
           </Text>
           {item.attempts < item.maxAttempts && (
             <TouchableOpacity
+              testID={`retry-item-${item.id}`}
               style={s.retryBtn}
               onPress={() => onRetry(item.id)}
               activeOpacity={0.8}
@@ -122,8 +123,17 @@ export default function PendentesScreen() {
     )
   }
 
+  const totalActive = activeItems.length
+
   return (
     <View style={s.container}>
+      {totalActive > 0 && (
+        <View style={s.countBadgeRow}>
+          <Text testID="queue-count-badge" style={s.countBadge}>{String(totalActive)}</Text>
+          <Text style={s.countLabel}> pedido{totalActive !== 1 ? 's' : ''} na fila</Text>
+        </View>
+      )}
+
       {errorItems.length > 0 && (
         <TouchableOpacity style={s.retryAllBtn} onPress={handleRetryAll} activeOpacity={0.85}>
           <RefreshCw size={14} color="#FFFFFF" strokeWidth={1.5} />
@@ -134,13 +144,15 @@ export default function PendentesScreen() {
       <FlatList
         data={[...activeItems, ...syncedItems]}
         keyExtractor={(item) => item.id}
-        renderItem={({ item }) => (
-          <QueueItemCard item={item} onRetry={retryItem} />
+        renderItem={({ item, index }) => (
+          <View testID={`queue-item-${index}`}>
+            <QueueItemCard item={item} onRetry={retryItem} />
+          </View>
         )}
         onRefresh={syncNow}
         refreshing={isSyncing}
         ListEmptyComponent={
-          <View style={s.empty}>
+          <View testID="empty-queue-message" style={s.empty}>
             <CheckCircle size={40} color="#22C55E" strokeWidth={1.5} />
             <Text style={s.emptyTitle}>Nenhum pedido pendente</Text>
             <Text style={s.emptyDesc}>Todos os pedidos foram sincronizados.</Text>
@@ -161,6 +173,9 @@ export default function PendentesScreen() {
 
 const s = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F8FAFC' },
+  countBadgeRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingTop: 12, paddingBottom: 4 },
+  countBadge: { fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: 20, color: '#0D2045' },
+  countLabel: { fontFamily: 'Inter_400Regular', fontSize: 14, color: '#64748B' },
   retryAllBtn: {
     flexDirection: 'row',
     alignItems: 'center',

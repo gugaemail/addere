@@ -15,6 +15,7 @@ export function SyncStatusBar({ style }: SyncStatusBarProps) {
   if (!networkAvailable) {
     return (
       <TouchableOpacity
+        testID="sync-status-offline"
         style={[s.bar, s.offline, style]}
         onPress={() => router.push('/(app)/pedidos/pendentes')}
         activeOpacity={0.85}
@@ -27,7 +28,7 @@ export function SyncStatusBar({ style }: SyncStatusBarProps) {
 
   if (isSyncing) {
     return (
-      <View style={[s.bar, s.syncing, style]}>
+      <View testID="sync-status-syncing" style={[s.bar, s.syncing, style]}>
         <ActivityIndicator size={14} color="#FFFFFF" />
         <Text style={s.text}>Sincronizando...</Text>
       </View>
@@ -37,6 +38,7 @@ export function SyncStatusBar({ style }: SyncStatusBarProps) {
   if (errorItems.length > 0) {
     return (
       <TouchableOpacity
+        testID="sync-status-error"
         style={[s.bar, s.error, style]}
         onPress={() => router.push('/(app)/pedidos/pendentes')}
         activeOpacity={0.85}
@@ -53,6 +55,7 @@ export function SyncStatusBar({ style }: SyncStatusBarProps) {
   if (hasPending) {
     return (
       <TouchableOpacity
+        testID="sync-status-pending"
         style={[s.bar, s.pending, style]}
         onPress={() => router.push('/(app)/pedidos/pendentes')}
         activeOpacity={0.85}
@@ -67,7 +70,7 @@ export function SyncStatusBar({ style }: SyncStatusBarProps) {
   }
 
   return (
-    <View style={[s.bar, s.synced, style]}>
+    <View testID="sync-status-ok" style={[s.bar, s.synced, style]}>
       <CheckCircle size={14} color="#FFFFFF" strokeWidth={1.5} />
       <Text style={s.text}>Tudo sincronizado</Text>
     </View>

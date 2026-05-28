@@ -19,17 +19,19 @@ describe('Pedido offline com sync posterior', () => {
     await element(by.id('btn-novo-pedido')).tap()
     await element(by.id('input-busca-cliente')).typeText('Cliente Teste')
     await element(by.id('resultado-cliente-0')).tap()
-    await element(by.id('btn-adicionar-produto')).tap()
+    await element(by.id('btn-adicionar-produto-0')).tap()
     await element(by.id('produto-0')).tap()
+    await element(by.id('btn-proximo-step')).tap()
     await element(by.id('btn-confirmar-pedido')).tap()
 
-    // Verificar feedback "salvo offline"
-    await waitFor(element(by.id('toast-pedido-salvo-offline')))
+    // Verificar alerta nativo "salvo offline"
+    await waitFor(element(by.label('Pedido salvo offline')))
       .toBeVisible()
       .withTimeout(3000)
+    await element(by.label('OK')).tap()
 
     // Verificar na fila de pendentes
-    await element(by.id('sync-status-bar')).tap()
+    await element(by.id('sync-status-pending')).tap()
     await expect(element(by.id('queue-item-0'))).toBeVisible()
     await expect(element(by.id('queue-count-badge'))).toHaveText('1')
 

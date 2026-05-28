@@ -10,6 +10,9 @@ jest.mock('../../lib/api', () => ({
 jest.mock('../../lib/query-client', () => ({
   queryClient: { invalidateQueries: jest.fn() },
 }))
+jest.mock('../../services/pilotTracking', () => ({
+  pilotTracker: { track: jest.fn(), getOrderDuration: jest.fn().mockReturnValue(0), startOrderTimer: jest.fn() },
+}))
 
 import { api } from '../../lib/api'
 

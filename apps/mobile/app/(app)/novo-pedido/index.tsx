@@ -12,7 +12,7 @@ import {
 } from 'react-native'
 import { useRouter, Stack } from 'expo-router'
 import { useClientes } from '../../../src/hooks/useClientes'
-import { useProdutos } from '../../../src/hooks/useProdutos'
+import { useCatalog } from '../../../src/hooks/useCatalog'
 import { useBranches } from '../../../src/hooks/useBranches'
 import { submitOrder } from '../../../src/utils/createOrder'
 import { useEffect } from 'react'
@@ -77,8 +77,12 @@ function Step1({
           <FlatList
             data={branches}
             keyExtractor={(b) => b.id}
-            renderItem={({ item }) => (
-              <TouchableOpacity style={styles.listItem} onPress={() => onComplete(selectedCustomer, item)}>
+            renderItem={({ item, index }) => (
+              <TouchableOpacity
+                testID={`btn-adicionar-produto-${index}`}
+                style={styles.listItem}
+                onPress={() => onComplete(selectedCustomer, item)}
+              >
                 <Text style={styles.listItemTitle}>{item.name}</Text>
                 {item.cnpj && <Text style={styles.listItemSub}>{formatDocument(item.cnpj)}</Text>}
               </TouchableOpacity>
@@ -94,6 +98,7 @@ function Step1({
     <View style={{ flex: 1 }}>
       <Text style={styles.stepTitle}>Selecione o cliente</Text>
       <TextInput
+        testID="input-busca-cliente"
         style={styles.input}
         placeholder="Buscar cliente..."
         value={search}
@@ -105,8 +110,12 @@ function Step1({
         <FlatList
           data={customers}
           keyExtractor={(c) => c.id}
-          renderItem={({ item }) => (
-            <TouchableOpacity style={styles.listItem} onPress={() => setSelectedCustomer(item)}>
+          renderItem={({ item, index }) => (
+            <TouchableOpacity
+              testID={`resultado-cliente-${index}`}
+              style={styles.listItem}
+              onPress={() => setSelectedCustomer(item)}
+            >
               <Text style={styles.listItemTitle}>{item.name}</Text>
               {item.document && <Text style={styles.listItemSub}>{formatDocument(item.document)}</Text>}
             </TouchableOpacity>
@@ -130,7 +139,7 @@ function Step2({
   onBack: () => void
 }) {
   const [search, setSearch] = useState('')
-  const { data: products, isLoading } = useProdutos(search || undefined)
+  const { data: products, isLoading, isFromCache } = useCatalog(search || undefined)
 
   function addToCart(product: Product) {
     const existing = cart.find((i) => i.product.id === product.id)
@@ -152,7 +161,14 @@ function Step2({
 
   return (
     <View style={{ flex: 1 }}>
-      <Text style={styles.stepTitle}>Adicionar produtos</Text>
+      <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
+        <Text style={styles.stepTitle}>Adicionar produtos</Text>
+        {isFromCache && (
+          <View testID="cache-badge" style={{ marginLeft: 8, paddingHorizontal: 6, paddingVertical: 2, backgroundColor: '#F59E0B', borderRadius: 6 }}>
+            <Text style={{ fontSize: 10, color: '#fff', fontFamily: 'Inter_400Regular' }}>cache</Text>
+          </View>
+        )}
+      </View>
       <TextInput style={styles.input} placeholder="Buscar produto..." value={search} onChangeText={setSearch} />
 
       {cart.length > 0 && (
@@ -179,10 +195,15 @@ function Step2({
         <ActivityIndicator style={{ marginTop: 8 }} />
       ) : (
         <FlatList
+          testID="produto-lista"
           data={products}
           keyExtractor={(p) => p.id}
-          renderItem={({ item }) => (
-            <TouchableOpacity style={styles.listItem} onPress={() => addToCart(item)}>
+          renderItem={({ item, index }) => (
+            <TouchableOpacity
+              testID={`produto-${index}`}
+              style={styles.listItem}
+              onPress={() => addToCart(item)}
+            >
               <Text style={styles.listItemTitle}>{item.name}</Text>
               <Text style={styles.listItemSub}>R$ {fmtMoeda(item.price)} / {item.unit}</Text>
             </TouchableOpacity>
@@ -536,6 +557,7 @@ function Step3({
       </View>
 
       <TouchableOpacity
+        testID="btn-confirmar-pedido"
         style={[styles.confirmBtn, cart.length === 0 && { opacity: 0.4 }]}
         onPress={onConfirm}
         disabled={isLoading || cart.length === 0}
@@ -645,6 +667,7 @@ export default function NovoPedidoScreen() {
           <View style={{ flex: 1 }}>
             <Step2 cart={cart} onCartChange={setCart} onBack={() => setStep(1)} />
             <TouchableOpacity
+              testID="btn-proximo-step"
               style={[styles.confirmBtn, cart.length === 0 && { opacity: 0.4 }]}
               disabled={cart.length === 0}
               onPress={() => setStep(3)}
