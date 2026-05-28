@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
+import { GestureHandlerRootView } from 'react-native-gesture-handler'
 import { Stack, useRouter, useSegments } from 'expo-router'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import * as LocalAuthentication from 'expo-local-authentication'
 import { BIOMETRIC_KEY } from '../src/hooks/useAuth'
-import { QueryClientProvider } from '@tanstack/react-query'
+import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client'
+import { createAsyncStoragePersister } from '@tanstack/query-async-storage-persister'
 import NetInfo from '@react-native-community/netinfo'
 import * as Sentry from '@sentry/react-native'
 import { env } from '../src/config/env'
@@ -37,7 +39,8 @@ function AuthGuard() {
   const router = useRouter()
   const segments = useSegments()
   const { accessToken, hydrated, hydrate } = useAuthStore()
-  const hydrateFieldConfig = useCompanyStore((s) => s.hydrateFieldConfig)
+  const hydrateFieldConfig   = useCompanyStore((s) => s.hydrateFieldConfig)
+  const hydrateSyncSchedule  = useCompanyStore((s) => s.hydrateSyncSchedule)
   const setNetworkAvailable = useSyncStore((s) => s.setNetworkAvailable)
 
   // Biometric gate: checked once per app lifecycle
@@ -47,6 +50,7 @@ function AuthGuard() {
   useEffect(() => {
     hydrate()
     hydrateFieldConfig()
+    hydrateSyncSchedule()
   }, [])
 
   useEffect(() => {
@@ -120,17 +124,39 @@ function AuthGuard() {
   return null
 }
 
+const asyncStoragePersister = createAsyncStoragePersister({
+  storage: AsyncStorage,
+  key: 'rq-offline-cache',
+  throttleTime: 1000,
+})
+
+// Queries de dados de referência que sobrevivem ao restart do app
+const NON_PERSISTENT_KEYS = ['meta-vendedor']
+
 export default function RootLayout() {
   const { fontsLoaded } = useFonts()
 
   if (!fontsLoaded) return <SplashScreen />
 
   return (
-    <AppErrorBoundary>
-      <QueryClientProvider client={queryClient}>
-        <AuthGuard />
-        <Stack screenOptions={{ headerShown: false }} />
-      </QueryClientProvider>
-    </AppErrorBoundary>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <AppErrorBoundary>
+        <PersistQueryClientProvider
+          client={queryClient}
+          persistOptions={{
+            persister: asyncStoragePersister,
+            maxAge: 1000 * 60 * 60 * 24 * 7,
+            dehydrateOptions: {
+              shouldDehydrateQuery: (query) =>
+                query.state.status === 'success' &&
+                !NON_PERSISTENT_KEYS.includes(query.queryKey[0] as string),
+            },
+          }}
+        >
+          <AuthGuard />
+          <Stack screenOptions={{ headerShown: false }} />
+        </PersistQueryClientProvider>
+      </AppErrorBoundary>
+    </GestureHandlerRootView>
   )
 }

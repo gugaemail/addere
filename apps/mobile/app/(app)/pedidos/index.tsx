@@ -5,6 +5,8 @@ import { Plus, RefreshCw, SearchCheck, WifiOff, Upload } from 'lucide-react-nati
 import { usePedidos, useSincronizarPedido, useConsultarStatusPedido } from '../../../src/hooks/usePedidos'
 import { OrderRowSkeleton, EmptyState } from '../../../src/components/Skeleton'
 import { Badge } from '../../../src/components/ui/Badge'
+import { OrderSwipeActions } from '../../../src/components/OrderSwipeActions'
+import { PdfPreviewModal } from '../../../src/components/PdfPreviewModal'
 import { useSyncStore } from '../../../src/store/syncStore'
 import type { Order } from '@addere/types'
 import { fmtMoeda } from '../../../src/utils/format'
@@ -132,6 +134,17 @@ export default function PedidosScreen() {
   const { mutate: consultarStatus } = useConsultarStatusPedido()
   const [syncingId, setSyncingId] = React.useState<string | null>(null)
   const [checkingId, setCheckingId] = React.useState<string | null>(null)
+  const [pdfOrder, setPdfOrder] = React.useState<Order | null>(null)
+  const [showPdfModal, setShowPdfModal] = React.useState(false)
+
+  function handleOpenPdf(order: Order) {
+    setPdfOrder(order)
+    setShowPdfModal(true)
+  }
+
+  function handleClosePdf() {
+    setShowPdfModal(false)
+  }
 
   function handleSync(orderId: string) {
     setSyncingId(orderId)
@@ -180,14 +193,16 @@ export default function PedidosScreen() {
           data={orders}
           keyExtractor={(item) => item.id}
           renderItem={({ item }) => (
-            <OrderCard
-              order={item}
-              syncingId={syncingId}
-              checkingId={checkingId}
-              onSync={handleSync}
-              onCheckStatus={handleCheckStatus}
-              onPress={() => router.push(`/(app)/pedidos/${item.id}`)}
-            />
+            <OrderSwipeActions order={item} onPdf={handleOpenPdf}>
+              <OrderCard
+                order={item}
+                syncingId={syncingId}
+                checkingId={checkingId}
+                onSync={handleSync}
+                onCheckStatus={handleCheckStatus}
+                onPress={() => router.push(`/(app)/pedidos/${item.id}`)}
+              />
+            </OrderSwipeActions>
           )}
           onRefresh={refetch}
           refreshing={false}
@@ -210,6 +225,12 @@ export default function PedidosScreen() {
       >
         <Plus size={28} color="#FFFFFF" />
       </TouchableOpacity>
+
+      <PdfPreviewModal
+        visible={showPdfModal}
+        order={pdfOrder}
+        onClose={handleClosePdf}
+      />
     </View>
   )
 }

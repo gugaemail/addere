@@ -67,6 +67,13 @@ export interface Branch {
   name: string
   cnpj: string | null
   idProtheus: string | null
+  razaoSocial: string | null
+  endereco: string | null
+  complemento: string | null
+  cidade: string | null
+  estado: string | null
+  cep: string | null
+  logo: string | null
   active: boolean
 }
 
