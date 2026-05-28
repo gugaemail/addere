@@ -1,6 +1,5 @@
 import * as Sharing from 'expo-sharing'
 import * as MailComposer from 'expo-mail-composer'
-import * as MediaLibrary from 'expo-media-library'
 import { Alert } from 'react-native'
 import type { Order } from '@addere/types'
 
@@ -40,16 +39,21 @@ export async function shareViaEmail(filePath: string, order: Order): Promise<voi
   })
 }
 
-// Solicita permissão e salva o PDF na biblioteca de mídia do dispositivo.
+// Abre o share sheet nativo para que o usuário salve o PDF onde preferir
+// (Google Drive, Downloads, Arquivos, etc.). MediaLibrary só suporta imagens/vídeos,
+// portanto não pode ser usado para PDFs — o share sheet é a abordagem correta.
 export async function saveToCameraRoll(filePath: string): Promise<void> {
-  const { status } = await MediaLibrary.requestPermissionsAsync()
-  if (status !== 'granted') {
+  const available = await Sharing.isAvailableAsync()
+  if (!available) {
     Alert.alert(
-      'Permissão necessária',
-      'Para salvar o PDF no seu dispositivo, o Addere precisa de acesso à biblioteca de arquivos. Habilite a permissão nas configurações do app.'
+      'Compartilhamento indisponível',
+      'Seu dispositivo não suporta o salvamento de arquivos.'
     )
     return
   }
-  await MediaLibrary.saveToLibraryAsync(filePath)
-  Alert.alert('PDF salvo!', 'O arquivo foi salvo no seu dispositivo com sucesso.')
+  await Sharing.shareAsync(filePath, {
+    mimeType: 'application/pdf',
+    dialogTitle: 'Salvar PDF no dispositivo',
+    UTI: 'com.adobe.pdf',
+  })
 }
