@@ -24,7 +24,7 @@ import { env } from '../../config/env'
 import { LogoMark } from '../../components/brand/LogoMark'
 import { Input } from '../../components/ui/Input'
 import { Button } from '../../components/ui/Button'
-import type { CompanyFieldConfig } from '@addere/types'
+import type { CompanyFieldConfig, SyncSchedule } from '@addere/types'
 
 const schema = z.object({
   email: z.string().email('Email inválido'),
@@ -41,7 +41,8 @@ export function LoginScreen() {
 
   const { mutate: login, isPending, error } = useLogin()
   const setAuth = useAuthStore((s) => s.setAuth)
-  const setFieldConfig = useCompanyStore((s) => s.setFieldConfig)
+  const setFieldConfig  = useCompanyStore((s) => s.setFieldConfig)
+  const setSyncSchedule = useCompanyStore((s) => s.setSyncSchedule)
 
   useEffect(() => {
     async function checkBiometric() {
@@ -95,6 +96,10 @@ export function LoginScreen() {
       try {
         const { data: cfg } = await api.get<CompanyFieldConfig>('/companies/me/field-config')
         await setFieldConfig(cfg)
+      } catch { /* ignora */ }
+      try {
+        const { data: s } = await api.get<SyncSchedule>('/companies/me/sync-schedule')
+        await setSyncSchedule(s)
       } catch { /* ignora */ }
       // AuthGuard navega para /(app) automaticamente ao detectar accessToken
     } catch {

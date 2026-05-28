@@ -29,7 +29,7 @@ import {
   getCompanyFieldConfig,
   updateCompanyFieldConfig,
 } from './companies.service'
-import { FIELD_REGISTRY_KEYS } from '@addere/types'
+import { FIELD_REGISTRY_KEYS, DEFAULT_SYNC_SCHEDULE } from '@addere/types'
 
 const createCompanySchema = z.object({
   name: z.string().min(1),
@@ -429,6 +429,14 @@ export default async function companiesRoutes(app: FastifyInstance) {
     if (!companyId) return reply.send({ hidden: [], required: [] })
     const config = await getCompanyFieldConfig(companyId)
     return reply.send(config)
+  })
+
+  // GET /companies/me/sync-schedule — retorna config de agendamento da empresa do usuário logado
+  app.get('/me/sync-schedule', { preHandler: authenticate }, async (request: FastifyRequest, reply: FastifyReply) => {
+    const { companyId } = request.user
+    if (!companyId) return reply.send(DEFAULT_SYNC_SCHEDULE)
+    const schedule = await getSyncSchedule(companyId)
+    return reply.send(schedule)
   })
 
   // PATCH /companies/:id/field-config — admin atualiza visibilidade e obrigatoriedade de campos

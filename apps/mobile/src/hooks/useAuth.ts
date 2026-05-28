@@ -6,14 +6,15 @@ import * as LocalAuthentication from 'expo-local-authentication'
 import { useAuthStore, REFRESH_TOKEN_KEY } from '../store/auth.store'
 import { useCompanyStore } from '../store/company.store'
 import { api } from '../lib/api'
-import type { LoginRequest, LoginResponse, CompanyFieldConfig } from '@addere/types'
+import type { LoginRequest, LoginResponse, CompanyFieldConfig, SyncSchedule } from '@addere/types'
 
 export const BIOMETRIC_KEY = 'addere_biometric_enabled'
 
 export function useLogin() {
   const queryClient = useQueryClient()
   const setAuth = useAuthStore((s) => s.setAuth)
-  const setFieldConfig = useCompanyStore((s) => s.setFieldConfig)
+  const setFieldConfig   = useCompanyStore((s) => s.setFieldConfig)
+  const setSyncSchedule  = useCompanyStore((s) => s.setSyncSchedule)
 
   return useMutation({
     mutationFn: async (input: LoginRequest) => {
@@ -24,9 +25,12 @@ export function useLogin() {
       queryClient.clear() // limpa dados do usuário anterior antes de carregar os do novo
       await SecureStore.setItemAsync(REFRESH_TOKEN_KEY, data.refreshToken)
       await setAuth(data.user, data.accessToken)
-      // Atualiza em background sem bloquear a navegação; cache local já foi restaurado no boot
+      // Atualiza configs em background sem bloquear a navegação
       api.get<CompanyFieldConfig>('/companies/me/field-config')
         .then(({ data: cfg }) => setFieldConfig(cfg))
+        .catch(() => {})
+      api.get<SyncSchedule>('/companies/me/sync-schedule')
+        .then(({ data: s }) => setSyncSchedule(s))
         .catch(() => {})
 
       // Oferecer biometria na primeira vez após login
@@ -55,7 +59,8 @@ export function useLogin() {
 export function useLogout() {
   const queryClient = useQueryClient()
   const clearAuth = useAuthStore((s) => s.clearAuth)
-  const clearFieldConfig = useCompanyStore((s) => s.clearFieldConfig)
+  const clearFieldConfig  = useCompanyStore((s) => s.clearFieldConfig)
+  const clearSyncSchedule = useCompanyStore((s) => s.clearSyncSchedule)
 
   return useMutation({
     mutationFn: async () => {
@@ -64,7 +69,7 @@ export function useLogout() {
       // protegido por hardware-encryption + biometria do dispositivo.
     },
     onSettled: async () => {
-      await Promise.all([clearAuth(), clearFieldConfig()])
+      await Promise.all([clearAuth(), clearFieldConfig(), clearSyncSchedule()])
       queryClient.clear()
     },
   })

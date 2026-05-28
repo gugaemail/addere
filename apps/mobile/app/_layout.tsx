@@ -38,7 +38,8 @@ function AuthGuard() {
   const router = useRouter()
   const segments = useSegments()
   const { accessToken, hydrated, hydrate } = useAuthStore()
-  const hydrateFieldConfig = useCompanyStore((s) => s.hydrateFieldConfig)
+  const hydrateFieldConfig   = useCompanyStore((s) => s.hydrateFieldConfig)
+  const hydrateSyncSchedule  = useCompanyStore((s) => s.hydrateSyncSchedule)
   const setNetworkAvailable = useSyncStore((s) => s.setNetworkAvailable)
 
   // Biometric gate: checked once per app lifecycle
@@ -48,6 +49,7 @@ function AuthGuard() {
   useEffect(() => {
     hydrate()
     hydrateFieldConfig()
+    hydrateSyncSchedule()
   }, [])
 
   useEffect(() => {
