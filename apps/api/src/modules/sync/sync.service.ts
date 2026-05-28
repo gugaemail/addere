@@ -4,6 +4,7 @@ import { toStr, toNum } from './field-mapper'
 import { decryptCredential } from '../../lib/protheus-crypto'
 import type { SyncSchedule } from '@addere/types'
 import { DEFAULT_SYNC_SCHEDULE } from '@addere/types'
+import { logProtheusCall } from './protheus-logger'
 
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -49,7 +50,7 @@ function parseJsonField(value: unknown): Record<string, unknown> {
   return {}
 }
 
-export async function syncProducts(companyId: string) {
+export async function syncProducts(companyId: string, operationLabel = 'syncProducts') {
   const company = await prisma.company.findUniqueOrThrow({
     where: { id: companyId },
     include: { branches: { where: { active: true }, take: 1 } },
@@ -72,93 +73,118 @@ export async function syncProducts(companyId: string) {
   let totalRecords = 0
   let totalFetched = 0
   const MAX_PAGES  = 500 // segurança contra loop infinito
+  const t0 = Date.now()
 
-  // Loop de paginação: deslocamento é número de página (1-based)
-  while (deslocamento <= MAX_PAGES) {
-    const body = {
-      limite:      SYNC_PRODUCTS_PAGE_SIZE,
-      deslocamento,
-      B2_FILIAL:   filial,
-      DA1_FILIAL:  filial,
-      INTERV,
-    }
+  try {
+    // Loop de paginação: deslocamento é número de página (1-based)
+    while (deslocamento <= MAX_PAGES) {
+      const body = {
+        limite:      SYNC_PRODUCTS_PAGE_SIZE,
+        deslocamento,
+        B2_FILIAL:   filial,
+        DA1_FILIAL:  filial,
+        INTERV,
+      }
 
-    const rawResponse = await protheusPost(companyId, company.apiPord, body, creds) as Record<string, unknown>
+      const rawResponse = await protheusPost(companyId, company.apiPord, body, creds) as Record<string, unknown>
 
-    // Extrai paginação e lista de produtos do retorno
-    const paginas  = (rawResponse['paginas']  ?? {}) as Record<string, unknown>
-    const produtos = Array.isArray(rawResponse['produtos']) ? rawResponse['produtos'] as Record<string, unknown>[] : []
+      // Extrai paginação e lista de produtos do retorno
+      const paginas  = (rawResponse['paginas']  ?? {}) as Record<string, unknown>
+      const produtos = Array.isArray(rawResponse['produtos']) ? rawResponse['produtos'] as Record<string, unknown>[] : []
 
-    if (deslocamento === 1) {
-      totalRecords = toNum(paginas['total'])
-    }
+      if (deslocamento === 1) {
+        totalRecords = toNum(paginas['total'])
+      }
 
-    if (produtos.length === 0) break
+      if (produtos.length === 0) break
 
-    for (const raw of produtos) {
-      const protheusCode = toStr(raw['id'])
-      if (!protheusCode) continue
+      for (const raw of produtos) {
+        const protheusCode = toStr(raw['id'])
+        if (!protheusCode) continue
 
-      const precoObj   = parseJsonField(raw['preco'])
-      const estoqueObj = parseJsonField(raw['estoque'])
+        const precoObj   = parseJsonField(raw['preco'])
+        const estoqueObj = parseJsonField(raw['estoque'])
 
-      const price = toNum(precoObj['atual'])
-      const stock = toNum(estoqueObj['quantidade'])
+        const price = toNum(precoObj['atual'])
+        const stock = toNum(estoqueObj['quantidade'])
 
-      validRecords.push({
-        protheusCode,
-        name:  toStr(raw['nome'], protheusCode),
-        price: Number.isFinite(price) ? price : 0,
-        unit:  'UN',
-        stock: Number.isFinite(stock) ? stock : 0,
-        saldo: Number.isFinite(stock) ? stock : 0,
-      })
-    }
-
-    totalFetched += produtos.length
-
-    // Encerra quando buscou todos os registros informados pelo total,
-    // ou quando recebeu menos que o limite (última página)
-    if (totalRecords > 0 && totalFetched >= totalRecords) break
-    if (produtos.length < SYNC_PRODUCTS_PAGE_SIZE) break
-
-    deslocamento += 1 // avança para a próxima página
-  }
-
-  // Executa upserts em chunks para evitar transações com milhares de operações
-  const CHUNK_SIZE = 500
-  let synced = 0
-
-  for (let i = 0; i < validRecords.length; i += CHUNK_SIZE) {
-    const chunk = validRecords.slice(i, i + CHUNK_SIZE)
-    const results = await prisma.$transaction(
-      chunk.map((p) =>
-        prisma.product.upsert({
-          where: { companyId_protheusCode: { companyId, protheusCode: p.protheusCode } },
-          update: {
-            name:   p.name,
-            price:  p.price,
-            unit:   p.unit,
-            stock:  p.stock,
-            saldo:  p.saldo,
-            active: true,
-          },
-          create: {
-            companyId,
-            protheusCode: p.protheusCode,
-            name:         p.name,
-            price:        p.price,
-            unit:         p.unit,
-            stock:        p.stock,
-            saldo:        p.saldo,
-          },
+        validRecords.push({
+          protheusCode,
+          name:  toStr(raw['nome'], protheusCode),
+          price: Number.isFinite(price) ? price : 0,
+          unit:  'UN',
+          stock: Number.isFinite(stock) ? stock : 0,
+          saldo: Number.isFinite(stock) ? stock : 0,
         })
-      )
-    )
-    synced += results.length
-  }
+      }
 
-  return { synced, total: totalRecords || validRecords.length, errors }
+      totalFetched += produtos.length
+
+      // Encerra quando buscou todos os registros informados pelo total,
+      // ou quando recebeu menos que o limite (última página)
+      if (totalRecords > 0 && totalFetched >= totalRecords) break
+      if (produtos.length < SYNC_PRODUCTS_PAGE_SIZE) break
+
+      deslocamento += 1 // avança para a próxima página
+    }
+
+    // Executa upserts em chunks para evitar transações com milhares de operações
+    const CHUNK_SIZE = 500
+    let synced = 0
+
+    for (let i = 0; i < validRecords.length; i += CHUNK_SIZE) {
+      const chunk = validRecords.slice(i, i + CHUNK_SIZE)
+      const results = await prisma.$transaction(
+        chunk.map((p) =>
+          prisma.product.upsert({
+            where: { companyId_protheusCode: { companyId, protheusCode: p.protheusCode } },
+            update: {
+              name:   p.name,
+              price:  p.price,
+              unit:   p.unit,
+              stock:  p.stock,
+              saldo:  p.saldo,
+              active: true,
+            },
+            create: {
+              companyId,
+              protheusCode: p.protheusCode,
+              name:         p.name,
+              price:        p.price,
+              unit:         p.unit,
+              stock:        p.stock,
+              saldo:        p.saldo,
+            },
+          })
+        )
+      )
+      synced += results.length
+    }
+
+    await logProtheusCall({
+      companyId,
+      operation:     operationLabel,
+      endpointKey:   'apiPord',
+      success:       true,
+      durationMs:    Date.now() - t0,
+      recordsSynced: synced,
+      totalRecords:  totalRecords || validRecords.length,
+    })
+
+    return { synced, total: totalRecords || validRecords.length, errors }
+  } catch (err: unknown) {
+    const e = err as { response?: { status?: number }; message?: string }
+    await logProtheusCall({
+      companyId,
+      operation:    operationLabel,
+      endpointKey:  'apiPord',
+      success:      false,
+      httpStatus:   e.response?.status,
+      durationMs:   Date.now() - t0,
+      errorMessage: e.message,
+    })
+    throw err
+  }
 }
 
 // ─── Sync Clientes ────────────────────────────────────────────────────────────
@@ -329,7 +355,7 @@ function buildPhone(ddd: string, tel: string): string | null {
   return d ? `(${d}) ${t}` : t
 }
 
-export async function syncCustomers(companyId: string) {
+export async function syncCustomers(companyId: string, operationLabel = 'syncCustomers') {
   const company = await prisma.company.findUniqueOrThrow({ where: { id: companyId } })
 
   if (!company.apiCliente) throw new Error('URL apiCliente não configurada')
@@ -338,73 +364,98 @@ export async function syncCustomers(companyId: string) {
   const scheduleC    = (company.syncSchedule as SyncSchedule | null) ?? DEFAULT_SYNC_SCHEDULE
   const INTERV       = scheduleC.customers.interv ?? 0
   const MAX_PAGES    = 500
+  const t0 = Date.now()
 
   const validRecords: CustomerData[] = []
   let totalRecords = 0
   let totalFetched = 0
   let deslocamento = 1
 
-  while (deslocamento <= MAX_PAGES) {
-    const body = { limite: SYNC_CUSTOMERS_PAGE_SIZE, deslocamento, INTERV }
-    const rawResponse = await protheusPost(companyId, company.apiCliente, body, creds) as Record<string, unknown>
+  try {
+    while (deslocamento <= MAX_PAGES) {
+      const body = { limite: SYNC_CUSTOMERS_PAGE_SIZE, deslocamento, INTERV }
+      const rawResponse = await protheusPost(companyId, company.apiCliente, body, creds) as Record<string, unknown>
 
-    const paginas  = (rawResponse['paginas'] ?? {}) as Record<string, unknown>
-    const clientes = Array.isArray(rawResponse['clientes']) ? rawResponse['clientes'] as Record<string, unknown>[] : []
+      const paginas  = (rawResponse['paginas'] ?? {}) as Record<string, unknown>
+      const clientes = Array.isArray(rawResponse['clientes']) ? rawResponse['clientes'] as Record<string, unknown>[] : []
 
-    if (deslocamento === 1) {
-      totalRecords = toNum(paginas['total'])
+      if (deslocamento === 1) {
+        totalRecords = toNum(paginas['total'])
+      }
+
+      if (clientes.length === 0) break
+
+      for (const raw of clientes) {
+        const protheusCode = toStr(raw['A1_COD'])
+        if (!protheusCode) continue
+
+        validRecords.push({
+          protheusCode,
+          loja:       toStr(raw['A1_LOJA'], '01'),
+          name:       toStr(raw['A1_NOME'], protheusCode),
+          document:   toStr(raw['A1_CGC'])    || null,
+          email:      toStr(raw['A1_EMAIL'])  || null,
+          phone:      buildPhone(toStr(raw['A1_DDD']), toStr(raw['A1_TEL'])),
+          address:    toStr(raw['A1_END'])    || null,
+          municipio:  toStr(raw['A1_MUN'])    || null,
+          bairro:     toStr(raw['A1_BAIRRO']) || null,
+          cep:        toStr(raw['A1_CEP'])    || null,
+          uf:         toStr(raw['A1_EST'])    || null,
+          ultcom:        parseProtheusDate(raw['A1_ULTCOM']),
+          vendorCode:    toStr(raw['A1_VEND'])      || null,
+          msblql:        toStr(raw['A1_MSBLQL'])    || null,
+          transpPadrao:  toStr(raw['A1_TRANSP'])    || null,
+          condPagPadrao: toStr(raw['A1_COND'])      || null,
+          tes:           toStr(raw['A1_TES'])        || null,
+          xcodemp:       toStr(raw['A1_XCODEMP'])   || null,
+        })
+      }
+
+      totalFetched += clientes.length
+
+      if (totalRecords > 0 && totalFetched >= totalRecords) break
+      if (clientes.length < SYNC_CUSTOMERS_PAGE_SIZE) break
+
+      deslocamento += 1
     }
 
-    if (clientes.length === 0) break
+    // Deduplica por document: o Protheus retorna o mesmo CNPJ em múltiplas lojas
+    // (A1_LOJA='01', '02'...). A constraint @@unique([companyId, document]) aceita apenas um
+    // registro por CNPJ — mantemos a primeira ocorrência (geralmente loja='01').
+    const seenDocuments = new Set<string>()
+    const deduped = validRecords.filter((c) => {
+      if (!c.document) return true
+      if (seenDocuments.has(c.document)) return false
+      seenDocuments.add(c.document)
+      return true
+    })
 
-    for (const raw of clientes) {
-      const protheusCode = toStr(raw['A1_COD'])
-      if (!protheusCode) continue
+    const { synced, errors } = await upsertCustomersChunked(companyId, deduped)
 
-      validRecords.push({
-        protheusCode,
-        loja:       toStr(raw['A1_LOJA'], '01'),
-        name:       toStr(raw['A1_NOME'], protheusCode),
-        document:   toStr(raw['A1_CGC'])    || null,
-        email:      toStr(raw['A1_EMAIL'])  || null,
-        phone:      buildPhone(toStr(raw['A1_DDD']), toStr(raw['A1_TEL'])),
-        address:    toStr(raw['A1_END'])    || null,
-        municipio:  toStr(raw['A1_MUN'])    || null,
-        bairro:     toStr(raw['A1_BAIRRO']) || null,
-        cep:        toStr(raw['A1_CEP'])    || null,
-        uf:         toStr(raw['A1_EST'])    || null,
-        ultcom:        parseProtheusDate(raw['A1_ULTCOM']),
-        vendorCode:    toStr(raw['A1_VEND'])      || null,
-        msblql:        toStr(raw['A1_MSBLQL'])    || null,
-        transpPadrao:  toStr(raw['A1_TRANSP'])    || null,
-        condPagPadrao: toStr(raw['A1_COND'])      || null,
-        tes:           toStr(raw['A1_TES'])        || null,
-        xcodemp:       toStr(raw['A1_XCODEMP'])   || null,
-      })
-    }
+    await logProtheusCall({
+      companyId,
+      operation:     operationLabel,
+      endpointKey:   'apiCliente',
+      success:       true,
+      durationMs:    Date.now() - t0,
+      recordsSynced: synced,
+      totalRecords:  totalRecords || totalFetched,
+    })
 
-    totalFetched += clientes.length
-
-    if (totalRecords > 0 && totalFetched >= totalRecords) break
-    if (clientes.length < SYNC_CUSTOMERS_PAGE_SIZE) break
-
-    deslocamento += 1
+    return { synced, total: totalRecords || totalFetched, errors }
+  } catch (err: unknown) {
+    const e = err as { response?: { status?: number }; message?: string }
+    await logProtheusCall({
+      companyId,
+      operation:    operationLabel,
+      endpointKey:  'apiCliente',
+      success:      false,
+      httpStatus:   e.response?.status,
+      durationMs:   Date.now() - t0,
+      errorMessage: e.message,
+    })
+    throw err
   }
-
-  // Deduplica por document: o Protheus retorna o mesmo CNPJ em múltiplas lojas
-  // (A1_LOJA='01', '02'...). A constraint @@unique([companyId, document]) aceita apenas um
-  // registro por CNPJ — mantemos a primeira ocorrência (geralmente loja='01').
-  const seenDocuments = new Set<string>()
-  const deduped = validRecords.filter((c) => {
-    if (!c.document) return true
-    if (seenDocuments.has(c.document)) return false
-    seenDocuments.add(c.document)
-    return true
-  })
-
-  const { synced, errors } = await upsertCustomersChunked(companyId, deduped)
-
-  return { synced, total: totalRecords || totalFetched, errors }
 }
 
 // ─── Sync Transportadoras ─────────────────────────────────────────────────────
@@ -418,6 +469,7 @@ export async function syncTransportadoras(companyId: string) {
 
   const creds     = getCredentials(company)
   const MAX_PAGES = 500
+  const t0 = Date.now()
 
   type TranspData = { protheusCode: string; nome: string }
   const validRecords: TranspData[] = []
@@ -425,60 +477,84 @@ export async function syncTransportadoras(companyId: string) {
   let totalFetched = 0
   let deslocamento = 1
 
-  while (deslocamento <= MAX_PAGES) {
-    const body = { limite: SYNC_TRANSP_PAGE_SIZE, deslocamento, INTERV: 0 }
-    const raw = await protheusPost(companyId, company.apiTransp, body, creds) as Record<string, unknown>
+  try {
+    while (deslocamento <= MAX_PAGES) {
+      const body = { limite: SYNC_TRANSP_PAGE_SIZE, deslocamento, INTERV: 0 }
+      const raw = await protheusPost(companyId, company.apiTransp, body, creds) as Record<string, unknown>
 
-    const paginas       = (raw['paginas'] ?? {}) as Record<string, unknown>
-    const transportadoras = Array.isArray(raw['Transportadoras']) ? raw['Transportadoras'] as Record<string, unknown>[] : []
+      const paginas       = (raw['paginas'] ?? {}) as Record<string, unknown>
+      const transportadoras = Array.isArray(raw['Transportadoras']) ? raw['Transportadoras'] as Record<string, unknown>[] : []
 
-    if (deslocamento === 1) totalRecords = toNum(paginas['total'])
-    if (transportadoras.length === 0) break
+      if (deslocamento === 1) totalRecords = toNum(paginas['total'])
+      if (transportadoras.length === 0) break
 
-    for (const t of transportadoras) {
-      const protheusCode = toStr(t['A4_COD'])
-      if (!protheusCode) continue
-      validRecords.push({ protheusCode, nome: toStr(t['A4_NOME'], protheusCode) })
+      for (const t of transportadoras) {
+        const protheusCode = toStr(t['A4_COD'])
+        if (!protheusCode) continue
+        validRecords.push({ protheusCode, nome: toStr(t['A4_NOME'], protheusCode) })
+      }
+
+      totalFetched += transportadoras.length
+      if (totalRecords > 0 && totalFetched >= totalRecords) break
+      if (transportadoras.length < SYNC_TRANSP_PAGE_SIZE) break
+      deslocamento += 1
     }
 
-    totalFetched += transportadoras.length
-    if (totalRecords > 0 && totalFetched >= totalRecords) break
-    if (transportadoras.length < SYNC_TRANSP_PAGE_SIZE) break
-    deslocamento += 1
-  }
+    const CHUNK_SIZE = 500
+    let synced = 0
+    const errors: string[] = []
 
-  const CHUNK_SIZE = 500
-  let synced = 0
-  const errors: string[] = []
-
-  for (let i = 0; i < validRecords.length; i += CHUNK_SIZE) {
-    const chunk = validRecords.slice(i, i + CHUNK_SIZE)
-    try {
-      await prisma.$transaction(chunk.map((t) =>
-        prisma.transportadora.upsert({
-          where: { companyId_protheusCode: { companyId, protheusCode: t.protheusCode } },
-          update: { nome: t.nome },
-          create: { companyId, protheusCode: t.protheusCode, nome: t.nome },
-        })
-      ))
-      synced += chunk.length
-    } catch (err: unknown) {
-      for (const t of chunk) {
-        try {
-          await prisma.transportadora.upsert({
+    for (let i = 0; i < validRecords.length; i += CHUNK_SIZE) {
+      const chunk = validRecords.slice(i, i + CHUNK_SIZE)
+      try {
+        await prisma.$transaction(chunk.map((t) =>
+          prisma.transportadora.upsert({
             where: { companyId_protheusCode: { companyId, protheusCode: t.protheusCode } },
             update: { nome: t.nome },
             create: { companyId, protheusCode: t.protheusCode, nome: t.nome },
           })
-          synced++
-        } catch (e: unknown) {
-          errors.push(`${t.protheusCode}: ${e instanceof Error ? e.message : 'Erro desconhecido'}`)
+        ))
+        synced += chunk.length
+      } catch (err: unknown) {
+        for (const t of chunk) {
+          try {
+            await prisma.transportadora.upsert({
+              where: { companyId_protheusCode: { companyId, protheusCode: t.protheusCode } },
+              update: { nome: t.nome },
+              create: { companyId, protheusCode: t.protheusCode, nome: t.nome },
+            })
+            synced++
+          } catch (e: unknown) {
+            errors.push(`${t.protheusCode}: ${e instanceof Error ? e.message : 'Erro desconhecido'}`)
+          }
         }
       }
     }
-  }
 
-  return { synced, total: totalRecords || totalFetched, errors }
+    await logProtheusCall({
+      companyId,
+      operation:     'syncTransportadoras',
+      endpointKey:   'apiTransp',
+      success:       true,
+      durationMs:    Date.now() - t0,
+      recordsSynced: synced,
+      totalRecords:  totalRecords || totalFetched,
+    })
+
+    return { synced, total: totalRecords || totalFetched, errors }
+  } catch (err: unknown) {
+    const e = err as { response?: { status?: number }; message?: string }
+    await logProtheusCall({
+      companyId,
+      operation:    'syncTransportadoras',
+      endpointKey:  'apiTransp',
+      success:      false,
+      httpStatus:   e.response?.status,
+      durationMs:   Date.now() - t0,
+      errorMessage: e.message,
+    })
+    throw err
+  }
 }
 
 // ─── Sync Condições de Pagamento ──────────────────────────────────────────────
@@ -492,6 +568,7 @@ export async function syncCondPags(companyId: string) {
 
   const creds     = getCredentials(company)
   const MAX_PAGES = 500
+  const t0 = Date.now()
 
   type CondPagData = { protheusCode: string; nome: string }
   const validRecords: CondPagData[] = []
@@ -499,60 +576,84 @@ export async function syncCondPags(companyId: string) {
   let totalFetched = 0
   let deslocamento = 1
 
-  while (deslocamento <= MAX_PAGES) {
-    const body = { limite: SYNC_CONDPAG_PAGE_SIZE, deslocamento, INTERV: 0 }
-    const raw = await protheusPost(companyId, company.apiCondPag, body, creds) as Record<string, unknown>
+  try {
+    while (deslocamento <= MAX_PAGES) {
+      const body = { limite: SYNC_CONDPAG_PAGE_SIZE, deslocamento, INTERV: 0 }
+      const raw = await protheusPost(companyId, company.apiCondPag, body, creds) as Record<string, unknown>
 
-    const paginas = (raw['paginas'] ?? {}) as Record<string, unknown>
-    const condpags = Array.isArray(raw['condpag']) ? raw['condpag'] as Record<string, unknown>[] : []
+      const paginas = (raw['paginas'] ?? {}) as Record<string, unknown>
+      const condpags = Array.isArray(raw['condpag']) ? raw['condpag'] as Record<string, unknown>[] : []
 
-    if (deslocamento === 1) totalRecords = toNum(paginas['total'])
-    if (condpags.length === 0) break
+      if (deslocamento === 1) totalRecords = toNum(paginas['total'])
+      if (condpags.length === 0) break
 
-    for (const c of condpags) {
-      const protheusCode = toStr(c['E4_CODIGO'])
-      if (!protheusCode) continue
-      validRecords.push({ protheusCode, nome: toStr(c['E4_DESCRI'], protheusCode) })
+      for (const c of condpags) {
+        const protheusCode = toStr(c['E4_CODIGO'])
+        if (!protheusCode) continue
+        validRecords.push({ protheusCode, nome: toStr(c['E4_DESCRI'], protheusCode) })
+      }
+
+      totalFetched += condpags.length
+      if (totalRecords > 0 && totalFetched >= totalRecords) break
+      if (condpags.length < SYNC_CONDPAG_PAGE_SIZE) break
+      deslocamento += 1
     }
 
-    totalFetched += condpags.length
-    if (totalRecords > 0 && totalFetched >= totalRecords) break
-    if (condpags.length < SYNC_CONDPAG_PAGE_SIZE) break
-    deslocamento += 1
-  }
+    const CHUNK_SIZE = 500
+    let synced = 0
+    const errors: string[] = []
 
-  const CHUNK_SIZE = 500
-  let synced = 0
-  const errors: string[] = []
-
-  for (let i = 0; i < validRecords.length; i += CHUNK_SIZE) {
-    const chunk = validRecords.slice(i, i + CHUNK_SIZE)
-    try {
-      await prisma.$transaction(chunk.map((c) =>
-        prisma.condPag.upsert({
-          where: { companyId_protheusCode: { companyId, protheusCode: c.protheusCode } },
-          update: { nome: c.nome },
-          create: { companyId, protheusCode: c.protheusCode, nome: c.nome },
-        })
-      ))
-      synced += chunk.length
-    } catch (err: unknown) {
-      for (const c of chunk) {
-        try {
-          await prisma.condPag.upsert({
+    for (let i = 0; i < validRecords.length; i += CHUNK_SIZE) {
+      const chunk = validRecords.slice(i, i + CHUNK_SIZE)
+      try {
+        await prisma.$transaction(chunk.map((c) =>
+          prisma.condPag.upsert({
             where: { companyId_protheusCode: { companyId, protheusCode: c.protheusCode } },
             update: { nome: c.nome },
             create: { companyId, protheusCode: c.protheusCode, nome: c.nome },
           })
-          synced++
-        } catch (e: unknown) {
-          errors.push(`${c.protheusCode}: ${e instanceof Error ? e.message : 'Erro desconhecido'}`)
+        ))
+        synced += chunk.length
+      } catch (err: unknown) {
+        for (const c of chunk) {
+          try {
+            await prisma.condPag.upsert({
+              where: { companyId_protheusCode: { companyId, protheusCode: c.protheusCode } },
+              update: { nome: c.nome },
+              create: { companyId, protheusCode: c.protheusCode, nome: c.nome },
+            })
+            synced++
+          } catch (e: unknown) {
+            errors.push(`${c.protheusCode}: ${e instanceof Error ? e.message : 'Erro desconhecido'}`)
+          }
         }
       }
     }
-  }
 
-  return { synced, total: totalRecords || totalFetched, errors }
+    await logProtheusCall({
+      companyId,
+      operation:     'syncCondPags',
+      endpointKey:   'apiCondPag',
+      success:       true,
+      durationMs:    Date.now() - t0,
+      recordsSynced: synced,
+      totalRecords:  totalRecords || totalFetched,
+    })
+
+    return { synced, total: totalRecords || totalFetched, errors }
+  } catch (err: unknown) {
+    const e = err as { response?: { status?: number }; message?: string }
+    await logProtheusCall({
+      companyId,
+      operation:    'syncCondPags',
+      endpointKey:  'apiCondPag',
+      success:      false,
+      httpStatus:   e.response?.status,
+      durationMs:   Date.now() - t0,
+      errorMessage: e.message,
+    })
+    throw err
+  }
 }
 
 // ─── Sync Pedido → Protheus ───────────────────────────────────────────────────
@@ -657,7 +758,8 @@ export async function syncOrderToProtheus(orderId: string, companyId: string) {
     console.log(JSON.stringify({ event: 'sync-order-payload', orderId, payload }))
     const t0 = Date.now()
     const rawResponse = await protheusPost(companyId, company.apiPedido, payload, creds)
-    console.log(JSON.stringify({ event: 'sync-order-response', orderId, ms: Date.now() - t0, rawResponse }))
+    const ms = Date.now() - t0
+    console.log(JSON.stringify({ event: 'sync-order-response', orderId, ms, rawResponse }))
 
     // Protheus retorna array: [{ "Retorno": "100", "Mensagem": "...", "Pedido": "012283" }]
     const responseArray = Array.isArray(rawResponse) ? rawResponse as Record<string, unknown>[] : [rawResponse as Record<string, unknown>]
@@ -677,10 +779,29 @@ export async function syncOrderToProtheus(orderId: string, companyId: string) {
       data: { protheusOrderId, syncedAt: new Date() },
     })
 
+    await logProtheusCall({
+      companyId,
+      operation:     'syncOrder',
+      endpointKey:   'apiPedido',
+      success:       true,
+      durationMs:    ms,
+      recordsSynced: 1,
+      metadata:      { orderId, protheusOrderId },
+    })
+
     return { protheusOrderId, mensagem: toStr(first['Mensagem']) }
   } catch (err) {
-    const e = err as { response?: { data?: unknown }; message?: string }
+    const e = err as { response?: { status?: number; data?: unknown }; message?: string }
     console.log(JSON.stringify({ event: 'sync-order-error', orderId, message: e.message, protheusResponse: e.response?.data }))
+    await logProtheusCall({
+      companyId,
+      operation:    'syncOrder',
+      endpointKey:  'apiPedido',
+      success:      false,
+      httpStatus:   e.response?.status,
+      errorMessage: e.message,
+      metadata:     { orderId },
+    })
     await revertToPending()
     throw err
   }
@@ -702,20 +823,45 @@ export async function consultOrderStatus(orderId: string, companyId: string) {
 
   const creds = getCredentials(company)
   const payload = { C5_FILIAL: order.branch.idProtheus, C5_NUM: order.protheusOrderId }
+  const t0 = Date.now()
 
-  const rawResponse = await protheusPost(companyId, company.apiConsPed, payload, creds) as Record<string, unknown>
+  try {
+    const rawResponse = await protheusPost(companyId, company.apiConsPed, payload, creds) as Record<string, unknown>
 
-  const codigo = toStr(rawResponse['codigo'])
-  const status = toStr(rawResponse['status'])
+    const codigo = toStr(rawResponse['codigo'])
+    const status = toStr(rawResponse['status'])
 
-  if (status) {
-    await prisma.order.update({
-      where: { id: orderId },
-      data: { protheusStatus: status },
+    if (status) {
+      await prisma.order.update({
+        where: { id: orderId },
+        data: { protheusStatus: status },
+      })
+    }
+
+    await logProtheusCall({
+      companyId,
+      operation:   'consultOrder',
+      endpointKey: 'apiConsPed',
+      success:     true,
+      durationMs:  Date.now() - t0,
+      metadata:    { orderId, protheusOrderId: order.protheusOrderId },
     })
-  }
 
-  return { protheusOrderId: order.protheusOrderId, codigo, status }
+    return { protheusOrderId: order.protheusOrderId, codigo, status }
+  } catch (err: unknown) {
+    const e = err as { response?: { status?: number }; message?: string }
+    await logProtheusCall({
+      companyId,
+      operation:    'consultOrder',
+      endpointKey:  'apiConsPed',
+      success:      false,
+      httpStatus:   e.response?.status,
+      durationMs:   Date.now() - t0,
+      errorMessage: e.message,
+      metadata:     { orderId },
+    })
+    throw err
+  }
 }
 
 // Dry run: monta o payload e chama o Protheus sem alterar o status do pedido no banco.
@@ -786,10 +932,35 @@ export async function testOrderSync(orderId: string, companyId: string) {
   }
 
   const t0 = Date.now()
-  const rawResponse = await protheusPost(companyId, company.apiPedido, payload, creds)
-  const ms = Date.now() - t0
+  try {
+    const rawResponse = await protheusPost(companyId, company.apiPedido, payload, creds)
+    const ms = Date.now() - t0
 
-  return { ok: true, orderStatus: order.status, ms, payload, rawResponse }
+    await logProtheusCall({
+      companyId,
+      operation:   'testOrder',
+      endpointKey: 'apiPedido',
+      success:     true,
+      durationMs:  ms,
+      metadata:    { orderId },
+    })
+
+    return { ok: true, orderStatus: order.status, ms, payload, rawResponse }
+  } catch (err: unknown) {
+    const e = err as { response?: { status?: number }; message?: string }
+    const ms = Date.now() - t0
+    await logProtheusCall({
+      companyId,
+      operation:    'testOrder',
+      endpointKey:  'apiPedido',
+      success:      false,
+      httpStatus:   e.response?.status,
+      durationMs:   ms,
+      errorMessage: e.message,
+      metadata:     { orderId },
+    })
+    throw err
+  }
 }
 
 export async function fetchMetaVendedor(userId: string, companyId: string) {
@@ -804,12 +975,35 @@ export async function fetchMetaVendedor(userId: string, companyId: string) {
   const creds = getCredentials(company)
   const now = new Date()
   const anomes = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}`
+  const t0 = Date.now()
 
-  const rawResponse = await protheusPost(companyId, company.apiMetaVend, { CODVEND: user.idVendProt, ANOMES: anomes }, creds) as Record<string, unknown>
+  try {
+    const rawResponse = await protheusPost(companyId, company.apiMetaVend, { CODVEND: user.idVendProt, ANOMES: anomes }, creds) as Record<string, unknown>
 
-  return {
-    periodo: toStr(rawResponse['periodo']),
-    vendido: toStr(rawResponse['vendido']),
-    meta:    toStr(rawResponse['meta']),
+    await logProtheusCall({
+      companyId,
+      operation:   'fetchMeta',
+      endpointKey: 'apiMetaVend',
+      success:     true,
+      durationMs:  Date.now() - t0,
+    })
+
+    return {
+      periodo: toStr(rawResponse['periodo']),
+      vendido: toStr(rawResponse['vendido']),
+      meta:    toStr(rawResponse['meta']),
+    }
+  } catch (err: unknown) {
+    const e = err as { response?: { status?: number }; message?: string }
+    await logProtheusCall({
+      companyId,
+      operation:    'fetchMeta',
+      endpointKey:  'apiMetaVend',
+      success:      false,
+      httpStatus:   e.response?.status,
+      durationMs:   Date.now() - t0,
+      errorMessage: e.message,
+    })
+    throw err
   }
 }

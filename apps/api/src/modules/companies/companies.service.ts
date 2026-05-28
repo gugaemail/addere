@@ -182,6 +182,13 @@ export interface CreateBranchInput {
   name: string
   cnpj?: string
   idProtheus?: string
+  razaoSocial?: string
+  endereco?: string
+  complemento?: string
+  cidade?: string
+  estado?: string
+  cep?: string
+  logo?: string
 }
 
 export async function createBranch(companyId: string, input: CreateBranchInput) {
@@ -232,6 +239,13 @@ export interface UpdateBranchInput {
   name?: string
   cnpj?: string
   idProtheus?: string
+  razaoSocial?: string
+  endereco?: string
+  complemento?: string
+  cidade?: string
+  estado?: string
+  cep?: string
+  logo?: string | null
 }
 
 export async function updateBranch(companyId: string, id: string, input: UpdateBranchInput) {
@@ -241,6 +255,13 @@ export async function updateBranch(companyId: string, id: string, input: UpdateB
   if (input.name        !== undefined) data.name        = input.name
   if (input.cnpj        !== undefined) data.cnpj        = input.cnpj        || null
   if (input.idProtheus  !== undefined) data.idProtheus  = input.idProtheus  || null
+  if (input.razaoSocial !== undefined) data.razaoSocial = input.razaoSocial || null
+  if (input.endereco    !== undefined) data.endereco    = input.endereco    || null
+  if (input.complemento !== undefined) data.complemento = input.complemento || null
+  if (input.cidade      !== undefined) data.cidade      = input.cidade      || null
+  if (input.estado      !== undefined) data.estado      = input.estado      || null
+  if (input.cep         !== undefined) data.cep         = input.cep         || null
+  if (input.logo        !== undefined) data.logo        = input.logo        ?? null
   return prisma.branch.update({ where: { id }, data })
 }
 
@@ -387,5 +408,50 @@ export async function getCompanyCredentialsForSync(companyId: string) {
   return {
     ...company,
     passProtheus: company.passProtheus ? decryptCredential(company.passProtheus) : null,
+  }
+}
+
+// ─── Protheus Logs ───────────────────────────────────────────────────────────
+
+export interface ListProtheusLogsOpts {
+  page:       number
+  limit:      number
+  operation?: string
+  success?:   boolean
+  from?:      Date
+  to?:        Date
+}
+
+export async function listProtheusLogs(companyId: string, opts: ListProtheusLogsOpts) {
+  const { page, limit, operation, success, from, to } = opts
+  const skip = (page - 1) * limit
+
+  const where = {
+    companyId,
+    ...(operation !== undefined ? { operation } : {}),
+    ...(success   !== undefined ? { success }   : {}),
+    ...(from || to ? {
+      createdAt: {
+        ...(from ? { gte: from } : {}),
+        ...(to   ? { lte: to   } : {}),
+      },
+    } : {}),
+  }
+
+  const [data, total] = await Promise.all([
+    prisma.protheusLog.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      skip,
+      take: limit,
+    }),
+    prisma.protheusLog.count({ where }),
+  ])
+
+  return {
+    data,
+    total,
+    page,
+    pages: Math.ceil(total / limit),
   }
 }

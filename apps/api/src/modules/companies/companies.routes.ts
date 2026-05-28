@@ -28,8 +28,9 @@ import {
   updateCompanyProtheus,
   getCompanyFieldConfig,
   updateCompanyFieldConfig,
+  listProtheusLogs,
 } from './companies.service'
-import { FIELD_REGISTRY_KEYS } from '@addere/types'
+import { FIELD_REGISTRY_KEYS, DEFAULT_SYNC_SCHEDULE } from '@addere/types'
 
 const createCompanySchema = z.object({
   name: z.string().min(1),
@@ -38,9 +39,16 @@ const createCompanySchema = z.object({
 })
 
 const createBranchSchema = z.object({
-  name: z.string().min(1),
-  cnpj: z.string().optional(),
-  idProtheus: z.string().optional(),
+  name:        z.string().min(1),
+  cnpj:        z.string().optional(),
+  idProtheus:  z.string().optional(),
+  razaoSocial: z.string().optional(),
+  endereco:    z.string().optional(),
+  complemento: z.string().optional(),
+  cidade:      z.string().optional(),
+  estado:      z.string().optional(),
+  cep:         z.string().optional(),
+  logo:        z.string().optional(),
 })
 
 const createUserSchema = z.object({
@@ -59,6 +67,13 @@ const updateBranchSchema = z.object({
   name:        z.string().min(1).optional(),
   cnpj:        z.string().optional(),
   idProtheus:  z.string().optional(),
+  razaoSocial: z.string().optional(),
+  endereco:    z.string().optional(),
+  complemento: z.string().optional(),
+  cidade:      z.string().optional(),
+  estado:      z.string().optional(),
+  cep:         z.string().optional(),
+  logo:        z.string().optional().nullable(),
 })
 
 const updateUserSchema = z.object({
@@ -429,6 +444,30 @@ export default async function companiesRoutes(app: FastifyInstance) {
     if (!companyId) return reply.send({ hidden: [], required: [] })
     const config = await getCompanyFieldConfig(companyId)
     return reply.send(config)
+  })
+
+  // GET /companies/me/sync-schedule — retorna config de agendamento da empresa do usuário logado
+  app.get('/me/sync-schedule', { preHandler: authenticate }, async (request: FastifyRequest, reply: FastifyReply) => {
+    const { companyId } = request.user
+    if (!companyId) return reply.send(DEFAULT_SYNC_SCHEDULE)
+    const schedule = await getSyncSchedule(companyId)
+    return reply.send(schedule)
+  })
+
+  // GET /companies/:id/protheus-logs — lista logs de chamadas às APIs Protheus
+  app.get('/:id/protheus-logs', { preHandler: requireSuperAdmin }, async (request: FastifyRequest, reply: FastifyReply) => {
+    const { id } = request.params as { id: string }
+    const q = request.query as { page?: string; limit?: string; operation?: string; success?: string; from?: string; to?: string }
+
+    const page      = Math.max(1, Number(q.page ?? 1))
+    const limit     = Math.min(100, Math.max(1, Number(q.limit ?? 20)))
+    const operation = q.operation || undefined
+    const success   = q.success === 'true' ? true : q.success === 'false' ? false : undefined
+    const from      = q.from ? new Date(q.from) : undefined
+    const to        = q.to   ? new Date(q.to)   : undefined
+
+    const result = await listProtheusLogs(id, { page, limit, operation, success, from, to })
+    return reply.send(result)
   })
 
   // PATCH /companies/:id/field-config — admin atualiza visibilidade e obrigatoriedade de campos

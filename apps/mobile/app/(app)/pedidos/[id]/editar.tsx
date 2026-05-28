@@ -128,7 +128,7 @@ export default function EditarPedidoScreen() {
       quantity:     Number(item.quantity),
       unitPrice:    Number(item.unitPrice),
       discount:     Number(item.discount),
-      descricao:    item.descricao ?? undefined,
+      descricao:    item.descricao ?? item.product.name,
       largura:      item.largura != null ? Number(item.largura) : undefined,
       espessura:    item.espessura != null ? Number(item.espessura) : undefined,
       encolhimento: item.encolhimento ?? undefined,
@@ -197,13 +197,59 @@ export default function EditarPedidoScreen() {
         quantity:    1,
         unitPrice:   Number(product.price),
         discount:    0,
+        descricao:   product.name,
       }])
     }
     setSearch('')
   }
 
   function handleSave() {
-    if (cart.length === 0) return
+    if (cart.length === 0) {
+      Alert.alert('Pedido inválido', 'Adicione pelo menos um produto antes de salvar.')
+      return
+    }
+    for (const item of cart) {
+      if (reqUnitPrice && (!item.unitPrice || item.unitPrice <= 0)) {
+        Alert.alert('Campo obrigatório', `Informe o preço unitário de "${item.productName}".`)
+        return
+      }
+      if (reqDescricao && !item.descricao?.trim()) {
+        Alert.alert('Campo obrigatório', `Informe a descrição de "${item.productName}".`)
+        return
+      }
+      if (reqLargura && item.largura == null) {
+        Alert.alert('Campo obrigatório', `Informe a largura de "${item.productName}".`)
+        return
+      }
+      if (reqEspessura && item.espessura == null) {
+        Alert.alert('Campo obrigatório', `Informe a espessura de "${item.productName}".`)
+        return
+      }
+      if (reqEncolhimento && !item.encolhimento?.trim()) {
+        Alert.alert('Campo obrigatório', `Informe o encolhimento de "${item.productName}".`)
+        return
+      }
+      if (reqTara && item.tara == null) {
+        Alert.alert('Campo obrigatório', `Informe a tara de "${item.productName}".`)
+        return
+      }
+    }
+    if (reqTransportadora && !transportadora) {
+      Alert.alert('Campo obrigatório', 'Selecione uma transportadora.')
+      return
+    }
+    if (reqCondPag && !condPag) {
+      Alert.alert('Campo obrigatório', 'Selecione uma condição de pagamento.')
+      return
+    }
+    if (reqMennota && !mennota.trim()) {
+      Alert.alert('Campo obrigatório', 'Preencha a observação da nota fiscal.')
+      return
+    }
+    if (reqNotes && !notes.trim()) {
+      Alert.alert('Campo obrigatório', 'Preencha a observação interna.')
+      return
+    }
     atualizar(
       {
         id,
@@ -267,25 +313,36 @@ export default function EditarPedidoScreen() {
 
         {cart.map((item) => (
           <View key={item.productId} style={s.itemRow}>
-            <View style={s.itemHeader}>
-              <Text style={s.itemName} numberOfLines={2}>{item.productName}</Text>
+            <View style={[s.itemHeader, showDescricao && { justifyContent: 'flex-end' }]}>
+              {!showDescricao && <Text style={s.itemName} numberOfLines={2}>{item.productName}</Text>}
               <TouchableOpacity onPress={() => removeItem(item.productId)} style={s.removeBtn}>
                 <Text style={s.removeBtnText}>×</Text>
               </TouchableOpacity>
             </View>
 
-            <View style={s.itemControls}>
+            {showDescricao && (
+              <View style={s.itemExtraFull}>
+                <Text style={s.controlLabel}>Descrição{reqDescricao ? ' *' : ''}</Text>
+                <TextInput
+                  style={s.priceInput}
+                  placeholder="Descrição do item"
+                  defaultValue={item.descricao ?? ''}
+                  onEndEditing={(e) => updateStrField(item.productId, 'descricao', e.nativeEvent.text)}
+                  placeholderTextColor="#94A3B8"
+                />
+              </View>
+            )}
+
+            <View style={[s.itemControls, { marginTop: 8 }]}>
               <View style={s.itemQty}>
                 <Text style={s.controlLabel}>Qtd</Text>
-                <View style={s.qtyRow}>
-                  <TouchableOpacity onPress={() => updateQty(item.productId, item.quantity - 1)}>
-                    <Text style={s.qtyBtn}>−</Text>
-                  </TouchableOpacity>
-                  <Text style={s.qtyNum}>{item.quantity}</Text>
-                  <TouchableOpacity onPress={() => updateQty(item.productId, item.quantity + 1)}>
-                    <Text style={s.qtyBtn}>+</Text>
-                  </TouchableOpacity>
-                </View>
+                <TextInput
+                  style={s.priceInput}
+                  keyboardType="numeric"
+                  defaultValue={String(item.quantity)}
+                  onEndEditing={(e) => updateQty(item.productId, Math.max(1, parseInt(e.nativeEvent.text.replace(/\D/g, ''), 10) || 1))}
+                  placeholderTextColor="#94A3B8"
+                />
               </View>
 
               {showUnitPrice && (
@@ -296,6 +353,7 @@ export default function EditarPedidoScreen() {
                     keyboardType="decimal-pad"
                     defaultValue={item.unitPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     onEndEditing={(e) => updatePrice(item.productId, e.nativeEvent.text)}
+                    placeholderTextColor="#94A3B8"
                   />
                 </View>
               )}
@@ -307,18 +365,6 @@ export default function EditarPedidoScreen() {
                 </Text>
               </View>
             </View>
-
-            {showDescricao && (
-              <View style={s.itemExtraFull}>
-                <Text style={s.controlLabel}>Descrição{reqDescricao ? ' *' : ''}</Text>
-                <TextInput
-                  style={s.priceInput}
-                  placeholder="Descrição do item"
-                  defaultValue={item.descricao ?? ''}
-                  onEndEditing={(e) => updateStrField(item.productId, 'descricao', e.nativeEvent.text)}
-                />
-              </View>
-            )}
 
             {(showLargura || showEspessura || showTara) && (
               <View style={s.itemExtraRow}>

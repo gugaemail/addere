@@ -9,6 +9,8 @@ interface Props {
   onCreated: () => void
 }
 
+// CreateBranchModal é mantido para compatibilidade, mas o fluxo principal
+// usa BranchModal (EntityModals.tsx) que suporta todos os campos.
 export function CreateBranchModal({ companyId, onClose, onCreated }: Props) {
   const [name, setName] = useState('')
   const [cnpj, setCnpj] = useState('')
