@@ -17,6 +17,8 @@ jest.mock('../../services/pilotTracking', () => ({
   pilotTracker: { track: jest.fn(), getOrderDuration: jest.fn().mockReturnValue(0), startOrderTimer: jest.fn() },
 }))
 
+const validPayload = { customerId: 'c1', branchId: 'b1', items: [{ productId: 'p1', quantity: 1 }] }
+
 // Testa a lógica exposta por useSyncQueue diretamente via store
 // (sem renderHook, pois @testing-library/react-native não está instalado)
 
@@ -79,23 +81,22 @@ describe('selectors de fila (expostos via useSyncQueue)', () => {
 })
 
 describe('retryItem', () => {
-  it('reseta item com error para pending com attempts=0', () => {
-    const id = useSyncStore.getState().enqueue('order', {})
+  it('reseta item com error para pending com attempts=0', async () => {
+    const id = useSyncStore.getState().enqueue('order', validPayload)
     useSyncStore.getState().markError(id, 'timeout')
     expect(useSyncStore.getState().queue.find((i) => i.id === id)?.attempts).toBe(1)
 
-    retryItem(id)
+    await retryItem(id)
 
     const item = useSyncStore.getState().queue.find((i) => i.id === id)
-    // Após reset: pode estar pending (se ainda não processou) ou synced (se processou)
     expect(item?.attempts).toBe(0)
     expect(item?.lastError).toBeNull()
   })
 
-  it('reseta lastError junto com o status', () => {
-    const id = useSyncStore.getState().enqueue('order', {})
+  it('reseta lastError junto com o status', async () => {
+    const id = useSyncStore.getState().enqueue('order', validPayload)
     useSyncStore.getState().markError(id, 'mensagem de erro')
-    retryItem(id)
+    await retryItem(id)
     const item = useSyncStore.getState().queue.find((i) => i.id === id)
     expect(item?.lastError).toBeNull()
   })

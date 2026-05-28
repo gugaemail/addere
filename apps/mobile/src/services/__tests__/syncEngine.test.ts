@@ -23,6 +23,8 @@ import { api } from '../../lib/api'
 
 const mockPost = api.post as jest.Mock
 
+const validPayload = { customerId: 'c1', branchId: 'b1', items: [{ productId: 'p1', quantity: 1 }] }
+
 function resetStore(overrides = {}) {
   useSyncStore.setState({
     queue: [],
@@ -77,7 +79,7 @@ describe('processSyncQueue', () => {
 
   it('marca como synced após sucesso', async () => {
     mockPost.mockResolvedValueOnce({ data: { id: 'order-1' } })
-    const id = useSyncStore.getState().enqueue('order', { customerId: 'c1' })
+    const id = useSyncStore.getState().enqueue('order', validPayload)
     await processSyncQueue()
     const item = useSyncStore.getState().queue.find((i) => i.id === id)
     expect(item?.status).toBe('synced')
@@ -85,7 +87,7 @@ describe('processSyncQueue', () => {
 
   it('marca como error após falha', async () => {
     mockPost.mockRejectedValueOnce(new Error('network error'))
-    const id = useSyncStore.getState().enqueue('order', {})
+    const id = useSyncStore.getState().enqueue('order', validPayload)
     await processSyncQueue()
     const item = useSyncStore.getState().queue.find((i) => i.id === id)
     expect(item?.status).toBe('error')
@@ -100,8 +102,8 @@ describe('processSyncQueue', () => {
       return Promise.resolve({ data: {} })
     })
 
-    useSyncStore.getState().enqueue('order', { customerId: 'first' })
-    useSyncStore.getState().enqueue('order', { customerId: 'second' })
+    useSyncStore.getState().enqueue('order', { ...validPayload, customerId: 'first' })
+    useSyncStore.getState().enqueue('order', { ...validPayload, customerId: 'second' })
 
     await processSyncQueue()
 
@@ -126,8 +128,8 @@ describe('processSyncQueue', () => {
   it('reprocessa item error com attempts < maxAttempts', async () => {
     jest.useRealTimers()
     mockPost.mockResolvedValueOnce({ data: {} })
-    const id = useSyncStore.getState().enqueue('order', {})
-    // força estado de erro sem incrementar attempts via markError (para manter delay=0)
+    const id = useSyncStore.getState().enqueue('order', validPayload)
+    // força estado de erro sem incrementar attempts (para manter delay=0)
     useSyncStore.setState((s) => ({
       queue: s.queue.map((i) => i.id === id ? { ...i, status: 'error' as const, attempts: 0 } : i),
     }))
@@ -171,7 +173,7 @@ describe('startSyncListener', () => {
       return jest.fn()
     })
     mockPost.mockResolvedValue({ data: {} })
-    useSyncStore.getState().enqueue('order', {})
+    useSyncStore.getState().enqueue('order', validPayload)
 
     const cleanup = startSyncListener()
     netInfoCallback!({ isConnected: true })
@@ -190,7 +192,7 @@ describe('startSyncListener', () => {
       return { remove: jest.fn() }
     })
     mockPost.mockResolvedValue({ data: {} })
-    useSyncStore.getState().enqueue('order', {})
+    useSyncStore.getState().enqueue('order', validPayload)
 
     const cleanup = startSyncListener()
     appStateCallback!('active')

@@ -19,6 +19,7 @@ import { useEffect } from 'react'
 import { useTransportadoras } from '../../../src/hooks/useTransportadoras'
 import { useCondPags } from '../../../src/hooks/useCondPags'
 import { useFieldVisible, useFieldRequired } from '../../../src/hooks/useFieldConfig'
+import { colors } from '../../../src/theme/colors'
 import type { Branch, Customer, Product, Transportadora, CondPag, CreateOrderItemInput } from '@addere/types'
 import { fmtMoeda, formatDocument } from '../../../src/utils/format'
 
@@ -164,7 +165,7 @@ function Step2({
       <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
         <Text style={styles.stepTitle}>Adicionar produtos</Text>
         {isFromCache && (
-          <View testID="cache-badge" style={{ marginLeft: 8, paddingHorizontal: 6, paddingVertical: 2, backgroundColor: '#F59E0B', borderRadius: 6 }}>
+          <View testID="cache-badge" style={{ marginLeft: 8, paddingHorizontal: 6, paddingVertical: 2, backgroundColor: colors.semantic.warning, borderRadius: 6 }}>
             <Text style={{ fontSize: 10, color: '#fff', fontFamily: 'Inter_400Regular' }}>cache</Text>
           </View>
         )}
@@ -372,6 +373,26 @@ function Step3({
     )
   }
 
+  function handleConfirmWithValidation() {
+    if (reqTransportadora && !transportadora) {
+      Alert.alert('Campo obrigatório', 'Selecione uma transportadora antes de confirmar.')
+      return
+    }
+    if (reqCondPag && !condPag) {
+      Alert.alert('Campo obrigatório', 'Selecione uma condição de pagamento antes de confirmar.')
+      return
+    }
+    if (reqMennota && !mennota.trim()) {
+      Alert.alert('Campo obrigatório', 'Preencha a observação da nota fiscal.')
+      return
+    }
+    if (reqNotes && !notes.trim()) {
+      Alert.alert('Campo obrigatório', 'Preencha a observação interna.')
+      return
+    }
+    onConfirm()
+  }
+
   return (
     <ScrollView>
       <Text style={styles.stepTitle}>Resumo do pedido</Text>
@@ -559,7 +580,7 @@ function Step3({
       <TouchableOpacity
         testID="btn-confirmar-pedido"
         style={[styles.confirmBtn, cart.length === 0 && { opacity: 0.4 }]}
-        onPress={onConfirm}
+        onPress={handleConfirmWithValidation}
         disabled={isLoading || cart.length === 0}
       >
         {isLoading ? <ActivityIndicator color="#fff" /> : <Text style={styles.confirmBtnText}>Confirmar pedido</Text>}
@@ -629,35 +650,43 @@ export default function NovoPedidoScreen() {
       tara:         i.tara,
     }))
 
-    const result = await submitOrder({
-      customerId:  customer.id,
-      branchId:    branch.id,
-      items,
-      mennota:     mennota      || undefined,
-      notes:       notes        || undefined,
-      transportId: transportadora?.id,
-      condId:      condPag?.id,
-    })
+    try {
+      const result = await submitOrder({
+        customerId:  customer.id,
+        branchId:    branch.id,
+        items,
+        mennota:     mennota      || undefined,
+        notes:       notes        || undefined,
+        transportId: transportadora?.id,
+        condId:      condPag?.id,
+      })
 
-    setIsPending(false)
+      setIsPending(false)
 
-    if (result.synced) {
-      Alert.alert('Pedido criado', 'Pedido salvo com sucesso!', [
-        { text: 'OK', onPress: () => router.replace('/(app)/pedidos') },
-      ])
-    } else {
-      Alert.alert(
-        'Pedido salvo offline',
-        'Sem conexão. O pedido foi salvo e será enviado automaticamente ao reconectar.',
-        [{ text: 'OK', onPress: () => router.replace('/(app)/pedidos') }],
-      )
+      if (result.synced) {
+        Alert.alert('Pedido criado', 'Pedido salvo com sucesso!', [
+          { text: 'OK', onPress: () => router.replace('/(app)/pedidos') },
+        ])
+      } else {
+        Alert.alert(
+          'Pedido salvo offline',
+          'Sem conexão. O pedido foi salvo e será enviado automaticamente ao reconectar.',
+          [{ text: 'OK', onPress: () => router.replace('/(app)/pedidos') }],
+        )
+      }
+    } catch (err: unknown) {
+      setIsPending(false)
+      const msg =
+        (err as { response?: { data?: { message?: string } } })?.response?.data?.message ??
+        'Verifique os dados e tente novamente.'
+      Alert.alert('Erro ao criar pedido', msg)
     }
   }
 
   const stepLabel = ['Selecionar cliente / filial', 'Adicionar produtos', 'Confirmar']
 
   return (
-    <View style={{ flex: 1, backgroundColor: '#f3f4f6' }}>
+    <View style={{ flex: 1, backgroundColor: colors.neutral.bg }}>
       <Stack.Screen options={{ title: `Novo pedido — ${stepLabel[step - 1]}` }} />
       <StepIndicator current={step} />
 
@@ -702,66 +731,65 @@ export default function NovoPedidoScreen() {
 }
 
 const styles = StyleSheet.create({
-  steps: { flexDirection: 'row', justifyContent: 'center', gap: 12, padding: 16, backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#e5e7eb' },
-  step: { width: 32, height: 32, borderRadius: 16, backgroundColor: '#e5e7eb', justifyContent: 'center', alignItems: 'center' },
-  stepActive: { backgroundColor: '#2563eb' },
-  stepText: { color: '#6b7280', fontWeight: '700' },
-  stepTextActive: { color: '#fff' },
-  stepTitle: { fontSize: 16, fontWeight: '700', color: '#111827', marginBottom: 12 },
-  input: { backgroundColor: '#fff', borderRadius: 8, borderWidth: 1, borderColor: '#d1d5db', padding: 12, fontSize: 14, marginBottom: 8 },
-  listItem: { backgroundColor: '#fff', borderRadius: 8, padding: 14, marginBottom: 6, shadowColor: '#000', shadowOpacity: 0.03, elevation: 1 },
-  listItemTitle: { fontSize: 14, fontWeight: '600', color: '#111827' },
-  listItemSub: { fontSize: 12, color: '#6b7280', marginTop: 2 },
-  cartBox: { backgroundColor: '#eff6ff', borderRadius: 8, padding: 12, marginBottom: 8 },
-  cartTitle: { fontSize: 13, fontWeight: '700', color: '#2563eb', marginBottom: 6 },
+  steps: { flexDirection: 'row', justifyContent: 'center', gap: 12, padding: 16, backgroundColor: colors.neutral.white, borderBottomWidth: 1, borderBottomColor: colors.neutral.border },
+  step: { width: 32, height: 32, borderRadius: 16, backgroundColor: colors.neutral.border, justifyContent: 'center', alignItems: 'center' },
+  stepActive: { backgroundColor: colors.brand.primary },
+  stepText: { fontFamily: 'Inter_400Regular', color: colors.neutral.textSub, fontWeight: '700' },
+  stepTextActive: { color: colors.neutral.white },
+  stepTitle: { fontFamily: 'PlusJakartaSans_700Bold', fontSize: 16, color: colors.brand.dark, marginBottom: 12 },
+  input: { backgroundColor: colors.neutral.white, borderRadius: 8, borderWidth: 1, borderColor: colors.neutral.border, padding: 12, fontFamily: 'Inter_400Regular', fontSize: 14, marginBottom: 8 },
+  listItem: { backgroundColor: colors.neutral.white, borderRadius: 8, padding: 14, marginBottom: 6, shadowColor: '#000', shadowOpacity: 0.03, elevation: 1 },
+  listItemTitle: { fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: 14, color: colors.brand.dark },
+  listItemSub: { fontFamily: 'Inter_400Regular', fontSize: 12, color: colors.neutral.textSub, marginTop: 2 },
+  cartBox: { backgroundColor: colors.brand.tint, borderRadius: 8, padding: 12, marginBottom: 8 },
+  cartTitle: { fontFamily: 'PlusJakartaSans_700Bold', fontSize: 13, color: colors.brand.primary, marginBottom: 6 },
   cartRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 4 },
-  cartName: { flex: 1, fontSize: 13, color: '#111827' },
+  cartName: { flex: 1, fontFamily: 'Inter_400Regular', fontSize: 13, color: colors.brand.dark },
   qtyRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  qtyBtn: { fontSize: 20, color: '#2563eb', paddingHorizontal: 4 },
-  qtyNum: { fontSize: 14, fontWeight: '700', minWidth: 20, textAlign: 'center' },
-  empty: { color: '#9ca3af', textAlign: 'center', marginTop: 8, marginBottom: 4 },
-  summaryBox: { backgroundColor: '#fff', borderRadius: 8, padding: 14, marginBottom: 8 },
-  summaryLabel: { fontSize: 12, color: '#6b7280', marginBottom: 6 },
-  summaryValue: { fontSize: 15, fontWeight: '600', color: '#111827' },
-  totalLabel: { fontSize: 16, fontWeight: '700', color: '#111827' },
-  totalValue: { fontSize: 20, fontWeight: '700', color: '#2563eb' },
-  confirmBtn: { backgroundColor: '#2563eb', borderRadius: 8, padding: 14, alignItems: 'center', marginTop: 12 },
-  confirmBtnText: { color: '#fff', fontWeight: '700', fontSize: 15 },
-  backBtn: { borderRadius: 8, borderWidth: 1, borderColor: '#d1d5db', padding: 14, alignItems: 'center', marginTop: 8, backgroundColor: '#fff' },
-  backBtnText: { color: '#374151', fontWeight: '600', fontSize: 15 },
+  qtyBtn: { fontFamily: 'Inter_400Regular', fontSize: 20, color: colors.brand.primary, paddingHorizontal: 4 },
+  qtyNum: { fontFamily: 'PlusJakartaSans_700Bold', fontSize: 14, minWidth: 20, textAlign: 'center' },
+  empty: { fontFamily: 'Inter_400Regular', color: colors.neutral.textSub, textAlign: 'center', marginTop: 8, marginBottom: 4 },
+  summaryBox: { backgroundColor: colors.neutral.white, borderRadius: 8, padding: 14, marginBottom: 8 },
+  summaryLabel: { fontFamily: 'Inter_400Regular', fontSize: 12, color: colors.neutral.textSub, marginBottom: 6 },
+  summaryValue: { fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: 15, color: colors.brand.dark },
+  totalLabel: { fontFamily: 'PlusJakartaSans_700Bold', fontSize: 16, color: colors.brand.dark },
+  totalValue: { fontFamily: 'PlusJakartaSans_700Bold', fontSize: 20, color: colors.brand.primary },
+  confirmBtn: { backgroundColor: colors.brand.primary, borderRadius: 8, padding: 14, alignItems: 'center', marginTop: 12 },
+  confirmBtnText: { fontFamily: 'PlusJakartaSans_700Bold', color: colors.neutral.white, fontSize: 15 },
+  backBtn: { borderRadius: 8, borderWidth: 1, borderColor: colors.neutral.border, padding: 14, alignItems: 'center', marginTop: 8, backgroundColor: colors.neutral.white },
+  backBtnText: { fontFamily: 'PlusJakartaSans_600SemiBold', color: colors.neutral.text, fontSize: 15 },
   cancelBtn: { padding: 14, alignItems: 'center', marginTop: 4, marginBottom: 24 },
-  cancelBtnText: { color: '#dc2626', fontWeight: '600', fontSize: 14 },
-  selectedCard: { backgroundColor: '#eff6ff', borderRadius: 8, padding: 14, borderWidth: 1, borderColor: '#bfdbfe' },
-  selectedCardLabel: { fontSize: 11, color: '#6b7280', marginBottom: 2 },
-  selectedCardValue: { fontSize: 15, fontWeight: '700', color: '#111827' },
-  selectedCardChange: { fontSize: 12, color: '#2563eb', marginTop: 4 },
-  // Item editável no Step 3
-  itemEditRow: { borderTopWidth: 1, borderTopColor: '#f3f4f6', paddingTop: 10, marginTop: 6 },
+  cancelBtnText: { fontFamily: 'PlusJakartaSans_600SemiBold', color: colors.semantic.danger, fontSize: 14 },
+  selectedCard: { backgroundColor: colors.brand.tint, borderRadius: 8, padding: 14, borderWidth: 1, borderColor: colors.brand.tint },
+  selectedCardLabel: { fontFamily: 'Inter_400Regular', fontSize: 11, color: colors.neutral.textSub, marginBottom: 2 },
+  selectedCardValue: { fontFamily: 'PlusJakartaSans_700Bold', fontSize: 15, color: colors.brand.dark },
+  selectedCardChange: { fontFamily: 'Inter_400Regular', fontSize: 12, color: colors.brand.primary, marginTop: 4 },
+  itemEditRow: { borderTopWidth: 1, borderTopColor: colors.neutral.bg, paddingTop: 10, marginTop: 6 },
   itemEditHeader: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 8 },
-  itemEditName: { flex: 1, fontSize: 13, fontWeight: '600', color: '#111827', marginRight: 8 },
-  removeBtn: { width: 28, height: 28, borderRadius: 14, backgroundColor: '#fee2e2', justifyContent: 'center', alignItems: 'center' },
-  removeBtnText: { color: '#dc2626', fontSize: 18, fontWeight: '700', lineHeight: 22 },
+  itemEditName: { flex: 1, fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: 13, color: colors.brand.dark, marginRight: 8 },
+  removeBtn: { width: 28, height: 28, borderRadius: 14, backgroundColor: colors.semantic.dangerLight, justifyContent: 'center', alignItems: 'center' },
+  removeBtnText: { fontFamily: 'Inter_400Regular', color: colors.semantic.danger, fontSize: 18, fontWeight: '700', lineHeight: 22 },
   itemEditControls: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   itemEditQty: { alignItems: 'center' },
   itemEditPrice: { flex: 1, alignItems: 'flex-start' },
   itemEditSubtotal: { alignItems: 'flex-end' },
-  itemControlLabel: { fontSize: 10, color: '#9ca3af', marginBottom: 4 },
-  priceInput: { borderWidth: 1, borderColor: '#d1d5db', borderRadius: 6, padding: 6, fontSize: 13, minWidth: 80, backgroundColor: '#f9fafb' },
-  itemSubtotalValue: { fontSize: 13, fontWeight: '700', color: '#111827' },
+  itemControlLabel: { fontFamily: 'Inter_400Regular', fontSize: 10, color: colors.neutral.textSub, marginBottom: 4 },
+  priceInput: { borderWidth: 1, borderColor: colors.neutral.border, borderRadius: 6, padding: 6, fontFamily: 'Inter_400Regular', fontSize: 13, minWidth: 80, backgroundColor: colors.neutral.bg },
+  itemSubtotalValue: { fontFamily: 'PlusJakartaSans_700Bold', fontSize: 13, color: colors.brand.dark },
   itemExtraRow: { flexDirection: 'row', gap: 8, marginTop: 8, flexWrap: 'wrap' },
   itemExtraField: { flex: 1, minWidth: 80 },
   itemExtraFull: { marginTop: 8 },
-  xcravBtn: { borderWidth: 1, borderColor: '#d1d5db', borderRadius: 6, paddingHorizontal: 16, paddingVertical: 6, alignSelf: 'flex-start', backgroundColor: '#f9fafb' },
-  xcravBtnActive: { backgroundColor: '#1B4FA8', borderColor: '#1B4FA8' },
-  xcravBtnText: { fontSize: 13, color: '#374151', fontFamily: 'Inter_400Regular' },
-  xcravBtnTextActive: { color: '#FFFFFF' },
-  notesInput: { borderWidth: 1, borderColor: '#d1d5db', borderRadius: 8, padding: 10, fontSize: 14, minHeight: 80, backgroundColor: '#f9fafb' },
-  pickerBtn: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderWidth: 1, borderColor: '#d1d5db', borderRadius: 8, padding: 10, backgroundColor: '#f9fafb' },
-  pickerBtnText: { fontSize: 14, color: '#111827' },
-  pickerBtnPlaceholder: { fontSize: 14, color: '#9ca3af' },
-  pickerBtnIcon: { fontSize: 12, color: '#6b7280' },
-  pickerList: { marginTop: 4, borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 8, backgroundColor: '#fff', overflow: 'hidden' },
-  pickerItem: { paddingVertical: 10, paddingHorizontal: 12, borderBottomWidth: 1, borderBottomColor: '#f3f4f6' },
-  pickerItemText: { fontSize: 14, color: '#374151' },
-  pickerItemSelected: { color: '#2563eb', fontWeight: '700' },
+  xcravBtn: { borderWidth: 1, borderColor: colors.neutral.border, borderRadius: 6, paddingHorizontal: 16, paddingVertical: 6, alignSelf: 'flex-start', backgroundColor: colors.neutral.bg },
+  xcravBtnActive: { backgroundColor: colors.brand.primary, borderColor: colors.brand.primary },
+  xcravBtnText: { fontFamily: 'Inter_400Regular', fontSize: 13, color: colors.neutral.text },
+  xcravBtnTextActive: { color: colors.neutral.white },
+  notesInput: { borderWidth: 1, borderColor: colors.neutral.border, borderRadius: 8, padding: 10, fontFamily: 'Inter_400Regular', fontSize: 14, minHeight: 80, backgroundColor: colors.neutral.bg },
+  pickerBtn: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderWidth: 1, borderColor: colors.neutral.border, borderRadius: 8, padding: 10, backgroundColor: colors.neutral.bg },
+  pickerBtnText: { fontFamily: 'Inter_400Regular', fontSize: 14, color: colors.brand.dark },
+  pickerBtnPlaceholder: { fontFamily: 'Inter_400Regular', fontSize: 14, color: colors.neutral.textSub },
+  pickerBtnIcon: { fontFamily: 'Inter_400Regular', fontSize: 12, color: colors.neutral.textSub },
+  pickerList: { marginTop: 4, borderWidth: 1, borderColor: colors.neutral.border, borderRadius: 8, backgroundColor: colors.neutral.white, overflow: 'hidden' },
+  pickerItem: { paddingVertical: 10, paddingHorizontal: 12, borderBottomWidth: 1, borderBottomColor: colors.neutral.bg },
+  pickerItemText: { fontFamily: 'Inter_400Regular', fontSize: 14, color: colors.neutral.text },
+  pickerItemSelected: { fontFamily: 'PlusJakartaSans_600SemiBold', color: colors.brand.primary },
 })

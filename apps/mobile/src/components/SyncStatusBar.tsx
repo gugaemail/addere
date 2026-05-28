@@ -3,6 +3,7 @@ import { View, Text, TouchableOpacity, ActivityIndicator, StyleSheet, ViewStyle 
 import { useRouter } from 'expo-router'
 import { Wifi, WifiOff, Upload, AlertCircle, CheckCircle } from 'lucide-react-native'
 import { useSyncQueue } from '../hooks/useSyncQueue'
+import { colors } from '../theme/colors'
 
 interface SyncStatusBarProps {
   style?: ViewStyle
@@ -20,7 +21,7 @@ export function SyncStatusBar({ style }: SyncStatusBarProps) {
         onPress={() => router.push('/(app)/pedidos/pendentes')}
         activeOpacity={0.85}
       >
-        <WifiOff size={14} color="#FFFFFF" strokeWidth={1.5} />
+        <WifiOff size={14} color={colors.neutral.white} strokeWidth={1.5} />
         <Text style={s.text}>Sem conexão — pedidos serão enviados ao reconectar</Text>
       </TouchableOpacity>
     )
@@ -29,13 +30,14 @@ export function SyncStatusBar({ style }: SyncStatusBarProps) {
   if (isSyncing) {
     return (
       <View testID="sync-status-syncing" style={[s.bar, s.syncing, style]}>
-        <ActivityIndicator size={14} color="#FFFFFF" />
+        <ActivityIndicator size={14} color={colors.neutral.white} />
         <Text style={s.text}>Sincronizando...</Text>
       </View>
     )
   }
 
   if (errorItems.length > 0) {
+    const exhaustedCount = errorItems.filter((i) => i.attempts >= i.maxAttempts).length
     return (
       <TouchableOpacity
         testID="sync-status-error"
@@ -43,9 +45,10 @@ export function SyncStatusBar({ style }: SyncStatusBarProps) {
         onPress={() => router.push('/(app)/pedidos/pendentes')}
         activeOpacity={0.85}
       >
-        <AlertCircle size={14} color="#FFFFFF" strokeWidth={1.5} />
+        <AlertCircle size={14} color={colors.neutral.white} strokeWidth={1.5} />
         <Text style={s.text}>
           {errorItems.length} pedido{errorItems.length !== 1 ? 's' : ''} com erro
+          {exhaustedCount > 0 ? ` — ${exhaustedCount} requer${exhaustedCount === 1 ? '' : 'em'} ação manual` : ''}
         </Text>
         <Text style={s.link}>Ver detalhes</Text>
       </TouchableOpacity>
@@ -60,7 +63,7 @@ export function SyncStatusBar({ style }: SyncStatusBarProps) {
         onPress={() => router.push('/(app)/pedidos/pendentes')}
         activeOpacity={0.85}
       >
-        <Upload size={14} color="#FFFFFF" strokeWidth={1.5} />
+        <Upload size={14} color={colors.neutral.white} strokeWidth={1.5} />
         <Text style={s.text}>
           {pendingCount} pedido{pendingCount !== 1 ? 's' : ''} pendente{pendingCount !== 1 ? 's' : ''}
         </Text>
@@ -71,7 +74,7 @@ export function SyncStatusBar({ style }: SyncStatusBarProps) {
 
   return (
     <View testID="sync-status-ok" style={[s.bar, s.synced, style]}>
-      <CheckCircle size={14} color="#FFFFFF" strokeWidth={1.5} />
+      <CheckCircle size={14} color={colors.neutral.white} strokeWidth={1.5} />
       <Text style={s.text}>Tudo sincronizado</Text>
     </View>
   )
@@ -79,27 +82,27 @@ export function SyncStatusBar({ style }: SyncStatusBarProps) {
 
 const s = StyleSheet.create({
   bar: {
-    flexDirection:  'row',
-    alignItems:     'center',
+    flexDirection:     'row',
+    alignItems:        'center',
     paddingHorizontal: 16,
     paddingVertical:   8,
     gap: 8,
   },
-  synced:  { backgroundColor: '#22C55E' },
-  pending: { backgroundColor: '#F59E0B' },
-  syncing: { backgroundColor: '#1B4FA8' },
-  offline: { backgroundColor: '#EF4444' },
-  error:   { backgroundColor: '#EF4444' },
+  synced:  { backgroundColor: colors.semantic.success },
+  pending: { backgroundColor: colors.semantic.warning },
+  syncing: { backgroundColor: colors.brand.primary },
+  offline: { backgroundColor: colors.semantic.danger },
+  error:   { backgroundColor: colors.semantic.danger },
   text: {
-    flex: 1,
+    flex:       1,
     fontFamily: 'Inter_400Regular',
     fontSize:   12,
-    color:      '#FFFFFF',
+    color:      colors.neutral.white,
   },
   link: {
-    fontFamily: 'Inter_400Regular',
-    fontSize:   12,
-    color:      '#FFFFFF',
+    fontFamily:         'Inter_400Regular',
+    fontSize:           12,
+    color:              colors.neutral.white,
     textDecorationLine: 'underline',
   },
 })

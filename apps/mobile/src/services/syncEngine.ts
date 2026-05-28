@@ -16,6 +16,18 @@ export function getSyncDelay(attempts: number): number {
   return 1_000 * Math.pow(2, attempts - 1)
 }
 
+function isValidOrderPayload(payload: unknown): payload is CreateOrderInput {
+  const p = payload as CreateOrderInput
+  return (
+    typeof p === 'object' &&
+    p !== null &&
+    typeof p.customerId === 'string' &&
+    typeof p.branchId === 'string' &&
+    Array.isArray(p.items) &&
+    p.items.length > 0
+  )
+}
+
 async function processItem(item: SyncQueueItem): Promise<void> {
   const { markSyncing, markSynced, markError } = useSyncStore.getState()
 
@@ -23,7 +35,11 @@ async function processItem(item: SyncQueueItem): Promise<void> {
 
   try {
     if (item.type === 'order') {
-      await api.post('/orders', item.payload as CreateOrderInput)
+      if (!isValidOrderPayload(item.payload)) {
+        markError(item.id, 'Payload inválido: estrutura incorreta')
+        return
+      }
+      await api.post('/orders', item.payload)
     }
     markSynced(item.id)
     queryClient.invalidateQueries({ queryKey: ['orders'] })
@@ -95,7 +111,7 @@ export function startSyncListener(): () => void {
 
   const handleAppStateChange = (nextState: AppStateStatus) => {
     if (nextState === 'active') {
-      processSyncQueue()
+      processSyncQueue().catch((err) => Sentry.captureException(err))
     }
   }
 
@@ -105,14 +121,14 @@ export function startSyncListener(): () => void {
     const available = state.isConnected ?? false
     useSyncStore.getState().setNetworkAvailable(available)
     if (available) {
-      processSyncQueue()
+      processSyncQueue().catch((err) => Sentry.captureException(err))
     }
   })
 
   intervalId = setInterval(() => {
     const { networkAvailable } = useSyncStore.getState()
     if (networkAvailable) {
-      processSyncQueue()
+      processSyncQueue().catch((err) => Sentry.captureException(err))
     }
   }, 30_000)
 
