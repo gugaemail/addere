@@ -2,12 +2,14 @@ import { useQuery } from '@tanstack/react-query'
 import { useEffect, useRef } from 'react'
 import { api } from '../lib/api'
 import { pilotTracker } from '../services/pilotTracking'
+import { useSyncStore } from '../store/syncStore'
 import type { Product } from '@addere/types'
 
 const STALE_TIME = 1000 * 60 * 60 * 24 // 24h
 
 export function useCatalog(search?: string) {
   const trackedRef = useRef(false)
+  const networkAvailable = useSyncStore((s) => s.networkAvailable)
 
   const query = useQuery({
     queryKey: ['products', search],
@@ -21,7 +23,8 @@ export function useCatalog(search?: string) {
   })
 
   const isFromCache =
-    query.dataUpdatedAt > 0 && Date.now() - query.dataUpdatedAt > STALE_TIME
+    query.dataUpdatedAt > 0 &&
+    (!networkAvailable || Date.now() - query.dataUpdatedAt > STALE_TIME)
 
   const lastUpdated =
     query.dataUpdatedAt > 0 ? new Date(query.dataUpdatedAt) : null

@@ -47,7 +47,11 @@ export async function submitOrder(
       },
     })
     return { queued: false, synced: true, data }
-  } catch {
+  } catch (err: unknown) {
+    const status = (err as { response?: { status?: number } })?.response?.status
+    if (status !== undefined && status >= 400 && status < 500) {
+      throw err
+    }
     enqueue('order', payload)
     pilotTracker.track({
       type: 'ORDER_COMPLETED',
