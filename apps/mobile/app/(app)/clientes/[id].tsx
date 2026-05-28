@@ -1,10 +1,64 @@
-import { View, Text, ScrollView, ActivityIndicator, StyleSheet, TouchableOpacity } from 'react-native'
+import { View, Text, ScrollView, ActivityIndicator, StyleSheet, TouchableOpacity, Alert, Linking } from 'react-native'
 import { useLocalSearchParams, Stack, useRouter } from 'expo-router'
-import { ChevronRight } from 'lucide-react-native'
+import { ChevronRight, Phone } from 'lucide-react-native'
+import * as Clipboard from 'expo-clipboard'
 import { useCliente } from '../../../src/hooks/useClientes'
 import { useFieldVisible } from '../../../src/hooks/useFieldConfig'
 import type { Order } from '@addere/types'
 import { fmtMoeda, formatDocument } from '../../../src/utils/format'
+
+// Remove caracteres não numéricos e adiciona +55 se necessário
+function toDialable(phone: string): string {
+  const digits = phone.replace(/\D/g, '')
+  if (digits.startsWith('55') && digits.length >= 12) return `+${digits}`
+  return `+55${digits}`
+}
+
+function handlePhonePress(phone: string) {
+  const dialable = toDialable(phone)
+  const waUrl = `https://wa.me/${dialable.replace('+', '')}`
+
+  Alert.alert('Telefone', phone, [
+    {
+      text: 'Ligar',
+      onPress: () => Linking.openURL(`tel:${dialable}`),
+    },
+    {
+      text: 'WhatsApp',
+      onPress: () => Linking.openURL(waUrl),
+    },
+    {
+      text: 'Copiar número',
+      onPress: () => Clipboard.setStringAsync(phone),
+    },
+    { text: 'Cancelar', style: 'cancel' },
+  ])
+}
+
+function PhoneRow({ phone }: { phone: string | null | undefined }) {
+  if (!phone) {
+    return (
+      <View style={styles.infoRow}>
+        <Text style={styles.infoLabel}>Telefone</Text>
+        <Text style={styles.infoValue}>Não informado</Text>
+      </View>
+    )
+  }
+
+  return (
+    <TouchableOpacity
+      style={styles.infoRow}
+      onPress={() => handlePhonePress(phone)}
+      activeOpacity={0.7}
+    >
+      <View style={styles.phoneLabel}>
+        <Phone size={13} color="#29BEFF" strokeWidth={1.5} />
+        <Text style={styles.infoLabel}>Telefone</Text>
+      </View>
+      <Text style={[styles.infoValue, styles.phoneValue]}>{phone}</Text>
+    </TouchableOpacity>
+  )
+}
 
 function formatUltcom(ultcom: string | null | undefined): string | null {
   if (!ultcom) return null
@@ -84,7 +138,7 @@ export default function ClienteDetailScreen() {
         <InfoRow label="Nome" value={customer.name} />
         {showDocument  && <InfoRow label="Documento"     value={formatDocument(customer.document)} />}
         {showEmail     && <InfoRow label="Email"          value={customer.email} />}
-        {showPhone     && <InfoRow label="Telefone"       value={customer.phone} />}
+        {showPhone     && <PhoneRow phone={customer.phone} />}
         {showAddress   && <InfoRow label="Endereço"       value={customer.address} />}
         {showMunicipio && <InfoRow label="Cidade"         value={customer.municipio} />}
         {showUf        && <InfoRow label="Estado"         value={customer.uf} />}
@@ -123,4 +177,6 @@ const styles = StyleSheet.create({
   orderItems: { color: '#6b7280', fontSize: 12, marginTop: 2 },
   empty: { color: '#9ca3af', textAlign: 'center', padding: 24 },
   errorText: { color: '#dc2626' },
+  phoneLabel: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  phoneValue: { color: '#29BEFF', textDecorationLine: 'underline' },
 })

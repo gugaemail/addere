@@ -31,6 +31,14 @@ module.exports = {
       'expo-secure-store',
       'expo-sqlite',
       ['@sentry/react-native/expo', { uploadSourceMaps: false }],
+      [
+        'expo-media-library',
+        {
+          photosPermission: 'Salvar PDFs de pedidos no dispositivo.',
+          savePhotosPermission: 'Salvar PDFs de pedidos no dispositivo.',
+          isAccessMediaLocationEnabled: false,
+        },
+      ],
     ],
     splash: {
       backgroundColor: '#0D2045',

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { GestureHandlerRootView } from 'react-native-gesture-handler'
 import { Stack, useRouter, useSegments } from 'expo-router'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import * as LocalAuthentication from 'expo-local-authentication'
@@ -138,22 +139,24 @@ export default function RootLayout() {
   if (!fontsLoaded) return <SplashScreen />
 
   return (
-    <AppErrorBoundary>
-      <PersistQueryClientProvider
-        client={queryClient}
-        persistOptions={{
-          persister: asyncStoragePersister,
-          maxAge: 1000 * 60 * 60 * 24 * 7,
-          dehydrateOptions: {
-            shouldDehydrateQuery: (query) =>
-              query.state.status === 'success' &&
-              !NON_PERSISTENT_KEYS.includes(query.queryKey[0] as string),
-          },
-        }}
-      >
-        <AuthGuard />
-        <Stack screenOptions={{ headerShown: false }} />
-      </PersistQueryClientProvider>
-    </AppErrorBoundary>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <AppErrorBoundary>
+        <PersistQueryClientProvider
+          client={queryClient}
+          persistOptions={{
+            persister: asyncStoragePersister,
+            maxAge: 1000 * 60 * 60 * 24 * 7,
+            dehydrateOptions: {
+              shouldDehydrateQuery: (query) =>
+                query.state.status === 'success' &&
+                !NON_PERSISTENT_KEYS.includes(query.queryKey[0] as string),
+            },
+          }}
+        >
+          <AuthGuard />
+          <Stack screenOptions={{ headerShown: false }} />
+        </PersistQueryClientProvider>
+      </AppErrorBoundary>
+    </GestureHandlerRootView>
   )
 }
