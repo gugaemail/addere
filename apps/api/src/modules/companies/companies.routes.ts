@@ -426,23 +426,30 @@ export default async function companiesRoutes(app: FastifyInstance) {
   // GET /companies/me/field-config — retorna config de visibilidade da empresa do usuário logado
   app.get('/me/field-config', { preHandler: authenticate }, async (request: FastifyRequest, reply: FastifyReply) => {
     const { companyId } = request.user
-    if (!companyId) return reply.send({ hidden: [] })
+    if (!companyId) return reply.send({ hidden: [], required: [] })
     const config = await getCompanyFieldConfig(companyId)
     return reply.send(config)
   })
 
-  // PATCH /companies/:id/field-config — admin atualiza visibilidade de campos da empresa
+  // PATCH /companies/:id/field-config — admin atualiza visibilidade e obrigatoriedade de campos
   app.patch('/:id/field-config', { preHandler: requireSuperAdmin }, async (request: FastifyRequest, reply: FastifyReply) => {
     const { id } = request.params as { id: string }
-    const body = request.body as { hidden?: unknown }
+    const body = request.body as { hidden?: unknown; required?: unknown }
     if (!Array.isArray(body.hidden)) {
       return reply.status(400).send({ message: 'Campo "hidden" deve ser um array de strings' })
     }
-    const invalidKeys = (body.hidden as string[]).filter((k) => !FIELD_REGISTRY_KEYS.has(k))
-    if (invalidKeys.length > 0) {
-      return reply.status(400).send({ message: `Chaves inválidas: ${invalidKeys.join(', ')}` })
+    if (!Array.isArray(body.required)) {
+      return reply.status(400).send({ message: 'Campo "required" deve ser um array de strings' })
     }
-    const config = await updateCompanyFieldConfig(id, body.hidden as string[])
+    const invalidHidden = (body.hidden as string[]).filter((k) => !FIELD_REGISTRY_KEYS.has(k))
+    if (invalidHidden.length > 0) {
+      return reply.status(400).send({ message: `Chaves inválidas em hidden: ${invalidHidden.join(', ')}` })
+    }
+    const invalidRequired = (body.required as string[]).filter((k) => !FIELD_REGISTRY_KEYS.has(k))
+    if (invalidRequired.length > 0) {
+      return reply.status(400).send({ message: `Chaves inválidas em required: ${invalidRequired.join(', ')}` })
+    }
+    const config = await updateCompanyFieldConfig(id, body.hidden as string[], body.required as string[])
     return reply.send(config)
   })
 }

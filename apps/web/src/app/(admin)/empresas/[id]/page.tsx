@@ -105,9 +105,10 @@ export default function EmpresaPage() {
   const [products,  setProducts]  = useState<Product[]>([])
   const [orders,    setOrders]    = useState<Order[]>([])
   const [expandedOrder, setExpandedOrder] = useState<string | null>(null)
-  const [hiddenFields,   setHiddenFields]   = useState<string[]>([])
-  const [savingFields,   setSavingFields]   = useState(false)
-  const [fieldsSaved,    setFieldsSaved]    = useState(false)
+  const [hiddenFields,    setHiddenFields]    = useState<string[]>([])
+  const [requiredFields,  setRequiredFields]  = useState<string[]>([])
+  const [savingFields,    setSavingFields]    = useState(false)
+  const [fieldsSaved,     setFieldsSaved]     = useState(false)
 
   // Modais legados (criar)
   const [showBranchModal, setShowBranchModal] = useState(false)
@@ -172,13 +173,14 @@ export default function EmpresaPage() {
   }
   async function fetchFieldConfig() {
     try {
-      const { data } = await api.get<{ hidden: string[] }>(`/companies/${id}/field-config`)
+      const { data } = await api.get<{ hidden: string[]; required: string[] }>(`/companies/${id}/field-config`)
       setHiddenFields(data.hidden ?? [])
+      setRequiredFields(data.required ?? [])
     } catch { /* ignora */ }
   }
   async function saveFieldConfig() {
     setSavingFields(true)
-    await api.patch(`/companies/${id}/field-config`, { hidden: hiddenFields })
+    await api.patch(`/companies/${id}/field-config`, { hidden: hiddenFields, required: requiredFields })
     setSavingFields(false)
     setFieldsSaved(true)
     setTimeout(() => setFieldsSaved(false), 3000)
@@ -1079,9 +1081,9 @@ export default function EmpresaPage() {
       {tab === 'campos' && (
         <div className="space-y-6">
           <div>
-            <h2 className="text-base font-semibold text-[var(--text-primary)]">Visibilidade de campos</h2>
+            <h2 className="text-base font-semibold text-[var(--text-primary)]">Visibilidade e obrigatoriedade de campos</h2>
             <p className="text-sm text-[var(--text-muted)] mt-1">
-              Campos desmarcados ficam ocultos no app mobile para todos os usuários desta empresa.
+              Controle quais campos aparecem no app e quais são obrigatórios nos formulários.
             </p>
           </div>
 
@@ -1092,33 +1094,63 @@ export default function EmpresaPage() {
             const fields = FIELD_REGISTRY.filter((f) => f.entity === entity)
             return (
               <div key={entity} className="rounded-xl border border-[var(--border)] overflow-hidden">
-                <div className="px-4 py-3 bg-[var(--bg-subtle)] border-b border-[var(--border)]">
+                <div className="px-4 py-3 bg-[var(--bg-subtle)] border-b border-[var(--border)] flex items-center justify-between">
                   <h3 className="text-sm font-semibold text-[var(--text-primary)]">{entityLabel[entity]}</h3>
+                  <div className="flex gap-6 pr-1">
+                    <span className="text-xs font-medium text-[var(--text-muted)] w-14 text-center">Visível</span>
+                    <span className="text-xs font-medium text-[var(--text-muted)] w-14 text-center">Obrigatório</span>
+                  </div>
                 </div>
                 <div className="divide-y divide-[var(--border)]">
                   {fields.map((field) => {
-                    const isHidden = hiddenFields.includes(field.key)
+                    const isHidden   = hiddenFields.includes(field.key)
+                    const isRequired = requiredFields.includes(field.key)
+                    const canBeRequired = field.affectsInput && !isHidden
                     return (
-                      <label key={field.key} className="flex items-center justify-between gap-4 px-4 py-3 cursor-pointer hover:bg-[var(--bg-subtle)] transition-colors">
+                      <div key={field.key} className="flex items-center justify-between gap-4 px-4 py-3 hover:bg-[var(--bg-subtle)] transition-colors">
                         <div>
                           <p className="text-sm font-medium text-[var(--text-primary)]">{field.label}</p>
                           <p className="text-xs text-[var(--text-muted)]">
                             {field.affectsInput ? 'Oculta exibição e formulário' : 'Oculta apenas exibição'}
                           </p>
                         </div>
-                        <input
-                          type="checkbox"
-                          checked={!isHidden}
-                          onChange={(e) => {
-                            if (e.target.checked) {
-                              setHiddenFields((prev) => prev.filter((k) => k !== field.key))
-                            } else {
-                              setHiddenFields((prev) => [...prev, field.key])
-                            }
-                          }}
-                          className="w-4 h-4 accent-brand-500 cursor-pointer"
-                        />
-                      </label>
+                        <div className="flex gap-6 pr-1">
+                          <div className="w-14 flex justify-center">
+                            <input
+                              type="checkbox"
+                              checked={!isHidden}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setHiddenFields((prev) => prev.filter((k) => k !== field.key))
+                                } else {
+                                  setHiddenFields((prev) => [...prev, field.key])
+                                  setRequiredFields((prev) => prev.filter((k) => k !== field.key))
+                                }
+                              }}
+                              className="w-4 h-4 accent-brand-500 cursor-pointer"
+                            />
+                          </div>
+                          <div className="w-14 flex justify-center">
+                            {canBeRequired || isRequired ? (
+                              <input
+                                type="checkbox"
+                                checked={isRequired}
+                                disabled={!canBeRequired}
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    setRequiredFields((prev) => [...prev, field.key])
+                                  } else {
+                                    setRequiredFields((prev) => prev.filter((k) => k !== field.key))
+                                  }
+                                }}
+                                className="w-4 h-4 accent-brand-500 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                              />
+                            ) : (
+                              <span className="text-[var(--text-muted)] text-sm select-none">—</span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
                     )
                   })}
                 </div>
