@@ -203,7 +203,52 @@ export default function EditarPedidoScreen() {
   }
 
   function handleSave() {
-    if (cart.length === 0) return
+    if (cart.length === 0) {
+      Alert.alert('Pedido inválido', 'Adicione pelo menos um produto antes de salvar.')
+      return
+    }
+    for (const item of cart) {
+      if (reqUnitPrice && (!item.unitPrice || item.unitPrice <= 0)) {
+        Alert.alert('Campo obrigatório', `Informe o preço unitário de "${item.productName}".`)
+        return
+      }
+      if (reqDescricao && !item.descricao?.trim()) {
+        Alert.alert('Campo obrigatório', `Informe a descrição de "${item.productName}".`)
+        return
+      }
+      if (reqLargura && item.largura == null) {
+        Alert.alert('Campo obrigatório', `Informe a largura de "${item.productName}".`)
+        return
+      }
+      if (reqEspessura && item.espessura == null) {
+        Alert.alert('Campo obrigatório', `Informe a espessura de "${item.productName}".`)
+        return
+      }
+      if (reqEncolhimento && !item.encolhimento?.trim()) {
+        Alert.alert('Campo obrigatório', `Informe o encolhimento de "${item.productName}".`)
+        return
+      }
+      if (reqTara && item.tara == null) {
+        Alert.alert('Campo obrigatório', `Informe a tara de "${item.productName}".`)
+        return
+      }
+    }
+    if (reqTransportadora && !transportadora) {
+      Alert.alert('Campo obrigatório', 'Selecione uma transportadora.')
+      return
+    }
+    if (reqCondPag && !condPag) {
+      Alert.alert('Campo obrigatório', 'Selecione uma condição de pagamento.')
+      return
+    }
+    if (reqMennota && !mennota.trim()) {
+      Alert.alert('Campo obrigatório', 'Preencha a observação da nota fiscal.')
+      return
+    }
+    if (reqNotes && !notes.trim()) {
+      Alert.alert('Campo obrigatório', 'Preencha a observação interna.')
+      return
+    }
     atualizar(
       {
         id,

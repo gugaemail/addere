@@ -30,6 +30,7 @@ interface CartItem {
   quantity:     number
   discount:     number
   unitPrice:    number
+  descricao?:   string
   largura?:     number
   espessura?:   number
   encolhimento?: string
@@ -310,6 +311,7 @@ function Step3({
   const showEncolhimento   = useFieldVisible('orderItem.encolhimento')
   const showXcrav          = useFieldVisible('orderItem.xcrav')
   const showTara           = useFieldVisible('orderItem.tara')
+  const showDescricao      = useFieldVisible('orderItem.descricao')
 
   const reqTransportadora = useFieldRequired('order.transportadora')
   const reqCondPag        = useFieldRequired('order.condPag')
@@ -321,6 +323,7 @@ function Step3({
   const reqEncolhimento   = useFieldRequired('orderItem.encolhimento')
   const reqXcrav          = useFieldRequired('orderItem.xcrav')
   const reqTara           = useFieldRequired('orderItem.tara')
+  const reqDescricao      = useFieldRequired('orderItem.descricao')
 
   const total = cart.reduce(
     (sum, i) => sum + i.unitPrice * i.quantity * (1 - i.discount / 100),
@@ -351,7 +354,7 @@ function Step3({
     onCartChange(cart.map((i) => i.product.id === productId ? { ...i, [field]: value } : i))
   }
 
-  function updateStrField(productId: string, field: 'encolhimento', value: string) {
+  function updateStrField(productId: string, field: 'encolhimento' | 'descricao', value: string) {
     onCartChange(cart.map((i) => i.product.id === productId ? { ...i, [field]: value } : i))
   }
 
@@ -374,6 +377,10 @@ function Step3({
   }
 
   function handleConfirmWithValidation() {
+    if (cart.length === 0) {
+      Alert.alert('Pedido inválido', 'Adicione pelo menos um produto antes de confirmar.')
+      return
+    }
     if (reqTransportadora && !transportadora) {
       Alert.alert('Campo obrigatório', 'Selecione uma transportadora antes de confirmar.')
       return
@@ -389,6 +396,32 @@ function Step3({
     if (reqNotes && !notes.trim()) {
       Alert.alert('Campo obrigatório', 'Preencha a observação interna.')
       return
+    }
+    for (const item of cart) {
+      if (reqUnitPrice && (!item.unitPrice || item.unitPrice <= 0)) {
+        Alert.alert('Campo obrigatório', `Informe o preço unitário de "${item.product.name}".`)
+        return
+      }
+      if (reqDescricao && !item.descricao?.trim()) {
+        Alert.alert('Campo obrigatório', `Informe a descrição de "${item.product.name}".`)
+        return
+      }
+      if (reqLargura && item.largura == null) {
+        Alert.alert('Campo obrigatório', `Informe a largura de "${item.product.name}".`)
+        return
+      }
+      if (reqEspessura && item.espessura == null) {
+        Alert.alert('Campo obrigatório', `Informe a espessura de "${item.product.name}".`)
+        return
+      }
+      if (reqEncolhimento && !item.encolhimento?.trim()) {
+        Alert.alert('Campo obrigatório', `Informe o encolhimento de "${item.product.name}".`)
+        return
+      }
+      if (reqTara && item.tara == null) {
+        Alert.alert('Campo obrigatório', `Informe a tara de "${item.product.name}".`)
+        return
+      }
     }
     onConfirm()
   }
@@ -453,6 +486,17 @@ function Step3({
             </View>
 
             {/* Campos extras por item */}
+            {showDescricao && (
+              <View style={styles.itemExtraFull}>
+                <Text style={styles.itemControlLabel}>Descrição{reqDescricao ? ' *' : ''}</Text>
+                <TextInput
+                  style={styles.priceInput}
+                  placeholder="Descrição do item"
+                  defaultValue={item.descricao ?? ''}
+                  onEndEditing={(e) => updateStrField(item.product.id, 'descricao', e.nativeEvent.text)}
+                />
+              </View>
+            )}
             {(showLargura || showEspessura || showTara) && (
               <View style={styles.itemExtraRow}>
                 {showLargura && (
@@ -643,6 +687,7 @@ export default function NovoPedidoScreen() {
       quantity:     i.quantity,
       discount:     i.discount,
       unitPrice:    i.unitPrice,
+      descricao:    i.descricao,
       largura:      i.largura,
       espessura:    i.espessura,
       encolhimento: i.encolhimento,
