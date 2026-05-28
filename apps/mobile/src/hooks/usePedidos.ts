@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '../lib/api'
-import type { Order, DashboardStats, CreateOrderInput } from '@addere/types'
+import type { Order, DashboardStats, CreateOrderInput, UpdateOrderInput } from '@addere/types'
 
 export function usePedido(id: string) {
   return useQuery({
@@ -44,6 +44,21 @@ export function useCriarPedido() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['orders'] })
       queryClient.invalidateQueries({ queryKey: ['meta-vendedor'] })
+    },
+  })
+}
+
+export function useAtualizarPedido() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ id, input }: { id: string; input: UpdateOrderInput }) => {
+      const { data } = await api.put<Order>(`/orders/${id}`, input)
+      return data
+    },
+    onSuccess: (_, { id }) => {
+      queryClient.invalidateQueries({ queryKey: ['orders'] })
+      queryClient.invalidateQueries({ queryKey: ['orders', id] })
     },
   })
 }

@@ -120,13 +120,13 @@ export async function updateSyncSchedule(companyId: string, schedule: SyncSchedu
 
 export async function getCompanyFieldConfig(companyId: string) {
   const company = await prisma.company.findUnique({ where: { id: companyId }, select: { fieldConfig: true } })
-  const cfg = company?.fieldConfig as { hidden?: string[] } | null
-  return { hidden: cfg?.hidden ?? [] }
+  const cfg = company?.fieldConfig as { hidden?: string[]; required?: string[] } | null
+  return { hidden: cfg?.hidden ?? [], required: cfg?.required ?? [] }
 }
 
-export async function updateCompanyFieldConfig(companyId: string, hidden: string[]) {
-  await prisma.company.update({ where: { id: companyId }, data: { fieldConfig: { hidden } } })
-  return { hidden }
+export async function updateCompanyFieldConfig(companyId: string, hidden: string[], required: string[]) {
+  await prisma.company.update({ where: { id: companyId }, data: { fieldConfig: { hidden, required } } })
+  return { hidden, required }
 }
 
 // ─── Customers (por empresa) ─────────────────────────────────────────────────

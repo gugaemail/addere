@@ -191,6 +191,15 @@ export interface CreateOrderInput {
   items: CreateOrderItemInput[]
 }
 
+export interface UpdateOrderInput {
+  transportId?: string
+  condId?: string
+  emissao?: string
+  mennota?: string
+  notes?: string
+  items: CreateOrderItemInput[]
+}
+
 // ─── Dashboard ─────────────────────────────────────────────────────────────
 
 export interface DashboardStats {
@@ -203,7 +212,8 @@ export interface DashboardStats {
 // ─── Field Config ──────────────────────────────────────────────────────────
 
 export interface CompanyFieldConfig {
-  hidden: string[]  // lista de keys do FIELD_REGISTRY que estão ocultas para a empresa
+  hidden: string[]    // lista de keys do FIELD_REGISTRY que estão ocultas para a empresa
+  required: string[]  // lista de keys do FIELD_REGISTRY que são obrigatórias no formulário
 }
 
 // ─── Sync Schedule ─────────────────────────────────────────────────────────
