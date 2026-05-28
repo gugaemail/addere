@@ -32,7 +32,7 @@ function handlePhonePress(phone: string) {
       onPress: () => Clipboard.setStringAsync(phone),
     },
     { text: 'Cancelar', style: 'cancel' },
-  ])
+  ], { cancelable: true })
 }
 
 function PhoneRow({ phone }: { phone: string | null | undefined }) {
