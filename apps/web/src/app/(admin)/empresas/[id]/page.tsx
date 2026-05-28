@@ -54,8 +54,15 @@ interface CompanyDetail {
   usrProtheus: string | null; passProtheus: string | null
 }
 interface SyncResult { synced: number; total: number; errors: string[] }
+interface ProtheusLog {
+  id: string; operation: string; endpointKey: string
+  success: boolean; httpStatus: number | null; durationMs: number | null
+  recordsSynced: number | null; totalRecords: number | null
+  errorMessage: string | null; metadata: unknown; createdAt: string
+}
+interface ProtheusLogPage { data: ProtheusLog[]; total: number; page: number; pages: number }
 
-type Tab = 'filiais' | 'usuarios' | 'clientes' | 'produtos' | 'pedidos' | 'protheus' | 'campos'
+type Tab = 'filiais' | 'usuarios' | 'clientes' | 'produtos' | 'pedidos' | 'protheus' | 'campos' | 'logs'
 type ModalState<T> = { mode: 'create' | 'edit' | 'copy' | 'view'; item?: T } | null
 type SortConfig = { col: string; dir: 'asc' | 'desc' } | null
 
@@ -166,6 +173,15 @@ export default function EmpresaPage() {
   const [sortProducts,  setSortProducts]  = useState<SortConfig>(null)
   const [sortOrders,    setSortOrders]    = useState<SortConfig>(null)
 
+  // Logs Protheus
+  const [protheusLogs,       setProtheusLogs]       = useState<ProtheusLog[]>([])
+  const [protheusLogsTotal,  setProtheusLogsTotal]  = useState(0)
+  const [protheusLogsPage,   setProtheusLogsPage]   = useState(1)
+  const [protheusLogsPages,  setProtheusLogsPages]  = useState(1)
+  const [loadingLogs,        setLoadingLogs]        = useState(false)
+  const [filterLogOperation, setFilterLogOperation] = useState('')
+  const [filterLogSuccess,   setFilterLogSuccess]   = useState<'' | 'true' | 'false'>('')
+
   async function fetchCompany() {
     const { data } = await api.get<CompanyDetail>(`/companies/${id}`)
     setCompany(data)
@@ -197,6 +213,21 @@ export default function EmpresaPage() {
     const { data } = await api.get<Order[]>(`/companies/${id}/orders`)
     setOrders(data)
   }
+  async function fetchProtheusLogs(page = 1) {
+    setLoadingLogs(true)
+    try {
+      const params = new URLSearchParams({ page: String(page), limit: '20' })
+      if (filterLogOperation) params.set('operation', filterLogOperation)
+      if (filterLogSuccess)   params.set('success',   filterLogSuccess)
+      const { data } = await api.get<ProtheusLogPage>(`/companies/${id}/protheus-logs?${params}`)
+      setProtheusLogs(data.data)
+      setProtheusLogsTotal(data.total)
+      setProtheusLogsPage(data.page)
+      setProtheusLogsPages(data.pages)
+    } finally {
+      setLoadingLogs(false)
+    }
+  }
   async function fetchSyncSchedule() {
     try {
       const { data } = await api.get(`/companies/${id}/sync-schedule`)
@@ -221,7 +252,11 @@ export default function EmpresaPage() {
     if (tab === 'pedidos')  fetchOrders()
     if (tab === 'campos')   fetchFieldConfig()
     if (tab === 'protheus') fetchSyncSchedule()
+    if (tab === 'logs')     fetchProtheusLogs(1)
   }, [tab])
+  useEffect(() => {
+    if (tab === 'logs') { setProtheusLogsPage(1); fetchProtheusLogs(1) }
+  }, [filterLogOperation, filterLogSuccess])
 
   // ── Toggles ──────────────────────────────────────────────────────────────
 
@@ -361,6 +396,7 @@ export default function EmpresaPage() {
     { key: 'pedidos',  label: 'Pedidos' },
     { key: 'protheus', label: 'Protheus' },
     { key: 'campos',   label: 'Campos' },
+    { key: 'logs',     label: 'Logs API' },
   ]
 
   // ── Dados filtrados / ordenados / paginados ───────────────────────────────
@@ -1170,6 +1206,130 @@ export default function EmpresaPage() {
               <span className="text-sm text-green-600 font-medium">Configuração salva!</span>
             )}
           </div>
+        </div>
+      )}
+
+      {/* ── Tab: Logs API ── */}
+      {tab === 'logs' && (
+        <div className="space-y-4">
+          <div>
+            <h2 className="text-base font-semibold text-[var(--text-primary)]">Log de chamadas às APIs Protheus</h2>
+            <p className="text-sm text-[var(--text-muted)] mt-1">Histórico de todas as comunicações com o ERP Protheus — sincronizações, testes e consultas.</p>
+          </div>
+
+          {/* Filtros */}
+          <div className="flex items-center gap-3 flex-wrap">
+            <select
+              value={filterLogOperation}
+              onChange={(e) => setFilterLogOperation(e.target.value)}
+              className="text-sm border border-[var(--border)] bg-[var(--bg-surface)] text-[var(--text-primary)] rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-brand-500"
+            >
+              <option value="">Todas as operações</option>
+              <option value="syncProducts">syncProducts</option>
+              <option value="syncCustomers">syncCustomers</option>
+              <option value="syncTransportadoras">syncTransportadoras</option>
+              <option value="syncCondPags">syncCondPags</option>
+              <option value="syncOrder">syncOrder</option>
+              <option value="consultOrder">consultOrder</option>
+              <option value="fetchMeta">fetchMeta</option>
+              <option value="testToken">testToken</option>
+              <option value="testProducts">testProducts</option>
+              <option value="testCustomers">testCustomers</option>
+              <option value="testOrder">testOrder</option>
+              <option value="autoSyncProducts">autoSyncProducts</option>
+              <option value="autoSyncCustomers">autoSyncCustomers</option>
+            </select>
+            <select
+              value={filterLogSuccess}
+              onChange={(e) => setFilterLogSuccess(e.target.value as '' | 'true' | 'false')}
+              className="text-sm border border-[var(--border)] bg-[var(--bg-surface)] text-[var(--text-primary)] rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-brand-500"
+            >
+              <option value="">Todos os resultados</option>
+              <option value="true">Sucesso</option>
+              <option value="false">Falha</option>
+            </select>
+            <button
+              onClick={() => fetchProtheusLogs(protheusLogsPage)}
+              className="text-sm font-medium px-3 py-2 rounded-lg border border-[var(--border)] text-[var(--text-secondary)] hover:bg-[var(--bg-subtle)] transition-colors"
+            >
+              Atualizar
+            </button>
+            {protheusLogsTotal > 0 && (
+              <span className="text-xs text-[var(--text-muted)]">{protheusLogsTotal} registro(s)</span>
+            )}
+          </div>
+
+          {/* Tabela */}
+          <TabSection footer={<Pagination page={protheusLogsPage} total={protheusLogsTotal} pages={protheusLogsPages} onPage={(p) => { setProtheusLogsPage(p); fetchProtheusLogs(p) }} />}>
+            <div className="overflow-auto max-h-[600px]">
+              <table className="w-full text-sm">
+                <thead className="bg-[var(--bg-subtle)] border-b border-[var(--border)] sticky top-0 z-10">
+                  <tr>
+                    <th className="text-left px-4 py-3 font-medium text-[var(--text-secondary)]">Data/hora</th>
+                    <th className="text-left px-4 py-3 font-medium text-[var(--text-secondary)]">Operação</th>
+                    <th className="text-left px-4 py-3 font-medium text-[var(--text-secondary)]">Endpoint</th>
+                    <th className="text-left px-4 py-3 font-medium text-[var(--text-secondary)]">Status</th>
+                    <th className="text-left px-4 py-3 font-medium text-[var(--text-secondary)]">HTTP</th>
+                    <th className="text-left px-4 py-3 font-medium text-[var(--text-secondary)]">Duração</th>
+                    <th className="text-left px-4 py-3 font-medium text-[var(--text-secondary)]">Registros</th>
+                    <th className="text-left px-4 py-3 font-medium text-[var(--text-secondary)]">Erro</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[var(--border)]">
+                  {loadingLogs ? (
+                    <tr>
+                      <td colSpan={8} className="px-4 py-8 text-center text-sm text-[var(--text-muted)]">Carregando…</td>
+                    </tr>
+                  ) : protheusLogs.length === 0 ? (
+                    <tr>
+                      <td colSpan={8}>
+                        <div className="flex flex-col items-center justify-center py-14 text-center gap-2">
+                          <svg className="w-9 h-9 text-[var(--text-muted)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.25}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 0 0 2.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 0 0-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 0 0 .75-.75 2.25 2.25 0 0 0-.1-.664m-5.8 0A2.251 2.251 0 0 1 13.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25Z" />
+                          </svg>
+                          <p className="font-semibold text-[var(--text-primary)] text-sm">Nenhum log encontrado</p>
+                          <p className="text-xs text-[var(--text-muted)] max-w-xs">As chamadas às APIs Protheus serão registradas aqui.</p>
+                        </div>
+                      </td>
+                    </tr>
+                  ) : protheusLogs.map((l) => (
+                    <tr key={l.id} className="hover:bg-[var(--bg-subtle)] transition-colors">
+                      <td className="px-4 py-3 text-[var(--text-muted)] whitespace-nowrap text-xs">
+                        {new Date(l.createdAt).toLocaleString('pt-BR')}
+                      </td>
+                      <td className="px-4 py-3">
+                        <code className="text-xs font-mono text-[var(--text-primary)]">{l.operation}</code>
+                      </td>
+                      <td className="px-4 py-3">
+                        <code className="text-xs font-mono text-[var(--text-muted)]">{l.endpointKey}</code>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                          l.success ? 'bg-green-500/10 text-green-600' : 'bg-red-500/10 text-red-500'
+                        }`}>
+                          {l.success ? 'Sucesso' : 'Falha'}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-[var(--text-muted)] text-xs">{l.httpStatus ?? '—'}</td>
+                      <td className="px-4 py-3 text-[var(--text-muted)] text-xs whitespace-nowrap">
+                        {l.durationMs != null ? `${l.durationMs} ms` : '—'}
+                      </td>
+                      <td className="px-4 py-3 text-[var(--text-muted)] text-xs whitespace-nowrap">
+                        {l.recordsSynced != null ? `${l.recordsSynced} / ${l.totalRecords ?? '?'}` : '—'}
+                      </td>
+                      <td className="px-4 py-3 text-xs text-red-500 max-w-[200px]">
+                        {l.errorMessage ? (
+                          <span title={l.errorMessage} className="cursor-help">
+                            {l.errorMessage.length > 60 ? l.errorMessage.slice(0, 60) + '…' : l.errorMessage}
+                          </span>
+                        ) : '—'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </TabSection>
         </div>
       )}
     </div>

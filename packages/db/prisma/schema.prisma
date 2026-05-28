@@ -79,6 +79,7 @@ model Company {
   transportadoras Transportadora[]
   condPags        CondPag[]
   pilots          Pilot[]
+  protheusLogs    ProtheusLog[]
 
   @@map("companies")
 }
@@ -408,4 +409,28 @@ model PilotFeedback {
   createdAt DateTime @default(now())
 
   @@map("pilot_feedbacks")
+}
+
+// ─────────────────────────────────────────
+// ProtheusLog — log de chamadas às APIs Protheus
+// ─────────────────────────────────────────
+
+model ProtheusLog {
+  id            String   @id @default(cuid())
+  companyId     String
+  company       Company  @relation(fields: [companyId], references: [id])
+  operation     String   // ex: syncProducts, syncCustomers, syncOrder, testToken
+  endpointKey   String   // ex: apiPord, apiCliente, apiPedido, apiToken
+  success       Boolean
+  httpStatus    Int?     // código HTTP da última resposta (se disponível)
+  durationMs    Int?     // duração total da operação em ms
+  recordsSynced Int?     // registros gravados no banco
+  totalRecords  Int?     // total de registros disponíveis na fonte
+  errorMessage  String?  // mensagem de erro truncada (max 500 chars)
+  metadata      Json?    // dados extras: orderId, protheusOrderId, etc.
+  createdAt     DateTime @default(now())
+
+  @@index([companyId, createdAt])
+  @@index([companyId, operation, success])
+  @@map("protheus_logs")
 }

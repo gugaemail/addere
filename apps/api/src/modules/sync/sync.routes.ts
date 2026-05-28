@@ -7,6 +7,7 @@ import { syncProducts, syncCustomers, syncTransportadoras, syncCondPags, testOrd
 import { protheusPost } from './protheus.client'
 import { decryptCredential } from '../../lib/protheus-crypto'
 import { assertSafeUrl } from '../../lib/url-validator'
+import { logProtheusCall } from './protheus-logger'
 
 const companyIdSchema = z.object({ companyId: z.string().uuid('companyId deve ser um UUID válido') })
 
@@ -53,6 +54,15 @@ export default async function syncRoutes(app: FastifyInstance) {
       })
       const ms = Date.now() - t0
 
+      await logProtheusCall({
+        companyId,
+        operation:   'testToken',
+        endpointKey: 'apiToken',
+        success:     true,
+        httpStatus:  tokenRes.status,
+        durationMs:  ms,
+      })
+
       return reply.send({
         ok: true,
         status: tokenRes.status,
@@ -61,6 +71,14 @@ export default async function syncRoutes(app: FastifyInstance) {
       })
     } catch (err: unknown) {
       const e = err as { response?: { status: number; data: unknown }; message: string }
+      await logProtheusCall({
+        companyId,
+        operation:    'testToken',
+        endpointKey:  'apiToken',
+        success:      false,
+        httpStatus:   e.response?.status,
+        errorMessage: e.message,
+      })
       return reply.send({
         ok: false,
         status: e.response?.status ?? null,
@@ -140,9 +158,25 @@ export default async function syncRoutes(app: FastifyInstance) {
         timeout: 30000,
       })
       const ms = Date.now() - t0
+      await logProtheusCall({
+        companyId,
+        operation:   'testProducts',
+        endpointKey: 'apiPord',
+        success:     true,
+        httpStatus:  prodRes.status,
+        durationMs:  ms,
+      })
       return reply.send({ ok: true, status: prodRes.status, ms, requestBody, data: prodRes.data })
     } catch (err: unknown) {
       const e = err as { response?: { status: number; data: unknown }; message: string }
+      await logProtheusCall({
+        companyId,
+        operation:    'testProducts',
+        endpointKey:  'apiPord',
+        success:      false,
+        httpStatus:   e.response?.status,
+        errorMessage: e.message,
+      })
       return reply.send({ ok: false, step: 'produtos', error: e.message, status: e.response?.status, data: e.response?.data })
     }
   })
@@ -187,9 +221,24 @@ export default async function syncRoutes(app: FastifyInstance) {
       const t0 = Date.now()
       const data = await protheusPost(companyId, company.apiCliente, requestBody, creds)
       const ms = Date.now() - t0
+      await logProtheusCall({
+        companyId,
+        operation:   'testCustomers',
+        endpointKey: 'apiCliente',
+        success:     true,
+        durationMs:  ms,
+      })
       return reply.send({ ok: true, ms, requestBody, data })
     } catch (err: unknown) {
-      const e = err as { message: string }
+      const e = err as { response?: { status?: number }; message: string }
+      await logProtheusCall({
+        companyId,
+        operation:    'testCustomers',
+        endpointKey:  'apiCliente',
+        success:      false,
+        httpStatus:   e.response?.status,
+        errorMessage: e.message,
+      })
       return reply.send({ ok: false, step: 'clientes', error: e.message })
     }
   })

@@ -389,3 +389,48 @@ export async function getCompanyCredentialsForSync(companyId: string) {
     passProtheus: company.passProtheus ? decryptCredential(company.passProtheus) : null,
   }
 }
+
+// ─── Protheus Logs ───────────────────────────────────────────────────────────
+
+export interface ListProtheusLogsOpts {
+  page:       number
+  limit:      number
+  operation?: string
+  success?:   boolean
+  from?:      Date
+  to?:        Date
+}
+
+export async function listProtheusLogs(companyId: string, opts: ListProtheusLogsOpts) {
+  const { page, limit, operation, success, from, to } = opts
+  const skip = (page - 1) * limit
+
+  const where = {
+    companyId,
+    ...(operation !== undefined ? { operation } : {}),
+    ...(success   !== undefined ? { success }   : {}),
+    ...(from || to ? {
+      createdAt: {
+        ...(from ? { gte: from } : {}),
+        ...(to   ? { lte: to   } : {}),
+      },
+    } : {}),
+  }
+
+  const [data, total] = await Promise.all([
+    prisma.protheusLog.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      skip,
+      take: limit,
+    }),
+    prisma.protheusLog.count({ where }),
+  ])
+
+  return {
+    data,
+    total,
+    page,
+    pages: Math.ceil(total / limit),
+  }
+}

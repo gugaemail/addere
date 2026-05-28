@@ -26,7 +26,7 @@ export function applySchedule(companyId: string, schedule: SyncSchedule) {
   if (schedule.products.auto && schedule.products.scheduleMin > 0) {
     const ms = schedule.products.scheduleMin * 60_000
     entry.products = setInterval(
-      () => runSafe(`products/${companyId}`, () => syncProducts(companyId)),
+      () => runSafe(`products/${companyId}`, () => syncProducts(companyId, 'autoSyncProducts')),
       ms,
     ) as unknown as NodeJS.Timeout
     console.log(`[scheduler] Auto-sync produtos iniciado para ${companyId} (a cada ${schedule.products.scheduleMin} min, INTERV=${schedule.products.interv})`)
@@ -38,7 +38,7 @@ export function applySchedule(companyId: string, schedule: SyncSchedule) {
   if (schedule.customers.auto && schedule.customers.scheduleMin > 0) {
     const ms = schedule.customers.scheduleMin * 60_000
     entry.customers = setInterval(
-      () => runSafe(`customers/${companyId}`, () => syncCustomers(companyId)),
+      () => runSafe(`customers/${companyId}`, () => syncCustomers(companyId, 'autoSyncCustomers')),
       ms,
     ) as unknown as NodeJS.Timeout
     console.log(`[scheduler] Auto-sync clientes iniciado para ${companyId} (a cada ${schedule.customers.scheduleMin} min, INTERV=${schedule.customers.interv})`)

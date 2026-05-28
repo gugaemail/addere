@@ -28,6 +28,7 @@ import {
   updateCompanyProtheus,
   getCompanyFieldConfig,
   updateCompanyFieldConfig,
+  listProtheusLogs,
 } from './companies.service'
 import { FIELD_REGISTRY_KEYS, DEFAULT_SYNC_SCHEDULE } from '@addere/types'
 
@@ -437,6 +438,22 @@ export default async function companiesRoutes(app: FastifyInstance) {
     if (!companyId) return reply.send(DEFAULT_SYNC_SCHEDULE)
     const schedule = await getSyncSchedule(companyId)
     return reply.send(schedule)
+  })
+
+  // GET /companies/:id/protheus-logs — lista logs de chamadas às APIs Protheus
+  app.get('/:id/protheus-logs', { preHandler: requireSuperAdmin }, async (request: FastifyRequest, reply: FastifyReply) => {
+    const { id } = request.params as { id: string }
+    const q = request.query as { page?: string; limit?: string; operation?: string; success?: string; from?: string; to?: string }
+
+    const page      = Math.max(1, Number(q.page ?? 1))
+    const limit     = Math.min(100, Math.max(1, Number(q.limit ?? 20)))
+    const operation = q.operation || undefined
+    const success   = q.success === 'true' ? true : q.success === 'false' ? false : undefined
+    const from      = q.from ? new Date(q.from) : undefined
+    const to        = q.to   ? new Date(q.to)   : undefined
+
+    const result = await listProtheusLogs(id, { page, limit, operation, success, from, to })
+    return reply.send(result)
   })
 
   // PATCH /companies/:id/field-config — admin atualiza visibilidade e obrigatoriedade de campos
