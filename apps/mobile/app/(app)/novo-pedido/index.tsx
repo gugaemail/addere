@@ -18,7 +18,7 @@ import { submitOrder } from '../../../src/utils/createOrder'
 import { useEffect } from 'react'
 import { useTransportadoras } from '../../../src/hooks/useTransportadoras'
 import { useCondPags } from '../../../src/hooks/useCondPags'
-import { useFieldVisible } from '../../../src/hooks/useFieldConfig'
+import { useFieldVisible, useFieldRequired } from '../../../src/hooks/useFieldConfig'
 import type { Branch, Customer, Product, Transportadora, CondPag, CreateOrderItemInput } from '@addere/types'
 import { fmtMoeda, formatDocument } from '../../../src/utils/format'
 
@@ -289,6 +289,17 @@ function Step3({
   const showXcrav          = useFieldVisible('orderItem.xcrav')
   const showTara           = useFieldVisible('orderItem.tara')
 
+  const reqTransportadora = useFieldRequired('order.transportadora')
+  const reqCondPag        = useFieldRequired('order.condPag')
+  const reqMennota        = useFieldRequired('order.mennota')
+  const reqNotes          = useFieldRequired('order.notes')
+  const reqUnitPrice      = useFieldRequired('orderItem.unitPrice')
+  const reqLargura        = useFieldRequired('orderItem.largura')
+  const reqEspessura      = useFieldRequired('orderItem.espessura')
+  const reqEncolhimento   = useFieldRequired('orderItem.encolhimento')
+  const reqXcrav          = useFieldRequired('orderItem.xcrav')
+  const reqTara           = useFieldRequired('orderItem.tara')
+
   const total = cart.reduce(
     (sum, i) => sum + i.unitPrice * i.quantity * (1 - i.discount / 100),
     0
@@ -382,7 +393,7 @@ function Step3({
               </View>
               {showUnitPrice && (
                 <View style={styles.itemEditPrice}>
-                  <Text style={styles.itemControlLabel}>Preço unit. (R$)</Text>
+                  <Text style={styles.itemControlLabel}>Preço unit. (R$){reqUnitPrice ? ' *' : ''}</Text>
                   <TextInput
                     style={styles.priceInput}
                     keyboardType="decimal-pad"
@@ -404,7 +415,7 @@ function Step3({
               <View style={styles.itemExtraRow}>
                 {showLargura && (
                   <View style={styles.itemExtraField}>
-                    <Text style={styles.itemControlLabel}>Largura</Text>
+                    <Text style={styles.itemControlLabel}>Largura{reqLargura ? ' *' : ''}</Text>
                     <TextInput
                       style={styles.priceInput}
                       keyboardType="decimal-pad"
@@ -416,7 +427,7 @@ function Step3({
                 )}
                 {showEspessura && (
                   <View style={styles.itemExtraField}>
-                    <Text style={styles.itemControlLabel}>Espessura</Text>
+                    <Text style={styles.itemControlLabel}>Espessura{reqEspessura ? ' *' : ''}</Text>
                     <TextInput
                       style={styles.priceInput}
                       keyboardType="decimal-pad"
@@ -428,7 +439,7 @@ function Step3({
                 )}
                 {showTara && (
                   <View style={styles.itemExtraField}>
-                    <Text style={styles.itemControlLabel}>Tara</Text>
+                    <Text style={styles.itemControlLabel}>Tara{reqTara ? ' *' : ''}</Text>
                     <TextInput
                       style={styles.priceInput}
                       keyboardType="decimal-pad"
@@ -442,7 +453,7 @@ function Step3({
             )}
             {showEncolhimento && (
               <View style={styles.itemExtraFull}>
-                <Text style={styles.itemControlLabel}>Encolhimento</Text>
+                <Text style={styles.itemControlLabel}>Encolhimento{reqEncolhimento ? ' *' : ''}</Text>
                 <TextInput
                   style={styles.priceInput}
                   placeholder="Texto"
@@ -453,7 +464,7 @@ function Step3({
             )}
             {showXcrav && (
               <View style={styles.itemExtraFull}>
-                <Text style={styles.itemControlLabel}>Largura Crav.</Text>
+                <Text style={styles.itemControlLabel}>Largura Crav.{reqXcrav ? ' *' : ''}</Text>
                 <TouchableOpacity
                   style={[styles.xcravBtn, item.xcrav === '1' && styles.xcravBtnActive]}
                   onPress={() => toggleXcrav(item.product.id)}
@@ -471,7 +482,7 @@ function Step3({
 
       {showTransportadora && (
         <PickerField
-          label="Transportadora"
+          label={reqTransportadora ? 'Transportadora *' : 'Transportadora'}
           selected={transportadora ? { id: transportadora.id, nome: transportadora.nome } : null}
           items={transportadoras.map((t) => ({ id: t.id, nome: t.nome }))}
           onSelect={(item) => onTransportChange(item ? (transportadoras.find((t) => t.id === item.id) ?? null) : null)}
@@ -481,7 +492,7 @@ function Step3({
 
       {showCondPag && (
         <PickerField
-          label="Cond. Pagamento"
+          label={reqCondPag ? 'Cond. Pagamento *' : 'Cond. Pagamento'}
           selected={condPag ? { id: condPag.id, nome: condPag.nome } : null}
           items={condPags.map((c) => ({ id: c.id, nome: c.nome }))}
           onSelect={(item) => onCondChange(item ? (condPags.find((c) => c.id === item.id) ?? null) : null)}
@@ -491,7 +502,7 @@ function Step3({
 
       {showMennota && (
         <View style={styles.summaryBox}>
-          <Text style={styles.summaryLabel}>Obs. Nota Fiscal</Text>
+          <Text style={styles.summaryLabel}>Obs. Nota Fiscal{reqMennota ? ' *' : ''}</Text>
           <TextInput
             style={styles.notesInput}
             placeholder="Mensagem para a nota fiscal (opcional)..."
@@ -506,7 +517,7 @@ function Step3({
 
       {showNotes && (
         <View style={styles.summaryBox}>
-          <Text style={styles.summaryLabel}>Obs. Interna</Text>
+          <Text style={styles.summaryLabel}>Obs. Interna{reqNotes ? ' *' : ''}</Text>
           <TextInput
             style={styles.notesInput}
             placeholder="Observação interna (não sai na nota)..."

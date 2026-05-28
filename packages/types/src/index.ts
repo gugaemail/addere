@@ -203,7 +203,8 @@ export interface DashboardStats {
 // ─── Field Config ──────────────────────────────────────────────────────────
 
 export interface CompanyFieldConfig {
-  hidden: string[]  // lista de keys do FIELD_REGISTRY que estão ocultas para a empresa
+  hidden: string[]    // lista de keys do FIELD_REGISTRY que estão ocultas para a empresa
+  required: string[]  // lista de keys do FIELD_REGISTRY que são obrigatórias no formulário
 }
 
 // ─── Sync Schedule ─────────────────────────────────────────────────────────
