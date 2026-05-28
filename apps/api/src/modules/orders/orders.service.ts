@@ -1,5 +1,5 @@
 import { prisma } from '@addere/db'
-import type { CreateOrderInput } from './orders.schema'
+import type { CreateOrderInput, UpdateOrderInput } from './orders.schema'
 
 const orderInclude = {
   customer:       { select: { id: true, name: true, document: true } },
@@ -60,6 +60,67 @@ export async function cancelOrder(userId: string, companyId: string, orderId: st
   if (order.status === 'CANCELLED') throw new Error('Pedido já está cancelado')
   if (order.status !== 'PENDING' && order.status !== 'SYNCED') throw new Error('Apenas pedidos pendentes ou sincronizados podem ser cancelados')
   return prisma.order.update({ where: { id: orderId }, data: { status: 'CANCELLED' }, include: orderInclude })
+}
+
+export async function updateOrder(userId: string, companyId: string, orderId: string, input: UpdateOrderInput) {
+  const order = await prisma.order.findFirst({ where: { id: orderId, userId, companyId } })
+  if (!order) throw new Error('Pedido não encontrado')
+  if (order.status !== 'PENDING') throw new Error('Apenas pedidos pendentes podem ser editados')
+
+  const productIds = input.items.map((i) => i.productId)
+  const products = await prisma.product.findMany({
+    where: { id: { in: productIds }, companyId, active: true },
+  })
+
+  if (products.length !== productIds.length) {
+    throw new Error('Um ou mais produtos não foram encontrados ou estão inativos')
+  }
+
+  const productMap = new Map(products.map((p) => [p.id, p]))
+
+  const itemsWithTotals = input.items.map((item) => {
+    const product = productMap.get(item.productId)!
+    const unitPrice = item.unitPrice !== undefined ? item.unitPrice : Number(product.price)
+    const discount = item.discount ?? 0
+
+    const priceCents  = Math.round(unitPrice * 100)
+    const qty1000     = Math.round(item.quantity * 1000)
+    const discountBP  = Math.round(discount * 100)
+    const totalCents  = Math.round(priceCents * qty1000 / 1000 * (10000 - discountBP) / 10000)
+
+    return {
+      productId:    item.productId,
+      quantity:     item.quantity,
+      unitPrice,
+      discount,
+      total:        totalCents / 100,
+      descricao:    item.descricao,
+      largura:      item.largura,
+      espessura:    item.espessura,
+      encolhimento: item.encolhimento,
+      xcrav:        item.xcrav,
+      tara:         item.tara,
+    }
+  })
+
+  const orderTotalCents = itemsWithTotals.reduce((sum, i) => sum + Math.round(i.total * 100), 0)
+
+  return prisma.$transaction(async (tx) => {
+    await tx.orderItem.deleteMany({ where: { orderId } })
+    return tx.order.update({
+      where: { id: orderId },
+      data: {
+        transportId: input.transportId ?? null,
+        condId:      input.condId ?? null,
+        emissao:     input.emissao ? new Date(input.emissao) : null,
+        mennota:     input.mennota,
+        notes:       input.notes,
+        total:       orderTotalCents / 100,
+        items:       { create: itemsWithTotals },
+      },
+      include: orderInclude,
+    })
+  })
 }
 
 export async function createOrder(userId: string, companyId: string, input: CreateOrderInput) {

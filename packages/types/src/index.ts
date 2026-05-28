@@ -191,6 +191,15 @@ export interface CreateOrderInput {
   items: CreateOrderItemInput[]
 }
 
+export interface UpdateOrderInput {
+  transportId?: string
+  condId?: string
+  emissao?: string
+  mennota?: string
+  notes?: string
+  items: CreateOrderItemInput[]
+}
+
 // ─── Dashboard ─────────────────────────────────────────────────────────────
 
 export interface DashboardStats {
