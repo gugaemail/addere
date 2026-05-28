@@ -89,11 +89,18 @@ model Company {
 // ─────────────────────────────────────────
 
 model Branch {
-  id         String  @id @default(uuid())
-  name       String
-  cnpj       String?
-  idProtheus String? // código da filial no ERP Protheus
-  active     Boolean @default(true)
+  id          String  @id @default(uuid())
+  name        String
+  cnpj        String?
+  idProtheus  String? // código da filial no ERP Protheus
+  razaoSocial String?
+  endereco    String?
+  complemento String?
+  cidade      String?
+  estado      String?
+  cep         String?
+  logo        String? // base64 data URL da logo
+  active      Boolean @default(true)
 
   companyId String
   company   Company @relation(fields: [companyId], references: [id])

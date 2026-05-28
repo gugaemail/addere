@@ -182,6 +182,13 @@ export interface CreateBranchInput {
   name: string
   cnpj?: string
   idProtheus?: string
+  razaoSocial?: string
+  endereco?: string
+  complemento?: string
+  cidade?: string
+  estado?: string
+  cep?: string
+  logo?: string
 }
 
 export async function createBranch(companyId: string, input: CreateBranchInput) {
@@ -232,6 +239,13 @@ export interface UpdateBranchInput {
   name?: string
   cnpj?: string
   idProtheus?: string
+  razaoSocial?: string
+  endereco?: string
+  complemento?: string
+  cidade?: string
+  estado?: string
+  cep?: string
+  logo?: string | null
 }
 
 export async function updateBranch(companyId: string, id: string, input: UpdateBranchInput) {
@@ -241,6 +255,13 @@ export async function updateBranch(companyId: string, id: string, input: UpdateB
   if (input.name        !== undefined) data.name        = input.name
   if (input.cnpj        !== undefined) data.cnpj        = input.cnpj        || null
   if (input.idProtheus  !== undefined) data.idProtheus  = input.idProtheus  || null
+  if (input.razaoSocial !== undefined) data.razaoSocial = input.razaoSocial || null
+  if (input.endereco    !== undefined) data.endereco    = input.endereco    || null
+  if (input.complemento !== undefined) data.complemento = input.complemento || null
+  if (input.cidade      !== undefined) data.cidade      = input.cidade      || null
+  if (input.estado      !== undefined) data.estado      = input.estado      || null
+  if (input.cep         !== undefined) data.cep         = input.cep         || null
+  if (input.logo        !== undefined) data.logo        = input.logo        ?? null
   return prisma.branch.update({ where: { id }, data })
 }
 

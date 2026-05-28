@@ -39,9 +39,16 @@ const createCompanySchema = z.object({
 })
 
 const createBranchSchema = z.object({
-  name: z.string().min(1),
-  cnpj: z.string().optional(),
-  idProtheus: z.string().optional(),
+  name:        z.string().min(1),
+  cnpj:        z.string().optional(),
+  idProtheus:  z.string().optional(),
+  razaoSocial: z.string().optional(),
+  endereco:    z.string().optional(),
+  complemento: z.string().optional(),
+  cidade:      z.string().optional(),
+  estado:      z.string().optional(),
+  cep:         z.string().optional(),
+  logo:        z.string().optional(),
 })
 
 const createUserSchema = z.object({
@@ -60,6 +67,13 @@ const updateBranchSchema = z.object({
   name:        z.string().min(1).optional(),
   cnpj:        z.string().optional(),
   idProtheus:  z.string().optional(),
+  razaoSocial: z.string().optional(),
+  endereco:    z.string().optional(),
+  complemento: z.string().optional(),
+  cidade:      z.string().optional(),
+  estado:      z.string().optional(),
+  cep:         z.string().optional(),
+  logo:        z.string().optional().nullable(),
 })
 
 const updateUserSchema = z.object({

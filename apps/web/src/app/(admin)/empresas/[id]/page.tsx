@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { api } from '@/lib/api'
-import { CreateBranchModal } from './CreateBranchModal'
 import { CreateUserModal } from './CreateUserModal'
 import {
   BranchModal, UserModal, CustomerModal, ProductModal,
@@ -17,6 +16,8 @@ import { FIELD_REGISTRY } from '@addere/types'
 
 interface Branch {
   id: string; name: string; cnpj: string | null; idProtheus: string | null; active: boolean
+  razaoSocial: string | null; endereco: string | null; complemento: string | null
+  cidade: string | null; estado: string | null; cep: string | null; logo: string | null
 }
 interface User {
   id: string; name: string; email: string; role: 'ADMIN' | 'SALESPERSON'; active: boolean; idVendProt: string | null
@@ -118,7 +119,6 @@ export default function EmpresaPage() {
   const [fieldsSaved,     setFieldsSaved]     = useState(false)
 
   // Modais legados (criar)
-  const [showBranchModal, setShowBranchModal] = useState(false)
   const [showUserModal,   setShowUserModal]   = useState(false)
 
   // Modais de entidade (editar/copiar/criar)
@@ -513,7 +513,7 @@ export default function EmpresaPage() {
       {/* ── Tab: Filiais ── */}
       {tab === 'filiais' && (
         <TabSection
-          action={{ label: '+ Nova filial', onClick: () => setShowBranchModal(true) }}
+          action={{ label: '+ Nova filial', onClick: () => setBranchModal({ mode: 'create', item: undefined }) }}
           search={<SearchInput value={searchBranches} onChange={(v) => { setSearchBranches(v); setPageBranches(1) }} placeholder="Pesquisar filiais…" />}
           footer={<Pagination page={pageBranches} total={branchTable.total} pages={branchTable.pages} onPage={setPageBranches} />}
         >
@@ -1004,13 +1004,6 @@ export default function EmpresaPage() {
       })()}
 
       {/* ── Modais legados (criar) ── */}
-      {showBranchModal && (
-        <CreateBranchModal
-          companyId={id}
-          onClose={() => setShowBranchModal(false)}
-          onCreated={() => { setShowBranchModal(false); fetchCompany() }}
-        />
-      )}
       {showUserModal && (
         <CreateUserModal
           companyId={id}
