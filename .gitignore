@@ -34,3 +34,6 @@ packages/*/src/*.d.ts.map
 # Logs
 *.log
 npm-debug.log*
+
+# Screenshots de reportes da Central de Ajuda
+uploads/
