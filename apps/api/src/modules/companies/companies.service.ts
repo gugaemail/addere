@@ -196,14 +196,25 @@ export interface CreateBranchInput {
   logo?: string
 }
 
+const BRANCH_BASE_SELECT = { id: true, name: true, cnpj: true, idProtheus: true, active: true } as const
+const BRANCH_NEW_FIELDS = ['razaoSocial', 'endereco', 'complemento', 'cidade', 'estado', 'cep', 'logo'] as const
+
 export async function createBranch(companyId: string, input: CreateBranchInput) {
-  return prisma.branch.create({ data: { ...input, companyId } })
+  try {
+    return await prisma.branch.create({ data: { ...input, companyId }, select: BRANCH_BASE_SELECT })
+  } catch (err: unknown) {
+    if ((err as { code?: string })?.code === 'P2022') {
+      const safeInput = Object.fromEntries(Object.entries(input).filter(([k]) => !BRANCH_NEW_FIELDS.includes(k as typeof BRANCH_NEW_FIELDS[number])))
+      return prisma.branch.create({ data: { ...safeInput, companyId }, select: BRANCH_BASE_SELECT })
+    }
+    throw err
+  }
 }
 
 export async function toggleBranchActive(companyId: string, id: string, active: boolean) {
-  const exists = await prisma.branch.findFirst({ where: { id, companyId } })
+  const exists = await prisma.branch.findFirst({ where: { id, companyId }, select: { id: true } })
   if (!exists) throw new Error('Filial não encontrada')
-  return prisma.branch.update({ where: { id }, data: { active } })
+  return prisma.branch.update({ where: { id }, data: { active }, select: BRANCH_BASE_SELECT })
 }
 
 // ─── Users (por empresa) ────────────────────────────────────────────────────
@@ -254,7 +265,7 @@ export interface UpdateBranchInput {
 }
 
 export async function updateBranch(companyId: string, id: string, input: UpdateBranchInput) {
-  const exists = await prisma.branch.findFirst({ where: { id, companyId } })
+  const exists = await prisma.branch.findFirst({ where: { id, companyId }, select: { id: true } })
   if (!exists) throw new Error('Filial não encontrada')
   const data: Record<string, unknown> = {}
   if (input.name        !== undefined) data.name        = input.name
@@ -267,7 +278,15 @@ export async function updateBranch(companyId: string, id: string, input: UpdateB
   if (input.estado      !== undefined) data.estado      = input.estado      || null
   if (input.cep         !== undefined) data.cep         = input.cep         || null
   if (input.logo        !== undefined) data.logo        = input.logo        ?? null
-  return prisma.branch.update({ where: { id }, data })
+  try {
+    return await prisma.branch.update({ where: { id }, data, select: BRANCH_BASE_SELECT })
+  } catch (err: unknown) {
+    if ((err as { code?: string })?.code === 'P2022') {
+      const safeData = Object.fromEntries(Object.entries(data).filter(([k]) => !BRANCH_NEW_FIELDS.includes(k as typeof BRANCH_NEW_FIELDS[number])))
+      return prisma.branch.update({ where: { id }, data: safeData, select: BRANCH_BASE_SELECT })
+    }
+    throw err
+  }
 }
 
 // ─── Users (update) ──────────────────────────────────────────────────────────
