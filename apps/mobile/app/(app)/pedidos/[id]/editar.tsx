@@ -313,16 +313,14 @@ export default function EditarPedidoScreen() {
 
         {cart.map((item) => (
           <View key={item.productId} style={s.itemRow}>
-            <View style={[s.itemHeader, showDescricao && { justifyContent: 'flex-end' }]}>
-              {!showDescricao && <Text style={s.itemName} numberOfLines={2}>{item.productName}</Text>}
-              <TouchableOpacity onPress={() => removeItem(item.productId)} style={s.removeBtn}>
-                <Text style={s.removeBtnText}>×</Text>
-              </TouchableOpacity>
-            </View>
-
-            {showDescricao && (
+            {showDescricao ? (
               <View style={s.itemExtraFull}>
-                <Text style={s.controlLabel}>Descrição{reqDescricao ? ' *' : ''}</Text>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                  <Text style={s.controlLabel}>Descrição{reqDescricao ? ' *' : ''}</Text>
+                  <TouchableOpacity onPress={() => removeItem(item.productId)} style={s.removeBtn}>
+                    <Text style={s.removeBtnText}>×</Text>
+                  </TouchableOpacity>
+                </View>
                 <TextInput
                   style={s.priceInput}
                   placeholder="Descrição do item"
@@ -331,6 +329,13 @@ export default function EditarPedidoScreen() {
                   placeholderTextColor="#94A3B8"
                 />
               </View>
+            ) : (
+              <View style={s.itemHeader}>
+                <Text style={s.itemName} numberOfLines={2}>{item.productName}</Text>
+                <TouchableOpacity onPress={() => removeItem(item.productId)} style={s.removeBtn}>
+                  <Text style={s.removeBtnText}>×</Text>
+                </TouchableOpacity>
+              </View>
             )}
 
             <View style={[s.itemControls, { marginTop: 8 }]}>
@@ -338,9 +343,12 @@ export default function EditarPedidoScreen() {
                 <Text style={s.controlLabel}>Qtd</Text>
                 <TextInput
                   style={s.priceInput}
-                  keyboardType="numeric"
-                  defaultValue={String(item.quantity)}
-                  onEndEditing={(e) => updateQty(item.productId, Math.max(1, parseInt(e.nativeEvent.text.replace(/\D/g, ''), 10) || 1))}
+                  keyboardType="decimal-pad"
+                  defaultValue={item.quantity.toLocaleString('pt-BR', { maximumFractionDigits: 3 })}
+                  onEndEditing={(e) => {
+                    const raw = parseFloat(e.nativeEvent.text.replace(',', '.'))
+                    updateQty(item.productId, isNaN(raw) ? 1 : raw)
+                  }}
                   placeholderTextColor="#94A3B8"
                 />
               </View>
