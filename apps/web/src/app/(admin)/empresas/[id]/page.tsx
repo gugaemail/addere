@@ -108,6 +108,7 @@ export default function EmpresaPage() {
   const router = useRouter()
   const [company,  setCompany]  = useState<CompanyDetail | null>(null)
   const [loading,  setLoading]  = useState(true)
+  const [fetchError, setFetchError] = useState<string | null>(null)
   const [tab,      setTab]      = useState<Tab>('filiais')
   const [customers, setCustomers] = useState<Customer[]>([])
   const [products,  setProducts]  = useState<Product[]>([])
@@ -183,9 +184,16 @@ export default function EmpresaPage() {
   const [filterLogSuccess,   setFilterLogSuccess]   = useState<'' | 'true' | 'false'>('')
 
   async function fetchCompany() {
-    const { data } = await api.get<CompanyDetail>(`/companies/${id}`)
-    setCompany(data)
-    setLoading(false)
+    try {
+      const { data } = await api.get<CompanyDetail>(`/companies/${id}`)
+      setCompany(data)
+      setFetchError(null)
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Erro ao carregar empresa'
+      setFetchError(msg)
+    } finally {
+      setLoading(false)
+    }
   }
   async function fetchFieldConfig() {
     try {
@@ -382,6 +390,13 @@ export default function EmpresaPage() {
   }
 
   if (loading) return <PageSkeleton />
+  if (fetchError) return (
+    <div className="flex flex-col items-center justify-center py-20 text-center gap-3">
+      <p className="font-semibold text-red-600">Erro ao carregar empresa</p>
+      <p className="text-sm text-[var(--text-muted)]">{fetchError}</p>
+      <button onClick={fetchCompany} className="mt-2 px-4 py-2 rounded-lg bg-[var(--brand-primary)] text-white text-sm">Tentar novamente</button>
+    </div>
+  )
   if (!company) return (
     <div className="flex flex-col items-center justify-center py-20 text-center gap-3">
       <p className="font-semibold text-[var(--text-primary)]">Empresa não encontrada</p>
