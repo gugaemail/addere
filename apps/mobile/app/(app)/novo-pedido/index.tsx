@@ -447,15 +447,14 @@ function Step3({
         )}
         {cart.map((item) => (
           <View key={item.product.id} style={styles.itemEditRow}>
-            <View style={[styles.itemEditHeader, showDescricao && { justifyContent: 'flex-end' }]}>
-              {!showDescricao && <Text style={styles.itemEditName} numberOfLines={2}>{item.product.name}</Text>}
-              <TouchableOpacity onPress={() => removeItem(item.product.id)} style={styles.removeBtn}>
-                <Text style={styles.removeBtnText}>×</Text>
-              </TouchableOpacity>
-            </View>
-            {showDescricao && (
+            {showDescricao ? (
               <View style={styles.itemExtraFull}>
-                <Text style={styles.itemControlLabel}>Descrição{reqDescricao ? ' *' : ''}</Text>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                  <Text style={styles.itemControlLabel}>Descrição{reqDescricao ? ' *' : ''}</Text>
+                  <TouchableOpacity onPress={() => removeItem(item.product.id)} style={styles.removeBtn}>
+                    <Text style={styles.removeBtnText}>×</Text>
+                  </TouchableOpacity>
+                </View>
                 <TextInput
                   style={styles.priceInput}
                   placeholder="Descrição do item"
@@ -464,15 +463,25 @@ function Step3({
                   placeholderTextColor={colors.neutral.textSub}
                 />
               </View>
+            ) : (
+              <View style={styles.itemEditHeader}>
+                <Text style={styles.itemEditName} numberOfLines={2}>{item.product.name}</Text>
+                <TouchableOpacity onPress={() => removeItem(item.product.id)} style={styles.removeBtn}>
+                  <Text style={styles.removeBtnText}>×</Text>
+                </TouchableOpacity>
+              </View>
             )}
             <View style={[styles.itemEditControls, { marginTop: 8 }]}>
               <View style={styles.itemEditQty}>
                 <Text style={styles.itemControlLabel}>Qtd</Text>
                 <TextInput
                   style={styles.priceInput}
-                  keyboardType="numeric"
-                  defaultValue={String(item.quantity)}
-                  onEndEditing={(e) => updateQty(item.product.id, Math.max(1, parseInt(e.nativeEvent.text.replace(/\D/g, ''), 10) || 1))}
+                  keyboardType="decimal-pad"
+                  defaultValue={item.quantity.toLocaleString('pt-BR', { maximumFractionDigits: 3 })}
+                  onEndEditing={(e) => {
+                    const raw = parseFloat(e.nativeEvent.text.replace(',', '.'))
+                    updateQty(item.product.id, isNaN(raw) ? 1 : raw)
+                  }}
                   placeholderTextColor={colors.neutral.textSub}
                 />
               </View>
