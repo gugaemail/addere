@@ -10,7 +10,7 @@ const PRODUCTION_ORIGINS = [
 export default fp(async (app: FastifyInstance) => {
   await app.register(cors, {
     origin: PRODUCTION_ORIGINS,
-    methods: ['GET', 'POST', 'OPTIONS'],
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
     credentials: true,
   })
