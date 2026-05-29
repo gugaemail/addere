@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useCallback } from 'react'
 import {
   View,
   Text,
@@ -11,6 +11,7 @@ import {
   ScrollView,
 } from 'react-native'
 import { useRouter, Stack } from 'expo-router'
+import { useFocusEffect } from '@react-navigation/native'
 import { useClientes } from '../../../src/hooks/useClientes'
 import { useCatalog } from '../../../src/hooks/useCatalog'
 import { useBranches } from '../../../src/hooks/useBranches'
@@ -664,6 +665,23 @@ export default function NovoPedidoScreen() {
   const [isPending, setIsPending] = useState(false)
   const { data: transportadoras = [] } = useTransportadoras()
   const { data: condPags = [] }        = useCondPags()
+
+  // Reseta o formulário toda vez que a tela ganha foco.
+  // Necessário porque o Tab Navigator mantém a tela montada em memória
+  // mesmo quando não está visível (href: null no _layout).
+  useFocusEffect(
+    useCallback(() => {
+      setStep(1)
+      setCustomer(null)
+      setBranch(null)
+      setCart([])
+      setMennota('')
+      setNotes('')
+      setTransportadora(null)
+      setCondPag(null)
+      setIsPending(false)
+    }, [])
+  )
 
   // Auto-preenche transportadora e condPag a partir dos padrões do cliente
   useEffect(() => {
