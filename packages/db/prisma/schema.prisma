@@ -138,6 +138,7 @@ model User {
   pilotEvents         PilotEvent[]         @relation("UserPilotEvents")
   pilotFeedbacks      PilotFeedback[]      @relation("UserPilotFeedbacks")
   passwordResetTokens PasswordResetToken[]
+  helpReports         HelpReport[]
 
   @@map("users")
 }
@@ -416,6 +417,29 @@ model PilotFeedback {
   createdAt DateTime @default(now())
 
   @@map("pilot_feedbacks")
+}
+
+// ─────────────────────────────────────────
+// HelpReport — reportes de problemas da Central de Ajuda
+// ─────────────────────────────────────────
+
+model HelpReport {
+  id            String   @id @default(cuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id])
+  type          String   // "pedido_nao_enviou" | "app_travou" | "dados_incorretos" | "falha_sync" | "login" | "outro"
+  description   String
+  appVersion    String?
+  device        String?
+  screenshotUrl String?  // caminho relativo: /uploads/help-reports/{userId}/{ticketId}.{ext}
+  status        String   @default("aberto") // "aberto" | "em_analise" | "resolvido"
+  ticketId      String   @unique @default(cuid())
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([userId])
+  @@index([status])
+  @@map("help_reports")
 }
 
 // ─────────────────────────────────────────
