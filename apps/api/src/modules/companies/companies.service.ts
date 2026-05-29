@@ -21,7 +21,12 @@ export async function getCompanyById(id: string) {
   const company = await prisma.company.findUnique({
     where: { id },
     include: {
-      branches: { orderBy: { name: 'asc' } },
+      branches: {
+        select: {
+          id: true, name: true, cnpj: true, idProtheus: true, active: true,
+        },
+        orderBy: { name: 'asc' },
+      },
       users: {
         where: { active: true },
         select: { id: true, name: true, email: true, role: true, active: true, idVendProt: true, createdAt: true },
