@@ -22,9 +22,6 @@ export async function getCompanyById(id: string) {
     where: { id },
     include: {
       branches: {
-        select: {
-          id: true, name: true, cnpj: true, idProtheus: true, active: true,
-        },
         orderBy: { name: 'asc' },
       },
       users: {
@@ -201,7 +198,7 @@ export async function createBranch(companyId: string, input: CreateBranchInput) 
 }
 
 export async function toggleBranchActive(companyId: string, id: string, active: boolean) {
-  const exists = await prisma.branch.findFirst({ where: { id, companyId } })
+  const exists = await prisma.branch.findFirst({ where: { id, companyId }, select: { id: true } })
   if (!exists) throw new Error('Filial não encontrada')
   return prisma.branch.update({ where: { id }, data: { active } })
 }
@@ -254,7 +251,7 @@ export interface UpdateBranchInput {
 }
 
 export async function updateBranch(companyId: string, id: string, input: UpdateBranchInput) {
-  const exists = await prisma.branch.findFirst({ where: { id, companyId } })
+  const exists = await prisma.branch.findFirst({ where: { id, companyId }, select: { id: true } })
   if (!exists) throw new Error('Filial não encontrada')
   const data: Record<string, unknown> = {}
   if (input.name        !== undefined) data.name        = input.name
