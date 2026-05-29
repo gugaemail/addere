@@ -1,7 +1,13 @@
+import { checkEnv } from './scripts/check-env'
+checkEnv()
+
 import Fastify, { FastifyInstance } from 'fastify'
 import rateLimit from '@fastify/rate-limit'
 import helmet from '@fastify/helmet'
-import { prisma } from '@addere/db'
+import multipart from '@fastify/multipart'
+import staticPlugin from '@fastify/static'
+import path from 'node:path'
+import fs from 'node:fs'
 import envPlugin from './plugins/env'
 import cookiePlugin from './plugins/cookie'
 import corsPlugin from './plugins/cors'
@@ -17,6 +23,7 @@ import { initSchedulers } from './modules/sync/scheduler'
 import transportadorasRoutes from './modules/transportadoras/transportadoras.routes'
 import condpagsRoutes from './modules/condpags/condpags.routes'
 import { pilotRoutes } from './modules/pilot/pilot.routes'
+import helpRoutes from './modules/help/help.routes'
 
 export async function buildApp(): Promise<FastifyInstance> {
   const app = Fastify({
@@ -35,14 +42,23 @@ export async function buildApp(): Promise<FastifyInstance> {
   // Rate limiting: desabilitado globalmente, ativado por rota onde necessário
   await app.register(rateLimit, { global: false })
 
-  // GET /health — verifica conectividade real com o banco de dados
-  app.get('/health', { config: { rateLimit: { max: 60, timeWindow: '1 minute' } } }, async (_request, reply) => {
-    try {
-      await prisma.$queryRaw`SELECT 1`
-      return reply.send({ status: 'ok', db: 'connected' })
-    } catch {
-      return reply.status(503).send({ status: 'error', db: 'unreachable' })
-    }
+  // Upload de arquivos (screenshots da Central de Ajuda) — max 5MB, 1 arquivo por request
+  await app.register(multipart, {
+    limits: { fileSize: 5 * 1024 * 1024, files: 1 },
+  })
+
+  // Serve pasta uploads/ como arquivos estáticos
+  const uploadRoot = path.resolve(process.cwd(), process.env.UPLOAD_DIR || 'uploads')
+  fs.mkdirSync(uploadRoot, { recursive: true })
+  await app.register(staticPlugin, { root: uploadRoot, prefix: '/uploads/' })
+
+  // GET /health — sem autenticação; usado por load balancers e monitoramento
+  app.get('/health', async (_request, reply) => {
+    return reply.send({
+      status: 'ok',
+      version: process.env.npm_package_version,
+      timestamp: new Date().toISOString(),
+    })
   })
 
   // Rotas
@@ -56,6 +72,7 @@ export async function buildApp(): Promise<FastifyInstance> {
   await app.register(transportadorasRoutes, { prefix: '/transportadoras' })
   await app.register(condpagsRoutes, { prefix: '/condpags' })
   await app.register(pilotRoutes)
+  await app.register(helpRoutes, { prefix: '/help' })
 
   // Inicia schedulers de auto-sync após o servidor estar pronto
   app.addHook('onReady', async () => {
