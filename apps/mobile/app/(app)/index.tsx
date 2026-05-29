@@ -1,4 +1,6 @@
-import { View, Text, FlatList, StyleSheet, ScrollView, TouchableOpacity } from 'react-native'
+import { useState, useEffect } from 'react'
+import { View, Text, FlatList, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native'
+import AsyncStorage from '@react-native-async-storage/async-storage'
 import { useDashboardStats, usePedidos, useMetaVendedor } from '../../src/hooks/usePedidos'
 import { useAuthStore } from '../../src/store/auth.store'
 import { useLogout } from '../../src/hooks/useAuth'
@@ -6,7 +8,73 @@ import { useTheme } from '../../src/theme'
 import { StatGridSkeleton, OrderRowSkeleton, EmptyState } from '../../src/components/Skeleton'
 import { Ionicons } from '@expo/vector-icons'
 import { LogOut } from 'lucide-react-native'
-import type { Order } from '@addere/types'
+import type { Order, DashboardStats } from '@addere/types'
+
+const META_CACHE_KEY   = 'addere_meta_cache'
+const STATS_CACHE_KEY  = 'addere_stats_cache'
+const ORDERS_CACHE_KEY = 'addere_orders_cache'
+
+type MetaData = { periodo: string; vendido: string; meta: string }
+
+function useStatsComCache(): DashboardStats | null {
+  const [cached, setCached] = useState<DashboardStats | null>(null)
+  const query = useDashboardStats()
+
+  useEffect(() => {
+    AsyncStorage.getItem(STATS_CACHE_KEY).then((v) => {
+      if (v) setCached(JSON.parse(v) as DashboardStats)
+    })
+  }, [])
+
+  useEffect(() => {
+    if (query.data) {
+      AsyncStorage.setItem(STATS_CACHE_KEY, JSON.stringify(query.data))
+      setCached(query.data)
+    }
+  }, [query.data])
+
+  return query.data ?? cached
+}
+
+function usePedidosComCache(): Order[] | null {
+  const [cached, setCached] = useState<Order[] | null>(null)
+  const query = usePedidos(5)
+
+  useEffect(() => {
+    AsyncStorage.getItem(ORDERS_CACHE_KEY).then((v) => {
+      if (v) setCached(JSON.parse(v) as Order[])
+    })
+  }, [])
+
+  useEffect(() => {
+    if (query.data) {
+      AsyncStorage.setItem(ORDERS_CACHE_KEY, JSON.stringify(query.data))
+      setCached(query.data)
+    }
+  }, [query.data])
+
+  return query.data ?? cached
+}
+
+function useMetaComCache(): MetaData | null {
+  const [cached, setCached] = useState<MetaData | null>(null)
+  const query = useMetaVendedor()
+
+  useEffect(() => {
+    AsyncStorage.getItem(META_CACHE_KEY).then((v) => {
+      if (v) setCached(JSON.parse(v) as MetaData)
+    })
+  }, [])
+
+  useEffect(() => {
+    if (query.data) {
+      AsyncStorage.setItem(META_CACHE_KEY, JSON.stringify(query.data))
+      setCached(query.data)
+    }
+  }, [query.data])
+
+  return query.data ?? cached
+}
 
 const STATUS_LABEL: Record<string, string> = {
   PENDING:   'Pendente',
@@ -25,13 +93,15 @@ function fmtMoeda(value: number) {
 }
 
 function MetaProgress({ vendido, meta, periodo }: { vendido: number; meta: number; periodo: string }) {
-  const pct     = meta > 0 ? Math.min((vendido / meta) * 100, 100) : 0
-  const pctStr  = pct.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  const pct      = meta > 0 ? Math.min((vendido / meta) * 100, 100) : 0
+  const pctStr   = pct.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
   const barColor = pct >= 80 ? '#22C55E' : pct >= 50 ? '#F59E0B' : '#1B4FA8'
-  const mes = `${periodo.slice(0, 4)}/${periodo.slice(4)}`
+  const mes      = periodo.length === 6
+    ? `${periodo.slice(4)}/${periodo.slice(0, 4)}`
+    : '—'
 
   return (
-    <View style={s.metaCard}>
+    <View style={[s.metaCard, { borderTopColor: barColor }]}>
       <View style={s.metaHeader}>
         <Text style={s.metaTitulo}>Meta do mês — {mes}</Text>
         <Text style={[s.metaPct, { color: barColor }]}>{pctStr}%</Text>
@@ -58,9 +128,11 @@ function MetaProgress({ vendido, meta, periodo }: { vendido: number; meta: numbe
 export default function DashboardScreen() {
   const user    = useAuthStore((s) => s.user)
   const theme   = useTheme()
-  const { data: stats, isLoading: loadingStats }         = useDashboardStats()
-  const { data: recentOrders, isLoading: loadingOrders } = usePedidos(5)
-  const { data: meta }                                   = useMetaVendedor()
+  const stats        = useStatsComCache()
+  const recentOrders = usePedidosComCache()
+  const loadingStats   = stats === null
+  const loadingOrders  = recentOrders === null
+  const metaData                                         = useMetaComCache()
   const { mutate: logout } = useLogout()
 
   const totalRevenue = Number(stats?.totalRevenue ?? 0)
@@ -77,7 +149,13 @@ export default function DashboardScreen() {
       {/* Header */}
       <View style={s.header}>
         <Text style={s.greeting}>Olá, {user?.name?.split(' ')[0]}</Text>
-        <TouchableOpacity onPress={() => logout()} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+        <TouchableOpacity
+          onPress={() => Alert.alert('Conta', 'Deseja encerrar a sessão?', [
+            { text: 'Cancelar', style: 'cancel' },
+            { text: 'Sair', style: 'destructive', onPress: () => logout() },
+          ])}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        >
           <LogOut size={20} color="#64748B" />
         </TouchableOpacity>
       </View>
@@ -96,14 +174,12 @@ export default function DashboardScreen() {
         </View>
       )}
 
-      {/* Barra de meta */}
-      {meta && stats && (
-        <MetaProgress
-          vendido={totalRevenue}
-          meta={Number(meta.meta)}
-          periodo={meta.periodo}
-        />
-      )}
+      {/* Barra de meta — sempre visível, usa cache offline quando API indisponível */}
+      <MetaProgress
+        vendido={Number(metaData?.vendido ?? 0)}
+        meta={Number(metaData?.meta ?? 0)}
+        periodo={metaData?.periodo ?? ''}
+      />
 
       {/* Últimos pedidos */}
       <Text style={s.sectionTitle}>Últimos pedidos</Text>
@@ -200,6 +276,8 @@ const s = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1,
     borderColor: '#E2E8F0',
+    borderTopWidth: 3,
+    borderTopColor: '#1B4FA8',
     padding: 16,
     marginBottom: 20,
     shadowColor: '#0D2045',

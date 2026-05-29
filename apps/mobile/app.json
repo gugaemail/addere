@@ -8,22 +8,28 @@
       "ios",
       "android"
     ],
+    "icon": "./assets/icon.png",
     "plugins": [
       "expo-router",
       "expo-secure-store",
       "expo-sqlite"
     ],
     "splash": {
+      "image": "./assets/splash-icon.png",
       "backgroundColor": "#0D2045",
       "resizeMode": "contain"
     },
     "android": {
       "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#0D2045"
       }
     },
     "ios": {
       "bundleIdentifier": "com.addere.app"
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
     }
   }
 }

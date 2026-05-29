@@ -35,6 +35,7 @@ export interface LoginRequest {
 export interface LoginResponse {
   user: UserPublic
   accessToken: string
+  refreshToken: string  // enviado no body para que o mobile persista no SecureStore
 }
 
 // ─── Company ───────────────────────────────────────────────────────────────
@@ -66,6 +67,13 @@ export interface Branch {
   name: string
   cnpj: string | null
   idProtheus: string | null
+  razaoSocial: string | null
+  endereco: string | null
+  complemento: string | null
+  cidade: string | null
+  estado: string | null
+  cep: string | null
+  logo: string | null
   active: boolean
 }
 
@@ -190,6 +198,15 @@ export interface CreateOrderInput {
   items: CreateOrderItemInput[]
 }
 
+export interface UpdateOrderInput {
+  transportId?: string
+  condId?: string
+  emissao?: string
+  mennota?: string
+  notes?: string
+  items: CreateOrderItemInput[]
+}
+
 // ─── Dashboard ─────────────────────────────────────────────────────────────
 
 export interface DashboardStats {
@@ -202,7 +219,8 @@ export interface DashboardStats {
 // ─── Field Config ──────────────────────────────────────────────────────────
 
 export interface CompanyFieldConfig {
-  hidden: string[]  // lista de keys do FIELD_REGISTRY que estão ocultas para a empresa
+  hidden: string[]    // lista de keys do FIELD_REGISTRY que estão ocultas para a empresa
+  required: string[]  // lista de keys do FIELD_REGISTRY que são obrigatórias no formulário
 }
 
 // ─── Sync Schedule ─────────────────────────────────────────────────────────

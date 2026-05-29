@@ -6,14 +6,7 @@ import { useClientes } from '../../../src/hooks/useClientes'
 import { ClienteItemSkeleton, EmptyState } from '../../../src/components/Skeleton'
 import { useFieldVisible } from '../../../src/hooks/useFieldConfig'
 import type { Customer } from '@addere/types'
-
-function formatDocument(doc: string | null | undefined): string | null {
-  if (!doc) return null
-  const digits = doc.replace(/\D/g, '')
-  if (digits.length === 11) return digits.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4')
-  if (digits.length === 14) return digits.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, '$1.$2.$3/$4-$5')
-  return doc
-}
+import { formatDocument } from '../../../src/utils/format'
 
 function ClienteItem({ customer, onPress }: { customer: Customer; onPress: () => void }) {
   const showDocument = useFieldVisible('customer.document')

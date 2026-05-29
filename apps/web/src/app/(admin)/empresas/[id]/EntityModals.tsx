@@ -6,7 +6,7 @@ import { Modal, Field, ModalActions, ErrorMsg } from './CreateBranchModal'
 
 // ─── Tipos ─────────────────────────────────────────────────────────────────────
 
-interface Branch    { id: string; name: string; cnpj: string | null; idProtheus: string | null; active: boolean }
+interface Branch    { id: string; name: string; cnpj: string | null; idProtheus: string | null; active: boolean; razaoSocial: string | null; endereco: string | null; complemento: string | null; cidade: string | null; estado: string | null; cep: string | null; logo: string | null }
 interface User      { id: string; name: string; email: string; role: 'ADMIN' | 'SALESPERSON'; active: boolean; idVendProt: string | null }
 interface Customer  {
   id: string; name: string; document: string | null; email: string | null; phone: string | null
@@ -47,21 +47,49 @@ interface BranchModalProps {
   onSaved: () => void
 }
 
+const UF_OPTIONS = ['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO']
+
 export function BranchModal({ companyId, mode, branch, onClose, onSaved }: BranchModalProps) {
   const [name,        setName]        = useState(branch?.name        ?? '')
   const [cnpj,        setCnpj]        = useState(branch?.cnpj        ?? '')
   const [idProtheus,  setIdProtheus]  = useState(mode === 'copy' ? '' : (branch?.idProtheus ?? ''))
+  const [razaoSocial, setRazaoSocial] = useState(branch?.razaoSocial ?? '')
+  const [endereco,    setEndereco]    = useState(branch?.endereco    ?? '')
+  const [complemento, setComplemento] = useState(branch?.complemento ?? '')
+  const [cidade,      setCidade]      = useState(branch?.cidade      ?? '')
+  const [estado,      setEstado]      = useState(branch?.estado      ?? '')
+  const [cep,         setCep]         = useState(branch?.cep         ?? '')
+  const [logo,        setLogo]        = useState<string | null>(branch?.logo ?? null)
   const [error,       setError]       = useState<string | null>(null)
   const [loading,     setLoading]     = useState(false)
 
   const title = mode === 'create' ? 'Nova Filial' : mode === 'copy' ? 'Copiar Filial' : 'Editar Filial'
+
+  function handleLogoChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = (ev) => setLogo(ev.target?.result as string)
+    reader.readAsDataURL(file)
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError(null)
     setLoading(true)
     try {
-      const body = { name, cnpj: cnpj || undefined, idProtheus: idProtheus || undefined }
+      const body = {
+        name,
+        cnpj:        cnpj        || undefined,
+        idProtheus:  idProtheus  || undefined,
+        razaoSocial: razaoSocial || undefined,
+        endereco:    endereco    || undefined,
+        complemento: complemento || undefined,
+        cidade:      cidade      || undefined,
+        estado:      estado      || undefined,
+        cep:         cep         || undefined,
+        logo:        logo        ?? undefined,
+      }
       if (mode === 'edit' && branch) {
         await api.patch(`/companies/${companyId}/branches/${branch.id}`, body)
       } else {
@@ -76,11 +104,79 @@ export function BranchModal({ companyId, mode, branch, onClose, onSaved }: Branc
   }
 
   return (
-    <Modal title={title} onClose={onClose}>
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <Field label="Nome" value={name} onChange={setName} required />
-        <Field label="CNPJ" value={cnpj} onChange={setCnpj} placeholder="Opcional" />
-        <Field label="Código Protheus" value={idProtheus} onChange={setIdProtheus} placeholder="Opcional" />
+    <Modal title={title} onClose={onClose} wide>
+      <form onSubmit={handleSubmit} className="space-y-3 max-h-[75vh] overflow-y-auto pr-1">
+
+        <p className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wide">Identificação</p>
+        <Field label="Nome *" value={name} onChange={setName} required />
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="CNPJ" value={cnpj} onChange={setCnpj} placeholder="Opcional" />
+          <Field label="Código Protheus" value={idProtheus} onChange={setIdProtheus} placeholder="Opcional" />
+        </div>
+        <Field label="Razão Social" value={razaoSocial} onChange={setRazaoSocial} placeholder="Opcional" />
+
+        <p className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wide pt-1">Endereço</p>
+        <div className="grid grid-cols-3 gap-3">
+          <div className="col-span-2">
+            <Field label="Endereço" value={endereco} onChange={setEndereco} placeholder="Rua, número" />
+          </div>
+          <Field label="Complemento" value={complemento} onChange={setComplemento} placeholder="Sala, andar..." />
+        </div>
+        <div className="grid grid-cols-3 gap-3">
+          <div className="col-span-2">
+            <Field label="Cidade" value={cidade} onChange={setCidade} placeholder="Opcional" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">Estado</label>
+            <select
+              value={estado}
+              onChange={(e) => setEstado(e.target.value)}
+              className="w-full bg-[var(--bg-subtle)] border border-[var(--border)] rounded-lg px-3 py-2.5 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition-shadow"
+            >
+              <option value="">UF</option>
+              {UF_OPTIONS.map((uf) => <option key={uf} value={uf}>{uf}</option>)}
+            </select>
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">CEP</label>
+            <input
+              value={cep}
+              onChange={(e) => setCep(maskCEP(e.target.value))}
+              placeholder="00000-000"
+              className="w-full bg-[var(--bg-subtle)] border border-[var(--border)] rounded-lg px-3 py-2.5 text-sm text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-brand-500"
+            />
+          </div>
+        </div>
+
+        <p className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wide pt-1">Logo</p>
+        {logo && (
+          <div className="flex items-center gap-3">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={logo} alt="Logo da filial" className="h-14 w-auto object-contain rounded border border-[var(--border)] p-1 bg-white" />
+            <button
+              type="button"
+              onClick={() => setLogo(null)}
+              className="text-xs text-red-500 hover:underline"
+            >
+              Remover
+            </button>
+          </div>
+        )}
+        <div>
+          <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">
+            {logo ? 'Trocar imagem' : 'Selecionar imagem'}
+          </label>
+          <input
+            type="file"
+            accept="image/*"
+            onChange={handleLogoChange}
+            className="w-full text-sm text-[var(--text-muted)] file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-[var(--bg-subtle)] file:text-[var(--text-primary)] hover:file:bg-[var(--border)] cursor-pointer"
+          />
+          <p className="text-xs text-[var(--text-muted)] mt-1">PNG, JPG ou SVG. Recomendado: fundo transparente.</p>
+        </div>
+
         <ModalActions loading={loading} onClose={onClose} submitLabel={mode === 'edit' ? 'Salvar' : 'Criar'} />
         {error && <ErrorMsg message={error} />}
       </form>

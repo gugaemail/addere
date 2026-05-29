@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
   View,
   Text,
@@ -7,12 +7,24 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  Alert,
+  ActivityIndicator,
 } from 'react-native'
+import { useRouter } from 'expo-router'
 import { z } from 'zod'
-import { useLogin } from '../../hooks/useAuth'
+import AsyncStorage from '@react-native-async-storage/async-storage'
+import * as SecureStore from 'expo-secure-store'
+import * as LocalAuthentication from 'expo-local-authentication'
+import axios from 'axios'
+import { useLogin, BIOMETRIC_KEY } from '../../hooks/useAuth'
+import { useAuthStore, REFRESH_TOKEN_KEY } from '../../store/auth.store'
+import { useCompanyStore } from '../../store/company.store'
+import { api } from '../../lib/api'
+import { env } from '../../config/env'
 import { LogoMark } from '../../components/brand/LogoMark'
 import { Input } from '../../components/ui/Input'
 import { Button } from '../../components/ui/Button'
+import type { CompanyFieldConfig, SyncSchedule } from '@addere/types'
 
 const schema = z.object({
   email: z.string().email('Email inválido'),
@@ -20,11 +32,87 @@ const schema = z.object({
 })
 
 export function LoginScreen() {
+  const router = useRouter()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [validationError, setValidationError] = useState<string | null>(null)
+  const [showBiometric, setShowBiometric] = useState(false)
+  const [biometricLoading, setBiometricLoading] = useState(false)
 
   const { mutate: login, isPending, error } = useLogin()
+  const setAuth = useAuthStore((s) => s.setAuth)
+  const setFieldConfig  = useCompanyStore((s) => s.setFieldConfig)
+  const setSyncSchedule = useCompanyStore((s) => s.setSyncSchedule)
+
+  useEffect(() => {
+    async function checkBiometric() {
+      const enabled = await AsyncStorage.getItem(BIOMETRIC_KEY)
+      if (enabled !== 'true') return
+      const hasHardware = await LocalAuthentication.hasHardwareAsync()
+      const isEnrolled  = await LocalAuthentication.isEnrolledAsync()
+      if (hasHardware && isEnrolled) setShowBiometric(true)
+    }
+    checkBiometric()
+  }, [])
+
+  async function handleBiometricLogin() {
+    setBiometricLoading(true)
+    try {
+      const result = await LocalAuthentication.authenticateAsync({
+        promptMessage: 'Entre no Addere',
+        cancelLabel: 'Usar e-mail e senha',
+        disableDeviceFallback: false,
+      })
+      if (!result.success) { setBiometricLoading(false); return }
+
+      // Tenta cookie primeiro; se falhar (RN não persiste cookie), usa token do SecureStore
+      const storedRefreshToken = await SecureStore.getItemAsync(REFRESH_TOKEN_KEY)
+      let refreshData: { accessToken: string; refreshToken: string }
+      try {
+        const { data } = await axios.post(
+          `${env.apiUrl}/auth/refresh`,
+          {},
+          { withCredentials: true, timeout: 8000 }
+        )
+        refreshData = data
+      } catch (cookieErr) {
+        if (!storedRefreshToken) throw cookieErr
+        const { data } = await axios.post(
+          `${env.apiUrl}/auth/refresh`,
+          { refreshToken: storedRefreshToken },
+          { timeout: 8000 }
+        )
+        refreshData = data
+      }
+
+      // Usa axios direto com o novo token — api.get usaria o Zustand store
+      // que ainda está vazio (null), causando 401 e acionando o interceptor
+      const { data: userData } = await axios.get(
+        `${env.apiUrl}/auth/me`,
+        { headers: { Authorization: `Bearer ${refreshData.accessToken}` }, timeout: 8000 }
+      )
+      await setAuth(userData, refreshData.accessToken)
+      await SecureStore.setItemAsync(REFRESH_TOKEN_KEY, refreshData.refreshToken)
+      try {
+        const { data: cfg } = await api.get<CompanyFieldConfig>('/companies/me/field-config')
+        await setFieldConfig(cfg)
+      } catch { /* ignora */ }
+      try {
+        const { data: s } = await api.get<SyncSchedule>('/companies/me/sync-schedule')
+        await setSyncSchedule(s)
+      } catch { /* ignora */ }
+      // AuthGuard navega para /(app) automaticamente ao detectar accessToken
+    } catch {
+      Alert.alert(
+        'Sessão expirada',
+        'Não foi possível autenticar. Faça login com e-mail e senha.',
+        [{ text: 'OK' }]
+      )
+      // Não esconde o botão — usuário pode tentar novamente ou usar email/senha
+    } finally {
+      setBiometricLoading(false)
+    }
+  }
 
   const apiErrorMessage = error
     ? ((error as { response?: { data?: { message?: string } } })?.response?.data?.message ?? 'Erro ao conectar com o servidor')
@@ -89,7 +177,21 @@ export function LoginScreen() {
               Entrar
             </Button>
 
-            <TouchableOpacity onPress={() => {}} style={styles.forgotWrapper}>
+            {showBiometric && (
+              <TouchableOpacity
+                onPress={handleBiometricLogin}
+                disabled={biometricLoading}
+                style={styles.biometricBtn}
+                activeOpacity={0.75}
+              >
+                {biometricLoading
+                  ? <ActivityIndicator size={18} color="#1B4FA8" />
+                  : <Text style={styles.biometricText}>🔐 Entrar com biometria</Text>
+                }
+              </TouchableOpacity>
+            )}
+
+            <TouchableOpacity onPress={() => router.push('/(auth)/esqueci-senha')} style={styles.forgotWrapper}>
               <Text style={styles.forgotText}>Esqueci minha senha</Text>
             </TouchableOpacity>
           </View>
@@ -145,6 +247,19 @@ const styles = StyleSheet.create({
   },
   button: {
     marginTop: 8,
+  },
+  biometricBtn: {
+    alignItems: 'center',
+    paddingVertical: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderRadius: 10,
+    backgroundColor: '#F8FAFC',
+  },
+  biometricText: {
+    fontFamily: 'Inter_400Regular',
+    fontSize: 14,
+    color: '#1B4FA8',
   },
   forgotWrapper: {
     alignItems: 'center',

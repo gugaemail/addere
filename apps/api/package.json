@@ -20,6 +20,7 @@
     "@fastify/rate-limit": "^10.3.0",
     "axios": "^1.15.0",
     "bcryptjs": "^2.4.3",
+    "resend": "^4.0.0",
     "dotenv": "^17.4.1",
     "fast-jwt": "^6.2.2",
     "fastify": "^5.8.5",

@@ -1,6 +1,8 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '../lib/api'
-import type { Order, DashboardStats, CreateOrderInput } from '@addere/types'
+import type { Order, DashboardStats, CreateOrderInput, UpdateOrderInput } from '@addere/types'
+
+const ORDERS_STALE_TIME = 1000 * 60 * 5 // 5 min — pedidos mudam com frequência
 
 export function usePedido(id: string) {
   return useQuery({
@@ -10,6 +12,7 @@ export function usePedido(id: string) {
       return data
     },
     enabled: !!id,
+    staleTime: ORDERS_STALE_TIME,
   })
 }
 
@@ -20,6 +23,7 @@ export function usePedidos(limit?: number) {
       const { data } = await api.get<Order[]>('/orders', { params: limit ? { limit } : undefined })
       return data
     },
+    staleTime: ORDERS_STALE_TIME,
   })
 }
 
@@ -30,6 +34,7 @@ export function useDashboardStats() {
       const { data } = await api.get<DashboardStats>('/orders/stats')
       return data
     },
+    staleTime: ORDERS_STALE_TIME,
   })
 }
 
@@ -42,8 +47,23 @@ export function useCriarPedido() {
       return data
     },
     onSuccess: () => {
-      // Invalida cache de pedidos e stats para refletir o novo pedido
       queryClient.invalidateQueries({ queryKey: ['orders'] })
+      queryClient.invalidateQueries({ queryKey: ['meta-vendedor'] })
+    },
+  })
+}
+
+export function useAtualizarPedido() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ id, input }: { id: string; input: UpdateOrderInput }) => {
+      const { data } = await api.put<Order>(`/orders/${id}`, input)
+      return data
+    },
+    onSuccess: (_, { id }) => {
+      queryClient.invalidateQueries({ queryKey: ['orders'] })
+      queryClient.invalidateQueries({ queryKey: ['orders', id] })
     },
   })
 }
@@ -58,6 +78,7 @@ export function useSincronizarPedido() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['orders'] })
+      queryClient.invalidateQueries({ queryKey: ['meta-vendedor'] })
     },
   })
 }
@@ -66,10 +87,24 @@ export function useMetaVendedor() {
   return useQuery({
     queryKey: ['meta-vendedor'],
     queryFn: async () => {
-      const { data } = await api.get<{ periodo: string; meta: string }>('/sync/metas')
+      const { data } = await api.get<{ periodo: string; vendido: string; meta: string }>('/sync/metas')
       return data
     },
-    staleTime: 5 * 60 * 1000,
+    staleTime: 0,
+  })
+}
+
+export function useCancelarPedido() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (orderId: string) => {
+      const { data } = await api.patch(`/orders/${orderId}/cancel`)
+      return data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['orders'] })
+    },
   })
 }
 

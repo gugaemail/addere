@@ -1,6 +1,11 @@
-import { useEffect } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { GestureHandlerRootView } from 'react-native-gesture-handler'
 import { Stack, useRouter, useSegments } from 'expo-router'
-import { QueryClientProvider } from '@tanstack/react-query'
+import AsyncStorage from '@react-native-async-storage/async-storage'
+import * as LocalAuthentication from 'expo-local-authentication'
+import { BIOMETRIC_KEY } from '../src/hooks/useAuth'
+import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client'
+import { createAsyncStoragePersister } from '@tanstack/query-async-storage-persister'
 import NetInfo from '@react-native-community/netinfo'
 import * as Sentry from '@sentry/react-native'
 import { env } from '../src/config/env'
@@ -34,12 +39,18 @@ function AuthGuard() {
   const router = useRouter()
   const segments = useSegments()
   const { accessToken, hydrated, hydrate } = useAuthStore()
-  const hydrateFieldConfig = useCompanyStore((s) => s.hydrateFieldConfig)
+  const hydrateFieldConfig   = useCompanyStore((s) => s.hydrateFieldConfig)
+  const hydrateSyncSchedule  = useCompanyStore((s) => s.hydrateSyncSchedule)
   const setNetworkAvailable = useSyncStore((s) => s.setNetworkAvailable)
+
+  // Biometric gate: checked once per app lifecycle
+  const biometricCheckedRef = useRef(false)
+  const [biometricReady, setBiometricReady] = useState(false)
 
   useEffect(() => {
     hydrate()
     hydrateFieldConfig()
+    hydrateSyncSchedule()
   }, [])
 
   useEffect(() => {
@@ -60,8 +71,43 @@ function AuthGuard() {
     return () => pilotTracker.stopAutoFlush()
   }, [])
 
+  // Verifica biometria uma única vez após hydration
   useEffect(() => {
-    if (!hydrated) return
+    if (!hydrated || biometricCheckedRef.current) return
+    biometricCheckedRef.current = true
+
+    if (!accessToken) {
+      setBiometricReady(true)
+      return
+    }
+
+    AsyncStorage.getItem(BIOMETRIC_KEY).then(async (val) => {
+      if (val !== 'true') {
+        setBiometricReady(true)
+        return
+      }
+
+      try {
+        const result = await LocalAuthentication.authenticateAsync({
+          promptMessage: 'Entre no Addere',
+          cancelLabel: 'Usar senha',
+          disableDeviceFallback: false,
+        })
+        if (result.success) {
+          setBiometricReady(true)
+        } else {
+          await useAuthStore.getState().clearAuth()
+          setBiometricReady(true)
+        }
+      } catch {
+        // Falha inesperada → deixa passar sem biometria
+        setBiometricReady(true)
+      }
+    })
+  }, [hydrated])
+
+  useEffect(() => {
+    if (!hydrated || !biometricReady) return
 
     const inAuthGroup  = segments[0] === '(auth)'
     const inDevPreview = segments[0] === 'dev-preview'
@@ -73,10 +119,19 @@ function AuthGuard() {
     } else if (accessToken && inAuthGroup) {
       router.replace('/(app)')
     }
-  }, [accessToken, hydrated, segments])
+  }, [accessToken, hydrated, segments, biometricReady])
 
   return null
 }
+
+const asyncStoragePersister = createAsyncStoragePersister({
+  storage: AsyncStorage,
+  key: 'rq-offline-cache',
+  throttleTime: 1000,
+})
+
+// Queries de dados de referência que sobrevivem ao restart do app
+const NON_PERSISTENT_KEYS = ['meta-vendedor']
 
 export default function RootLayout() {
   const { fontsLoaded } = useFonts()
@@ -84,11 +139,24 @@ export default function RootLayout() {
   if (!fontsLoaded) return <SplashScreen />
 
   return (
-    <AppErrorBoundary>
-      <QueryClientProvider client={queryClient}>
-        <AuthGuard />
-        <Stack screenOptions={{ headerShown: false }} />
-      </QueryClientProvider>
-    </AppErrorBoundary>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <AppErrorBoundary>
+        <PersistQueryClientProvider
+          client={queryClient}
+          persistOptions={{
+            persister: asyncStoragePersister,
+            maxAge: 1000 * 60 * 60 * 24 * 7,
+            dehydrateOptions: {
+              shouldDehydrateQuery: (query) =>
+                query.state.status === 'success' &&
+                !NON_PERSISTENT_KEYS.includes(query.queryKey[0] as string),
+            },
+          }}
+        >
+          <AuthGuard />
+          <Stack screenOptions={{ headerShown: false }} />
+        </PersistQueryClientProvider>
+      </AppErrorBoundary>
+    </GestureHandlerRootView>
   )
 }

@@ -6,10 +6,11 @@ export const colors = {
     tint:    '#E8F4FF',
   },
   semantic: {
-    success: '#22C55E',
-    warning: '#F59E0B',
-    danger:  '#EF4444',
-    muted:   '#64748B',
+    success:     '#22C55E',
+    warning:     '#F59E0B',
+    danger:      '#EF4444',
+    dangerLight: '#FEE2E2',
+    muted:       '#64748B',
   },
   neutral: {
     white:   '#FFFFFF',

@@ -1,7 +1,7 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify'
 import { authenticate } from '../../middleware/authenticate'
-import { createOrderSchema } from './orders.schema'
-import { listOrders, getOrderStats, getOrder, createOrder, cancelOrder, resetOrderToPending } from './orders.service'
+import { createOrderSchema, updateOrderSchema } from './orders.schema'
+import { listOrders, getOrderStats, getOrder, createOrder, updateOrder, cancelOrder, resetOrderToPending } from './orders.service'
 import { syncOrderToProtheus, consultOrderStatus } from '../sync/sync.service'
 
 export default async function ordersRoutes(app: FastifyInstance) {
@@ -48,6 +48,25 @@ export default async function ordersRoutes(app: FastifyInstance) {
     try {
       const order = await createOrder(request.user.sub, companyId, result.data)
       return reply.status(201).send(order)
+    } catch (err) {
+      return reply.status(422).send({ message: (err as Error).message })
+    }
+  })
+
+  // PUT /orders/:id — atualiza pedido PENDING
+  app.put('/:id', { preHandler: authenticate }, async (request: FastifyRequest, reply: FastifyReply) => {
+    const { companyId } = request.user
+    if (!companyId) return reply.status(403).send({ message: 'Rota disponível apenas para usuários de uma empresa' })
+
+    const { id } = request.params as { id: string }
+    const result = updateOrderSchema.safeParse(request.body)
+    if (!result.success) {
+      return reply.status(400).send({ message: 'Dados inválidos', errors: result.error.flatten() })
+    }
+
+    try {
+      const order = await updateOrder(request.user.sub, companyId, id, result.data)
+      return reply.send(order)
     } catch (err) {
       return reply.status(422).send({ message: (err as Error).message })
     }

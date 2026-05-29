@@ -1,0 +1,21 @@
+<svg viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="hGrad" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%"   stop-color="#29BEFF"/>
+      <stop offset="100%" stop-color="#1B4FA8"/>
+    </linearGradient>
+    <linearGradient id="vGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"   stop-color="#29BEFF"/>
+      <stop offset="100%" stop-color="#FFFFFF" stop-opacity="0.9"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Sem fundo — transparente para adaptive icon do Android -->
+  <!-- Safe area: símbolo dentro dos 66% centrais (180px de margem em 1024) -->
+
+  <!-- Barra horizontal (atrás) -->
+  <rect x="180" y="412" width="664" height="200" rx="100" fill="url(#hGrad)"/>
+
+  <!-- Barra vertical (frente) -->
+  <rect x="412" y="180" width="200" height="664" rx="100" fill="url(#vGrad)"/>
+</svg>
