@@ -5,6 +5,7 @@ import { FastifyInstance } from 'fastify'
 const PRODUCTION_ORIGINS = [
   'https://addere.com.br',
   'https://www.addere.com.br',
+  'https://addere-web.vercel.app',
 ]
 
 const DEV_ORIGINS = [
