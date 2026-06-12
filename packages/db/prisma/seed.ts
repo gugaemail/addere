@@ -3,6 +3,79 @@ import bcrypt from 'bcryptjs'
 
 const prisma = new PrismaClient()
 
+// Catálogo de permissões disponíveis no sistema
+const PERMISSIONS = [
+  { key: 'users.view', label: 'Ver usuários da empresa', category: 'users' },
+  { key: 'users.manage', label: 'Criar/ativar/desativar usuários', category: 'users' },
+  { key: 'sync.protheus', label: 'Executar sincronização com Protheus', category: 'sync' },
+  { key: 'orders.reset_pending', label: 'Reverter pedido sincronizado para pendente', category: 'orders' },
+  { key: 'orders.change_carrier', label: 'Alterar transportadora do pedido', category: 'orders' },
+  { key: 'orders.change_payment_terms', label: 'Alterar condição de pagamento do pedido', category: 'orders' },
+]
+
+// Permissões concedidas por padrão a cada role existente (backfill)
+const DEFAULT_PERMISSIONS_BY_ROLE: Record<string, string[]> = {
+  ADMIN: [
+    'users.view',
+    'users.manage',
+    'sync.protheus',
+    'orders.reset_pending',
+    'orders.change_carrier',
+    'orders.change_payment_terms',
+  ],
+  SALESPERSON: ['orders.change_carrier', 'orders.change_payment_terms'],
+}
+
+const USER_TYPE_BY_ROLE: Record<string, string> = {
+  ADMIN: 'Administrador',
+  SALESPERSON: 'Vendedor',
+}
+
+async function seedPermissions() {
+  // ─── Catálogo de permissões ───
+  for (const permission of PERMISSIONS) {
+    await prisma.permission.upsert({
+      where: { key: permission.key },
+      update: { label: permission.label, category: permission.category },
+      create: permission,
+    })
+  }
+  console.log('Catálogo de permissões criado:', PERMISSIONS.length)
+
+  // ─── Tipos de usuário ───
+  const userTypes: Record<string, { id: string }> = {}
+  for (const name of Object.values(USER_TYPE_BY_ROLE)) {
+    userTypes[name] = await prisma.userType.upsert({
+      where: { name },
+      update: {},
+      create: { name },
+    })
+  }
+  console.log('Tipos de usuário criados:', Object.keys(userTypes).join(', '))
+
+  // ─── Backfill: associa tipo + permissões padrão aos usuários existentes ───
+  const users = await prisma.user.findMany({ where: { role: { in: ['ADMIN', 'SALESPERSON'] } } })
+  for (const user of users) {
+    const typeName = USER_TYPE_BY_ROLE[user.role]
+    const permissionKeys = DEFAULT_PERMISSIONS_BY_ROLE[user.role] ?? []
+
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { userTypeId: userTypes[typeName].id },
+    })
+
+    for (const key of permissionKeys) {
+      const permission = await prisma.permission.findUniqueOrThrow({ where: { key } })
+      await prisma.userPermission.upsert({
+        where: { userId_permissionId: { userId: user.id, permissionId: permission.id } },
+        update: {},
+        create: { userId: user.id, permissionId: permission.id },
+      })
+    }
+  }
+  console.log('Backfill de tipo/permissões aplicado a', users.length, 'usuário(s)')
+}
+
 async function main() {
   const passwordHash = await bcrypt.hash('ad@123ab', 10)
 
@@ -259,6 +332,8 @@ async function main() {
     },
   })
   console.log('Pedidos criados: 2')
+
+  await seedPermissions()
 }
 
 main()

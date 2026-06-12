@@ -1,4 +1,5 @@
 import { FastifyRequest, FastifyReply } from 'fastify'
+import { getEffectivePermissions } from '../modules/permissions/permissions.service'
 
 // preHandler hook para proteger rotas — uso: { preHandler: authenticate }
 export async function authenticate(request: FastifyRequest, reply: FastifyReply): Promise<void> {
@@ -10,16 +11,6 @@ export async function authenticate(request: FastifyRequest, reply: FastifyReply)
   }
 }
 
-// Verifica se o usuário autenticado tem role de ADMIN
-export async function requireAdmin(request: FastifyRequest, reply: FastifyReply): Promise<void> {
-  await authenticate(request, reply)
-  if (reply.sent) return
-
-  if (!['ADMIN', 'SUPERADMIN'].includes(request.user.role)) {
-    reply.status(403).send({ message: 'Acesso restrito a administradores' })
-  }
-}
-
 // Verifica se o usuário autenticado tem role de SUPERADMIN (painel web)
 export async function requireSuperAdmin(request: FastifyRequest, reply: FastifyReply): Promise<void> {
   await authenticate(request, reply)
@@ -27,5 +18,21 @@ export async function requireSuperAdmin(request: FastifyRequest, reply: FastifyR
 
   if (request.user.role !== 'SUPERADMIN') {
     reply.status(403).send({ message: 'Acesso restrito ao super administrador' })
+  }
+}
+
+// Verifica se o usuário autenticado possui a permissão dinâmica informada.
+// SUPERADMIN nunca participa do cadastro de permissões — sempre tem acesso total.
+export function requirePermission(key: string) {
+  return async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
+    await authenticate(request, reply)
+    if (reply.sent) return
+
+    if (request.user.role === 'SUPERADMIN') return
+
+    const permissions = await getEffectivePermissions(request.user.sub, request.user.role)
+    if (!permissions.has(key)) {
+      reply.status(403).send({ message: 'Permissão insuficiente' })
+    }
   }
 }

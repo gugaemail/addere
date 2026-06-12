@@ -24,6 +24,9 @@ import transportadorasRoutes from './modules/transportadoras/transportadoras.rou
 import condpagsRoutes from './modules/condpags/condpags.routes'
 import { pilotRoutes } from './modules/pilot/pilot.routes'
 import helpRoutes from './modules/help/help.routes'
+import usersRoutes from './modules/users/users.routes'
+import permissionsRoutes, { userPermissionsRoutes } from './modules/permissions/permissions.routes'
+import userTypesRoutes from './modules/user-types/user-types.routes'
 
 export async function buildApp(): Promise<FastifyInstance> {
   const app = Fastify({
@@ -73,6 +76,10 @@ export async function buildApp(): Promise<FastifyInstance> {
   await app.register(condpagsRoutes, { prefix: '/condpags' })
   await app.register(pilotRoutes)
   await app.register(helpRoutes, { prefix: '/help' })
+  await app.register(usersRoutes, { prefix: '/users' })
+  await app.register(userPermissionsRoutes, { prefix: '/users' })
+  await app.register(permissionsRoutes)
+  await app.register(userTypesRoutes, { prefix: '/user-types' })
 
   // Inicia schedulers de auto-sync após o servidor estar pronto
   app.addHook('onReady', async () => {
