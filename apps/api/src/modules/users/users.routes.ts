@@ -1,17 +1,17 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify'
-import { requireAdmin } from '../../middleware/authenticate'
+import { requirePermission } from '../../middleware/authenticate'
 import { createUserSchema } from './users.schema'
 import { listUsers, createUser, toggleUserActive } from './users.service'
 
 export default async function usersRoutes(app: FastifyInstance) {
   // GET /users
-  app.get('/', { preHandler: requireAdmin }, async (_request: FastifyRequest, reply: FastifyReply) => {
+  app.get('/', { preHandler: requirePermission('users.view') }, async (_request: FastifyRequest, reply: FastifyReply) => {
     const users = await listUsers()
     return reply.send(users)
   })
 
   // POST /users
-  app.post('/', { preHandler: requireAdmin }, async (request: FastifyRequest, reply: FastifyReply) => {
+  app.post('/', { preHandler: requirePermission('users.manage') }, async (request: FastifyRequest, reply: FastifyReply) => {
     const result = createUserSchema.safeParse(request.body)
     if (!result.success) {
       return reply.status(400).send({ message: result.error.errors[0].message })
@@ -26,7 +26,7 @@ export default async function usersRoutes(app: FastifyInstance) {
   })
 
   // PATCH /users/:id
-  app.patch('/:id', { preHandler: requireAdmin }, async (request: FastifyRequest, reply: FastifyReply) => {
+  app.patch('/:id', { preHandler: requirePermission('users.manage') }, async (request: FastifyRequest, reply: FastifyReply) => {
     const { id } = request.params as { id: string }
     try {
       const user = await toggleUserActive(id)

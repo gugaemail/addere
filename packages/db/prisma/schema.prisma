@@ -130,6 +130,10 @@ model User {
   companyId String?
   company   Company? @relation(fields: [companyId], references: [id])
 
+  // null para SUPERADMIN — apenas caracteriza o usuário (cadastro dinâmico)
+  userTypeId String?
+  userType   UserType? @relation(fields: [userTypeId], references: [id])
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -139,8 +143,53 @@ model User {
   pilotFeedbacks      PilotFeedback[]      @relation("UserPilotFeedbacks")
   passwordResetTokens PasswordResetToken[]
   helpReports         HelpReport[]
+  permissions         UserPermission[]
 
   @@map("users")
+}
+
+// ─────────────────────────────────────────
+// UserType — cadastro dinâmico de tipos de usuário
+// ─────────────────────────────────────────
+
+model UserType {
+  id        String   @id @default(uuid())
+  name      String   @unique // "Administrador", "Vendedor", ...
+  createdAt DateTime @default(now())
+
+  users User[]
+
+  @@map("user_types")
+}
+
+// ─────────────────────────────────────────
+// Permission — catálogo de permissões disponíveis
+// ─────────────────────────────────────────
+
+model Permission {
+  id       String @id @default(uuid())
+  key      String @unique // ex: "orders.change_carrier"
+  label    String // texto exibido no painel web
+  category String // agrupamento na UI: "orders", "sync", "users"...
+
+  userPermissions UserPermission[]
+
+  @@map("permissions")
+}
+
+// ─────────────────────────────────────────
+// UserPermission — permissões concedidas por usuário
+// ─────────────────────────────────────────
+
+model UserPermission {
+  id           String @id @default(uuid())
+  userId       String
+  user         User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  permissionId String
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, permissionId]) // presença da linha = permissão concedida
+  @@map("user_permissions")
 }
 
 // ─────────────────────────────────────────

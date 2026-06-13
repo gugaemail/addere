@@ -12,15 +12,18 @@ export const REFRESH_TOKEN_KEY = 'addere_refresh_token'
 interface AuthState {
   user: UserPublic | null
   accessToken: string | null
+  permissions: string[]
   hydrated: boolean
   setAuth: (user: UserPublic, token: string) => Promise<void>
   clearAuth: () => Promise<void>
   hydrate: () => Promise<void>
+  fetchPermissions: (token: string) => Promise<void>
 }
 
 export const useAuthStore = create<AuthState>((set) => ({
   user: null,
   accessToken: null,
+  permissions: [],
   hydrated: false,
 
   setAuth: async (user, token) => {
@@ -36,6 +39,7 @@ export const useAuthStore = create<AuthState>((set) => ({
     } catch {
       setSentryUser({ id: user.id, company: 'unknown' })
     }
+    await useAuthStore.getState().fetchPermissions(token)
   },
 
   clearAuth: async () => {
@@ -44,8 +48,21 @@ export const useAuthStore = create<AuthState>((set) => ({
       SecureStore.deleteItemAsync(USER_KEY),
       // REFRESH_TOKEN_KEY é mantido para permitir re-autenticação biométrica após logout
     ])
-    set({ user: null, accessToken: null })
+    set({ user: null, accessToken: null, permissions: [] })
     clearSentryUser()
+  },
+
+  // Busca as permissões efetivas do usuário logado (SUPERADMIN recebe o catálogo completo)
+  fetchPermissions: async (token) => {
+    try {
+      const { data } = await axios.get<{ keys: string[] }>(`${env.apiUrl}/auth/me/permissions`, {
+        headers: { Authorization: `Bearer ${token}` },
+        timeout: 8000,
+      })
+      set({ permissions: data.keys })
+    } catch {
+      // Mantém as permissões atuais (ex: offline) — não bloqueia o app
+    }
   },
 
   // Chamado uma vez no boot do app para restaurar sessão salva
@@ -88,11 +105,13 @@ export const useAuthStore = create<AuthState>((set) => ({
           SecureStore.setItemAsync(REFRESH_TOKEN_KEY, data.refreshToken),
         ])
         set({ accessToken: data.accessToken, user, hydrated: true })
+        await useAuthStore.getState().fetchPermissions(data.accessToken)
       } catch (err) {
         const e = err as { response?: unknown; code?: string }
         if (!e.response || e.code === 'ECONNABORTED') {
           // Sem internet ou timeout: usa token existente e segue em frente
           set({ accessToken: token, user, hydrated: true })
+          await useAuthStore.getState().fetchPermissions(token)
         } else {
           // Refresh token inválido/expirado: desloga
           await Promise.all([

@@ -2,7 +2,7 @@ import { FastifyInstance } from 'fastify'
 import { z } from 'zod'
 import axios from 'axios'
 import { prisma } from '@addere/db'
-import { authenticate } from '../../middleware/authenticate'
+import { authenticate, requirePermission } from '../../middleware/authenticate'
 import { syncProducts, syncCustomers, syncTransportadoras, syncCondPags, testOrderSync, fetchMetaVendedor } from './sync.service'
 import { protheusPost } from './protheus.client'
 import { decryptCredential } from '../../lib/protheus-crypto'
@@ -13,12 +13,8 @@ const companyIdSchema = z.object({ companyId: z.string().uuid('companyId deve se
 
 export default async function syncRoutes(app: FastifyInstance) {
   // POST /sync/test-token — testa a chamada de autenticação Protheus e retorna resposta bruta
-  app.post('/test-token', { preHandler: authenticate }, async (request, reply) => {
+  app.post('/test-token', { preHandler: requirePermission('sync.protheus') }, async (request, reply) => {
     const { role, companyId: userCompanyId } = request.user as { role: string; companyId: string | null }
-
-    if (role === 'SALESPERSON') {
-      return reply.status(403).send({ message: 'Acesso negado' })
-    }
 
     const bodyParsed = companyIdSchema.safeParse(request.body)
     if (!bodyParsed.success) {
@@ -90,12 +86,8 @@ export default async function syncRoutes(app: FastifyInstance) {
   })
 
   // POST /sync/test-products — busca página 1 da API de produtos e retorna resposta bruta (sem salvar)
-  app.post('/test-products', { preHandler: authenticate }, async (request, reply) => {
+  app.post('/test-products', { preHandler: requirePermission('sync.protheus') }, async (request, reply) => {
     const { role, companyId: userCompanyId } = request.user as { role: string; companyId: string | null }
-
-    if (role === 'SALESPERSON') {
-      return reply.status(403).send({ message: 'Acesso negado' })
-    }
 
     const bodyParsed = companyIdSchema.safeParse(request.body)
     if (!bodyParsed.success) {
@@ -182,12 +174,8 @@ export default async function syncRoutes(app: FastifyInstance) {
   })
 
   // POST /sync/test-customers — busca página 1 da API de clientes e retorna resposta bruta (sem salvar)
-  app.post('/test-customers', { preHandler: authenticate }, async (request, reply) => {
+  app.post('/test-customers', { preHandler: requirePermission('sync.protheus') }, async (request, reply) => {
     const { role, companyId: userCompanyId } = request.user as { role: string; companyId: string | null }
-
-    if (role === 'SALESPERSON') {
-      return reply.status(403).send({ message: 'Acesso negado' })
-    }
 
     const bodyParsed = companyIdSchema.safeParse(request.body)
     if (!bodyParsed.success) {
@@ -244,10 +232,9 @@ export default async function syncRoutes(app: FastifyInstance) {
   })
 
   // POST /sync/test-order/:id — dry run: monta payload e chama Protheus sem alterar status do pedido
-  app.post('/test-order/:id', { preHandler: authenticate }, async (request, reply) => {
-    const { role, companyId } = request.user as { role: string; companyId: string | null }
+  app.post('/test-order/:id', { preHandler: requirePermission('sync.protheus') }, async (request, reply) => {
+    const { companyId } = request.user as { companyId: string | null }
 
-    if (role === 'SALESPERSON') return reply.status(403).send({ message: 'Acesso negado' })
     if (!companyId) return reply.status(403).send({ message: 'Rota disponível apenas para usuários de uma empresa' })
 
     const { id } = request.params as { id: string }
@@ -261,12 +248,8 @@ export default async function syncRoutes(app: FastifyInstance) {
   })
 
   // POST /sync/products — importa produtos do Protheus (ADMIN ou SUPERADMIN)
-  app.post('/products', { preHandler: authenticate, config: { rateLimit: { max: 3, timeWindow: '1 minute' } } }, async (request, reply) => {
+  app.post('/products', { preHandler: requirePermission('sync.protheus'), config: { rateLimit: { max: 3, timeWindow: '1 minute' } } }, async (request, reply) => {
     const { role, companyId: userCompanyId } = request.user as { role: string; companyId: string | null }
-
-    if (role === 'SALESPERSON') {
-      return reply.status(403).send({ message: 'Acesso negado' })
-    }
 
     const bodyParsed = companyIdSchema.safeParse(request.body)
     if (!bodyParsed.success) {
@@ -289,12 +272,8 @@ export default async function syncRoutes(app: FastifyInstance) {
   })
 
   // POST /sync/customers — importa clientes do Protheus (ADMIN ou SUPERADMIN)
-  app.post('/customers', { preHandler: authenticate, config: { rateLimit: { max: 3, timeWindow: '1 minute' } } }, async (request, reply) => {
+  app.post('/customers', { preHandler: requirePermission('sync.protheus'), config: { rateLimit: { max: 3, timeWindow: '1 minute' } } }, async (request, reply) => {
     const { role, companyId: userCompanyId } = request.user as { role: string; companyId: string | null }
-
-    if (role === 'SALESPERSON') {
-      return reply.status(403).send({ message: 'Acesso negado' })
-    }
 
     const bodyParsed = companyIdSchema.safeParse(request.body)
     if (!bodyParsed.success) {
@@ -317,10 +296,8 @@ export default async function syncRoutes(app: FastifyInstance) {
   })
 
   // POST /sync/transportadoras — importa transportadoras do Protheus
-  app.post('/transportadoras', { preHandler: authenticate, config: { rateLimit: { max: 3, timeWindow: '1 minute' } } }, async (request, reply) => {
+  app.post('/transportadoras', { preHandler: requirePermission('sync.protheus'), config: { rateLimit: { max: 3, timeWindow: '1 minute' } } }, async (request, reply) => {
     const { role, companyId: userCompanyId } = request.user as { role: string; companyId: string | null }
-
-    if (role === 'SALESPERSON') return reply.status(403).send({ message: 'Acesso negado' })
 
     const bodyParsed = companyIdSchema.safeParse(request.body)
     if (!bodyParsed.success) return reply.status(400).send({ message: 'companyId inválido' })
@@ -339,10 +316,8 @@ export default async function syncRoutes(app: FastifyInstance) {
   })
 
   // POST /sync/cond-pags — importa condições de pagamento do Protheus
-  app.post('/cond-pags', { preHandler: authenticate, config: { rateLimit: { max: 3, timeWindow: '1 minute' } } }, async (request, reply) => {
+  app.post('/cond-pags', { preHandler: requirePermission('sync.protheus'), config: { rateLimit: { max: 3, timeWindow: '1 minute' } } }, async (request, reply) => {
     const { role, companyId: userCompanyId } = request.user as { role: string; companyId: string | null }
-
-    if (role === 'SALESPERSON') return reply.status(403).send({ message: 'Acesso negado' })
 
     const bodyParsed = companyIdSchema.safeParse(request.body)
     if (!bodyParsed.success) return reply.status(400).send({ message: 'companyId inválido' })

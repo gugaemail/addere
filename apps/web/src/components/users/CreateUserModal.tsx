@@ -3,7 +3,8 @@
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { createUserSchema, type CreateUserFormData } from '@/lib/schemas'
-import { useCreateUser } from '@/hooks/useUsers'
+import { useCreateUser, useUsers } from '@/hooks/useUsers'
+import { useUserTypes } from '@/hooks/useUserTypes'
 import { Modal } from '@/components/ui/Modal'
 import { Input } from '@/components/ui/Input'
 import { Button } from '@/components/ui/Button'
@@ -15,6 +16,8 @@ interface CreateUserModalProps {
 
 export function CreateUserModal({ isOpen, onClose }: CreateUserModalProps) {
   const createUser = useCreateUser()
+  const { data: userTypes } = useUserTypes()
+  const { data: users } = useUsers()
 
   const {
     register,
@@ -25,7 +28,11 @@ export function CreateUserModal({ isOpen, onClose }: CreateUserModalProps) {
 
   const onSubmit = async (data: CreateUserFormData) => {
     try {
-      await createUser.mutateAsync(data)
+      await createUser.mutateAsync({
+        ...data,
+        userTypeId: data.userTypeId || undefined,
+        copyPermissionsFromUserId: data.copyPermissionsFromUserId || undefined,
+      })
       reset()
       onClose()
     } catch {
@@ -54,6 +61,35 @@ export function CreateUserModal({ isOpen, onClose }: CreateUserModalProps) {
             <option value="ADMIN">Administrador</option>
           </select>
           {errors.role && <p className="text-xs text-red-400">{errors.role.message}</p>}
+        </div>
+
+        <div className="flex flex-col gap-1">
+          <label className="text-sm font-medium text-gray-300">Tipo de usuário</label>
+          <select
+            {...register('userTypeId')}
+            className="rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+          >
+            <option value="">Sem tipo</option>
+            {(userTypes ?? []).map((type) => (
+              <option key={type.id} value={type.id}>{type.name}</option>
+            ))}
+          </select>
+        </div>
+
+        <div className="flex flex-col gap-1">
+          <label className="text-sm font-medium text-gray-300">Copiar permissões de</label>
+          <select
+            {...register('copyPermissionsFromUserId')}
+            className="rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+          >
+            <option value="">Nenhuma (nasce sem permissões)</option>
+            {(users ?? []).map((u) => (
+              <option key={u.id} value={u.id}>{u.name}</option>
+            ))}
+          </select>
+          <p className="text-xs text-gray-500">
+            Se não informado, o novo usuário nasce sem nenhuma permissão — o superadmin deverá marcá-las depois.
+          </p>
         </div>
 
         {createUser.isError && (

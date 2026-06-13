@@ -24,7 +24,22 @@ export interface UserPublic {
   role: UserRole
   active: boolean
   idVendProt: string | null
+  userTypeId: string | null
   createdAt: string
+}
+
+// ─── Permissões dinâmicas ──────────────────────────────────────────────────
+
+export interface Permission {
+  id: string
+  key: string
+  label: string
+  category: string
+}
+
+export interface UserType {
+  id: string
+  name: string
 }
 
 export interface LoginRequest {

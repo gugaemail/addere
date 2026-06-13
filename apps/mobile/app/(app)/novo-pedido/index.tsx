@@ -20,6 +20,7 @@ import { useEffect } from 'react'
 import { useTransportadoras } from '../../../src/hooks/useTransportadoras'
 import { useCondPags } from '../../../src/hooks/useCondPags'
 import { useFieldVisible, useFieldRequired } from '../../../src/hooks/useFieldConfig'
+import { useAuthStore } from '../../../src/store/auth.store'
 import { colors } from '../../../src/theme/colors'
 import type { Branch, Customer, Product, Transportadora, CondPag, CreateOrderItemInput } from '@addere/types'
 import { fmtMoeda, formatDocument } from '../../../src/utils/format'
@@ -230,14 +231,30 @@ function PickerField({
   items,
   onSelect,
   loading,
+  disabled,
 }: {
   label: string
   selected: { id: string; nome: string } | null
   items: { id: string; nome: string }[]
   onSelect: (item: { id: string; nome: string } | null) => void
   loading?: boolean
+  disabled?: boolean
 }) {
   const [open, setOpen] = useState(false)
+
+  if (disabled) {
+    return (
+      <View style={styles.summaryBox}>
+        <Text style={styles.summaryLabel}>{label}</Text>
+        <View style={[styles.pickerBtn, styles.pickerBtnDisabled]}>
+          <Text style={selected ? styles.pickerBtnText : styles.pickerBtnPlaceholder}>
+            {selected ? selected.nome : '— Nenhum —'}
+          </Text>
+        </View>
+      </View>
+    )
+  }
+
   return (
     <View style={styles.summaryBox}>
       <Text style={styles.summaryLabel}>{label}</Text>
@@ -302,6 +319,9 @@ function Step3({
 }) {
   const { data: transportadoras = [], isLoading: loadingTransp } = useTransportadoras()
   const { data: condPags = [], isLoading: loadingCond } = useCondPags()
+  const permissions = useAuthStore((s) => s.permissions)
+  const canChangeCarrier = permissions.includes('orders.change_carrier')
+  const canChangePaymentTerms = permissions.includes('orders.change_payment_terms')
   const showTransportadora = useFieldVisible('order.transportadora')
   const showCondPag        = useFieldVisible('order.condPag')
   const showMennota        = useFieldVisible('order.mennota')
@@ -581,6 +601,7 @@ function Step3({
           items={transportadoras.map((t) => ({ id: t.id, nome: t.nome }))}
           onSelect={(item) => onTransportChange(item ? (transportadoras.find((t) => t.id === item.id) ?? null) : null)}
           loading={loadingTransp}
+          disabled={!canChangeCarrier}
         />
       )}
 
@@ -591,6 +612,7 @@ function Step3({
           items={condPags.map((c) => ({ id: c.id, nome: c.nome }))}
           onSelect={(item) => onCondChange(item ? (condPags.find((c) => c.id === item.id) ?? null) : null)}
           loading={loadingCond}
+          disabled={!canChangePaymentTerms}
         />
       )}
 
@@ -855,6 +877,7 @@ const styles = StyleSheet.create({
   xcravBtnTextActive: { color: colors.neutral.white },
   notesInput: { borderWidth: 1, borderColor: colors.neutral.border, borderRadius: 8, padding: 10, fontFamily: 'Inter_400Regular', fontSize: 14, minHeight: 80, backgroundColor: colors.neutral.bg, color: colors.brand.dark },
   pickerBtn: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderWidth: 1, borderColor: colors.neutral.border, borderRadius: 8, padding: 10, backgroundColor: colors.neutral.bg },
+  pickerBtnDisabled: { opacity: 0.6 },
   pickerBtnText: { fontFamily: 'Inter_400Regular', fontSize: 14, color: colors.brand.dark },
   pickerBtnPlaceholder: { fontFamily: 'Inter_400Regular', fontSize: 14, color: colors.neutral.textSub },
   pickerBtnIcon: { fontFamily: 'Inter_400Regular', fontSize: 12, color: colors.neutral.textSub },

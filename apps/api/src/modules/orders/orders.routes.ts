@@ -1,7 +1,8 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify'
-import { authenticate } from '../../middleware/authenticate'
+import { authenticate, requirePermission } from '../../middleware/authenticate'
 import { createOrderSchema, updateOrderSchema } from './orders.schema'
 import { listOrders, getOrderStats, getOrder, createOrder, updateOrder, cancelOrder, resetOrderToPending } from './orders.service'
+import { getEffectivePermissions } from '../permissions/permissions.service'
 import { syncOrderToProtheus, consultOrderStatus } from '../sync/sync.service'
 
 export default async function ordersRoutes(app: FastifyInstance) {
@@ -46,7 +47,8 @@ export default async function ordersRoutes(app: FastifyInstance) {
     }
 
     try {
-      const order = await createOrder(request.user.sub, companyId, result.data)
+      const permissions = await getEffectivePermissions(request.user.sub, request.user.role)
+      const order = await createOrder(request.user.sub, companyId, result.data, permissions)
       return reply.status(201).send(order)
     } catch (err) {
       return reply.status(422).send({ message: (err as Error).message })
@@ -65,7 +67,8 @@ export default async function ordersRoutes(app: FastifyInstance) {
     }
 
     try {
-      const order = await updateOrder(request.user.sub, companyId, id, result.data)
+      const permissions = await getEffectivePermissions(request.user.sub, request.user.role)
+      const order = await updateOrder(request.user.sub, companyId, id, result.data, permissions)
       return reply.send(order)
     } catch (err) {
       return reply.status(422).send({ message: (err as Error).message })
@@ -98,11 +101,10 @@ export default async function ordersRoutes(app: FastifyInstance) {
     }
   })
 
-  // PATCH /orders/:id/reset-pending — reverte pedido SYNCED para PENDING (admin/superadmin apenas)
-  app.patch('/:id/reset-pending', { preHandler: authenticate }, async (request: FastifyRequest, reply: FastifyReply) => {
-    const { companyId, role } = request.user
+  // PATCH /orders/:id/reset-pending — reverte pedido SYNCED para PENDING (requer permissão orders.reset_pending)
+  app.patch('/:id/reset-pending', { preHandler: requirePermission('orders.reset_pending') }, async (request: FastifyRequest, reply: FastifyReply) => {
+    const { companyId } = request.user
     if (!companyId) return reply.status(403).send({ message: 'Rota disponível apenas para usuários de uma empresa' })
-    if (role === 'SALESPERSON') return reply.status(403).send({ message: 'Apenas administradores podem reverter pedidos para PENDING' })
     const { id } = request.params as { id: string }
     try {
       const order = await resetOrderToPending(companyId, id)

@@ -16,6 +16,7 @@ import { useProdutos } from '../../../../src/hooks/useProdutos'
 import { useTransportadoras } from '../../../../src/hooks/useTransportadoras'
 import { useCondPags } from '../../../../src/hooks/useCondPags'
 import { useFieldVisible, useFieldRequired } from '../../../../src/hooks/useFieldConfig'
+import { useAuthStore } from '../../../../src/store/auth.store'
 import { fmtMoeda } from '../../../../src/utils/format'
 import type { Product, Transportadora, CondPag } from '@addere/types'
 
@@ -40,14 +41,30 @@ function PickerField({
   items,
   onSelect,
   loading,
+  disabled,
 }: {
   label: string
   selected: { id: string; nome: string } | null
   items: { id: string; nome: string }[]
   onSelect: (item: { id: string; nome: string } | null) => void
   loading?: boolean
+  disabled?: boolean
 }) {
   const [open, setOpen] = useState(false)
+
+  if (disabled) {
+    return (
+      <View style={s.box}>
+        <Text style={s.boxLabel}>{label}</Text>
+        <View style={[s.pickerBtn, s.pickerBtnDisabled]}>
+          <Text style={selected ? s.pickerBtnText : s.pickerBtnPlaceholder}>
+            {selected ? selected.nome : '— Nenhum —'}
+          </Text>
+        </View>
+      </View>
+    )
+  }
+
   return (
     <View style={s.box}>
       <Text style={s.boxLabel}>{label}</Text>
@@ -94,6 +111,10 @@ export default function EditarPedidoScreen() {
   const { data: transportadoras = [], isLoading: loadingTransp } = useTransportadoras()
   const { data: condPags = [], isLoading: loadingCond }          = useCondPags()
   const { data: products = [], isLoading: loadingProducts }       = useProdutos(search || undefined)
+
+  const permissions = useAuthStore((s) => s.permissions)
+  const canChangeCarrier = permissions.includes('orders.change_carrier')
+  const canChangePaymentTerms = permissions.includes('orders.change_payment_terms')
 
   const showTransportadora  = useFieldVisible('order.transportadora')
   const showCondPag         = useFieldVisible('order.condPag')
@@ -492,6 +513,7 @@ export default function EditarPedidoScreen() {
           items={transportadoras.map((t) => ({ id: t.id, nome: t.nome }))}
           onSelect={(item) => setTransportadora(item ? (transportadoras.find((t) => t.id === item.id) ?? null) : null)}
           loading={loadingTransp}
+          disabled={!canChangeCarrier}
         />
       )}
 
@@ -503,6 +525,7 @@ export default function EditarPedidoScreen() {
           items={condPags.map((c) => ({ id: c.id, nome: c.nome }))}
           onSelect={(item) => setCondPag(item ? (condPags.find((c) => c.id === item.id) ?? null) : null)}
           loading={loadingCond}
+          disabled={!canChangePaymentTerms}
         />
       )}
 
@@ -696,6 +719,7 @@ const s = StyleSheet.create({
     padding: 10,
     backgroundColor: '#F8FAFC',
   },
+  pickerBtnDisabled: { opacity: 0.6 },
   pickerBtnText:        { fontFamily: 'Inter_400Regular', fontSize: 14, color: '#0D2045' },
   pickerBtnPlaceholder: { fontFamily: 'Inter_400Regular', fontSize: 14, color: '#94A3B8' },
   pickerBtnIcon:        { fontSize: 12, color: '#64748B' },

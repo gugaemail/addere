@@ -10,6 +10,8 @@ export const createUserSchema = z.object({
   email: z.string().email('Email inválido'),
   password: z.string().min(8, 'Senha deve ter pelo menos 8 caracteres'),
   role: z.enum(['ADMIN', 'SALESPERSON']),
+  userTypeId: z.string().optional(),
+  copyPermissionsFromUserId: z.string().optional(),
 })
 
 export type LoginFormData = z.infer<typeof loginSchema>

@@ -9,6 +9,7 @@ import {
   resetPassword,
 } from './auth.service'
 import { authenticate } from '../../middleware/authenticate'
+import { getEffectivePermissions } from '../permissions/permissions.service'
 import { prisma } from '@addere/db'
 
 const COOKIE_NAME = 'refreshToken'
@@ -118,6 +119,12 @@ export default async function authRoutes(app: FastifyInstance) {
     })
     if (!user) return reply.status(404).send({ message: 'Usuário não encontrado' })
     return reply.send(user)
+  })
+
+  // GET /auth/me/permissions — permissões efetivas do usuário autenticado
+  app.get('/me/permissions', { preHandler: authenticate }, async (request: FastifyRequest, reply: FastifyReply) => {
+    const permissions = await getEffectivePermissions(request.user.sub, request.user.role)
+    return reply.send({ keys: Array.from(permissions) })
   })
 
   // POST /auth/forgot-password — envia email de redefinição de senha

@@ -11,6 +11,38 @@ const orderInclude = {
   },
 } as const
 
+// Verifica se o usuário tem permissão para definir transportadora/condição de pagamento
+// diferentes do padrão cadastrado no cliente. Lança erro se não tiver.
+export async function assertCarrierAndPaymentTermsAllowed(
+  companyId: string,
+  customerId: string,
+  input: { transportId?: string; condId?: string },
+  permissions: Set<string>
+): Promise<void> {
+  if (input.transportId === undefined && input.condId === undefined) return
+
+  const customer = await prisma.customer.findFirst({ where: { id: customerId, companyId } })
+  if (!customer) throw new Error('Cliente não encontrado')
+
+  if (input.transportId !== undefined && !permissions.has('orders.change_carrier')) {
+    const defaultTransp = customer.transpPadrao
+      ? await prisma.transportadora.findFirst({ where: { companyId, protheusCode: customer.transpPadrao } })
+      : null
+    if (input.transportId !== (defaultTransp?.id ?? '')) {
+      throw new Error('Você não tem permissão para alterar a transportadora do pedido')
+    }
+  }
+
+  if (input.condId !== undefined && !permissions.has('orders.change_payment_terms')) {
+    const defaultCond = customer.condPagPadrao
+      ? await prisma.condPag.findFirst({ where: { companyId, protheusCode: customer.condPagPadrao } })
+      : null
+    if (input.condId !== (defaultCond?.id ?? '')) {
+      throw new Error('Você não tem permissão para alterar a condição de pagamento do pedido')
+    }
+  }
+}
+
 export async function getOrder(userId: string, companyId: string, orderId: string) {
   return prisma.order.findFirst({
     where: { id: orderId, userId, companyId },
@@ -62,10 +94,12 @@ export async function cancelOrder(userId: string, companyId: string, orderId: st
   return prisma.order.update({ where: { id: orderId }, data: { status: 'CANCELLED' }, include: orderInclude })
 }
 
-export async function updateOrder(userId: string, companyId: string, orderId: string, input: UpdateOrderInput) {
+export async function updateOrder(userId: string, companyId: string, orderId: string, input: UpdateOrderInput, permissions: Set<string>) {
   const order = await prisma.order.findFirst({ where: { id: orderId, userId, companyId } })
   if (!order) throw new Error('Pedido não encontrado')
   if (order.status !== 'PENDING') throw new Error('Apenas pedidos pendentes podem ser editados')
+
+  await assertCarrierAndPaymentTermsAllowed(companyId, order.customerId, input, permissions)
 
   const productIds = input.items.map((i) => i.productId)
   const products = await prisma.product.findMany({
@@ -123,7 +157,9 @@ export async function updateOrder(userId: string, companyId: string, orderId: st
   })
 }
 
-export async function createOrder(userId: string, companyId: string, input: CreateOrderInput) {
+export async function createOrder(userId: string, companyId: string, input: CreateOrderInput, permissions: Set<string>) {
+  await assertCarrierAndPaymentTermsAllowed(companyId, input.customerId, input, permissions)
+
   // Busca os produtos para calcular os preços (filtrado pela empresa)
   const productIds = input.items.map((i) => i.productId)
   const products = await prisma.product.findMany({
