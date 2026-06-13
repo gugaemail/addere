@@ -1,6 +1,7 @@
 import { prisma } from '@addere/db'
 import bcrypt from 'bcryptjs'
 import type { CreateUserInput } from './users.schema'
+import { copyUserPermissions } from '../permissions/permissions.service'
 
 const userSelect = {
   id: true,
@@ -8,6 +9,7 @@ const userSelect = {
   email: true,
   role: true,
   active: true,
+  userTypeId: true,
   createdAt: true,
 } as const
 
@@ -24,15 +26,23 @@ export async function createUser(input: CreateUserInput) {
 
   const hashedPassword = await bcrypt.hash(input.password, 10)
 
-  return prisma.user.create({
+  const user = await prisma.user.create({
     data: {
       name: input.name,
       email: input.email,
       password: hashedPassword,
       role: input.role,
+      userTypeId: input.userTypeId,
     },
     select: userSelect,
   })
+
+  // Sem origem informada, o usuário nasce sem nenhuma permissão marcada
+  if (input.copyPermissionsFromUserId) {
+    await copyUserPermissions(input.copyPermissionsFromUserId, user.id)
+  }
+
+  return user
 }
 
 export async function toggleUserActive(id: string) {

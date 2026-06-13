@@ -9,6 +9,7 @@ interface AuthContextValue {
   user: UserPublic | null
   isLoading: boolean
   isAdmin: boolean
+  isSuperAdmin: boolean
   login: (email: string, password: string) => Promise<void>
   logout: () => Promise<void>
 }
@@ -66,6 +67,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         user,
         isLoading,
         isAdmin: user?.role === 'ADMIN',
+        isSuperAdmin: user?.role === 'SUPERADMIN',
         login,
         logout,
       }}
