@@ -52,6 +52,11 @@ api.interceptors.response.use(
       return Promise.reject(error)
     }
 
+    // Não tenta refresh em endpoints de auth (login/refresh/logout retornam 401 por conta própria)
+    if (/\/auth\/(login|refresh|logout)/.test(original.url ?? '')) {
+      return Promise.reject(error)
+    }
+
     if (_refreshing) {
       return new Promise((resolve, reject) => {
         _refreshQueue.push((token) => {
