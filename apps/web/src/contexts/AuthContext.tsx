@@ -10,7 +10,7 @@ interface AuthContextValue {
   isLoading: boolean
   isAdmin: boolean
   isSuperAdmin: boolean
-  login: (email: string, password: string) => Promise<void>
+  login: (email: string, password: string) => Promise<UserPublic>
   logout: () => Promise<void>
 }
 
@@ -43,13 +43,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     restoreSession()
   }, [])
 
-  const login = useCallback(async (email: string, password: string) => {
+  const login = useCallback(async (email: string, password: string): Promise<UserPublic> => {
     const { data } = await api.post<{ user: UserPublic; accessToken: string }>('/auth/login', {
       email,
       password,
     })
     setAccessToken(data.accessToken)
     setUser(data.user)
+    return data.user
   }, [])
 
   const logout = useCallback(async () => {

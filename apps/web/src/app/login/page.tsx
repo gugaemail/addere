@@ -2,11 +2,12 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { api, setAccessToken } from '@/lib/api'
+import { useAuth } from '@/contexts/AuthContext'
 import { Logo } from '@/components/Logo'
 
 export default function LoginPage() {
   const router = useRouter()
+  const { login } = useAuth()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -18,14 +19,13 @@ export default function LoginPage() {
     setLoading(true)
 
     try {
-      const { data } = await api.post('/auth/login', { email, password })
+      const user = await login(email, password)
 
-      if (data.user.role !== 'SUPERADMIN') {
+      if (user.role !== 'SUPERADMIN') {
         setError('Acesso restrito ao administrador da plataforma.')
         return
       }
 
-      setAccessToken(data.accessToken)
       router.push('/dashboard')
     } catch (err: unknown) {
       const message =
