@@ -1,10 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@addere/db'
+import { requireSuperAdmin } from '@/lib/require-superadmin'
 
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ pilotId: string }> },
 ) {
+  const auth = await requireSuperAdmin(req)
+  if ('error' in auth) return auth.error
+
   const { pilotId } = await params
   const since = req.nextUrl.searchParams.get('since')
     ? new Date(req.nextUrl.searchParams.get('since')!)

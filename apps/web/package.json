@@ -7,7 +7,10 @@
     "build": "prisma generate --schema=../../packages/db/prisma/schema.prisma && next build",
     "start": "next start",
     "lint": "next lint",
-    "type-check": "tsc --noEmit"
+    "type-check": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
     "@addere/db": "*",
@@ -18,6 +21,7 @@
     "@tanstack/react-query": "^5.51.1",
     "axios": "^1.15.0",
     "clsx": "^2.1.1",
+    "jose": "^6.2.3",
     "lucide-react": "^0.400.0",
     "next": "^15.5.15",
     "react": "^18.3.1",
@@ -29,12 +33,19 @@
     "zod": "^3.23.8"
   },
   "devDependencies": {
+    "@testing-library/dom": "^10.4.1",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
     "@types/node": "^20.14.11",
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
+    "@vitejs/plugin-react": "^6.0.3",
+    "@vitest/coverage-v8": "^4.1.9",
     "autoprefixer": "^10.4.19",
+    "jsdom": "^20.0.3",
     "postcss": "^8.4.39",
     "tailwindcss": "^3.4.6",
-    "typescript": "^5.4.5"
+    "typescript": "^5.4.5",
+    "vitest": "^4.1.9"
   }
 }

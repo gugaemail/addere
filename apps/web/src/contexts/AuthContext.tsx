@@ -27,7 +27,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const { data } = await axios.post(
           `${process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3333'}/auth/refresh`,
           {},
-          { withCredentials: true }
+          { withCredentials: true, headers: { 'X-Requested-With': 'XMLHttpRequest' } },
         )
         setAccessToken(data.accessToken)
         // Obtém o usuário atual com o novo token
