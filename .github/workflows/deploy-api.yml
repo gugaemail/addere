@@ -9,8 +9,34 @@ on:
       - 'packages/types/**'
 
 jobs:
+  # ── Gate de qualidade — bloqueia o deploy se falhar ──────────────────────
+  quality-gate:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Instalar dependências
+        run: npm ci
+
+      - name: Auditoria de segurança (bloqueia HIGH/CRITICAL)
+        run: npm audit --audit-level=high
+
+      - name: Testes da API
+        run: npm run test --workspace=apps/api
+
+      - name: Type check da API
+        run: npm run type-check --workspace=apps/api
+
+  # ── Deploy — só roda se quality-gate passar ───────────────────────────────
   migrate-and-deploy:
     runs-on: ubuntu-latest
+    needs: quality-gate
 
     steps:
       - uses: actions/checkout@v4
