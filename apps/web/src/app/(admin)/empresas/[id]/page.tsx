@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
+import { ArrowLeft, Loader2, AlertCircle, CheckCircle, X, Search } from 'lucide-react'
 import { api } from '@/lib/api'
 import { CreateUserModal } from './CreateUserModal'
 import {
@@ -295,99 +296,51 @@ export default function EmpresaPage() {
 
   // ── Sync ──────────────────────────────────────────────────────────────────
 
-  async function syncProducts() {
-    setSyncingProducts(true); setSyncResult(null); setSyncError(null)
+  async function runSync(
+    endpoint: string,
+    entityLabel: string,
+    setLoading: (v: boolean) => void,
+    onSuccess?: () => void,
+  ) {
+    setLoading(true); setSyncResult(null); setSyncError(null)
     try {
-      const { data } = await api.post<SyncResult>('/sync/products', { companyId: id })
-      setSyncResult({ entity: 'Produtos', result: data })
-      fetchProducts()
+      const { data } = await api.post<SyncResult>(endpoint, { companyId: id })
+      setSyncResult({ entity: entityLabel, result: data })
+      onSuccess?.()
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? 'Erro ao sincronizar'
-      setSyncError({ entity: 'produtos', msg })
-    } finally { setSyncingProducts(false) }
+      setSyncError({ entity: entityLabel.toLowerCase(), msg })
+    } finally { setLoading(false) }
   }
 
-  async function syncCustomers() {
-    setSyncingCustomers(true); setSyncResult(null); setSyncError(null)
-    try {
-      const { data } = await api.post<SyncResult>('/sync/customers', { companyId: id })
-      setSyncResult({ entity: 'Clientes', result: data })
-      fetchCustomers()
-    } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? 'Erro ao sincronizar'
-      setSyncError({ entity: 'clientes', msg })
-    } finally { setSyncingCustomers(false) }
-  }
+  const syncProducts       = () => runSync('/sync/products',       'Produtos',                 setSyncingProducts,       fetchProducts)
+  const syncCustomers      = () => runSync('/sync/customers',      'Clientes',                 setSyncingCustomers,      fetchCustomers)
+  const syncTransportadoras = () => runSync('/sync/transportadoras', 'Transportadoras',         setSyncingTransportadoras)
+  const syncCondPags       = () => runSync('/sync/cond-pags',      'Condições de pagamento',   setSyncingCondPags)
 
-  async function syncTransportadoras() {
-    setSyncingTransportadoras(true); setSyncResult(null); setSyncError(null)
-    try {
-      const { data } = await api.post<SyncResult>('/sync/transportadoras', { companyId: id })
-      setSyncResult({ entity: 'Transportadoras', result: data })
-    } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? 'Erro ao sincronizar'
-      setSyncError({ entity: 'transportadoras', msg })
-    } finally { setSyncingTransportadoras(false) }
-  }
-
-  async function syncCondPags() {
-    setSyncingCondPags(true); setSyncResult(null); setSyncError(null)
-    try {
-      const { data } = await api.post<SyncResult>('/sync/cond-pags', { companyId: id })
-      setSyncResult({ entity: 'Condições de pagamento', result: data })
-    } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? 'Erro ao sincronizar'
-      setSyncError({ entity: 'condições de pagamento', msg })
-    } finally { setSyncingCondPags(false) }
-  }
-
-  async function testToken() {
-    setTestingToken(true)
+  async function runProtheusTest(
+    endpoint: string,
+    label: string,
+    setLoading: (v: boolean) => void,
+  ) {
+    setLoading(true)
     setTokenTestResult(null)
-    setRawModalTitle('Testar Token')
+    setRawModalTitle(label)
     try {
-      const { data } = await api.post('/sync/test-token', { companyId: id })
+      const { data } = await api.post(endpoint, { companyId: id })
       setTokenTestResult(data)
     } catch (err: unknown) {
       const e = err as { response?: { data?: unknown }; message: string }
       setTokenTestResult(e.response?.data ?? { error: e.message })
     } finally {
-      setTestingToken(false)
+      setLoading(false)
       setShowTokenModal(true)
     }
   }
 
-  async function testProducts() {
-    setTestingProducts(true)
-    setTokenTestResult(null)
-    setRawModalTitle('Testar Produtos')
-    try {
-      const { data } = await api.post('/sync/test-products', { companyId: id })
-      setTokenTestResult(data)
-    } catch (err: unknown) {
-      const e = err as { response?: { data?: unknown }; message: string }
-      setTokenTestResult(e.response?.data ?? { error: e.message })
-    } finally {
-      setTestingProducts(false)
-      setShowTokenModal(true)
-    }
-  }
-
-  async function testCustomers() {
-    setTestingCustomers(true)
-    setTokenTestResult(null)
-    setRawModalTitle('Testar Clientes')
-    try {
-      const { data } = await api.post('/sync/test-customers', { companyId: id })
-      setTokenTestResult(data)
-    } catch (err: unknown) {
-      const e = err as { response?: { data?: unknown }; message: string }
-      setTokenTestResult(e.response?.data ?? { error: e.message })
-    } finally {
-      setTestingCustomers(false)
-      setShowTokenModal(true)
-    }
-  }
+  const testToken     = () => runProtheusTest('/sync/test-token',     'Testar Token',    setTestingToken)
+  const testProducts  = () => runProtheusTest('/sync/test-products',  'Testar Produtos', setTestingProducts)
+  const testCustomers = () => runProtheusTest('/sync/test-customers', 'Testar Clientes', setTestingCustomers)
 
   if (loading) return <PageSkeleton />
   if (fetchError) return (
@@ -475,9 +428,7 @@ export default function EmpresaPage() {
             onClick={() => router.push('/dashboard')}
             className="flex items-center gap-1 text-sm text-[var(--text-muted)] hover:text-brand-500 mb-3 transition-colors"
           >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18" />
-            </svg>
+            <ArrowLeft className="w-4 h-4" />
             Voltar
           </button>
           <h1 className="text-2xl font-bold tracking-tight text-[var(--text-primary)]">{company.name}</h1>
@@ -817,17 +768,6 @@ export default function EmpresaPage() {
         const missingProd = !company.apiPord || !company.apiToken
           ? 'Configure apiToken e apiPord para habilitar.'
           : !hasActiveBranch ? 'Nenhuma filial ativa com Código Protheus configurado (aba Filiais).' : undefined
-        const spinnerSvg = (
-          <svg className="w-4 h-4 animate-spin shrink-0" fill="none" viewBox="0 0 24 24">
-            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
-          </svg>
-        )
-        const warnSvg = (
-          <svg className="w-3.5 h-3.5 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z" />
-          </svg>
-        )
         const cardHeader = (title: string, subtitle?: string) => (
           <div className="px-4 py-3 bg-[var(--bg-subtle)] border-b border-[var(--border)]">
             <h3 className="text-sm font-semibold text-[var(--text-primary)]">{title}</h3>
@@ -877,9 +817,7 @@ export default function EmpresaPage() {
 
             {syncResult && (
               <div className="flex items-start gap-2 p-3.5 bg-green-500/10 border border-green-500/20 rounded-lg">
-                <svg className="w-4 h-4 shrink-0 mt-0.5 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
-                </svg>
+                <CheckCircle className="w-4 h-4 shrink-0 mt-0.5 text-green-500" />
                 <div>
                   <p className="text-sm font-medium text-green-600">{syncResult.entity}: {syncResult.result.synced} de {syncResult.result.total} sincronizados.</p>
                   {syncResult.result.errors.length > 0 && (
@@ -892,9 +830,7 @@ export default function EmpresaPage() {
             )}
             {syncError && (
               <div className="flex items-start gap-2 p-3.5 bg-red-500/10 border border-red-500/20 rounded-lg">
-                <svg className="w-4 h-4 shrink-0 mt-0.5 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z" />
-                </svg>
+                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-red-500" />
                 <p className="text-sm text-red-500">{syncError.msg}</p>
               </div>
             )}
@@ -909,7 +845,7 @@ export default function EmpresaPage() {
                 </div>
                 <button onClick={testToken} disabled={testingToken || !company.apiToken || !company.usrProtheus || !company.passProtheus}
                   className="shrink-0 px-4 py-2 rounded-lg text-sm font-medium bg-brand-500 text-white hover:bg-brand-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center gap-2">
-                  {testingToken && spinnerSvg}{testingToken ? 'Testando…' : 'Testar Token'}
+                  {testingToken && <Loader2 className="w-4 h-4 animate-spin shrink-0" />}{testingToken ? 'Testando…' : 'Testar Token'}
                 </button>
               </div>
             </div>
@@ -926,18 +862,18 @@ export default function EmpresaPage() {
                     </div>
                     <button onClick={testProducts} disabled={testingProducts || !company.apiPord || !company.apiToken || !company.usrProtheus || !company.passProtheus}
                       className="w-full px-3 py-2 rounded-lg text-sm font-medium border border-[var(--border)] text-[var(--text-secondary)] hover:bg-[var(--bg-subtle)] disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2">
-                      {testingProducts && spinnerSvg}{testingProducts ? 'Testando…' : 'Testar API'}
+                      {testingProducts && <Loader2 className="w-4 h-4 animate-spin shrink-0" />}{testingProducts ? 'Testando…' : 'Testar API'}
                     </button>
                   </div>
                   <div className="border border-[var(--border)] rounded-lg p-3 flex flex-col justify-between gap-3">
                     <div>
                       <p className="text-sm font-medium text-[var(--text-primary)]">Sincronizar</p>
                       <p className="text-xs text-[var(--text-muted)] mt-0.5">Importa via <code className="bg-[var(--bg-subtle)] px-1 rounded">apiPord</code> e atualiza o catálogo.</p>
-                      {missingProd && <p className="flex items-start gap-1 mt-1.5 text-xs text-yellow-600">{warnSvg}{missingProd}</p>}
+                      {missingProd && <p className="flex items-start gap-1 mt-1.5 text-xs text-yellow-600"><AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" />{missingProd}</p>}
                     </div>
                     <button onClick={syncProducts} disabled={syncingProducts || !!missingProd}
                       className="w-full px-3 py-2 rounded-lg text-sm font-medium bg-brand-600 text-white hover:bg-brand-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2">
-                      {syncingProducts && spinnerSvg}{syncingProducts ? 'Sincronizando…' : 'Sincronizar Produtos'}
+                      {syncingProducts && <Loader2 className="w-4 h-4 animate-spin shrink-0" />}{syncingProducts ? 'Sincronizando…' : 'Sincronizar Produtos'}
                     </button>
                   </div>
                 </div>
@@ -957,18 +893,18 @@ export default function EmpresaPage() {
                     </div>
                     <button onClick={testCustomers} disabled={testingCustomers || !company.apiCliente || !company.apiToken || !company.usrProtheus || !company.passProtheus}
                       className="w-full px-3 py-2 rounded-lg text-sm font-medium border border-[var(--border)] text-[var(--text-secondary)] hover:bg-[var(--bg-subtle)] disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2">
-                      {testingCustomers && spinnerSvg}{testingCustomers ? 'Testando…' : 'Testar API'}
+                      {testingCustomers && <Loader2 className="w-4 h-4 animate-spin shrink-0" />}{testingCustomers ? 'Testando…' : 'Testar API'}
                     </button>
                   </div>
                   <div className="border border-[var(--border)] rounded-lg p-3 flex flex-col justify-between gap-3">
                     <div>
                       <p className="text-sm font-medium text-[var(--text-primary)]">Sincronizar</p>
                       <p className="text-xs text-[var(--text-muted)] mt-0.5">Importa via <code className="bg-[var(--bg-subtle)] px-1 rounded">apiCliente</code> e atualiza a base.</p>
-                      {(!company.apiCliente || !company.apiToken) && <p className="flex items-start gap-1 mt-1.5 text-xs text-yellow-600">{warnSvg}Configure apiToken e apiCliente para habilitar.</p>}
+                      {(!company.apiCliente || !company.apiToken) && <p className="flex items-start gap-1 mt-1.5 text-xs text-yellow-600"><AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" />Configure apiToken e apiCliente para habilitar.</p>}
                     </div>
                     <button onClick={syncCustomers} disabled={syncingCustomers || !company.apiCliente || !company.apiToken}
                       className="w-full px-3 py-2 rounded-lg text-sm font-medium bg-brand-600 text-white hover:bg-brand-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2">
-                      {syncingCustomers && spinnerSvg}{syncingCustomers ? 'Sincronizando…' : 'Sincronizar Clientes'}
+                      {syncingCustomers && <Loader2 className="w-4 h-4 animate-spin shrink-0" />}{syncingCustomers ? 'Sincronizando…' : 'Sincronizar Clientes'}
                     </button>
                   </div>
                 </div>
@@ -982,11 +918,11 @@ export default function EmpresaPage() {
               <div className="p-4 flex items-center justify-between gap-4">
                 <div>
                   <p className="text-xs text-[var(--text-muted)]">Importa via <code className="bg-[var(--bg-subtle)] px-1 rounded">apiTransp</code> e atualiza a lista disponível nos pedidos.</p>
-                  {(!company.apiTransp || !company.apiToken) && <p className="flex items-center gap-1 mt-1.5 text-xs text-yellow-600">{warnSvg}Configure apiToken e apiTransp para habilitar.</p>}
+                  {(!company.apiTransp || !company.apiToken) && <p className="flex items-center gap-1 mt-1.5 text-xs text-yellow-600"><AlertCircle className="w-3.5 h-3.5 shrink-0" />Configure apiToken e apiTransp para habilitar.</p>}
                 </div>
                 <button onClick={syncTransportadoras} disabled={syncingTransportadoras || !company.apiTransp || !company.apiToken}
                   className="shrink-0 px-4 py-2 rounded-lg text-sm font-medium bg-brand-600 text-white hover:bg-brand-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2">
-                  {syncingTransportadoras && spinnerSvg}{syncingTransportadoras ? 'Sincronizando…' : 'Sincronizar Transportadoras'}
+                  {syncingTransportadoras && <Loader2 className="w-4 h-4 animate-spin shrink-0" />}{syncingTransportadoras ? 'Sincronizando…' : 'Sincronizar Transportadoras'}
                 </button>
               </div>
             </div>
@@ -997,11 +933,11 @@ export default function EmpresaPage() {
               <div className="p-4 flex items-center justify-between gap-4">
                 <div>
                   <p className="text-xs text-[var(--text-muted)]">Importa via <code className="bg-[var(--bg-subtle)] px-1 rounded">apiCondPag</code> e atualiza as opções disponíveis nos pedidos.</p>
-                  {(!company.apiCondPag || !company.apiToken) && <p className="flex items-center gap-1 mt-1.5 text-xs text-yellow-600">{warnSvg}Configure apiToken e apiCondPag para habilitar.</p>}
+                  {(!company.apiCondPag || !company.apiToken) && <p className="flex items-center gap-1 mt-1.5 text-xs text-yellow-600"><AlertCircle className="w-3.5 h-3.5 shrink-0" />Configure apiToken e apiCondPag para habilitar.</p>}
                 </div>
                 <button onClick={syncCondPags} disabled={syncingCondPags || !company.apiCondPag || !company.apiToken}
                   className="shrink-0 px-4 py-2 rounded-lg text-sm font-medium bg-brand-600 text-white hover:bg-brand-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2">
-                  {syncingCondPags && spinnerSvg}{syncingCondPags ? 'Sincronizando…' : 'Sincronizar Cond. Pagamento'}
+                  {syncingCondPags && <Loader2 className="w-4 h-4 animate-spin shrink-0" />}{syncingCondPags ? 'Sincronizando…' : 'Sincronizar Cond. Pagamento'}
                 </button>
               </div>
             </div>
@@ -1084,16 +1020,12 @@ export default function EmpresaPage() {
               <div className="flex items-center gap-2">
                 {(tokenTestResult as { ok?: boolean })?.ok === false ? (
                   <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-red-500">
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z" />
-                    </svg>
+                    <AlertCircle className="w-4 h-4" />
                     {rawModalTitle} — Falha
                   </span>
                 ) : (
                   <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-green-500">
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
-                    </svg>
+                    <CheckCircle className="w-4 h-4" />
                     {rawModalTitle} — Sucesso
                   </span>
                 )}
@@ -1107,9 +1039,7 @@ export default function EmpresaPage() {
                 onClick={() => setShowTokenModal(false)}
                 className="p-1.5 rounded-lg hover:bg-[var(--bg-subtle)] text-[var(--text-muted)] transition-colors"
               >
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
-                </svg>
+                <X className="w-4 h-4" />
               </button>
             </div>
             <div className="overflow-auto p-4">
@@ -1408,9 +1338,7 @@ function SearchInput({ value, onChange, placeholder }: {
 }) {
   return (
     <div className="relative max-w-xs">
-      <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[var(--text-muted)] pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.197 5.197a7.5 7.5 0 0 0 10.606 10.606Z" />
-      </svg>
+      <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[var(--text-muted)] pointer-events-none" />
       <input
         type="text"
         value={value}

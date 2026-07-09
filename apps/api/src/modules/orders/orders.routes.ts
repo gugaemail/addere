@@ -5,11 +5,19 @@ import { listOrders, getOrderStats, getOrder, createOrder, updateOrder, cancelOr
 import { getEffectivePermissions } from '../permissions/permissions.service'
 import { syncOrderToProtheus, consultOrderStatus } from '../sync/sync.service'
 
+function requireCompanyId(reply: FastifyReply, companyId: string | null | undefined): companyId is string {
+  if (!companyId) {
+    reply.status(403).send({ message: 'Rota disponível apenas para usuários de uma empresa' })
+    return false
+  }
+  return true
+}
+
 export default async function ordersRoutes(app: FastifyInstance) {
   // GET /orders/stats — deve vir antes de /:id para não conflitar
   app.get('/stats', { preHandler: authenticate }, async (request: FastifyRequest, reply: FastifyReply) => {
     const { companyId } = request.user
-    if (!companyId) return reply.status(403).send({ message: 'Rota disponível apenas para usuários de uma empresa' })
+    if (!requireCompanyId(reply, companyId)) return
     const stats = await getOrderStats(request.user.sub, companyId)
     return reply.send(stats)
   })
@@ -17,7 +25,7 @@ export default async function ordersRoutes(app: FastifyInstance) {
   // GET /orders?limit=5
   app.get('/', { preHandler: authenticate }, async (request: FastifyRequest, reply: FastifyReply) => {
     const { companyId } = request.user
-    if (!companyId) return reply.status(403).send({ message: 'Rota disponível apenas para usuários de uma empresa' })
+    if (!requireCompanyId(reply, companyId)) return
     const { limit } = request.query as { limit?: string }
     const MAX_PAGE_SIZE = 500
     const raw = parseInt(limit ?? '', 10)
@@ -29,7 +37,7 @@ export default async function ordersRoutes(app: FastifyInstance) {
   // GET /orders/:id
   app.get('/:id', { preHandler: authenticate }, async (request: FastifyRequest, reply: FastifyReply) => {
     const { companyId } = request.user
-    if (!companyId) return reply.status(403).send({ message: 'Rota disponível apenas para usuários de uma empresa' })
+    if (!requireCompanyId(reply, companyId)) return
     const { id } = request.params as { id: string }
     const order = await getOrder(request.user.sub, companyId, id)
     if (!order) return reply.status(404).send({ message: 'Pedido não encontrado' })
@@ -39,7 +47,7 @@ export default async function ordersRoutes(app: FastifyInstance) {
   // POST /orders
   app.post('/', { preHandler: authenticate, config: { rateLimit: { max: 60, timeWindow: '1 minute' } } }, async (request: FastifyRequest, reply: FastifyReply) => {
     const { companyId } = request.user
-    if (!companyId) return reply.status(403).send({ message: 'Rota disponível apenas para usuários de uma empresa' })
+    if (!requireCompanyId(reply, companyId)) return
 
     const result = createOrderSchema.safeParse(request.body)
     if (!result.success) {
@@ -58,7 +66,7 @@ export default async function ordersRoutes(app: FastifyInstance) {
   // PUT /orders/:id — atualiza pedido PENDING
   app.put('/:id', { preHandler: authenticate }, async (request: FastifyRequest, reply: FastifyReply) => {
     const { companyId } = request.user
-    if (!companyId) return reply.status(403).send({ message: 'Rota disponível apenas para usuários de uma empresa' })
+    if (!requireCompanyId(reply, companyId)) return
 
     const { id } = request.params as { id: string }
     const result = updateOrderSchema.safeParse(request.body)
@@ -78,7 +86,7 @@ export default async function ordersRoutes(app: FastifyInstance) {
   // GET /orders/:id/status — consulta status do pedido no Protheus via apiConsPed
   app.get('/:id/status', { preHandler: authenticate }, async (request: FastifyRequest, reply: FastifyReply) => {
     const { companyId } = request.user
-    if (!companyId) return reply.status(403).send({ message: 'Rota disponível apenas para usuários de uma empresa' })
+    if (!requireCompanyId(reply, companyId)) return
     const { id } = request.params as { id: string }
     try {
       const result = await consultOrderStatus(id, companyId)
@@ -91,7 +99,7 @@ export default async function ordersRoutes(app: FastifyInstance) {
   // POST /orders/:id/sync — envia pedido PENDING ao Protheus
   app.post('/:id/sync', { preHandler: authenticate, config: { rateLimit: { max: 10, timeWindow: '1 minute' } } }, async (request: FastifyRequest, reply: FastifyReply) => {
     const { companyId } = request.user
-    if (!companyId) return reply.status(403).send({ message: 'Rota disponível apenas para usuários de uma empresa' })
+    if (!requireCompanyId(reply, companyId)) return
     const { id } = request.params as { id: string }
     try {
       const result = await syncOrderToProtheus(id, companyId)
@@ -104,7 +112,7 @@ export default async function ordersRoutes(app: FastifyInstance) {
   // PATCH /orders/:id/reset-pending — reverte pedido SYNCED para PENDING (requer permissão orders.reset_pending)
   app.patch('/:id/reset-pending', { preHandler: requirePermission('orders.reset_pending') }, async (request: FastifyRequest, reply: FastifyReply) => {
     const { companyId } = request.user
-    if (!companyId) return reply.status(403).send({ message: 'Rota disponível apenas para usuários de uma empresa' })
+    if (!requireCompanyId(reply, companyId)) return
     const { id } = request.params as { id: string }
     try {
       const order = await resetOrderToPending(companyId, id)
@@ -117,7 +125,7 @@ export default async function ordersRoutes(app: FastifyInstance) {
   // PATCH /orders/:id/cancel — cancela pedido PENDING (dono do pedido ou admin)
   app.patch('/:id/cancel', { preHandler: authenticate }, async (request: FastifyRequest, reply: FastifyReply) => {
     const { companyId } = request.user
-    if (!companyId) return reply.status(403).send({ message: 'Rota disponível apenas para usuários de uma empresa' })
+    if (!requireCompanyId(reply, companyId)) return
     const { id } = request.params as { id: string }
     try {
       const order = await cancelOrder(request.user.sub, companyId, id)

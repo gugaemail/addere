@@ -46,11 +46,17 @@ export async function copyUserPermissions(fromUserId: string, toUserId: string):
   await setUserPermissions(toUserId, keys)
 }
 
+const SUPERADMIN_CACHE_KEY = '__superadmin__'
+
 // Retorna o conjunto de permissões efetivas do usuário. SUPERADMIN recebe o catálogo completo.
 export async function getEffectivePermissions(userId: string, role: UserRole): Promise<Set<string>> {
   if (role === 'SUPERADMIN') {
+    const cached = permissionCache.get(SUPERADMIN_CACHE_KEY)
+    if (cached && cached.expiresAt > Date.now()) return cached.keys
     const catalog = await listPermissionCatalog()
-    return new Set(catalog.map((permission) => permission.key))
+    const keys = new Set(catalog.map((permission) => permission.key))
+    permissionCache.set(SUPERADMIN_CACHE_KEY, { keys, expiresAt: Date.now() + CACHE_TTL_MS })
+    return keys
   }
 
   const cached = permissionCache.get(userId)
