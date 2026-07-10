@@ -30,6 +30,9 @@ module.exports = {
       'expo-router',
       'expo-secure-store',
       'expo-sqlite',
+      ['expo-local-authentication', {
+        faceIDPermission: 'Usar Face ID para autenticar no Addere.',
+      }],
       ['@sentry/react-native/expo', { uploadSourceMaps: false }],
       [
         'expo-media-library',

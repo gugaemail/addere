@@ -5,6 +5,7 @@ import { decryptCredential } from '../../lib/protheus-crypto'
 import type { SyncSchedule } from '@addere/types'
 import { DEFAULT_SYNC_SCHEDULE } from '@addere/types'
 import { logProtheusCall } from './protheus-logger'
+import { logger } from '../../lib/logger'
 
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -571,11 +572,11 @@ export async function syncOrderToProtheus(orderId: string, companyId: string) {
     const creds   = getCredentials(company)
     const payload = buildOrderPayload(order)
 
-    console.log(JSON.stringify({ event: 'sync-order-payload', orderId, payload }))
+    logger.info({ orderId, payload }, 'sync-order-payload')
     const t0 = Date.now()
     const rawResponse = await protheusPost(companyId, company.apiPedido, payload, creds)
     const ms = Date.now() - t0
-    console.log(JSON.stringify({ event: 'sync-order-response', orderId, ms, rawResponse }))
+    logger.info({ orderId, ms, rawResponse }, 'sync-order-response')
 
     // Protheus retorna array: [{ "Retorno": "100", "Mensagem": "...", "Pedido": "012283" }]
     const responseArray = Array.isArray(rawResponse) ? rawResponse as Record<string, unknown>[] : [rawResponse as Record<string, unknown>]
@@ -608,7 +609,7 @@ export async function syncOrderToProtheus(orderId: string, companyId: string) {
     return { protheusOrderId, mensagem: toStr(first['Mensagem']) }
   } catch (err) {
     const e = err as { response?: { status?: number; data?: unknown }; message?: string }
-    console.log(JSON.stringify({ event: 'sync-order-error', orderId, message: e.message, protheusResponse: e.response?.data }))
+    logger.error({ orderId, message: e.message, protheusResponse: e.response?.data }, 'sync-order-error')
     await logProtheusCall({
       companyId,
       operation:    'syncOrder',

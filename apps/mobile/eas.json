@@ -8,7 +8,8 @@
       "developmentClient": true,
       "distribution": "internal",
       "env": {
-        "EXPO_PUBLIC_APP_ENV": "development"
+        "EXPO_PUBLIC_APP_ENV": "development",
+        "EXPO_PUBLIC_API_URL": "https://addere-api-staging.onrender.com"
       }
     },
     "preview": {
@@ -23,6 +24,7 @@
     },
     "production": {
       "autoIncrement": true,
+      "credentialsSource": "remote",
       "env": {
         "EXPO_PUBLIC_APP_ENV": "production",
         "EXPO_PUBLIC_API_URL": "https://addere-api.onrender.com",
