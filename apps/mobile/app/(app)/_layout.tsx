@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { View } from 'react-native'
 import { Tabs } from 'expo-router'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { LayoutDashboard, Users, Package, ClipboardList } from 'lucide-react-native'
 import { brandScreenOptions } from '../../src/navigation/BrandHeader'
 import { OnboardingFlow, shouldShowOnboarding } from '../../src/components/onboarding/OnboardingFlow'
@@ -8,6 +9,7 @@ import { FeedbackPrompt } from '../../src/components/FeedbackPrompt'
 
 export default function AppLayout() {
   const [showOnboarding, setShowOnboarding] = useState(false)
+  const insets = useSafeAreaInsets()
 
   useEffect(() => {
     shouldShowOnboarding().then(setShowOnboarding)
@@ -29,8 +31,8 @@ export default function AppLayout() {
           backgroundColor: '#FFFFFF',
           borderTopColor:  '#E2E8F0',
           borderTopWidth:  1,
-          height:          60,
-          paddingBottom:   8,
+          height:          60 + insets.bottom,
+          paddingBottom:   Math.max(insets.bottom, 8),
         },
         tabBarLabelStyle: {
           fontFamily: 'Inter_400Regular',
