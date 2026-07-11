@@ -90,7 +90,7 @@ JWT com dois tokens: access token (8h) + refresh token (30d). Middleware de aute
 
 ### Banco de dados
 - PostgreSQL via Prisma ORM no backend (nunca usar SQL raw)
-- SQLite local via `expo-sqlite` no mobile para modo offline
+- Offline cache via TanStack Query Persister (`AsyncStorage`, 7 dias) — sem SQLite; `expo-sqlite` instalado mas não utilizado
 - Soft delete em `users`, `customers` e `products` via campo `active = false` (nunca deletar fisicamente)
 - O banco (Render) não é acessível localmente. Para gerar SQL de migration sem conexão usar:
   `prisma migrate diff --from-empty --to-schema-datamodel ./prisma/schema.prisma --script`
@@ -150,7 +150,7 @@ EXPO_PUBLIC_API_URL
 | 4 | Telas mobile (M-01 a M-07) | ✅ 100% |
 | 5 | Painel web admin (W-01, W-02) | ✅ 100% |
 | 6 | Integração Protheus | ✅ 100% |
-| 7 | Modo offline + sincronização | 🔄 30% — fila AsyncStorage/Zustand implementada; SQLite schema pendente |
+| 7 | Modo offline + sincronização | ✅ 100% |
 
 ### Fase 6 — Concluída
 
@@ -163,12 +163,16 @@ Todos os endpoints estão implementados em `apps/api/src/modules/sync/sync.route
 - **6.6** — `GET /orders/:id/status` — consulta status no Protheus
 - **6.7** — `GET /sync/metas` — metas do vendedor
 
-### Fase 7 — Modo offline (parcial)
+### Fase 7 — Modo offline (concluída)
 
-Implementado via Zustand + AsyncStorage (`src/store/syncStore.ts`, `src/services/syncEngine.ts`):
-- Fila de pedidos offline com retry e backoff exponencial
-- Cache de dados via TanStack Query Persister (7 dias)
-- Pendente: schema SQLite local (`expo-sqlite` instalado mas não utilizado)
+Implementado via Zustand + AsyncStorage + TanStack Query Persister:
+- Fila de pedidos offline com retry e backoff exponencial (`src/store/syncStore.ts`, `src/services/syncEngine.ts`)
+- Cache de dados via `PersistQueryClientProvider` (AsyncStorage, 7 dias) — produtos, clientes, transportadoras, condpags sobrevivem a reinicializações
+- Dashboard com cache manual próprio (`useStatsComCache`, `usePedidosComCache`, `useMetaComCache`)
+- Tela de pedidos pendentes (`app/(app)/pedidos/pendentes.tsx`) com retry individual e em lote
+- `PendingBanner` clicável em pedidos navega para tela de pendentes
+- Banner global de offline (`GlobalOfflineBanner`) em todos os tabs
+- `submitOrder` enfileira pedidos automaticamente quando sem conexão
 
 ## Arquivos Críticos
 

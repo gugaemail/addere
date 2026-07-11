@@ -1,11 +1,25 @@
 import { useState, useEffect } from 'react'
-import { View } from 'react-native'
+import { View, Text } from 'react-native'
 import { Tabs } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
-import { LayoutDashboard, Users, Package, ClipboardList } from 'lucide-react-native'
+import { LayoutDashboard, Users, Package, ClipboardList, WifiOff } from 'lucide-react-native'
 import { brandScreenOptions } from '../../src/navigation/BrandHeader'
 import { OnboardingFlow, shouldShowOnboarding } from '../../src/components/onboarding/OnboardingFlow'
 import { FeedbackPrompt } from '../../src/components/FeedbackPrompt'
+import { useSyncStore } from '../../src/store/syncStore'
+
+function GlobalOfflineBanner() {
+  const networkAvailable = useSyncStore((s) => s.networkAvailable)
+  if (networkAvailable) return null
+  return (
+    <View style={{ backgroundColor: '#EF4444', flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 6, gap: 8 }}>
+      <WifiOff size={12} color="#fff" strokeWidth={1.5} />
+      <Text style={{ fontFamily: 'Inter_400Regular', fontSize: 12, color: '#fff', flex: 1 }}>
+        Sem conexão — exibindo dados em cache
+      </Text>
+    </View>
+  )
+}
 
 export default function AppLayout() {
   const [showOnboarding, setShowOnboarding] = useState(false)
@@ -22,6 +36,7 @@ export default function AppLayout() {
         onComplete={() => setShowOnboarding(false)}
       />
       <FeedbackPrompt />
+      <GlobalOfflineBanner />
       <Tabs
       screenOptions={{
         ...brandScreenOptions,
