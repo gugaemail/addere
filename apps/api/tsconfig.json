@@ -4,7 +4,7 @@
     "module": "CommonJS",
     "moduleResolution": "Node",
     "outDir": "dist",
-    "rootDir": "src"
+    "rootDir": "../.."
   },
-  "include": ["src/**/*"]
+  "include": ["src/**/*", "../../packages/db/src/**/*", "../../packages/types/src/**/*"]
 }

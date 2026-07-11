@@ -123,7 +123,7 @@ export function ComponentsPreview() {
       <Section title="Card — padding variants">
         {(['xs', 'sm', 'md', 'lg', 'xl'] as const).map((p) => (
           <Card key={p} padding={p} style={s.cardItem}>
-            <Text style={s.cardText}>padding="{p}" — {spacing[p]}px</Text>
+            <Text style={s.cardText}>padding=&quot;{p}&quot; — {spacing[p]}px</Text>
           </Card>
         ))}
       </Section>
@@ -156,7 +156,7 @@ export function ComponentsPreview() {
 const s = StyleSheet.create({
   scroll: {
     flex: 1,
-    backgroundColor: colors.neutral.background,
+    backgroundColor: colors.neutral.bg,
   },
   content: {
     padding: spacing.lg,

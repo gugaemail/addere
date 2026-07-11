@@ -326,7 +326,7 @@ export async function createCustomer(companyId: string, input: CreateCustomerInp
   return prisma.customer.create({ data: { ...input, companyId } })
 }
 
-export interface UpdateCustomerInput extends Partial<CreateCustomerInput> {}
+export type UpdateCustomerInput = Partial<CreateCustomerInput>
 
 export async function updateCustomer(companyId: string, id: string, input: UpdateCustomerInput) {
   const exists = await prisma.customer.findFirst({ where: { id, companyId } })
@@ -377,7 +377,7 @@ export async function createProduct(companyId: string, input: CreateProductInput
   })
 }
 
-export interface UpdateProductInput extends Partial<CreateProductInput> {}
+export type UpdateProductInput = Partial<CreateProductInput>
 
 export async function updateProduct(companyId: string, id: string, input: UpdateProductInput) {
   const exists = await prisma.product.findFirst({ where: { id, companyId } })

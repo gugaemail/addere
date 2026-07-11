@@ -52,11 +52,6 @@ async function buildApp() {
   return app
 }
 
-function signToken(payload: object, secret = JWT_SECRET) {
-  // Gera token manualmente para testes usando o app
-  return null // será obtido via login no teste
-}
-
 let app: Awaited<ReturnType<typeof buildApp>>
 
 beforeAll(async () => {

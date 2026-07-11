@@ -2,6 +2,7 @@ import axios from 'axios'
 import { env } from '../config/env'
 import { useAuthStore } from '../store/auth.store'
 
+// eslint-disable-next-line import/no-named-as-default-member -- axios.create é o uso padrão do default export
 export const api = axios.create({
   baseURL: env.apiUrl,
   withCredentials: true, // envia cookies (refresh token HttpOnly)

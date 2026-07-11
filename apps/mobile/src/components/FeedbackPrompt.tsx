@@ -3,6 +3,7 @@ import {
   View, Text, StyleSheet, Modal, TouchableOpacity, TextInput,
   KeyboardAvoidingView, Platform, Animated,
 } from 'react-native'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { ThumbsUp, ThumbsDown, X } from 'lucide-react-native'
 import { useSyncStore } from '../store/syncStore'
 import { api } from '../lib/api'
@@ -17,6 +18,7 @@ export function FeedbackPrompt() {
   const [comment, setComment] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const slideAnim = useRef(new Animated.Value(300)).current
+  const insets = useSafeAreaInsets()
 
   const justSyncedOrderAt = useSyncStore((s) => s.justSyncedOrderAt)
   const clearJustSyncedOrder = useSyncStore((s) => s.clearJustSyncedOrder)
@@ -92,7 +94,7 @@ export function FeedbackPrompt() {
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
         <TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} onPress={dismiss} />
-        <Animated.View style={[styles.sheet, { transform: [{ translateY: slideAnim }] }]}>
+        <Animated.View style={[styles.sheet, { paddingBottom: insets.bottom + 16, transform: [{ translateY: slideAnim }] }]}>
           {/* Alça */}
           <View style={styles.handle} />
 
@@ -167,7 +169,6 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 24,
     paddingHorizontal: 24,
     paddingTop: 12,
-    paddingBottom: 36,
     minHeight: 200,
   },
   handle: {

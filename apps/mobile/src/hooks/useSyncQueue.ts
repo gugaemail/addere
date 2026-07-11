@@ -18,7 +18,7 @@ export function useSyncQueue() {
   const pendingItems    = useSyncStore(selectPendingItems)
   const errorItems      = useSyncStore(selectErrorItems)
 
-  const { enqueue, markError, clearSynced } = useSyncStore.getState()
+  const { enqueue, clearSynced } = useSyncStore.getState()
 
   function enqueueOrder(payload: CreateOrderInput) {
     return enqueue('order', payload)

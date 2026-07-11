@@ -9,6 +9,9 @@ import {
   StyleSheet,
   Alert,
   ScrollView,
+  BackHandler,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native'
 import { useRouter, Stack } from 'expo-router'
 import { useFocusEffect } from '@react-navigation/native'
@@ -705,6 +708,28 @@ export default function NovoPedidoScreen() {
     }, [])
   )
 
+  // No Android, o botão físico de voltar por padrão sai da tela inteira (pop do
+  // stack), pulando a confirmação de "Cancelar pedido" e descartando os dados
+  // do carrinho silenciosamente. Fazemos o botão físico voltar um step por vez,
+  // igual ao "← Voltar" em tela, e só deixamos o comportamento padrão no step 1.
+  useFocusEffect(
+    useCallback(() => {
+      const onBackPress = () => {
+        if (step === 2) {
+          setStep(1)
+          return true
+        }
+        if (step === 3) {
+          setStep(2)
+          return true
+        }
+        return false
+      }
+      const sub = BackHandler.addEventListener('hardwareBackPress', onBackPress)
+      return () => sub.remove()
+    }, [step])
+  )
+
   // Auto-preenche transportadora e condPag a partir dos padrões do cliente
   useEffect(() => {
     if (!customer) return
@@ -782,7 +807,10 @@ export default function NovoPedidoScreen() {
       <Stack.Screen options={{ title: `Novo pedido — ${stepLabel[step - 1]}` }} />
       <StepIndicator current={step} />
 
-      <View style={{ flex: 1, padding: 16 }}>
+      <KeyboardAvoidingView
+        style={{ flex: 1, padding: 16 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
         {step === 1 && <Step1 onComplete={handleStep1Complete} />}
         {step === 2 && (
           <View style={{ flex: 1 }}>
@@ -817,7 +845,7 @@ export default function NovoPedidoScreen() {
             isLoading={isPending}
           />
         )}
-      </View>
+      </KeyboardAvoidingView>
     </View>
   )
 }

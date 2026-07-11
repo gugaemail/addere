@@ -20,13 +20,12 @@ vi.mock('axios', () => ({
   },
 }))
 
-import { api, setAccessToken, clearAccessToken } from '@/lib/api'
+import { api, setAccessToken } from '@/lib/api'
 import axios from 'axios'
 
-const mockApi = api as { post: ReturnType<typeof vi.fn>; get: ReturnType<typeof vi.fn> }
+const mockApi = api as unknown as { post: ReturnType<typeof vi.fn>; get: ReturnType<typeof vi.fn> }
 const mockSetAccessToken = setAccessToken as ReturnType<typeof vi.fn>
-const mockClearAccessToken = clearAccessToken as ReturnType<typeof vi.fn>
-const mockAxios = axios as { post: ReturnType<typeof vi.fn> }
+const mockAxios = axios as unknown as { post: ReturnType<typeof vi.fn> }
 
 const adminUser = {
   id: 'user-1',
@@ -129,7 +128,8 @@ describe('AuthProvider — login()', () => {
     render(<AuthProvider><Capture /></AuthProvider>)
     await waitFor(() => expect(capturedAuth?.isLoading).toBe(false))
 
-    await expect(capturedAuth?.login('x@x.com', 'errada')).rejects.toBeDefined()
+    const ctx = capturedAuth as ReturnType<typeof useAuth> | null
+    await expect(ctx?.login('x@x.com', 'errada')).rejects.toBeDefined()
     expect(mockSetAccessToken).not.toHaveBeenCalled()
   })
 })
@@ -170,9 +170,6 @@ describe('AuthProvider — flags de role', () => {
     const superAdmin = { ...adminUser, role: 'SUPERADMIN' }
     mockAxios.post.mockRejectedValueOnce(new Error('sem sessão'))
     mockApi.post.mockResolvedValue({ data: { user: superAdmin, accessToken: 'tok' } })
-
-    let capturedAuth: ReturnType<typeof useAuth> | null = null
-    render(<AuthProvider><span ref={() => { capturedAuth = null }} /></AuthProvider>)
 
     // Verifica comportamento via contexto
     function CheckFlags() {
