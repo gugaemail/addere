@@ -2,7 +2,7 @@ export type SyncStatus = 'pending' | 'syncing' | 'error' | 'synced'
 
 export interface SyncQueueItem {
   id: string
-  type: 'order' | 'order_update'
+  type: 'order'
   payload: unknown
   status: SyncStatus
   attempts: number

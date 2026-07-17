@@ -223,6 +223,7 @@ model RefreshToken {
 
   createdAt DateTime @default(now())
 
+  @@index([userId])
   @@map("refresh_tokens")
 }
 
@@ -376,6 +377,7 @@ model Order {
 
   @@index([userId, companyId])
   @@index([companyId, status])
+  @@index([companyId, createdAt])
   @@map("orders")
 }
 
@@ -512,5 +514,6 @@ model ProtheusLog {
 
   @@index([companyId, createdAt])
   @@index([companyId, operation, success])
+  @@index([operation])
   @@map("protheus_logs")
 }

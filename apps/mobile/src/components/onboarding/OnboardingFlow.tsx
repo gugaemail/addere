@@ -1,14 +1,14 @@
 import { useState, useCallback } from 'react'
 import {
   View, Text, StyleSheet, Modal, TouchableOpacity,
-  Dimensions, Animated,
+  useWindowDimensions,
 } from 'react-native'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import Svg, { Circle, Rect, Path, Line } from 'react-native-svg'
 import { colors } from '../../theme/colors'
 
 const STORAGE_KEY = 'hasCompletedOnboarding'
-const { width } = Dimensions.get('window')
 
 // ─── Ilustrações SVG ─────────────────────────────────────────────────────────
 
@@ -113,6 +113,8 @@ interface Props {
 
 export function OnboardingFlow({ visible, onComplete }: Props) {
   const [index, setIndex] = useState(0)
+  const insets = useSafeAreaInsets()
+  const { width } = useWindowDimensions()
 
   const advance = useCallback(async () => {
     if (index < screens.length - 1) {
@@ -126,8 +128,14 @@ export function OnboardingFlow({ visible, onComplete }: Props) {
   const screen = screens[index]
 
   return (
-    <Modal visible={visible} animationType="fade" transparent={false} statusBarTranslucent>
-      <View style={styles.container}>
+    <Modal
+      visible={visible}
+      animationType="fade"
+      transparent={false}
+      statusBarTranslucent
+      onRequestClose={() => {}}
+    >
+      <View style={[styles.container, { paddingTop: insets.top + 24, paddingBottom: insets.bottom + 24 }]}>
         {/* Indicadores de progresso */}
         <View style={styles.dots}>
           {screens.map((_, i) => (
@@ -148,7 +156,7 @@ export function OnboardingFlow({ visible, onComplete }: Props) {
           <Text style={styles.title}>{screen.title}</Text>
 
           {screen.subtitle && (
-            <Text style={styles.subtitle}>{screen.subtitle}</Text>
+            <Text style={[styles.subtitle, { maxWidth: width - 80 }]}>{screen.subtitle}</Text>
           )}
 
           {'steps' in screen && screen.steps && (
@@ -184,8 +192,6 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#F8FAFC',
     paddingHorizontal: 24,
-    paddingTop: 60,
-    paddingBottom: 40,
     alignItems: 'center',
   },
   dots: {
@@ -227,7 +233,6 @@ const styles = StyleSheet.create({
     color: '#64748B',
     textAlign: 'center',
     lineHeight: 24,
-    maxWidth: width - 80,
   },
   steps: {
     width: '100%',

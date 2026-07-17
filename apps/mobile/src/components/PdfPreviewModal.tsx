@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
   Alert,
 } from 'react-native'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { FileText, Mail, Download, MessageCircle, X } from 'lucide-react-native'
 import { generateOrderPdf } from '../services/pdfService'
 import { shareViaWhatsApp, shareViaEmail, saveToCameraRoll } from '../services/shareService'
@@ -46,6 +47,7 @@ export function PdfPreviewModal({ visible, order, onClose }: Props) {
   const [loading, setLoading] = useState(false)
   const [pdfUri, setPdfUri] = useState<string | null>(null)
   const userName = useAuthStore((s) => s.user?.name)
+  const insets = useSafeAreaInsets()
 
   // Limpa o PDF em cache ao abrir um novo pedido
   useEffect(() => {
@@ -115,7 +117,7 @@ export function PdfPreviewModal({ visible, order, onClose }: Props) {
       <View style={s.overlay}>
         <TouchableOpacity style={s.backdrop} activeOpacity={1} onPress={onClose} />
 
-        <View style={s.sheet}>
+        <View style={[s.sheet, { paddingBottom: insets.bottom + 16 }]}>
           {/* Alça visual do bottom sheet */}
           <View style={s.handle} />
 
@@ -185,7 +187,6 @@ const s = StyleSheet.create({
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     paddingHorizontal: 20,
-    paddingBottom: 36,
     paddingTop: 12,
     shadowColor: '#0D2045',
     shadowOffset: { width: 0, height: -4 },

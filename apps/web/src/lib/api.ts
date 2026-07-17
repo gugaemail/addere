@@ -17,8 +17,12 @@ export function setAccessToken(token: string | null) {
   if (token) {
     const expires = new Date(Date.now() + 8 * 60 * 60 * 1000).toUTCString()
     document.cookie = `addere_session=1; expires=${expires}; path=/; SameSite=Strict`
+    // Cookie lido pelo middleware (Edge) para verificar role server-side.
+    // Não é httpOnly intencionalmente: o token já está em _accessToken (mesma exposição XSS).
+    document.cookie = `addere_token=${token}; expires=${expires}; path=/; SameSite=Strict`
   } else {
     document.cookie = `addere_session=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`
+    document.cookie = `addere_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`
   }
 }
 
@@ -29,6 +33,7 @@ export function getAccessToken(): string | null {
 export function clearAccessToken() {
   _accessToken = null
   document.cookie = 'addere_session=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;'
+  document.cookie = 'addere_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;'
 }
 
 // Injeta o accessToken no header de cada requisição
@@ -71,7 +76,11 @@ api.interceptors.response.use(
     _refreshing = true
 
     try {
-      const { data } = await axios.post(`${env.apiUrl}/auth/refresh`, {}, { withCredentials: true })
+      const { data } = await axios.post(
+        `${env.apiUrl}/auth/refresh`,
+        {},
+        { withCredentials: true, headers: { 'X-Requested-With': 'XMLHttpRequest' } },
+      )
       setAccessToken(data.accessToken)
       _refreshQueue.forEach((cb) => cb(data.accessToken))
       original.headers.Authorization = `Bearer ${data.accessToken}`

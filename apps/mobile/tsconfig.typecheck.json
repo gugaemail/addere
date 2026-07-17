@@ -1,0 +1,21 @@
+// Usado apenas por `npm run type-check` (tsc --noEmit). Não é o tsconfig.json
+// principal porque jest-expo espelha "paths" para o moduleNameMapper do Jest,
+// e o remapeamento de "react" abaixo aponta para uma pasta só de tipos
+// (quebraria os testes em runtime se estivesse no tsconfig.json).
+//
+// O remapeamento existe porque react-native fica hospedado na raiz do
+// monorepo (node_modules/react-native) enquanto "react" fica local a
+// apps/mobile/node_modules (React 19, monorepo usa React 18 na raiz para o
+// app web) — sem isso, o tsc mistura os tipos de @types/react das duas
+// versões e gera falsos positivos em cascata (ex: "bigint não é ReactNode").
+// Mesmo problema que o metro.config.js já resolve para o bundler via
+// resolveRequest.
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "paths": {
+      "@addere/types": ["../../packages/types/src/index.ts"],
+      "react": ["./node_modules/@types/react"]
+    }
+  }
+}

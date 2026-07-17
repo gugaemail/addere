@@ -57,11 +57,22 @@ export async function buildApp(): Promise<FastifyInstance> {
 
   // GET /health — sem autenticação; usado por load balancers e monitoramento
   app.get('/health', async (_request, reply) => {
-    return reply.send({
-      status: 'ok',
-      version: process.env.npm_package_version,
-      timestamp: new Date().toISOString(),
-    })
+    const { prisma } = await import('@addere/db')
+    try {
+      await prisma.$queryRaw`SELECT 1`
+      return reply.send({
+        status: 'ok',
+        db: 'ok',
+        version: process.env.npm_package_version,
+        timestamp: new Date().toISOString(),
+      })
+    } catch {
+      return reply.status(503).send({
+        status: 'error',
+        db: 'unreachable',
+        timestamp: new Date().toISOString(),
+      })
+    }
   })
 
   // Rotas

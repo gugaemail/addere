@@ -9,6 +9,9 @@ import {
   StyleSheet,
   Alert,
   ScrollView,
+  BackHandler,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native'
 import { useRouter, Stack } from 'expo-router'
 import { useFocusEffect } from '@react-navigation/native'
@@ -178,20 +181,22 @@ function Step2({
       {cart.length > 0 && (
         <View style={styles.cartBox}>
           <Text style={styles.cartTitle}>Carrinho ({cart.length})</Text>
-          {cart.map((item) => (
-            <View key={item.product.id} style={styles.cartRow}>
-              <Text style={styles.cartName} numberOfLines={1}>{item.product.name}</Text>
-              <View style={styles.qtyRow}>
-                <TouchableOpacity onPress={() => updateQty(item.product.id, item.quantity - 1)}>
-                  <Text style={styles.qtyBtn}>−</Text>
-                </TouchableOpacity>
-                <Text style={styles.qtyNum}>{item.quantity}</Text>
-                <TouchableOpacity onPress={() => updateQty(item.product.id, item.quantity + 1)}>
-                  <Text style={styles.qtyBtn}>+</Text>
-                </TouchableOpacity>
+          <ScrollView style={styles.cartList}>
+            {cart.map((item) => (
+              <View key={item.product.id} style={styles.cartRow}>
+                <Text style={styles.cartName} numberOfLines={1}>{item.product.name}</Text>
+                <View style={styles.qtyRow}>
+                  <TouchableOpacity onPress={() => updateQty(item.product.id, item.quantity - 1)}>
+                    <Text style={styles.qtyBtn}>−</Text>
+                  </TouchableOpacity>
+                  <Text style={styles.qtyNum}>{item.quantity}</Text>
+                  <TouchableOpacity onPress={() => updateQty(item.product.id, item.quantity + 1)}>
+                    <Text style={styles.qtyBtn}>+</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
-            </View>
-          ))}
+            ))}
+          </ScrollView>
         </View>
       )}
 
@@ -200,6 +205,7 @@ function Step2({
       ) : (
         <FlatList
           testID="produto-lista"
+          style={styles.resultsList}
           data={products}
           keyExtractor={(p) => p.id}
           renderItem={({ item, index }) => (
@@ -705,6 +711,28 @@ export default function NovoPedidoScreen() {
     }, [])
   )
 
+  // No Android, o botão físico de voltar por padrão sai da tela inteira (pop do
+  // stack), pulando a confirmação de "Cancelar pedido" e descartando os dados
+  // do carrinho silenciosamente. Fazemos o botão físico voltar um step por vez,
+  // igual ao "← Voltar" em tela, e só deixamos o comportamento padrão no step 1.
+  useFocusEffect(
+    useCallback(() => {
+      const onBackPress = () => {
+        if (step === 2) {
+          setStep(1)
+          return true
+        }
+        if (step === 3) {
+          setStep(2)
+          return true
+        }
+        return false
+      }
+      const sub = BackHandler.addEventListener('hardwareBackPress', onBackPress)
+      return () => sub.remove()
+    }, [step])
+  )
+
   // Auto-preenche transportadora e condPag a partir dos padrões do cliente
   useEffect(() => {
     if (!customer) return
@@ -782,7 +810,10 @@ export default function NovoPedidoScreen() {
       <Stack.Screen options={{ title: `Novo pedido — ${stepLabel[step - 1]}` }} />
       <StepIndicator current={step} />
 
-      <View style={{ flex: 1, padding: 16 }}>
+      <KeyboardAvoidingView
+        style={{ flex: 1, padding: 16 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
         {step === 1 && <Step1 onComplete={handleStep1Complete} />}
         {step === 2 && (
           <View style={{ flex: 1 }}>
@@ -817,7 +848,7 @@ export default function NovoPedidoScreen() {
             isLoading={isPending}
           />
         )}
-      </View>
+      </KeyboardAvoidingView>
     </View>
   )
 }
@@ -834,6 +865,7 @@ const styles = StyleSheet.create({
   listItemTitle: { fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: 14, color: colors.brand.dark },
   listItemSub: { fontFamily: 'Inter_400Regular', fontSize: 12, color: colors.neutral.textSub, marginTop: 2 },
   cartBox: { backgroundColor: colors.brand.tint, borderRadius: 8, padding: 12, marginBottom: 8 },
+  cartList: { maxHeight: 160 },
   cartTitle: { fontFamily: 'PlusJakartaSans_700Bold', fontSize: 13, color: colors.brand.primary, marginBottom: 6 },
   cartRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 4 },
   cartName: { flex: 1, fontFamily: 'Inter_400Regular', fontSize: 13, color: colors.brand.dark },
@@ -841,6 +873,7 @@ const styles = StyleSheet.create({
   qtyBtn: { fontFamily: 'Inter_400Regular', fontSize: 20, color: colors.brand.primary, paddingHorizontal: 4 },
   qtyNum: { fontFamily: 'PlusJakartaSans_700Bold', fontSize: 14, minWidth: 20, textAlign: 'center' },
   empty: { fontFamily: 'Inter_400Regular', color: colors.neutral.textSub, textAlign: 'center', marginTop: 8, marginBottom: 4 },
+  resultsList: { flex: 1 },
   summaryBox: { backgroundColor: colors.neutral.white, borderRadius: 8, padding: 14, marginBottom: 8 },
   summaryLabel: { fontFamily: 'Inter_400Regular', fontSize: 12, color: colors.neutral.textSub, marginBottom: 6 },
   summaryValue: { fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: 15, color: colors.brand.dark },

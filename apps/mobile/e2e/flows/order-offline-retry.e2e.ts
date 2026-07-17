@@ -1,5 +1,5 @@
 import { loginAs } from '../helpers/auth'
-import { goOffline, goOnline } from '../helpers/network'
+import { adbShell, goOffline, goOnline } from '../helpers/network'
 
 describe('Reenvio manual de pedido com erro', () => {
   beforeAll(async () => {
@@ -35,8 +35,8 @@ describe('Reenvio manual de pedido com erro', () => {
     // Voltar online com rota /orders bloqueada para forçar erro no sync
     await device.setURLBlacklist(['.*/orders.*'])
     if (device.getPlatform() === 'android') {
-      await device.execOnDevice('adb shell svc wifi enable')
-      await device.execOnDevice('adb shell svc data enable')
+      adbShell('svc', 'wifi', 'enable')
+      adbShell('svc', 'data', 'enable')
     }
     await new Promise<void>((r) => setTimeout(r, 3000))
 

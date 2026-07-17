@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@addere/db'
+import { requireSuperAdmin } from '@/lib/require-superadmin'
 import {
   avgOrderDuration, syncSuccessRate, offlineOrderRate,
   avgQueueDuration, totalOrders,
@@ -53,9 +54,12 @@ function generateHighlights(
 }
 
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ pilotId: string }> },
 ) {
+  const auth = await requireSuperAdmin(req)
+  if ('error' in auth) return auth.error
+
   const { pilotId } = await params
 
   const pilot = await prisma.pilot.findUnique({

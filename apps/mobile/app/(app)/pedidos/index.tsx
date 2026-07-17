@@ -12,36 +12,39 @@ import type { Order } from '@addere/types'
 import { fmtMoeda } from '../../../src/utils/format'
 
 function PendingBanner({ orders }: { orders: Order[] | undefined }) {
+  const router = useRouter()
   const networkAvailable = useSyncStore((s) => s.networkAvailable)
   const isSyncing = useSyncStore((s) => s.isSyncing)
   const pendingCount = orders?.filter((o) => o.status === 'PENDING').length ?? 0
 
+  const goToPendentes = () => router.push('/(app)/pedidos/pendentes')
+
   if (!networkAvailable) {
     return (
-      <View style={[b.bar, b.offline]}>
+      <TouchableOpacity style={[b.bar, b.offline]} onPress={goToPendentes} activeOpacity={0.85}>
         <WifiOff size={13} color="#fff" strokeWidth={1.5} />
-        <Text style={b.text}>Sem conexão — pedidos serão enviados ao reconectar</Text>
-      </View>
+        <Text style={b.text}>Sem conexão — toque para ver pedidos na fila</Text>
+      </TouchableOpacity>
     )
   }
 
   if (isSyncing) {
     return (
-      <View style={[b.bar, b.syncing]}>
+      <TouchableOpacity style={[b.bar, b.syncing]} onPress={goToPendentes} activeOpacity={0.85}>
         <ActivityIndicator size={13} color="#fff" />
         <Text style={b.text}>Sincronizando...</Text>
-      </View>
+      </TouchableOpacity>
     )
   }
 
   if (pendingCount > 0) {
     return (
-      <View style={[b.bar, b.pending]}>
+      <TouchableOpacity style={[b.bar, b.pending]} onPress={goToPendentes} activeOpacity={0.85}>
         <Upload size={13} color="#fff" strokeWidth={1.5} />
         <Text style={b.text}>
-          {pendingCount} pedido{pendingCount !== 1 ? 's' : ''} pendente{pendingCount !== 1 ? 's' : ''} de sincronização
+          {pendingCount} pedido{pendingCount !== 1 ? 's' : ''} pendente{pendingCount !== 1 ? 's' : ''} — toque para ver
         </Text>
-      </View>
+      </TouchableOpacity>
     )
   }
 

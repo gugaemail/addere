@@ -303,24 +303,30 @@ export async function updateUser(companyId: string, id: string, input: UpdateUse
 // ─── Customers (CRUD por empresa) ────────────────────────────────────────────
 
 export interface CreateCustomerInput {
-  name:         string
-  protheusCode?: string
-  loja?:         string
-  document?:     string
-  email?:        string
-  phone?:        string
-  address?:      string
-  municipio?:    string
-  bairro?:       string
-  cep?:          string
-  uf?:           string
+  name:           string
+  protheusCode?:  string
+  loja?:          string
+  document?:      string
+  email?:         string
+  phone?:         string
+  address?:       string
+  municipio?:     string
+  bairro?:        string
+  cep?:           string
+  uf?:            string
+  vendorCode?:    string
+  msblql?:        string
+  transpPadrao?:  string
+  condPagPadrao?: string
+  tes?:           string
+  xcodemp?:       string
 }
 
 export async function createCustomer(companyId: string, input: CreateCustomerInput) {
   return prisma.customer.create({ data: { ...input, companyId } })
 }
 
-export interface UpdateCustomerInput extends Partial<CreateCustomerInput> {}
+export type UpdateCustomerInput = Partial<CreateCustomerInput>
 
 export async function updateCustomer(companyId: string, id: string, input: UpdateCustomerInput) {
   const exists = await prisma.customer.findFirst({ where: { id, companyId } })
@@ -371,7 +377,7 @@ export async function createProduct(companyId: string, input: CreateProductInput
   })
 }
 
-export interface UpdateProductInput extends Partial<CreateProductInput> {}
+export type UpdateProductInput = Partial<CreateProductInput>
 
 export async function updateProduct(companyId: string, id: string, input: UpdateProductInput) {
   const exists = await prisma.product.findFirst({ where: { id, companyId } })

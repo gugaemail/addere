@@ -2,6 +2,7 @@ import { prisma } from '@addere/db'
 import type { SyncSchedule } from '@addere/types'
 import { DEFAULT_SYNC_SCHEDULE } from '@addere/types'
 import { syncProducts, syncCustomers } from './sync.service'
+import { logger } from '../../lib/logger'
 
 // Map: companyId → { products?: NodeJS.Timeout, customers?: NodeJS.Timeout }
 const timers = new Map<string, { products?: NodeJS.Timeout; customers?: NodeJS.Timeout }>()
@@ -13,7 +14,7 @@ function getEntry(companyId: string) {
 
 function runSafe(label: string, fn: () => Promise<unknown>) {
   fn().catch((err) => {
-    console.error(`[scheduler] Erro no auto-sync ${label}:`, (err as Error).message)
+    logger.error({ err, label }, '[scheduler] Erro no auto-sync')
   })
 }
 
@@ -29,7 +30,7 @@ export function applySchedule(companyId: string, schedule: SyncSchedule) {
       () => runSafe(`products/${companyId}`, () => syncProducts(companyId, 'autoSyncProducts')),
       ms,
     ) as unknown as NodeJS.Timeout
-    console.log(`[scheduler] Auto-sync produtos iniciado para ${companyId} (a cada ${schedule.products.scheduleMin} min, INTERV=${schedule.products.interv})`)
+    logger.info({ companyId, scheduleMin: schedule.products.scheduleMin, interv: schedule.products.interv }, '[scheduler] Auto-sync produtos iniciado')
   }
 
   // Clientes
@@ -41,7 +42,7 @@ export function applySchedule(companyId: string, schedule: SyncSchedule) {
       () => runSafe(`customers/${companyId}`, () => syncCustomers(companyId, 'autoSyncCustomers')),
       ms,
     ) as unknown as NodeJS.Timeout
-    console.log(`[scheduler] Auto-sync clientes iniciado para ${companyId} (a cada ${schedule.customers.scheduleMin} min, INTERV=${schedule.customers.interv})`)
+    logger.info({ companyId, scheduleMin: schedule.customers.scheduleMin, interv: schedule.customers.interv }, '[scheduler] Auto-sync clientes iniciado')
   }
 }
 
@@ -74,5 +75,5 @@ export async function initSchedulers() {
     }
   }
 
-  console.log(`[scheduler] initSchedulers: ${started} empresa(s) com auto-sync ativo`)
+  logger.info({ started }, '[scheduler] initSchedulers concluído')
 }

@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs'
 import { randomUUID } from 'crypto'
 import { Resend } from 'resend'
 import type { LoginInput } from './auth.schema'
+import { logger } from '../../lib/logger'
 
 const REFRESH_TOKEN_EXPIRES_DAYS = 30
 
@@ -48,16 +49,14 @@ export async function rotateRefreshToken(oldToken: string) {
   }
 
   // Rotação atômica: invalida o token antigo e emite um novo na mesma transação
-  const newTokenValue = randomUUID()
+  const newToken = randomUUID()
   const expiresAt = new Date()
   expiresAt.setDate(expiresAt.getDate() + REFRESH_TOKEN_EXPIRES_DAYS)
 
   await prisma.$transaction([
     prisma.refreshToken.delete({ where: { token: oldToken } }),
-    prisma.refreshToken.create({ data: { token: newTokenValue, userId: existing.userId, expiresAt } }),
+    prisma.refreshToken.create({ data: { token: newToken, userId: existing.userId, expiresAt } }),
   ])
-
-  const newToken = newTokenValue
 
   return { user: existing.user, newToken }
 }
@@ -80,7 +79,7 @@ export async function forgotPassword(email: string): Promise<void> {
   await prisma.passwordResetToken.create({ data: { token, userId: user.id, expiresAt } })
 
   if (!process.env.RESEND_API_KEY) {
-    console.warn('[auth] RESEND_API_KEY não configurada — email de reset não enviado')
+    logger.warn('[auth] RESEND_API_KEY não configurada — email de reset não enviado')
     return
   }
 
@@ -100,7 +99,7 @@ export async function forgotPassword(email: string): Promise<void> {
       `,
     })
   } catch (err) {
-    console.error('[auth] Falha ao enviar e-mail de reset via Resend:', err)
+    logger.error({ err }, '[auth] Falha ao enviar e-mail de reset via Resend')
   }
 }
 

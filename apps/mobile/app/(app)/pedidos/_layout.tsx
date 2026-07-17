@@ -3,7 +3,7 @@ import { brandScreenOptions } from '../../../src/navigation/BrandHeader'
 
 export default function PedidosLayout() {
   return (
-    <Stack style={{ flex: 1 }}>
+    <Stack>
         <Stack.Screen name="index" options={brandScreenOptions} />
         <Stack.Screen
           name="[id]"

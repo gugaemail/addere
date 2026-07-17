@@ -1,10 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getFullDashboardMetrics } from '@/lib/metrics/pilot'
+import { requireSuperAdmin } from '@/lib/require-superadmin'
 
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ pilotId: string }> },
 ) {
+  const auth = await requireSuperAdmin(req)
+  if ('error' in auth) return auth.error
+
   const { pilotId } = await params
 
   try {

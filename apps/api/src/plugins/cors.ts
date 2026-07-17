@@ -1,11 +1,11 @@
 import fp from 'fastify-plugin'
 import cors from '@fastify/cors'
 import { FastifyInstance } from 'fastify'
+import { env } from '../lib/env'
 
-const PRODUCTION_ORIGINS = [
+const BASE_ORIGINS = [
   'https://addere.com.br',
   'https://www.addere.com.br',
-  'https://addere-web.vercel.app',
 ]
 
 const DEV_ORIGINS = [
@@ -17,13 +17,13 @@ const DEV_ORIGINS = [
 export default fp(async (app: FastifyInstance) => {
   const origins =
     process.env.NODE_ENV === 'production'
-      ? PRODUCTION_ORIGINS
-      : [...PRODUCTION_ORIGINS, ...DEV_ORIGINS]
+      ? [...BASE_ORIGINS, env.CORS_ORIGIN]
+      : [...BASE_ORIGINS, env.CORS_ORIGIN, ...DEV_ORIGINS]
 
   await app.register(cors, {
     origin: origins,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
     credentials: true,
   })
 })

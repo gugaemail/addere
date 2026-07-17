@@ -10,7 +10,7 @@ import axios from 'axios'
 import { Plus, BarChart2, CheckCircle, XCircle, Clock } from 'lucide-react'
 import { api } from '@/lib/api'
 import { CreatePilotModal } from './CreatePilotModal'
-import type { PilotDashboardMetrics, PilotMetricDelta } from '@addere/types'
+import type { PilotDashboardMetrics } from '@addere/types'
 
 // ─── Tipos locais ────────────────────────────────────────────────────────────
 
@@ -246,9 +246,6 @@ function PilotoDashboard() {
   const router = useRouter()
   const pilotId = searchParams.get('pilotId') ?? ''
 
-  // Sem pilotId — mostrar lista de pilotos
-  if (!pilotId) return <PilotList />
-
   const { data, isLoading, isError } = useQuery<PilotDashboardMetrics>({
     queryKey: ['pilot-metrics', pilotId],
     queryFn: () =>
@@ -263,6 +260,8 @@ function PilotoDashboard() {
     return d
   }, [])
 
+  // Sem pilotId — mostrar lista de pilotos
+  if (!pilotId) return <PilotList />
 
   if (isLoading) {
     return (

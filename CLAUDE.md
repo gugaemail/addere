@@ -90,7 +90,7 @@ JWT com dois tokens: access token (8h) + refresh token (30d). Middleware de aute
 
 ### Banco de dados
 - PostgreSQL via Prisma ORM no backend (nunca usar SQL raw)
-- SQLite local via `expo-sqlite` no mobile para modo offline
+- Offline cache via TanStack Query Persister (`AsyncStorage`, 7 dias) — sem SQLite; `expo-sqlite` instalado mas não utilizado
 - Soft delete em `users`, `customers` e `products` via campo `active = false` (nunca deletar fisicamente)
 - O banco (Render) não é acessível localmente. Para gerar SQL de migration sem conexão usar:
   `prisma migrate diff --from-empty --to-schema-datamodel ./prisma/schema.prisma --script`
@@ -149,22 +149,30 @@ EXPO_PUBLIC_API_URL
 | 3 | Autenticação JWT | ✅ 100% |
 | 4 | Telas mobile (M-01 a M-07) | ✅ 100% |
 | 5 | Painel web admin (W-01, W-02) | ✅ 100% |
-| 6 | Integração Protheus | 🔄 15% — Etapa 6.1 concluída |
-| 7 | Modo offline + sincronização | ❌ 0% |
+| 6 | Integração Protheus | ✅ 100% |
+| 7 | Modo offline + sincronização | ✅ 100% |
 
-### Fase 6 — Etapas pendentes
+### Fase 6 — Concluída
 
-- **6.2** — `POST /sync/customers` — sync de clientes via `apiCliente`
-- **6.3** — `POST /sync/transportadoras` — sync via `apiTransp` + hook mobile + seleção no wizard
-- **6.4** — `POST /sync/cond-pags` — sync via `apiCondPag` + hook mobile + seleção no wizard
-- **6.5** — `POST /orders/:id/sync` — envio de pedido ao Protheus via `apiPedido`; atualiza `status=SYNCED`, `protheusOrderId`, `syncedAt`
-- **6.6** — `GET /orders/:id/status` — consulta status no Protheus via `apiConsPed`
-- **6.7** — `GET /sync/metas` — metas do vendedor via `apiMetaVend`
+Todos os endpoints estão implementados em `apps/api/src/modules/sync/sync.routes.ts` e `sync.service.ts`:
+- **6.1** — `POST /sync/products` — sync de produtos
+- **6.2** — `POST /sync/customers` — sync de clientes
+- **6.3** — `POST /sync/transportadoras` — sync de transportadoras
+- **6.4** — `POST /sync/cond-pags` — sync de condições de pagamento
+- **6.5** — `POST /orders/:id/sync` — envio de pedido ao Protheus
+- **6.6** — `GET /orders/:id/status` — consulta status no Protheus
+- **6.7** — `GET /sync/metas` — metas do vendedor
 
-### Fase 7 — Modo offline
-- Instalar `expo-sqlite` no mobile
-- Schema SQLite local para pedidos pendentes
-- Queue de sincronização: pedido criado offline → enviado quando conectar
+### Fase 7 — Modo offline (concluída)
+
+Implementado via Zustand + AsyncStorage + TanStack Query Persister:
+- Fila de pedidos offline com retry e backoff exponencial (`src/store/syncStore.ts`, `src/services/syncEngine.ts`)
+- Cache de dados via `PersistQueryClientProvider` (AsyncStorage, 7 dias) — produtos, clientes, transportadoras, condpags sobrevivem a reinicializações
+- Dashboard com cache manual próprio (`useStatsComCache`, `usePedidosComCache`, `useMetaComCache`)
+- Tela de pedidos pendentes (`app/(app)/pedidos/pendentes.tsx`) com retry individual e em lote
+- `PendingBanner` clicável em pedidos navega para tela de pendentes
+- Banner global de offline (`GlobalOfflineBanner`) em todos os tabs
+- `submitOrder` enfileira pedidos automaticamente quando sem conexão
 
 ## Arquivos Críticos
 

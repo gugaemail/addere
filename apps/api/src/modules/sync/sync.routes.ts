@@ -13,7 +13,7 @@ const companyIdSchema = z.object({ companyId: z.string().uuid('companyId deve se
 
 export default async function syncRoutes(app: FastifyInstance) {
   // POST /sync/test-token — testa a chamada de autenticação Protheus e retorna resposta bruta
-  app.post('/test-token', { preHandler: requirePermission('sync.protheus') }, async (request, reply) => {
+  app.post('/test-token', { preHandler: requirePermission('sync.protheus'), config: { rateLimit: { max: 5, timeWindow: '1 minute' } } }, async (request, reply) => {
     const { role, companyId: userCompanyId } = request.user as { role: string; companyId: string | null }
 
     const bodyParsed = companyIdSchema.safeParse(request.body)
@@ -86,7 +86,7 @@ export default async function syncRoutes(app: FastifyInstance) {
   })
 
   // POST /sync/test-products — busca página 1 da API de produtos e retorna resposta bruta (sem salvar)
-  app.post('/test-products', { preHandler: requirePermission('sync.protheus') }, async (request, reply) => {
+  app.post('/test-products', { preHandler: requirePermission('sync.protheus'), config: { rateLimit: { max: 5, timeWindow: '1 minute' } } }, async (request, reply) => {
     const { role, companyId: userCompanyId } = request.user as { role: string; companyId: string | null }
 
     const bodyParsed = companyIdSchema.safeParse(request.body)
@@ -174,7 +174,7 @@ export default async function syncRoutes(app: FastifyInstance) {
   })
 
   // POST /sync/test-customers — busca página 1 da API de clientes e retorna resposta bruta (sem salvar)
-  app.post('/test-customers', { preHandler: requirePermission('sync.protheus') }, async (request, reply) => {
+  app.post('/test-customers', { preHandler: requirePermission('sync.protheus'), config: { rateLimit: { max: 5, timeWindow: '1 minute' } } }, async (request, reply) => {
     const { role, companyId: userCompanyId } = request.user as { role: string; companyId: string | null }
 
     const bodyParsed = companyIdSchema.safeParse(request.body)
@@ -232,7 +232,7 @@ export default async function syncRoutes(app: FastifyInstance) {
   })
 
   // POST /sync/test-order/:id — dry run: monta payload e chama Protheus sem alterar status do pedido
-  app.post('/test-order/:id', { preHandler: requirePermission('sync.protheus') }, async (request, reply) => {
+  app.post('/test-order/:id', { preHandler: requirePermission('sync.protheus'), config: { rateLimit: { max: 5, timeWindow: '1 minute' } } }, async (request, reply) => {
     const { companyId } = request.user as { companyId: string | null }
 
     if (!companyId) return reply.status(403).send({ message: 'Rota disponível apenas para usuários de uma empresa' })
