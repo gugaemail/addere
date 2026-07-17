@@ -73,6 +73,23 @@ export function OrderRowSkeleton() {
   )
 }
 
+export function MetaCardSkeleton() {
+  const theme = useTheme()
+  return (
+    <View style={[sk.metaCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+      <View style={sk.metaCardHeader}>
+        <SkeletonBox width={130} height={11} />
+        <SkeletonBox width={44} height={20} />
+      </View>
+      <SkeletonBox width="100%" height={8} style={{ borderRadius: 999, marginBottom: 10 }} />
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+        <SkeletonBox width={90} height={11} />
+        <SkeletonBox width={90} height={11} />
+      </View>
+    </View>
+  )
+}
+
 export function ClienteItemSkeleton() {
   const theme = useTheme()
   return (
@@ -138,6 +155,18 @@ const sk = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 1,
+  },
+  metaCard: {
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 20,
+    borderWidth: 1,
+  },
+  metaCardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
   },
   emptyContainer:  { alignItems: 'center', paddingVertical: 56, paddingHorizontal: 24, gap: 10 },
   emptyIconWrap:   { width: 60, height: 60, borderRadius: 18, alignItems: 'center', justifyContent: 'center', marginBottom: 4 },

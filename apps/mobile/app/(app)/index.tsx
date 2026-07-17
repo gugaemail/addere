@@ -5,16 +5,13 @@ import { useDashboardStats, usePedidos, useMetaVendedor } from '../../src/hooks/
 import { useAuthStore } from '../../src/store/auth.store'
 import { useLogout } from '../../src/hooks/useAuth'
 import { useTheme } from '../../src/theme'
-import { StatGridSkeleton, OrderRowSkeleton, EmptyState } from '../../src/components/Skeleton'
+import { StatGridSkeleton, OrderRowSkeleton, MetaCardSkeleton, EmptyState } from '../../src/components/Skeleton'
 import { Ionicons } from '@expo/vector-icons'
-import { LogOut } from 'lucide-react-native'
+import { LogOut, Target, UserX, WifiOff } from 'lucide-react-native'
 import type { Order, DashboardStats } from '@addere/types'
 
-const META_CACHE_KEY   = 'addere_meta_cache'
 const STATS_CACHE_KEY  = 'addere_stats_cache'
 const ORDERS_CACHE_KEY = 'addere_orders_cache'
-
-type MetaData = { periodo: string; vendido: string; meta: string }
 
 function useStatsComCache(): DashboardStats | null {
   const [cached, setCached] = useState<DashboardStats | null>(null)
@@ -49,26 +46,6 @@ function usePedidosComCache(): Order[] | null {
   useEffect(() => {
     if (query.data) {
       AsyncStorage.setItem(ORDERS_CACHE_KEY, JSON.stringify(query.data))
-      setCached(query.data)
-    }
-  }, [query.data])
-
-  return query.data ?? cached
-}
-
-function useMetaComCache(): MetaData | null {
-  const [cached, setCached] = useState<MetaData | null>(null)
-  const query = useMetaVendedor()
-
-  useEffect(() => {
-    AsyncStorage.getItem(META_CACHE_KEY).then((v) => {
-      if (v) setCached(JSON.parse(v) as MetaData)
-    })
-  }, [])
-
-  useEffect(() => {
-    if (query.data) {
-      AsyncStorage.setItem(META_CACHE_KEY, JSON.stringify(query.data))
       setCached(query.data)
     }
   }, [query.data])
@@ -132,7 +109,8 @@ export default function DashboardScreen() {
   const recentOrders = usePedidosComCache()
   const loadingStats   = stats === null
   const loadingOrders  = recentOrders === null
-  const metaData                                         = useMetaComCache()
+  const isVendedor  = !!user?.idVendProt
+  const metaQuery   = useMetaVendedor()
   const { mutate: logout } = useLogout()
 
   const totalRevenue = Number(stats?.totalRevenue ?? 0)
@@ -174,12 +152,41 @@ export default function DashboardScreen() {
         </View>
       )}
 
-      {/* Barra de meta — sempre visível, usa cache offline quando API indisponível */}
-      <MetaProgress
-        vendido={Number(metaData?.vendido ?? 0)}
-        meta={Number(metaData?.meta ?? 0)}
-        periodo={metaData?.periodo ?? ''}
-      />
+      {/* Barra de meta — reflete sempre o estado real da consulta atual, sem reaproveitar dados de sessão/conta anterior */}
+      {!isVendedor ? (
+        <View style={[s.metaCardAlt, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+          <EmptyState
+            icon={<UserX size={28} color={theme.textMuted} />}
+            title="Metas não se aplicam ao seu perfil"
+            description="Este indicador é exclusivo para vendedores vinculados a um código Protheus."
+          />
+        </View>
+      ) : metaQuery.isLoading ? (
+        <MetaCardSkeleton />
+      ) : metaQuery.isError ? (
+        <View style={[s.metaCardAlt, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+          <EmptyState
+            icon={<WifiOff size={28} color={theme.textMuted} />}
+            title="Não foi possível carregar a meta"
+            description="Verifique sua conexão e tente novamente."
+            action={{ label: 'Tentar novamente', onPress: () => metaQuery.refetch() }}
+          />
+        </View>
+      ) : metaQuery.data?.hasMeta ? (
+        <MetaProgress
+          vendido={Number(metaQuery.data.vendido)}
+          meta={Number(metaQuery.data.meta)}
+          periodo={metaQuery.data.periodo}
+        />
+      ) : (
+        <View style={[s.metaCardAlt, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+          <EmptyState
+            icon={<Target size={28} color={theme.textMuted} />}
+            title="Meta não cadastrada para o período atual"
+            description="Assim que uma meta for cadastrada no Protheus para este mês, ela aparecerá aqui."
+          />
+        </View>
+      )}
 
       {/* Últimos pedidos */}
       <Text style={s.sectionTitle}>Últimos pedidos</Text>
@@ -285,6 +292,12 @@ const s = StyleSheet.create({
     shadowOffset: { width: 0, height: 1 },
     shadowRadius: 3,
     elevation: 2,
+  },
+  metaCardAlt: {
+    borderRadius: 12,
+    borderWidth: 1,
+    marginBottom: 20,
+    overflow: 'hidden',
   },
   metaHeader: {
     flexDirection: 'row',

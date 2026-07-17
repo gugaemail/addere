@@ -23,6 +23,9 @@ export function useLogin() {
     },
     onSuccess: async (data) => {
       queryClient.clear() // limpa dados do usuário anterior antes de carregar os do novo
+      // Remove caches manuais do dashboard (meta/estatísticas/pedidos) para que a conta que
+      // está logando agora nunca veja, nem por um instante, dados de uma conta anterior no mesmo aparelho.
+      await AsyncStorage.multiRemove(['addere_meta_cache', 'addere_stats_cache', 'addere_orders_cache'])
       await SecureStore.setItemAsync(REFRESH_TOKEN_KEY, data.refreshToken)
       await setAuth(data.user, data.accessToken)
       // Atualiza configs em background sem bloquear a navegação
@@ -69,7 +72,12 @@ export function useLogout() {
       // protegido por hardware-encryption + biometria do dispositivo.
     },
     onSettled: async () => {
-      await Promise.all([clearAuth(), clearFieldConfig(), clearSyncSchedule()])
+      await Promise.all([
+        clearAuth(),
+        clearFieldConfig(),
+        clearSyncSchedule(),
+        AsyncStorage.multiRemove(['addere_meta_cache', 'addere_stats_cache', 'addere_orders_cache']),
+      ])
       queryClient.clear()
     },
   })

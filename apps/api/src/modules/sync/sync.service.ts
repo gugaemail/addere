@@ -2,7 +2,7 @@ import { prisma } from '@addere/db'
 import { protheusPost, CompanyCredentials } from './protheus.client'
 import { toStr, toNum } from './field-mapper'
 import { decryptCredential } from '../../lib/protheus-crypto'
-import type { SyncSchedule } from '@addere/types'
+import type { SyncSchedule, MetaVendedor } from '@addere/types'
 import { DEFAULT_SYNC_SCHEDULE } from '@addere/types'
 import { logProtheusCall } from './protheus-logger'
 import { logger } from '../../lib/logger'
@@ -674,14 +674,17 @@ export async function testOrderSync(orderId: string, companyId: string) {
   }, { companyId, operation: 'testOrder', endpointKey: 'apiPedido', metadata: { orderId } })
 }
 
-export async function fetchMetaVendedor(userId: string, companyId: string) {
+/** Erro de pré-condição do cliente/empresa (ex.: usuário sem idVendProt) — nunca é falha de upstream Protheus. */
+export class MetaPreconditionError extends Error {}
+
+export async function fetchMetaVendedor(userId: string, companyId: string): Promise<MetaVendedor> {
   const [user, company] = await Promise.all([
     prisma.user.findUniqueOrThrow({ where: { id: userId } }),
     prisma.company.findUniqueOrThrow({ where: { id: companyId } }),
   ])
 
-  if (!user.idVendProt) throw new Error('Usuário sem código de vendedor Protheus (idVendProt)')
-  if (!company.apiMetaVend) throw new Error('URL apiMetaVend não configurada')
+  if (!user.idVendProt) throw new MetaPreconditionError('Usuário sem código de vendedor Protheus (idVendProt)')
+  if (!company.apiMetaVend) throw new MetaPreconditionError('URL apiMetaVend não configurada')
 
   const creds  = getCredentials(company)
   const now    = new Date()
@@ -695,10 +698,14 @@ export async function fetchMetaVendedor(userId: string, companyId: string) {
       creds,
     ) as Record<string, unknown>
 
-    return {
-      periodo: toStr(rawResponse['periodo']),
-      vendido: toStr(rawResponse['vendido']),
-      meta:    toStr(rawResponse['meta']),
-    }
+    const periodo = toStr(rawResponse['periodo'])
+    const vendido = toStr(rawResponse['vendido'])
+    const meta    = toStr(rawResponse['meta'])
+
+    // Protheus responde 200 com campos vazios quando não há meta cadastrada
+    // para este vendedor no período consultado.
+    const hasMeta = meta !== ''
+
+    return { periodo, vendido, meta, hasMeta }
   }, { companyId, operation: 'fetchMeta', endpointKey: 'apiMetaVend' })
 }

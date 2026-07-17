@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '../lib/api'
-import type { Order, DashboardStats, CreateOrderInput, UpdateOrderInput } from '@addere/types'
+import { useAuthStore } from '../store/auth.store'
+import type { Order, DashboardStats, CreateOrderInput, UpdateOrderInput, MetaVendedor } from '@addere/types'
 
 const ORDERS_STALE_TIME = 1000 * 60 * 5 // 5 min — pedidos mudam com frequência
 
@@ -84,12 +85,15 @@ export function useSincronizarPedido() {
 }
 
 export function useMetaVendedor() {
+  const idVendProt = useAuthStore((s) => s.user?.idVendProt)
+
   return useQuery({
-    queryKey: ['meta-vendedor'],
+    queryKey: ['meta-vendedor', idVendProt],
     queryFn: async () => {
-      const { data } = await api.get<{ periodo: string; vendido: string; meta: string }>('/sync/metas')
+      const { data } = await api.get<MetaVendedor>('/sync/metas')
       return data
     },
+    enabled: !!idVendProt, // usuários sem código de vendedor Protheus nem tentam buscar meta
     staleTime: 0,
   })
 }

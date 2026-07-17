@@ -231,6 +231,15 @@ export interface DashboardStats {
   totalRevenue: string  // Decimal serializado como string
 }
 
+// ─── Meta do vendedor ──────────────────────────────────────────────────────
+
+export interface MetaVendedor {
+  periodo: string  // AAAAMM devolvido pelo Protheus; '' quando não aplicável
+  vendido: string  // valor vendido no período (Decimal serializado como string)
+  meta: string      // valor da meta cadastrada; '' quando não há meta
+  hasMeta: boolean  // true quando o Protheus retornou meta cadastrada para o período
+}
+
 // ─── Field Config ──────────────────────────────────────────────────────────
 
 export interface CompanyFieldConfig {

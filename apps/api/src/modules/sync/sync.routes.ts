@@ -3,7 +3,7 @@ import { z } from 'zod'
 import axios from 'axios'
 import { prisma } from '@addere/db'
 import { authenticate, requirePermission } from '../../middleware/authenticate'
-import { syncProducts, syncCustomers, syncTransportadoras, syncCondPags, testOrderSync, fetchMetaVendedor } from './sync.service'
+import { syncProducts, syncCustomers, syncTransportadoras, syncCondPags, testOrderSync, fetchMetaVendedor, MetaPreconditionError } from './sync.service'
 import { protheusPost } from './protheus.client'
 import { decryptCredential } from '../../lib/protheus-crypto'
 import { assertSafeUrl } from '../../lib/url-validator'
@@ -343,6 +343,9 @@ export default async function syncRoutes(app: FastifyInstance) {
       const result = await fetchMetaVendedor(request.user.sub, companyId)
       return reply.send(result)
     } catch (err) {
+      if (err instanceof MetaPreconditionError) {
+        return reply.status(422).send({ message: err.message })
+      }
       const msg = (err instanceof Error) ? err.message : 'Erro desconhecido'
       return reply.status(502).send({ message: msg })
     }
