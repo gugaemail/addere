@@ -8,7 +8,7 @@ import {
 } from 'recharts'
 import axios from 'axios'
 import { Plus, BarChart2, CheckCircle, XCircle, Clock } from 'lucide-react'
-import { api } from '@/lib/api'
+import { api, getAccessToken } from '@/lib/api'
 import { CreatePilotModal } from './CreatePilotModal'
 import type { PilotDashboardMetrics, PilotMetricDelta } from '@addere/types'
 
@@ -243,21 +243,29 @@ function MetricCard({ label, icon, value, goal, goalMet, near, delta, deltaInver
 
 function PilotoDashboard() {
   const searchParams = useSearchParams()
-  const router = useRouter()
   const pilotId = searchParams.get('pilotId') ?? ''
 
-  // Sem pilotId — mostrar lista de pilotos
+  // Lista e detalhe são componentes separados — um early-return antes dos
+  // hooks do detalhe violaria as Rules of Hooks ao alternar entre as duas visões
   if (!pilotId) return <PilotList />
+  return <PilotDetail pilotId={pilotId} />
+}
+
+function PilotDetail({ pilotId }: { pilotId: string }) {
+  const router = useRouter()
 
   const { data, isLoading, isError } = useQuery<PilotDashboardMetrics>({
     queryKey: ['pilot-metrics', pilotId],
     queryFn: () =>
-      axios.get(`/api/pilot/${pilotId}/metrics`).then((r) => r.data),
-    enabled: !!pilotId,
+      axios
+        .get(`/api/pilot/${pilotId}/metrics`, {
+          headers: { Authorization: `Bearer ${getAccessToken()}` },
+        })
+        .then((r) => r.data),
     refetchInterval: 5 * 60 * 1000,
   })
 
-  const threesDaysAgo = useMemo(() => {
+  const threeDaysAgo = useMemo(() => {
     const d = new Date()
     d.setDate(d.getDate() - 3)
     return d
@@ -317,12 +325,24 @@ function PilotoDashboard() {
           <span className={`text-xs px-3 py-1 rounded-full font-medium ${statusColor(pilot.status)}`}>
             {statusLabel(pilot.status)}
           </span>
-          <a
-            href={`/api/pilot/${pilotId}/export?since=${new Date(pilot.startDate).toISOString().slice(0, 10)}`}
+          <button
+            onClick={async () => {
+              const since = new Date(pilot.startDate).toISOString().slice(0, 10)
+              const res = await axios.get(`/api/pilot/${pilotId}/export?since=${since}`, {
+                headers: { Authorization: `Bearer ${getAccessToken()}` },
+                responseType: 'blob',
+              })
+              const url = URL.createObjectURL(res.data as Blob)
+              const link = document.createElement('a')
+              link.href = url
+              link.download = `piloto-${pilotId}-${since}.csv`
+              link.click()
+              URL.revokeObjectURL(url)
+            }}
             className="text-xs px-3 py-1.5 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 transition-colors"
           >
             Exportar CSV
-          </a>
+          </button>
         </div>
       </div>
 
@@ -423,7 +443,7 @@ function PilotoDashboard() {
           <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
             {repActivity.map((rep) => {
               const inactive = rep.lastActiveAt
-                ? new Date(rep.lastActiveAt) < threesDaysAgo
+                ? new Date(rep.lastActiveAt) < threeDaysAgo
                 : true
               return (
                 <tr
