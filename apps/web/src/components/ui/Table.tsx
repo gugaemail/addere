@@ -19,7 +19,7 @@ export function Table<T>({ columns, data, emptyMessage = 'Nenhum registro encont
     <div className={cn('overflow-x-auto rounded-xl', className)}>
       <table className="w-full text-sm">
         <thead>
-          <tr className="bg-gray-700 text-left text-xs uppercase tracking-wider text-gray-400">
+          <tr className="bg-[var(--bg-subtle)] text-left text-xs uppercase tracking-wider text-[var(--text-muted)]">
             {columns.map((col) => (
               <th key={col.key} className={cn('px-4 py-3 font-medium', col.className)}>
                 {col.header}
@@ -27,18 +27,18 @@ export function Table<T>({ columns, data, emptyMessage = 'Nenhum registro encont
             ))}
           </tr>
         </thead>
-        <tbody className="divide-y divide-gray-700/50">
+        <tbody className="divide-y divide-[var(--border)]">
           {data.length === 0 ? (
             <tr>
-              <td colSpan={columns.length} className="px-4 py-8 text-center text-gray-500">
+              <td colSpan={columns.length} className="px-4 py-8 text-center text-[var(--text-muted)]">
                 {emptyMessage}
               </td>
             </tr>
           ) : (
             data.map((row, i) => (
-              <tr key={i} className="bg-gray-800 transition-colors hover:bg-gray-750">
+              <tr key={i} className="bg-[var(--bg-surface)] transition-colors hover:bg-[var(--bg-subtle)]">
                 {columns.map((col) => (
-                  <td key={col.key} className={cn('px-4 py-3 text-gray-300', col.className)}>
+                  <td key={col.key} className={cn('px-4 py-3 text-[var(--text-secondary)]', col.className)}>
                     {col.render(row)}
                   </td>
                 ))}

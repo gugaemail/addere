@@ -394,7 +394,7 @@ export default function EmpresaPage() {
     <div className="flex flex-col items-center justify-center py-20 text-center gap-3">
       <p className="font-semibold text-red-600">Erro ao carregar empresa</p>
       <p className="text-sm text-[var(--text-muted)]">{fetchError}</p>
-      <button onClick={fetchCompany} className="mt-2 px-4 py-2 rounded-lg bg-[var(--brand-primary)] text-white text-sm">Tentar novamente</button>
+      <button onClick={fetchCompany} className="mt-2 px-4 py-2 rounded-lg bg-[var(--color-brand)] text-white text-sm">Tentar novamente</button>
     </div>
   )
   if (!company) return (
@@ -1079,7 +1079,7 @@ export default function EmpresaPage() {
       {/* ── Modal resultado do teste de token ── */}
       {showTokenModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className="w-full max-w-2xl bg-[var(--surface)] border border-[var(--border)] rounded-2xl shadow-2xl flex flex-col max-h-[80vh]">
+          <div className="w-full max-w-2xl bg-[var(--bg-surface)] border border-[var(--border)] rounded-2xl shadow-2xl flex flex-col max-h-[80vh]">
             <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--border)]">
               <div className="flex items-center gap-2">
                 {(tokenTestResult as { ok?: boolean })?.ok === false ? (
