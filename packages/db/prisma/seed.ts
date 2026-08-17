@@ -77,12 +77,20 @@ async function seedPermissions() {
 }
 
 async function main() {
-  const passwordHash = await bcrypt.hash('ad@123ab', 10)
+  // Senha do seed vem do ambiente — nunca hardcoded; em produção é obrigatória
+  const seedPassword = process.env.SEED_ADMIN_PASSWORD
+  if (!seedPassword) {
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error('SEED_ADMIN_PASSWORD é obrigatória para rodar o seed em produção')
+    }
+    console.warn('SEED_ADMIN_PASSWORD não definida — usando senha de desenvolvimento')
+  }
+  const passwordHash = await bcrypt.hash(seedPassword ?? 'dev-only-password', 10)
 
   // ─── SUPERADMIN da plataforma (acesso ao painel web) ───
   const superadmin = await prisma.user.upsert({
     where: { email: 'superadmin@addere.dev' },
-    update: { password: passwordHash },
+    update: {},
     create: {
       name: 'Super Administrador',
       email: 'superadmin@addere.dev',
