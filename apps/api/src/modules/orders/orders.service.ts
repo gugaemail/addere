@@ -43,6 +43,29 @@ export async function assertCarrierAndPaymentTermsAllowed(
   }
 }
 
+
+// Garante que filial, transportadora e condição de pagamento referenciadas
+// pertencem à empresa do usuário — ids de outra empresa eram aceitos sem checagem
+async function assertOrderRefsBelongToCompany(
+  companyId: string,
+  refs: { branchId?: string; transportId?: string; condId?: string }
+): Promise<void> {
+  const [branch, transp, cond] = await Promise.all([
+    refs.branchId
+      ? prisma.branch.findFirst({ where: { id: refs.branchId, companyId, active: true }, select: { id: true } })
+      : Promise.resolve(null),
+    refs.transportId
+      ? prisma.transportadora.findFirst({ where: { id: refs.transportId, companyId }, select: { id: true } })
+      : Promise.resolve(null),
+    refs.condId
+      ? prisma.condPag.findFirst({ where: { id: refs.condId, companyId }, select: { id: true } })
+      : Promise.resolve(null),
+  ])
+  if (refs.branchId && !branch) throw new Error('Filial não encontrada')
+  if (refs.transportId && !transp) throw new Error('Transportadora não encontrada')
+  if (refs.condId && !cond) throw new Error('Condição de pagamento não encontrada')
+}
+
 export async function getOrder(userId: string, companyId: string, orderId: string) {
   return prisma.order.findFirst({
     where: { id: orderId, userId, companyId },
@@ -100,6 +123,7 @@ export async function updateOrder(userId: string, companyId: string, orderId: st
   if (order.status !== 'PENDING') throw new Error('Apenas pedidos pendentes podem ser editados')
 
   await assertCarrierAndPaymentTermsAllowed(companyId, order.customerId, input, permissions)
+  await assertOrderRefsBelongToCompany(companyId, input)
 
   const productIds = input.items.map((i) => i.productId)
   const products = await prisma.product.findMany({
@@ -159,6 +183,7 @@ export async function updateOrder(userId: string, companyId: string, orderId: st
 
 export async function createOrder(userId: string, companyId: string, input: CreateOrderInput, permissions: Set<string>) {
   await assertCarrierAndPaymentTermsAllowed(companyId, input.customerId, input, permissions)
+  await assertOrderRefsBelongToCompany(companyId, input)
 
   // Busca os produtos para calcular os preços (filtrado pela empresa)
   const productIds = input.items.map((i) => i.productId)
