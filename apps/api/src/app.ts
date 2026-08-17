@@ -27,6 +27,7 @@ import helpRoutes from './modules/help/help.routes'
 import usersRoutes from './modules/users/users.routes'
 import permissionsRoutes, { userPermissionsRoutes } from './modules/permissions/permissions.routes'
 import userTypesRoutes from './modules/user-types/user-types.routes'
+import { authenticate } from './middleware/authenticate'
 
 export async function buildApp(): Promise<FastifyInstance> {
   const app = Fastify({
@@ -50,10 +51,14 @@ export async function buildApp(): Promise<FastifyInstance> {
     limits: { fileSize: 5 * 1024 * 1024, files: 1 },
   })
 
-  // Serve pasta uploads/ como arquivos estáticos
+  // Serve pasta uploads/ (screenshots da Central de Ajuda) — somente autenticado:
+  // as URLs contêm userId/ticketId e não podem ser públicas
   const uploadRoot = path.resolve(process.cwd(), process.env.UPLOAD_DIR || 'uploads')
   fs.mkdirSync(uploadRoot, { recursive: true })
-  await app.register(staticPlugin, { root: uploadRoot, prefix: '/uploads/' })
+  await app.register(async (scope) => {
+    scope.addHook('onRequest', authenticate)
+    await scope.register(staticPlugin, { root: uploadRoot, prefix: '/uploads/' })
+  })
 
   // GET /health — sem autenticação; usado por load balancers e monitoramento
   app.get('/health', async (_request, reply) => {

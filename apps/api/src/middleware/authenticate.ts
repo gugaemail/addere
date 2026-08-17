@@ -1,4 +1,5 @@
 import { FastifyRequest, FastifyReply } from 'fastify'
+import { prisma } from '@addere/db'
 import { getEffectivePermissions } from '../modules/permissions/permissions.service'
 
 // preHandler hook para proteger rotas — uso: { preHandler: authenticate }
@@ -8,6 +9,16 @@ export async function authenticate(request: FastifyRequest, reply: FastifyReply)
   } catch (err) {
     request.log.warn({ err, ip: request.ip }, 'JWT verification failed')
     return reply.status(401).send({ message: 'Token inválido ou expirado' })
+  }
+
+  // O access token vive 8h — sem esta checagem um usuário desativado
+  // continuaria operando até o token expirar
+  const dbUser = await prisma.user.findUnique({
+    where: { id: request.user.sub },
+    select: { active: true },
+  })
+  if (!dbUser?.active) {
+    return reply.status(401).send({ message: 'Usuário inativo' })
   }
 }
 
