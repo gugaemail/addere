@@ -755,11 +755,9 @@ export async function syncOrderToProtheus(orderId: string, companyId: string) {
       }],
     }
 
-    console.log(JSON.stringify({ event: 'sync-order-payload', orderId, payload }))
     const t0 = Date.now()
     const rawResponse = await protheusPost(companyId, company.apiPedido, payload, creds)
     const ms = Date.now() - t0
-    console.log(JSON.stringify({ event: 'sync-order-response', orderId, ms, rawResponse }))
 
     // Protheus retorna array: [{ "Retorno": "100", "Mensagem": "...", "Pedido": "012283" }]
     const responseArray = Array.isArray(rawResponse) ? rawResponse as Record<string, unknown>[] : [rawResponse as Record<string, unknown>]
@@ -792,7 +790,6 @@ export async function syncOrderToProtheus(orderId: string, companyId: string) {
     return { protheusOrderId, mensagem: toStr(first['Mensagem']) }
   } catch (err) {
     const e = err as { response?: { status?: number; data?: unknown }; message?: string }
-    console.log(JSON.stringify({ event: 'sync-order-error', orderId, message: e.message, protheusResponse: e.response?.data }))
     await logProtheusCall({
       companyId,
       operation:    'syncOrder',
@@ -800,7 +797,8 @@ export async function syncOrderToProtheus(orderId: string, companyId: string) {
       success:      false,
       httpStatus:   e.response?.status,
       errorMessage: e.message,
-      metadata:     { orderId },
+      // Resposta do ERP fica só no log interno — nunca em stdout nem em resposta HTTP
+      metadata:     { orderId, protheusResponse: e.response?.data ?? null },
     })
     await revertToPending()
     throw err

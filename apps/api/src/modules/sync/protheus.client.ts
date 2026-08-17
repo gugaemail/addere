@@ -99,7 +99,10 @@ async function postJson(
           if (hopsLeft <= 0) return reject(new Error(`Muitos redirects em ${urlStr}`))
           const loc = res.headers.location
           if (!loc) return reject(new Error(`Redirect sem Location em ${urlStr}`))
-          postJson(new URL(loc, urlStr).href, body, headers, timeoutMs, hopsLeft - 1)
+          // Revalida o destino do redirect — sem isso um 302 para IP privado contorna o anti-SSRF
+          const nextUrl = new URL(loc, urlStr).href
+          assertSafeUrl(nextUrl, 'redirect')
+            .then(() => postJson(nextUrl, body, headers, timeoutMs, hopsLeft - 1))
             .then(resolve, reject)
           return
         }
@@ -136,10 +139,12 @@ async function postJson(
 function enrichError(err: unknown, url: string): never {
   const e = err as { response?: { status: number; data: unknown }; message: string }
   if (e.response) {
-    const detail = typeof e.response.data === 'object'
-      ? JSON.stringify(e.response.data)
-      : String(e.response.data ?? '')
-    throw new Error(`Protheus ${e.response.status} em ${url}${detail ? ': ' + detail : ''}`)
+    // O corpo da resposta do ERP não entra na mensagem — mensagens de erro
+    // acabam em respostas HTTP ao cliente; o detalhe segue em response.data para log
+    throw Object.assign(
+      new Error(`Protheus ${e.response.status} em ${url}`),
+      { response: e.response }
+    )
   }
   throw err as Error
 }

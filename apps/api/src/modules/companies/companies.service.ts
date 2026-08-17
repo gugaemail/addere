@@ -407,18 +407,6 @@ export async function cancelOrder(companyId: string, id: string) {
   return prisma.order.update({ where: { id }, data: { status: 'CANCELLED' } })
 }
 
-// ─── Helper interno para o módulo de sync ────────────────────────────────────
-// Retorna credenciais descriptografadas — nunca expor via API
-
-export async function getCompanyCredentialsForSync(companyId: string) {
-  const company = await prisma.company.findUniqueOrThrow({ where: { id: companyId } })
-
-  return {
-    ...company,
-    passProtheus: company.passProtheus ? decryptCredential(company.passProtheus) : null,
-  }
-}
-
 // ─── Protheus Logs ───────────────────────────────────────────────────────────
 
 export interface ListProtheusLogsOpts {

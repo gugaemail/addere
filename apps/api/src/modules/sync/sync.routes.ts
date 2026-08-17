@@ -59,11 +59,13 @@ export default async function syncRoutes(app: FastifyInstance) {
         durationMs:  ms,
       })
 
+      // Não devolve o corpo — ele contém o access_token do Protheus.
+      // Os nomes dos campos bastam para diagnosticar o tokenField configurado.
       return reply.send({
         ok: true,
         status: tokenRes.status,
         ms,
-        data: tokenRes.data,
+        fields: Object.keys((tokenRes.data ?? {}) as object),
       })
     } catch (err: unknown) {
       const e = err as { response?: { status: number; data: unknown }; message: string }
@@ -80,7 +82,6 @@ export default async function syncRoutes(app: FastifyInstance) {
         status: e.response?.status ?? null,
         ms: null,
         error: e.message,
-        data: e.response?.data ?? null,
       })
     }
   })
@@ -132,11 +133,11 @@ export default async function syncRoutes(app: FastifyInstance) {
       token = (tokenRes.data as Record<string, unknown>)['access_token'] as string
         ?? (tokenRes.data as Record<string, unknown>)['token'] as string
       if (!token) {
-        return reply.send({ ok: false, step: 'token', error: 'Token não encontrado na resposta', tokenData: tokenRes.data })
+        return reply.send({ ok: false, step: 'token', error: `Token não encontrado na resposta. Campos recebidos: ${Object.keys((tokenRes.data ?? {}) as object).join(', ')}` })
       }
     } catch (err: unknown) {
-      const e = err as { response?: { status: number; data: unknown }; message: string }
-      return reply.send({ ok: false, step: 'token', error: e.message, status: e.response?.status, data: e.response?.data })
+      const e = err as { response?: { status: number }; message: string }
+      return reply.send({ ok: false, step: 'token', error: e.message, status: e.response?.status })
     }
 
     // ── Passo 2: buscar página 1 de produtos ─────────────────────────────────
