@@ -50,15 +50,9 @@ api.interceptors.response.use(
     isRefreshing = true
 
     try {
-      const { data } = await axios.post(
-        `${env.apiUrl}/auth/refresh`,
-        {},
-        { withCredentials: true }
-      )
-
-      const newToken: string = data.accessToken
-      const { setAuth, user } = useAuthStore.getState()
-      if (user) await setAuth(user, newToken)
+      // refreshSession (auth.store) é a única implementação de refresh do app:
+      // cookie primeiro, fallback para o refresh token do SecureStore
+      const newToken = await useAuthStore.getState().refreshSession()
 
       refreshQueue.forEach(({ resolve }) => resolve(newToken))
       refreshQueue = []
@@ -68,7 +62,10 @@ api.interceptors.response.use(
     } catch (err) {
       refreshQueue.forEach(({ reject }) => reject(err))
       refreshQueue = []
-      useAuthStore.getState().clearAuth()
+      // Só desloga quando o servidor rejeitou o refresh — falha de rede não derruba a sessão
+      if ((err as { response?: unknown }).response) {
+        useAuthStore.getState().clearAuth()
+      }
       return Promise.reject(err)
     } finally {
       isRefreshing = false

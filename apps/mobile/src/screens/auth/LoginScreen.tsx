@@ -13,18 +13,15 @@ import {
 import { useRouter } from 'expo-router'
 import { z } from 'zod'
 import AsyncStorage from '@react-native-async-storage/async-storage'
-import * as SecureStore from 'expo-secure-store'
 import * as LocalAuthentication from 'expo-local-authentication'
-import axios from 'axios'
 import { useLogin, BIOMETRIC_KEY } from '../../hooks/useAuth'
-import { useAuthStore, REFRESH_TOKEN_KEY } from '../../store/auth.store'
+import { useAuthStore } from '../../store/auth.store'
 import { useCompanyStore } from '../../store/company.store'
 import { api } from '../../lib/api'
-import { env } from '../../config/env'
 import { LogoMark } from '../../components/brand/LogoMark'
 import { Input } from '../../components/ui/Input'
 import { Button } from '../../components/ui/Button'
-import type { CompanyFieldConfig, SyncSchedule } from '@addere/types'
+import type { CompanyFieldConfig, SyncSchedule, UserPublic } from '@addere/types'
 
 const schema = z.object({
   email: z.string().email('Email inválido'),
@@ -65,34 +62,12 @@ export function LoginScreen() {
       })
       if (!result.success) { setBiometricLoading(false); return }
 
-      // Tenta cookie primeiro; se falhar (RN não persiste cookie), usa token do SecureStore
-      const storedRefreshToken = await SecureStore.getItemAsync(REFRESH_TOKEN_KEY)
-      let refreshData: { accessToken: string; refreshToken: string }
-      try {
-        const { data } = await axios.post(
-          `${env.apiUrl}/auth/refresh`,
-          {},
-          { withCredentials: true, timeout: 8000 }
-        )
-        refreshData = data
-      } catch (cookieErr) {
-        if (!storedRefreshToken) throw cookieErr
-        const { data } = await axios.post(
-          `${env.apiUrl}/auth/refresh`,
-          { refreshToken: storedRefreshToken },
-          { timeout: 8000 }
-        )
-        refreshData = data
-      }
+      // refreshSession (auth.store) centraliza cookie + fallback SecureStore
+      // e já persiste os tokens rotacionados e popula o store
+      const accessToken = await useAuthStore.getState().refreshSession()
 
-      // Usa axios direto com o novo token — api.get usaria o Zustand store
-      // que ainda está vazio (null), causando 401 e acionando o interceptor
-      const { data: userData } = await axios.get(
-        `${env.apiUrl}/auth/me`,
-        { headers: { Authorization: `Bearer ${refreshData.accessToken}` }, timeout: 8000 }
-      )
-      await setAuth(userData, refreshData.accessToken)
-      await SecureStore.setItemAsync(REFRESH_TOKEN_KEY, refreshData.refreshToken)
+      const { data: userData } = await api.get<UserPublic>('/auth/me')
+      await setAuth(userData, accessToken)
       try {
         const { data: cfg } = await api.get<CompanyFieldConfig>('/companies/me/field-config')
         await setFieldConfig(cfg)

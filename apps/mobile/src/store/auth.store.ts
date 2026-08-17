@@ -18,6 +18,7 @@ interface AuthState {
   clearAuth: () => Promise<void>
   hydrate: () => Promise<void>
   fetchPermissions: (token: string) => Promise<void>
+  refreshSession: () => Promise<string>
 }
 
 export const useAuthStore = create<AuthState>((set) => ({
@@ -65,6 +66,42 @@ export const useAuthStore = create<AuthState>((set) => ({
     }
   },
 
+  // Única implementação de refresh do app — usada pelo interceptor de 401,
+  // pela hidratação no boot e pelo login biométrico.
+  // Tenta via cookie (sessão ativa) e cai para o refresh token do SecureStore.
+  refreshSession: async () => {
+    const storedRefreshToken = await SecureStore.getItemAsync(REFRESH_TOKEN_KEY)
+
+    const tryRefresh = async (body: Record<string, string> = {}) => {
+      const { data } = await axios.post(
+        `${env.apiUrl}/auth/refresh`,
+        body,
+        { withCredentials: true, timeout: 8000 }
+      )
+      return data as { accessToken: string; refreshToken: string }
+    }
+
+    let data: { accessToken: string; refreshToken: string }
+    try {
+      data = await tryRefresh()
+    } catch (cookieErr) {
+      const e = cookieErr as { response?: unknown }
+      if (storedRefreshToken && e.response) {
+        // Cookie ausente (RN não persiste), tenta com token do SecureStore
+        data = await tryRefresh({ refreshToken: storedRefreshToken })
+      } else {
+        throw cookieErr
+      }
+    }
+
+    await Promise.all([
+      SecureStore.setItemAsync(TOKEN_KEY, data.accessToken),
+      SecureStore.setItemAsync(REFRESH_TOKEN_KEY, data.refreshToken),
+    ])
+    set({ accessToken: data.accessToken })
+    return data.accessToken
+  },
+
   // Chamado uma vez no boot do app para restaurar sessão salva
   hydrate: async () => {
     const [token, userJson] = await Promise.all([
@@ -74,38 +111,10 @@ export const useAuthStore = create<AuthState>((set) => ({
     const user = userJson ? (JSON.parse(userJson) as UserPublic) : null
 
     if (token) {
-      const storedRefreshToken = await SecureStore.getItemAsync(REFRESH_TOKEN_KEY)
-
-      const tryRefresh = async (body: Record<string, string> = {}) => {
-        const { data } = await axios.post(
-          `${env.apiUrl}/auth/refresh`,
-          body,
-          { withCredentials: true, timeout: 4000 }
-        )
-        return data as { accessToken: string; refreshToken: string }
-      }
-
       try {
-        // Tenta primeiro via cookie (web/sessão ativa), depois via body (mobile persistido)
-        let data: { accessToken: string; refreshToken: string }
-        try {
-          data = await tryRefresh()
-        } catch (cookieErr) {
-          const e = cookieErr as { response?: unknown; code?: string }
-          if (storedRefreshToken && e.response) {
-            // Cookie ausente (RN não persiste), tenta com token do SecureStore
-            data = await tryRefresh({ refreshToken: storedRefreshToken })
-          } else {
-            throw cookieErr
-          }
-        }
-
-        await Promise.all([
-          SecureStore.setItemAsync(TOKEN_KEY, data.accessToken),
-          SecureStore.setItemAsync(REFRESH_TOKEN_KEY, data.refreshToken),
-        ])
-        set({ accessToken: data.accessToken, user, hydrated: true })
-        await useAuthStore.getState().fetchPermissions(data.accessToken)
+        const newToken = await useAuthStore.getState().refreshSession()
+        set({ user, hydrated: true })
+        await useAuthStore.getState().fetchPermissions(newToken)
       } catch (err) {
         const e = err as { response?: unknown; code?: string }
         if (!e.response || e.code === 'ECONNABORTED') {

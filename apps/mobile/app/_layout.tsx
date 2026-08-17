@@ -102,7 +102,8 @@ function AuthGuard() {
     if (!hydrated || !biometricReady) return
 
     const inAuthGroup  = segments[0] === '(auth)'
-    const inDevPreview = segments[0] === 'dev-preview'
+    // dev-preview dispensa login apenas fora de produção (a própria rota redireciona em prod)
+    const inDevPreview = segments[0] === 'dev-preview' && env.appEnv !== 'production'
 
     if (inDevPreview) return
 

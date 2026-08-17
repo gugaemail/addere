@@ -7,6 +7,7 @@ import {
 } from '@expo-google-fonts/plus-jakarta-sans'
 import {
   Inter_400Regular,
+  Inter_600SemiBold,
   Inter_700Bold,
 } from '@expo-google-fonts/inter'
 
@@ -17,6 +18,7 @@ export function useFonts(): { fontsLoaded: boolean } {
     PlusJakartaSans_600SemiBold,
     PlusJakartaSans_700Bold,
     Inter_400Regular,
+    Inter_600SemiBold,
     Inter_700Bold,
   })
 
