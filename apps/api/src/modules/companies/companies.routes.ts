@@ -85,17 +85,23 @@ const updateUserSchema = z.object({
 })
 
 const createCustomerSchema = z.object({
-  name:         z.string().min(1),
-  protheusCode: z.string().optional(),
-  loja:         z.string().optional(),
-  document:     z.string().optional(),
-  email:        z.string().email().optional().or(z.literal('')),
-  phone:        z.string().optional(),
-  address:      z.string().optional(),
-  municipio:    z.string().optional(),
-  bairro:       z.string().optional(),
-  cep:          z.string().optional(),
-  uf:           z.string().optional(),
+  name:          z.string().min(1),
+  protheusCode:  z.string().optional(),
+  loja:          z.string().optional(),
+  document:      z.string().optional(),
+  email:         z.string().email().optional().or(z.literal('')),
+  phone:         z.string().optional(),
+  address:       z.string().optional(),
+  municipio:     z.string().optional(),
+  bairro:        z.string().optional(),
+  cep:           z.string().optional(),
+  uf:            z.string().optional(),
+  vendorCode:    z.string().optional(),
+  msblql:        z.string().optional(),
+  transpPadrao:  z.string().optional(),
+  condPagPadrao: z.string().optional(),
+  tes:           z.string().optional(),
+  xcodemp:       z.string().optional(),
 })
 
 const updateCustomerSchema = createCustomerSchema.partial()

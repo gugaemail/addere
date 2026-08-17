@@ -303,17 +303,23 @@ export async function updateUser(companyId: string, id: string, input: UpdateUse
 // ─── Customers (CRUD por empresa) ────────────────────────────────────────────
 
 export interface CreateCustomerInput {
-  name:         string
-  protheusCode?: string
-  loja?:         string
-  document?:     string
-  email?:        string
-  phone?:        string
-  address?:      string
-  municipio?:    string
-  bairro?:       string
-  cep?:          string
-  uf?:           string
+  name:           string
+  protheusCode?:  string
+  loja?:          string
+  document?:      string
+  email?:         string
+  phone?:         string
+  address?:       string
+  municipio?:     string
+  bairro?:        string
+  cep?:           string
+  uf?:            string
+  vendorCode?:    string
+  msblql?:        string
+  transpPadrao?:  string
+  condPagPadrao?: string
+  tes?:           string
+  xcodemp?:       string
 }
 
 export async function createCustomer(companyId: string, input: CreateCustomerInput) {
