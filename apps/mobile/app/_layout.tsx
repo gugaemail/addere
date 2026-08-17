@@ -6,14 +6,12 @@ import * as LocalAuthentication from 'expo-local-authentication'
 import { BIOMETRIC_KEY } from '../src/hooks/useAuth'
 import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client'
 import { createAsyncStoragePersister } from '@tanstack/query-async-storage-persister'
-import NetInfo from '@react-native-community/netinfo'
 import * as Sentry from '@sentry/react-native'
 import { env } from '../src/config/env'
 import { useFonts } from '../src/hooks/useFonts'
 import { queryClient } from '../src/lib/query-client'
 import { useAuthStore } from '../src/store/auth.store'
 import { useCompanyStore } from '../src/store/company.store'
-import { useSyncStore } from '../src/store/syncStore'
 import { startSyncListener } from '../src/services/syncEngine'
 import { pilotTracker } from '../src/services/pilotTracking'
 import { AppErrorBoundary } from '../src/components/ErrorBoundary'
@@ -41,7 +39,6 @@ function AuthGuard() {
   const { accessToken, hydrated, hydrate } = useAuthStore()
   const hydrateFieldConfig   = useCompanyStore((s) => s.hydrateFieldConfig)
   const hydrateSyncSchedule  = useCompanyStore((s) => s.hydrateSyncSchedule)
-  const setNetworkAvailable = useSyncStore((s) => s.setNetworkAvailable)
 
   // Biometric gate: checked once per app lifecycle
   const biometricCheckedRef = useRef(false)
@@ -53,13 +50,8 @@ function AuthGuard() {
     hydrateSyncSchedule()
   }, [])
 
-  useEffect(() => {
-    const unsubscribe = NetInfo.addEventListener((state) => {
-      setNetworkAvailable(state.isConnected ?? false)
-    })
-    return unsubscribe
-  }, [])
-
+  // O listener de NetInfo vive dentro do startSyncListener — um segundo listener
+  // aqui competia escrevendo networkAvailable sem disparar o processamento da fila
   useEffect(() => {
     const cleanup = startSyncListener()
     return cleanup

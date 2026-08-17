@@ -29,18 +29,22 @@ function isValidOrderPayload(payload: unknown): payload is CreateOrderInput {
 }
 
 async function processItem(item: SyncQueueItem): Promise<void> {
-  const { markSyncing, markSynced, markError } = useSyncStore.getState()
+  const { markSyncing, markSynced, markError, markFailedPermanently } = useSyncStore.getState()
 
   markSyncing(item.id)
 
   try {
-    if (item.type === 'order') {
-      if (!isValidOrderPayload(item.payload)) {
-        markError(item.id, 'Payload inválido: estrutura incorreta')
-        return
-      }
-      await api.post('/orders', item.payload)
+    // Payload malformado nunca vai sincronizar — falha permanente, sem retentativas
+    if (!isValidOrderPayload(item.payload)) {
+      markFailedPermanently(item.id, 'Payload inválido: estrutura incorreta')
+      Sentry.captureMessage('Item da fila de sync com payload inválido', {
+        level: 'error',
+        extra: { itemId: item.id, createdAt: item.createdAt },
+        tags: { module: 'sync_engine' },
+      })
+      return
     }
+    await api.post('/orders', item.payload)
     markSynced(item.id)
     queryClient.invalidateQueries({ queryKey: ['orders'] })
 
@@ -82,6 +86,8 @@ export async function processSyncQueue(): Promise<void> {
   const state = useSyncStore.getState()
 
   if (!state.networkAvailable) return
+  // Guarda de reentrância: tudo entre este check e setIsSyncing(true) é síncrono,
+  // então chamadas concorrentes (AppState + NetInfo + interval) não passam juntas
   if (state.isSyncing) return
 
   const items = state.queue.filter(
