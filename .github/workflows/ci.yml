@@ -4,6 +4,8 @@ on:
   pull_request:
   push:
     branches: [main, staging]
+  # Reutilizável: deploy-api.yml chama este workflow como job e só faz deploy se o CI passar
+  workflow_call:
 
 jobs:
   lint-typecheck-test:
@@ -32,11 +34,24 @@ jobs:
       - name: Type-check Web
         run: npx tsc --noEmit -p apps/web
 
+      # Mobile tem 22 erros de tipos pré-existentes (baseline), todos causados por
+      # @types/react duplicado no monorepo (bigint/ReactNode) em e2e/*.ts, ErrorBoundary,
+      # OrderSwipeActions, ComponentsPreview e syncEngine.test.ts.
+      # Semi-bloqueante: falha só se a contagem de erros exceder o baseline (regressão).
+      # Ao reduzir os erros, baixe TSC_MOBILE_BASELINE; ao zerar, troque por `npx tsc --noEmit`
+      # e inclua o mobile no `npm run type-check` da raiz (hoje só `type-check:mobile`, não-bloqueante).
       - name: Type-check Mobile
         working-directory: apps/mobile
-        run: npx tsc --noEmit || true
-        # Mobile tem erros de tipos pré-existentes em e2e/dev-preview (baseline 33);
-        # o passo vira bloqueante quando o baseline for zerado
+        env:
+          TSC_MOBILE_BASELINE: 22
+        run: |
+          count=$(npx tsc --noEmit 2>&1 | grep -c 'error TS' || true)
+          echo "Erros de tipos no mobile: $count (baseline: $TSC_MOBILE_BASELINE)"
+          if [ "$count" -gt "$TSC_MOBILE_BASELINE" ]; then
+            echo "::error::Type-check mobile regrediu: $count erros > baseline $TSC_MOBILE_BASELINE"
+            npx tsc --noEmit || true
+            exit 1
+          fi
 
       - name: Testes API
         working-directory: apps/api

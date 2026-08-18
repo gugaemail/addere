@@ -9,7 +9,12 @@ on:
       - 'packages/types/**'
 
 jobs:
+  # Roda o CI completo (lint, type-check, testes, build) antes de qualquer deploy
+  ci:
+    uses: ./.github/workflows/ci.yml
+
   migrate-and-deploy:
+    needs: ci
     runs-on: ubuntu-latest
 
     steps:
