@@ -1,6 +1,7 @@
 import fp from 'fastify-plugin'
 import cors from '@fastify/cors'
 import { FastifyInstance } from 'fastify'
+import { env } from '../lib/env'
 
 const PRODUCTION_ORIGINS = [
   'https://addere.com.br',
@@ -15,10 +16,13 @@ const DEV_ORIGINS = [
 ]
 
 export default fp(async (app: FastifyInstance) => {
-  const origins =
-    process.env.NODE_ENV === 'production'
+  // CORS_ORIGIN permite adicionar domínios sem deploy de código (separar por vírgula)
+  const envOrigins = env.CORS_ORIGIN.split(',').map((o) => o.trim()).filter(Boolean)
+  const base =
+    env.NODE_ENV === 'production'
       ? PRODUCTION_ORIGINS
       : [...PRODUCTION_ORIGINS, ...DEV_ORIGINS]
+  const origins = [...new Set([...base, ...envOrigins])]
 
   await app.register(cors, {
     origin: origins,

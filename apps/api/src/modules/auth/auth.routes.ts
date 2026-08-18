@@ -1,3 +1,4 @@
+import { env } from '../../lib/env'
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify'
 import { loginSchema, forgotPasswordSchema, resetPasswordSchema } from './auth.schema'
 import {
@@ -29,7 +30,7 @@ function cookieOptions(secure: boolean) {
 }
 
 export default async function authRoutes(app: FastifyInstance) {
-  const isProduction = process.env.NODE_ENV === 'production'
+  const isProduction = env.NODE_ENV === 'production'
 
   // POST /auth/login — rate limit: 10 tentativas por minuto por IP
   app.post('/login', {

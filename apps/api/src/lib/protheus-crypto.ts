@@ -2,13 +2,14 @@
 // A chave deve ter 64 caracteres hex (32 bytes) em PROTHEUS_ENCRYPTION_KEY.
 // Valores não criptografados (legado) são retornados sem alteração.
 
+import { env } from './env'
 import { createCipheriv, createDecipheriv, randomBytes } from 'crypto'
 
 const ALGORITHM = 'aes-256-gcm'
 const ENCRYPTED_PREFIX = 'enc:'
 
 function getKey(): Buffer {
-  const hex = process.env.PROTHEUS_ENCRYPTION_KEY ?? ''
+  const hex = env.PROTHEUS_ENCRYPTION_KEY
   if (hex.length !== 64) {
     throw new Error(
       'PROTHEUS_ENCRYPTION_KEY deve ter 64 caracteres hex (32 bytes). ' +

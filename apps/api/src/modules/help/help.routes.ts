@@ -3,10 +3,11 @@ import path from 'node:path'
 import fs from 'node:fs'
 import { randomUUID } from 'node:crypto'
 import { authenticate } from '../../middleware/authenticate'
+import { env } from '../../lib/env'
 import { ALLOWED_EXTENSIONS, createReportSchema, listReportsQuerySchema } from './help.schema'
 import { createHelpReport, listUserReports } from './help.service'
 
-const UPLOAD_DIR = process.env.UPLOAD_DIR || 'uploads'
+const UPLOAD_DIR = env.UPLOAD_DIR
 
 export default async function helpRoutes(app: FastifyInstance) {
   // POST /help/report — envia reporte de problema com screenshot opcional

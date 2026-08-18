@@ -8,7 +8,11 @@ const envSchema = z.object({
   PROTHEUS_ENCRYPTION_KEY: z.string().length(64),
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   PORT: z.string().default('3333'),
-  CORS_ORIGIN: z.string().url().default('http://localhost:3000'),
+  // Uma ou mais origens extras permitidas no CORS, separadas por vírgula
+  CORS_ORIGIN: z.string().default('http://localhost:3000'),
+  UPLOAD_DIR: z.string().default('uploads'),
+  RESEND_API_KEY: z.string().optional(),
+  WEB_URL: z.string().url().optional(),
 })
 
 // Valida no boot — lança erro claro antes de qualquer plugin Fastify carregar
