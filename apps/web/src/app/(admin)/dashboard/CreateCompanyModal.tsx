@@ -1,7 +1,12 @@
 'use client'
 
 import { useState } from 'react'
-import { api } from '@/lib/api'
+import { toast } from 'sonner'
+import { getApiErrorMessage } from '@/lib/api'
+import { Modal } from '@/components/ui/Modal'
+import { Button } from '@/components/ui/Button'
+import { FormField } from '@/components/ui/FormField'
+import { useCreateCompany } from '@/hooks/useCompanies'
 
 interface Props {
   onClose: () => void
@@ -9,110 +14,48 @@ interface Props {
 }
 
 export function CreateCompanyModal({ onClose, onCreated }: Props) {
+  const createCompany = useCreateCompany()
   const [name, setName] = useState('')
   const [cnpj, setCnpj] = useState('')
   const [idProtheus, setIdProtheus] = useState('')
-  const [error, setError] = useState<string | null>(null)
-  const [loading, setLoading] = useState(false)
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    setError(null)
-    setLoading(true)
     try {
-      await api.post('/companies', { name, cnpj, idProtheus: idProtheus || undefined })
+      await createCompany.mutateAsync({ name, cnpj, idProtheus: idProtheus || undefined })
       onCreated()
     } catch (err: unknown) {
-      const message =
-        err && typeof err === 'object' && 'response' in err
-          ? (err as { response?: { data?: { message?: string } } }).response?.data?.message
-          : null
-      setError(message ?? 'Erro ao criar empresa.')
-    } finally {
-      setLoading(false)
+      toast.error(getApiErrorMessage(err, 'Erro ao criar empresa.'))
     }
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/50 animate-backdrop-in" onClick={onClose} />
+    <Modal isOpen onClose={onClose} title="Nova Empresa">
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <FormField label="Nome" required value={name} onChange={(e) => setName(e.target.value)} />
+        <FormField
+          label="CNPJ"
+          required
+          value={cnpj}
+          onChange={(e) => setCnpj(e.target.value)}
+          placeholder="00.000.000/0001-00"
+        />
+        <FormField
+          label="Código Protheus"
+          value={idProtheus}
+          onChange={(e) => setIdProtheus(e.target.value)}
+          placeholder="Opcional"
+        />
 
-      {/* Card */}
-      <div className="relative bg-[var(--bg-surface)] border border-[var(--border)] rounded-2xl shadow-modal w-full max-w-md p-6 space-y-5 animate-modal-in">
-        <div className="flex items-center justify-between">
-          <h2 className="text-base font-semibold tracking-tight text-[var(--text-primary)]">Nova Empresa</h2>
-          <button
-            type="button"
-            onClick={onClose}
-            className="text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors p-1 rounded-lg hover:bg-[var(--bg-subtle)]"
-          >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
-            </svg>
-          </button>
+        <div className="flex gap-3 pt-2">
+          <Button type="button" variant="secondary" onClick={onClose} className="flex-1">
+            Cancelar
+          </Button>
+          <Button type="submit" loading={createCompany.isPending} className="flex-1">
+            Criar
+          </Button>
         </div>
-
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <Field label="Nome" value={name} onChange={setName} required />
-          <Field label="CNPJ" value={cnpj} onChange={setCnpj} required placeholder="00.000.000/0001-00" />
-          <Field label="Código Protheus" value={idProtheus} onChange={setIdProtheus} placeholder="Opcional" />
-
-          {error && (
-            <div className="flex items-start gap-2 text-sm text-red-500 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2.5">
-              <svg className="w-4 h-4 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z" />
-              </svg>
-              {error}
-            </div>
-          )}
-
-          <div className="flex gap-3 pt-2">
-            <button
-              type="button"
-              onClick={onClose}
-              className="flex-1 border border-[var(--border)] text-[var(--text-secondary)] text-sm font-medium rounded-lg py-2.5 hover:bg-[var(--bg-subtle)] transition-colors"
-            >
-              Cancelar
-            </button>
-            <button
-              type="submit"
-              disabled={loading}
-              className="flex-1 bg-brand-600 hover:bg-brand-700 disabled:opacity-50 text-white text-sm font-medium rounded-lg py-2.5 transition-colors"
-            >
-              {loading ? 'Criando...' : 'Criar'}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  )
-}
-
-function Field({
-  label,
-  value,
-  onChange,
-  required,
-  placeholder,
-}: {
-  label: string
-  value: string
-  onChange: (v: string) => void
-  required?: boolean
-  placeholder?: string
-}) {
-  return (
-    <div>
-      <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">{label}</label>
-      <input
-        type="text"
-        required={required}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
-        className="w-full bg-[var(--bg-subtle)] border border-[var(--border)] rounded-lg px-3 py-2.5 text-sm text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition-shadow"
-      />
-    </div>
+      </form>
+    </Modal>
   )
 }

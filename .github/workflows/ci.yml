@@ -1,0 +1,58 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main, staging]
+  # Reutilizável: deploy-api.yml chama este workflow como job e só faz deploy se o CI passar
+  workflow_call:
+
+jobs:
+  lint-typecheck-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Instalar dependências
+        run: npm ci
+
+      - name: Gerar Prisma Client
+        run: npm run db:generate
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Type-check API
+        run: npx tsc --noEmit -p apps/api
+
+      - name: Type-check Web
+        run: npx tsc --noEmit -p apps/web
+
+      - name: Type-check Mobile
+        run: npx tsc --noEmit -p apps/mobile
+
+      - name: Testes API
+        working-directory: apps/api
+        run: npm test
+
+      - name: Testes Web
+        working-directory: apps/web
+        run: npm test
+
+      - name: Testes Mobile (unit)
+        working-directory: apps/mobile
+        run: npx jest src/ --ci
+
+      - name: Build API
+        run: npm run build:api
+
+      - name: Build Web
+        run: npm run build:web
+        env:
+          NEXT_PUBLIC_API_URL: http://localhost:3333

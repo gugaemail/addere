@@ -4,16 +4,9 @@
     "slug": "addere",
     "version": "1.0.0",
     "scheme": "addere",
-    "platforms": [
-      "ios",
-      "android"
-    ],
+    "platforms": ["ios", "android"],
     "icon": "./assets/icon.png",
-    "plugins": [
-      "expo-router",
-      "expo-secure-store",
-      "expo-sqlite"
-    ],
+    "plugins": ["expo-router", "expo-secure-store", "expo-sqlite"],
     "splash": {
       "image": "./assets/splash-icon.png",
       "backgroundColor": "#0D2045",

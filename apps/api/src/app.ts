@@ -1,6 +1,3 @@
-import { checkEnv } from './scripts/check-env'
-checkEnv()
-
 import Fastify, { FastifyInstance } from 'fastify'
 import rateLimit from '@fastify/rate-limit'
 import helmet from '@fastify/helmet'
@@ -8,7 +5,6 @@ import multipart from '@fastify/multipart'
 import staticPlugin from '@fastify/static'
 import path from 'node:path'
 import fs from 'node:fs'
-import envPlugin from './plugins/env'
 import cookiePlugin from './plugins/cookie'
 import corsPlugin from './plugins/cors'
 import jwtPlugin from './plugins/jwt'
@@ -27,16 +23,18 @@ import helpRoutes from './modules/help/help.routes'
 import usersRoutes from './modules/users/users.routes'
 import permissionsRoutes, { userPermissionsRoutes } from './modules/permissions/permissions.routes'
 import userTypesRoutes from './modules/user-types/user-types.routes'
+import { authenticate } from './middleware/authenticate'
+import { env } from './lib/env'
+import { registerErrorHandling } from './lib/error-handler'
 
 export async function buildApp(): Promise<FastifyInstance> {
   const app = Fastify({
     logger: {
-      level: process.env.NODE_ENV === 'production' ? 'info' : 'debug',
+      level: env.NODE_ENV === 'production' ? 'info' : 'debug',
     },
   })
 
-  // Plugins — ordem importa: env primeiro pois os outros dependem das variáveis
-  await app.register(envPlugin)
+  // Plugins — a validação de env acontece no boot via lib/env (importado pelo server)
   await app.register(helmet, { global: true })
   await app.register(cookiePlugin)
   await app.register(corsPlugin)
@@ -45,21 +43,27 @@ export async function buildApp(): Promise<FastifyInstance> {
   // Rate limiting: desabilitado globalmente, ativado por rota onde necessário
   await app.register(rateLimit, { global: false })
 
+  registerErrorHandling(app)
+
   // Upload de arquivos (screenshots da Central de Ajuda) — max 5MB, 1 arquivo por request
   await app.register(multipart, {
     limits: { fileSize: 5 * 1024 * 1024, files: 1 },
   })
 
-  // Serve pasta uploads/ como arquivos estáticos
-  const uploadRoot = path.resolve(process.cwd(), process.env.UPLOAD_DIR || 'uploads')
+  // Serve pasta uploads/ (screenshots da Central de Ajuda) — somente autenticado:
+  // as URLs contêm userId/ticketId e não podem ser públicas
+  const uploadRoot = path.resolve(process.cwd(), env.UPLOAD_DIR)
   fs.mkdirSync(uploadRoot, { recursive: true })
-  await app.register(staticPlugin, { root: uploadRoot, prefix: '/uploads/' })
+  await app.register(async (scope) => {
+    scope.addHook('onRequest', authenticate)
+    await scope.register(staticPlugin, { root: uploadRoot, prefix: '/uploads/' })
+  })
 
   // GET /health — sem autenticação; usado por load balancers e monitoramento
   app.get('/health', async (_request, reply) => {
     return reply.send({
       status: 'ok',
-      version: process.env.npm_package_version,
+      environment: env.NODE_ENV,
       timestamp: new Date().toISOString(),
     })
   })

@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react'
-import { Animated, View, Text, Pressable, StyleSheet, ViewStyle } from 'react-native'
-import { useTheme } from '../theme'
+import { Animated, View, ActivityIndicator, StyleSheet, ViewStyle } from 'react-native'
+import { useTheme, colors, spacing, radius } from '../theme'
 
 // ─── SkeletonBox ─────────────────────────────────────────────────────────────
 
@@ -12,13 +12,13 @@ interface SkeletonBoxProps {
 
 export function SkeletonBox({ width, height, style }: SkeletonBoxProps) {
   const opacity = useRef(new Animated.Value(1)).current
-  const theme   = useTheme()
+  const theme = useTheme()
 
   useEffect(() => {
     const anim = Animated.loop(
       Animated.sequence([
         Animated.timing(opacity, { toValue: 0.3, duration: 750, useNativeDriver: true }),
-        Animated.timing(opacity, { toValue: 1,   duration: 750, useNativeDriver: true }),
+        Animated.timing(opacity, { toValue: 1, duration: 750, useNativeDriver: true }),
       ])
     )
     anim.start()
@@ -28,7 +28,13 @@ export function SkeletonBox({ width, height, style }: SkeletonBoxProps) {
   return (
     <Animated.View
       style={[
-        { width: width as number, height, borderRadius: 6, backgroundColor: theme.subtle, opacity },
+        {
+          width: width as number,
+          height,
+          borderRadius: radius.sm,
+          backgroundColor: theme.subtle,
+          opacity,
+        },
         style,
       ]}
     />
@@ -42,7 +48,7 @@ export function StatCardSkeleton() {
   return (
     <View style={[sk.statCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
       <SkeletonBox width={44} height={22} />
-      <SkeletonBox width={80} height={11} style={{ marginTop: 6 }} />
+      <SkeletonBox width={80} height={11} style={{ marginTop: spacing.sm }} />
     </View>
   )
 }
@@ -50,7 +56,9 @@ export function StatCardSkeleton() {
 export function StatGridSkeleton() {
   return (
     <View style={sk.statsGrid}>
-      {[0, 1, 2, 3].map((i) => <StatCardSkeleton key={i} />)}
+      {[0, 1, 2, 3].map((i) => (
+        <StatCardSkeleton key={i} />
+      ))}
     </View>
   )
 }
@@ -61,13 +69,13 @@ export function OrderRowSkeleton() {
   const theme = useTheme()
   return (
     <View style={[sk.row, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-      <View style={{ flex: 1, gap: 6 }}>
+      <View style={{ flex: 1, gap: spacing.sm }}>
         <SkeletonBox width="70%" height={14} />
         <SkeletonBox width="40%" height={11} />
       </View>
-      <View style={{ alignItems: 'flex-end', gap: 6 }}>
+      <View style={{ alignItems: 'flex-end', gap: spacing.sm }}>
         <SkeletonBox width={70} height={14} />
-        <SkeletonBox width={55} height={18} style={{ borderRadius: 10 }} />
+        <SkeletonBox width={55} height={18} style={{ borderRadius: radius.full }} />
       </View>
     </View>
   )
@@ -77,72 +85,53 @@ export function ClienteItemSkeleton() {
   const theme = useTheme()
   return (
     <View style={[sk.row, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-      <View style={{ flex: 1, gap: 6 }}>
+      <View style={{ flex: 1, gap: spacing.sm }}>
         <SkeletonBox width="65%" height={14} />
         <SkeletonBox width="45%" height={11} />
       </View>
-      <SkeletonBox width={18} height={22} style={{ borderRadius: 4 }} />
+      <SkeletonBox width={18} height={22} style={{ borderRadius: radius.xs }} />
     </View>
   )
 }
 
-// ─── EmptyState ───────────────────────────────────────────────────────────────
+// ─── Loading (spinner de tela) ────────────────────────────────────────────────
 
-interface EmptyStateProps {
-  icon: React.ReactNode
-  title: string
-  description?: string
-  action?: { label: string; onPress: () => void }
-}
-
-export function EmptyState({ icon, title, description, action }: EmptyStateProps) {
-  const theme = useTheme()
+// Estado de carregamento centralizado e consistente para telas de detalhe/listas
+// que ainda não têm skeleton próprio.
+export function LoadingState({ style }: { style?: ViewStyle }) {
   return (
-    <View style={sk.emptyContainer}>
-      <View style={[sk.emptyIconWrap, { backgroundColor: theme.subtle }]}>
-        {icon}
-      </View>
-      <Text style={[sk.emptyTitle, { color: theme.text }]}>{title}</Text>
-      {description && (
-        <Text style={[sk.emptyDesc, { color: theme.textMuted }]}>{description}</Text>
-      )}
-      {action && (
-        <Pressable
-          onPress={action.onPress}
-          style={[sk.emptyBtn, { borderColor: theme.brand }]}
-        >
-          <Text style={[sk.emptyBtnText, { color: theme.brand }]}>{action.label}</Text>
-        </Pressable>
-      )}
+    <View style={[sk.loading, style]}>
+      <ActivityIndicator color={colors.brand.primary} />
     </View>
   )
 }
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
+// Dimensões alinhadas ao Card de ui/ (radius.lg + padding md)
 const sk = StyleSheet.create({
-  statsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginBottom: 24 },
+  statsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginBottom: spacing.md },
   statCard: {
-    borderRadius: 10,
-    padding: 14,
+    borderRadius: radius.lg,
+    padding: spacing.md,
     flex: 1,
     minWidth: '45%',
     borderWidth: 1,
-    borderLeftWidth: 3,
-    borderLeftColor: 'transparent',
+    borderTopWidth: 3,
+    borderTopColor: 'transparent',
   },
   row: {
-    borderRadius: 10,
-    padding: 14,
-    marginBottom: 8,
+    borderRadius: radius.lg,
+    padding: spacing.md,
+    marginBottom: spacing.sm,
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 1,
   },
-  emptyContainer:  { alignItems: 'center', paddingVertical: 56, paddingHorizontal: 24, gap: 10 },
-  emptyIconWrap:   { width: 60, height: 60, borderRadius: 18, alignItems: 'center', justifyContent: 'center', marginBottom: 4 },
-  emptyTitle:      { fontSize: 15, fontWeight: '600', textAlign: 'center' },
-  emptyDesc:       { fontSize: 13, textAlign: 'center', maxWidth: 260, lineHeight: 19 },
-  emptyBtn:        { marginTop: 4, paddingHorizontal: 20, paddingVertical: 9, borderRadius: 10, borderWidth: 1.5 },
-  emptyBtnText:    { fontSize: 14, fontWeight: '600' },
+  loading: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: spacing['2xl'],
+  },
 })

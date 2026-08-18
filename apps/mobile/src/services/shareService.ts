@@ -23,7 +23,11 @@ export async function shareViaWhatsApp(filePath: string, order: Order): Promise<
 
 // Abre o compositor de email nativo com o PDF em anexo.
 // ATENÇÃO: expo-mail-composer NÃO funciona em simuladores iOS — apenas em dispositivos físicos.
-export async function shareViaEmail(filePath: string, order: Order, userName?: string | null): Promise<void> {
+export async function shareViaEmail(
+  filePath: string,
+  order: Order,
+  userName?: string | null
+): Promise<void> {
   const available = await MailComposer.isAvailableAsync()
   if (!available) {
     Alert.alert(

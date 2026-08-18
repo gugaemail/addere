@@ -1,11 +1,13 @@
 import { prisma } from '@addere/db'
+import { notFound, forbidden, unprocessable } from '../../lib/errors'
+import { priceOrderItems } from './orders.pricing'
 import type { CreateOrderInput, UpdateOrderInput } from './orders.schema'
 
 const orderInclude = {
-  customer:       { select: { id: true, name: true, document: true } },
-  branch:         { select: { id: true, name: true, idProtheus: true } },
+  customer: { select: { id: true, name: true, document: true } },
+  branch: { select: { id: true, name: true, idProtheus: true } },
   transportadora: { select: { id: true, nome: true } },
-  condPag:        { select: { id: true, nome: true } },
+  condPag: { select: { id: true, nome: true } },
   items: {
     include: { product: { select: { id: true, name: true, unit: true } } },
   },
@@ -22,25 +24,57 @@ export async function assertCarrierAndPaymentTermsAllowed(
   if (input.transportId === undefined && input.condId === undefined) return
 
   const customer = await prisma.customer.findFirst({ where: { id: customerId, companyId } })
-  if (!customer) throw new Error('Cliente não encontrado')
+  if (!customer) throw notFound('Cliente não encontrado')
 
   if (input.transportId !== undefined && !permissions.has('orders.change_carrier')) {
     const defaultTransp = customer.transpPadrao
-      ? await prisma.transportadora.findFirst({ where: { companyId, protheusCode: customer.transpPadrao } })
+      ? await prisma.transportadora.findFirst({
+          where: { companyId, protheusCode: customer.transpPadrao },
+        })
       : null
     if (input.transportId !== (defaultTransp?.id ?? '')) {
-      throw new Error('Você não tem permissão para alterar a transportadora do pedido')
+      throw forbidden('Você não tem permissão para alterar a transportadora do pedido')
     }
   }
 
   if (input.condId !== undefined && !permissions.has('orders.change_payment_terms')) {
     const defaultCond = customer.condPagPadrao
-      ? await prisma.condPag.findFirst({ where: { companyId, protheusCode: customer.condPagPadrao } })
+      ? await prisma.condPag.findFirst({
+          where: { companyId, protheusCode: customer.condPagPadrao },
+        })
       : null
     if (input.condId !== (defaultCond?.id ?? '')) {
-      throw new Error('Você não tem permissão para alterar a condição de pagamento do pedido')
+      throw forbidden('Você não tem permissão para alterar a condição de pagamento do pedido')
     }
   }
+}
+
+// Garante que filial, transportadora e condição de pagamento referenciadas
+// pertencem à empresa do usuário — ids de outra empresa eram aceitos sem checagem
+async function assertOrderRefsBelongToCompany(
+  companyId: string,
+  refs: { branchId?: string; transportId?: string; condId?: string }
+): Promise<void> {
+  const [branch, transp, cond] = await Promise.all([
+    refs.branchId
+      ? prisma.branch.findFirst({
+          where: { id: refs.branchId, companyId, active: true },
+          select: { id: true },
+        })
+      : Promise.resolve(null),
+    refs.transportId
+      ? prisma.transportadora.findFirst({
+          where: { id: refs.transportId, companyId },
+          select: { id: true },
+        })
+      : Promise.resolve(null),
+    refs.condId
+      ? prisma.condPag.findFirst({ where: { id: refs.condId, companyId }, select: { id: true } })
+      : Promise.resolve(null),
+  ])
+  if (refs.branchId && !branch) throw unprocessable('Filial não encontrada')
+  if (refs.transportId && !transp) throw unprocessable('Transportadora não encontrada')
+  if (refs.condId && !cond) throw unprocessable('Condição de pagamento não encontrada')
 }
 
 export async function getOrder(userId: string, companyId: string, orderId: string) {
@@ -77,8 +111,9 @@ export async function getOrderStats(userId: string, companyId: string) {
 
 export async function resetOrderToPending(companyId: string, orderId: string) {
   const order = await prisma.order.findFirst({ where: { id: orderId, companyId } })
-  if (!order) throw new Error('Pedido não encontrado')
-  if (order.status !== 'SYNCED') throw new Error('Apenas pedidos com status SYNCED podem ser revertidos para PENDING')
+  if (!order) throw notFound('Pedido não encontrado')
+  if (order.status !== 'SYNCED')
+    throw unprocessable('Apenas pedidos com status SYNCED podem ser revertidos para PENDING')
   return prisma.order.update({
     where: { id: orderId },
     data: { status: 'PENDING', protheusOrderId: null, syncedAt: null },
@@ -88,18 +123,30 @@ export async function resetOrderToPending(companyId: string, orderId: string) {
 
 export async function cancelOrder(userId: string, companyId: string, orderId: string) {
   const order = await prisma.order.findFirst({ where: { id: orderId, userId, companyId } })
-  if (!order) throw new Error('Pedido não encontrado')
-  if (order.status === 'CANCELLED') throw new Error('Pedido já está cancelado')
-  if (order.status !== 'PENDING' && order.status !== 'SYNCED') throw new Error('Apenas pedidos pendentes ou sincronizados podem ser cancelados')
-  return prisma.order.update({ where: { id: orderId }, data: { status: 'CANCELLED' }, include: orderInclude })
+  if (!order) throw notFound('Pedido não encontrado')
+  if (order.status === 'CANCELLED') throw unprocessable('Pedido já está cancelado')
+  if (order.status !== 'PENDING' && order.status !== 'SYNCED')
+    throw unprocessable('Apenas pedidos pendentes ou sincronizados podem ser cancelados')
+  return prisma.order.update({
+    where: { id: orderId },
+    data: { status: 'CANCELLED' },
+    include: orderInclude,
+  })
 }
 
-export async function updateOrder(userId: string, companyId: string, orderId: string, input: UpdateOrderInput, permissions: Set<string>) {
+export async function updateOrder(
+  userId: string,
+  companyId: string,
+  orderId: string,
+  input: UpdateOrderInput,
+  permissions: Set<string>
+) {
   const order = await prisma.order.findFirst({ where: { id: orderId, userId, companyId } })
-  if (!order) throw new Error('Pedido não encontrado')
-  if (order.status !== 'PENDING') throw new Error('Apenas pedidos pendentes podem ser editados')
+  if (!order) throw notFound('Pedido não encontrado')
+  if (order.status !== 'PENDING') throw unprocessable('Apenas pedidos pendentes podem ser editados')
 
   await assertCarrierAndPaymentTermsAllowed(companyId, order.customerId, input, permissions)
+  await assertOrderRefsBelongToCompany(companyId, input)
 
   const productIds = input.items.map((i) => i.productId)
   const products = await prisma.product.findMany({
@@ -107,37 +154,11 @@ export async function updateOrder(userId: string, companyId: string, orderId: st
   })
 
   if (products.length !== productIds.length) {
-    throw new Error('Um ou mais produtos não foram encontrados ou estão inativos')
+    throw unprocessable('Um ou mais produtos não foram encontrados ou estão inativos')
   }
 
-  const productMap = new Map(products.map((p) => [p.id, p]))
-
-  const itemsWithTotals = input.items.map((item) => {
-    const product = productMap.get(item.productId)!
-    const unitPrice = item.unitPrice !== undefined ? item.unitPrice : Number(product.price)
-    const discount = item.discount ?? 0
-
-    const priceCents  = Math.round(unitPrice * 100)
-    const qty1000     = Math.round(item.quantity * 1000)
-    const discountBP  = Math.round(discount * 100)
-    const totalCents  = Math.round(priceCents * qty1000 / 1000 * (10000 - discountBP) / 10000)
-
-    return {
-      productId:    item.productId,
-      quantity:     item.quantity,
-      unitPrice,
-      discount,
-      total:        totalCents / 100,
-      descricao:    item.descricao,
-      largura:      item.largura,
-      espessura:    item.espessura,
-      encolhimento: item.encolhimento,
-      xcrav:        item.xcrav,
-      tara:         item.tara,
-    }
-  })
-
-  const orderTotalCents = itemsWithTotals.reduce((sum, i) => sum + Math.round(i.total * 100), 0)
+  const defaultPrices = new Map(products.map((p) => [p.id, Number(p.price)]))
+  const { items: itemsWithTotals, orderTotal } = priceOrderItems(input.items, defaultPrices)
 
   return prisma.$transaction(async (tx) => {
     await tx.orderItem.deleteMany({ where: { orderId } })
@@ -145,20 +166,26 @@ export async function updateOrder(userId: string, companyId: string, orderId: st
       where: { id: orderId },
       data: {
         transportId: input.transportId ?? null,
-        condId:      input.condId ?? null,
-        emissao:     input.emissao ? new Date(input.emissao) : null,
-        mennota:     input.mennota,
-        notes:       input.notes,
-        total:       orderTotalCents / 100,
-        items:       { create: itemsWithTotals },
+        condId: input.condId ?? null,
+        emissao: input.emissao ? new Date(input.emissao) : null,
+        mennota: input.mennota,
+        notes: input.notes,
+        total: orderTotal,
+        items: { create: itemsWithTotals },
       },
       include: orderInclude,
     })
   })
 }
 
-export async function createOrder(userId: string, companyId: string, input: CreateOrderInput, permissions: Set<string>) {
+export async function createOrder(
+  userId: string,
+  companyId: string,
+  input: CreateOrderInput,
+  permissions: Set<string>
+) {
   await assertCarrierAndPaymentTermsAllowed(companyId, input.customerId, input, permissions)
+  await assertOrderRefsBelongToCompany(companyId, input)
 
   // Busca os produtos para calcular os preços (filtrado pela empresa)
   const productIds = input.items.map((i) => i.productId)
@@ -167,53 +194,25 @@ export async function createOrder(userId: string, companyId: string, input: Crea
   })
 
   if (products.length !== productIds.length) {
-    throw new Error('Um ou mais produtos não foram encontrados ou estão inativos')
+    throw unprocessable('Um ou mais produtos não foram encontrados ou estão inativos')
   }
 
-  const productMap = new Map(products.map((p) => [p.id, p]))
-
-  // Calcula totais de cada item usando aritmética inteira (centavos) para evitar erros de float
-  const itemsWithTotals = input.items.map((item) => {
-    const product = productMap.get(item.productId)!
-    const unitPrice = item.unitPrice !== undefined ? item.unitPrice : Number(product.price)
-    const discount = item.discount ?? 0
-
-    // Trabalha em centavos e milésimos de unidade para manter precisão inteira
-    const priceCents      = Math.round(unitPrice * 100)
-    const qty1000         = Math.round(item.quantity * 1000)
-    const discountBP      = Math.round(discount * 100)          // basis points 0-10000
-    const totalCents      = Math.round(priceCents * qty1000 / 1000 * (10000 - discountBP) / 10000)
-
-    return {
-      productId:    item.productId,
-      quantity:     item.quantity,
-      unitPrice,
-      discount,
-      total:        totalCents / 100,
-      descricao:    item.descricao,
-      largura:      item.largura,
-      espessura:    item.espessura,
-      encolhimento: item.encolhimento,
-      xcrav:        item.xcrav,
-      tara:         item.tara,
-    }
-  })
-
-  const orderTotalCents = itemsWithTotals.reduce((sum, i) => sum + Math.round(i.total * 100), 0)
+  const defaultPrices = new Map(products.map((p) => [p.id, Number(p.price)]))
+  const { items: itemsWithTotals, orderTotal } = priceOrderItems(input.items, defaultPrices)
 
   return prisma.order.create({
     data: {
       userId,
       companyId,
-      customerId:  input.customerId,
-      branchId:    input.branchId,
+      customerId: input.customerId,
+      branchId: input.branchId,
       transportId: input.transportId,
-      condId:      input.condId,
-      emissao:     input.emissao ? new Date(input.emissao) : undefined,
-      mennota:     input.mennota,
-      notes:       input.notes,
-      total:       orderTotalCents / 100,
-      items:       { create: itemsWithTotals },
+      condId: input.condId,
+      emissao: input.emissao ? new Date(input.emissao) : undefined,
+      mennota: input.mennota,
+      notes: input.notes,
+      total: orderTotal,
+      items: { create: itemsWithTotals },
     },
     include: orderInclude,
   })

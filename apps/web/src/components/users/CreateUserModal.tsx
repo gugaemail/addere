@@ -5,17 +5,25 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { createUserSchema, type CreateUserFormData } from '@/lib/schemas'
 import { useCreateUser, useUsers } from '@/hooks/useUsers'
 import { useUserTypes } from '@/hooks/useUserTypes'
+import { getApiErrorMessage } from '@/lib/api'
 import { Modal } from '@/components/ui/Modal'
 import { Input } from '@/components/ui/Input'
 import { Button } from '@/components/ui/Button'
+import { FormSelect } from '@/components/ui/FormField'
 
 interface CreateUserModalProps {
   isOpen: boolean
   onClose: () => void
+  /**
+   * Quando informado, cria o usuário dentro da empresa (POST /companies/:id/users)
+   * e oculta os campos de tipo/cópia de permissões (conceitos do escopo global).
+   */
+  companyId?: string
 }
 
-export function CreateUserModal({ isOpen, onClose }: CreateUserModalProps) {
-  const createUser = useCreateUser()
+export function CreateUserModal({ isOpen, onClose, companyId }: CreateUserModalProps) {
+  const createUser = useCreateUser(companyId)
+  const isCompanyScope = !!companyId
   const { data: userTypes } = useUserTypes()
   const { data: users } = useUsers()
 
@@ -28,11 +36,15 @@ export function CreateUserModal({ isOpen, onClose }: CreateUserModalProps) {
 
   const onSubmit = async (data: CreateUserFormData) => {
     try {
-      await createUser.mutateAsync({
-        ...data,
-        userTypeId: data.userTypeId || undefined,
-        copyPermissionsFromUserId: data.copyPermissionsFromUserId || undefined,
-      })
+      await createUser.mutateAsync(
+        isCompanyScope
+          ? { name: data.name, email: data.email, password: data.password, role: data.role }
+          : {
+              ...data,
+              userTypeId: data.userTypeId || undefined,
+              copyPermissionsFromUserId: data.copyPermissionsFromUserId || undefined,
+            }
+      )
       reset()
       onClose()
     } catch {
@@ -51,50 +63,42 @@ export function CreateUserModal({ isOpen, onClose }: CreateUserModalProps) {
           error={errors.password?.message}
           {...register('password')}
         />
-        <div className="flex flex-col gap-1">
-          <label className="text-sm font-medium text-gray-300">Perfil</label>
-          <select
-            {...register('role')}
-            className="rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-          >
-            <option value="SALESPERSON">Vendedor</option>
-            <option value="ADMIN">Administrador</option>
-          </select>
-          {errors.role && <p className="text-xs text-red-400">{errors.role.message}</p>}
-        </div>
+        <FormSelect label="Perfil" error={errors.role?.message} {...register('role')}>
+          <option value="SALESPERSON">Vendedor</option>
+          <option value="ADMIN">Administrador</option>
+        </FormSelect>
 
-        <div className="flex flex-col gap-1">
-          <label className="text-sm font-medium text-gray-300">Tipo de usuário</label>
-          <select
-            {...register('userTypeId')}
-            className="rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-          >
-            <option value="">Sem tipo</option>
-            {(userTypes ?? []).map((type) => (
-              <option key={type.id} value={type.id}>{type.name}</option>
-            ))}
-          </select>
-        </div>
+        {!isCompanyScope && (
+          <>
+            <FormSelect label="Tipo de usuário" {...register('userTypeId')}>
+              <option value="">Sem tipo</option>
+              {(userTypes ?? []).map((type) => (
+                <option key={type.id} value={type.id}>
+                  {type.name}
+                </option>
+              ))}
+            </FormSelect>
 
-        <div className="flex flex-col gap-1">
-          <label className="text-sm font-medium text-gray-300">Copiar permissões de</label>
-          <select
-            {...register('copyPermissionsFromUserId')}
-            className="rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-          >
-            <option value="">Nenhuma (nasce sem permissões)</option>
-            {(users ?? []).map((u) => (
-              <option key={u.id} value={u.id}>{u.name}</option>
-            ))}
-          </select>
-          <p className="text-xs text-gray-500">
-            Se não informado, o novo usuário nasce sem nenhuma permissão — o superadmin deverá marcá-las depois.
-          </p>
-        </div>
+            <div>
+              <FormSelect label="Copiar permissões de" {...register('copyPermissionsFromUserId')}>
+                <option value="">Nenhuma (nasce sem permissões)</option>
+                {(users ?? []).map((u) => (
+                  <option key={u.id} value={u.id}>
+                    {u.name}
+                  </option>
+                ))}
+              </FormSelect>
+              <p className="mt-1 text-xs text-[var(--text-muted)]">
+                Se não informado, o novo usuário nasce sem nenhuma permissão — o superadmin deverá
+                marcá-las depois.
+              </p>
+            </div>
+          </>
+        )}
 
         {createUser.isError && (
-          <p className="text-sm text-red-400">
-            {(createUser.error as Error)?.message ?? 'Erro ao criar usuário.'}
+          <p className="text-sm text-danger">
+            {getApiErrorMessage(createUser.error, 'Erro ao criar usuário.')}
           </p>
         )}
 

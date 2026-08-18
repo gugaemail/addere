@@ -6,15 +6,16 @@
     "dev": "tsx watch src/server.ts",
     "build": "tsup",
     "start": "node dist/server.js",
-    "lint": "eslint . --ext .ts",
-    "type-check": "tsc --noEmit"
+    "lint": "eslint src",
+    "type-check": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@addere/db": "*",
     "@addere/types": "*",
     "@fastify/cookie": "^11.0.2",
     "@fastify/cors": "^11.2.0",
-    "@fastify/env": "^6.0.0",
     "@fastify/helmet": "^13.0.2",
     "@fastify/jwt": "^10.0.0",
     "@fastify/multipart": "^10.0.0",
@@ -34,6 +35,7 @@
     "@types/bcryptjs": "^2.4.6",
     "@types/node": "^20.14.11",
     "tsx": "^4.16.2",
-    "typescript": "^5.4.5"
+    "typescript": "^5.4.5",
+    "vitest": "^3.2.7"
   }
 }

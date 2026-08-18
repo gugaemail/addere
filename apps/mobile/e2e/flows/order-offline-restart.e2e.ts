@@ -1,4 +1,6 @@
+import { by, device, element, expect, waitFor } from 'detox'
 import { loginAs } from '../helpers/auth'
+import { goToPedidos } from '../helpers/navigation'
 import { goOffline, goOnline } from '../helpers/network'
 
 describe('Persistência da fila após reinício do app', () => {
@@ -10,6 +12,8 @@ describe('Persistência da fila após reinício do app', () => {
   it('mantém pedido na fila após app ser morto e reaberto', async () => {
     // Criar pedido offline
     await goOffline()
+
+    await goToPedidos()
 
     await element(by.id('btn-novo-pedido')).tap()
     await element(by.id('input-busca-cliente')).typeText('Cliente Teste')

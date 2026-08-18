@@ -7,10 +7,10 @@ export { FIELD_REGISTRY, FIELD_REGISTRY_KEYS } from './field-registry'
 export type UserRole = 'SUPERADMIN' | 'ADMIN' | 'SALESPERSON'
 
 export interface JwtPayload {
-  sub: string        // user id
+  sub: string // user id
   email: string
   role: UserRole
-  companyId: string | null  // null para SUPERADMIN
+  companyId: string | null // null para SUPERADMIN
 }
 
 export interface AuthTokens {
@@ -50,29 +50,85 @@ export interface LoginRequest {
 export interface LoginResponse {
   user: UserPublic
   accessToken: string
-  refreshToken: string  // enviado no body para que o mobile persista no SecureStore
+  refreshToken: string // enviado no body para que o mobile persista no SecureStore
 }
 
 // ─── Company ───────────────────────────────────────────────────────────────
 
 export interface Company {
-  id:           string
-  name:         string
-  cnpj:         string
-  idProtheus:   string | null
-  active:       boolean
-  apiToken:     string | null
-  apiPord:      string | null
-  apiCliente:   string | null
-  apiMetaVend:  string | null
-  apiPedido:    string | null
-  apiConsPed:   string | null
-  apiCondPag:   string | null
-  apiTransp:    string | null
-  usrProtheus:  string | null
+  id: string
+  name: string
+  cnpj: string
+  idProtheus: string | null
+  active: boolean
+  apiToken: string | null
+  apiPord: string | null
+  apiCliente: string | null
+  apiMetaVend: string | null
+  apiPedido: string | null
+  apiConsPed: string | null
+  apiCondPag: string | null
+  apiTransp: string | null
+  usrProtheus: string | null
   passProtheus: string | null
-  syncConfig:   unknown | null
-  createdAt:    string
+  syncConfig: unknown | null
+  createdAt: string
+}
+
+// ─── Company (painel admin) ────────────────────────────────────────────────
+
+export interface CompanyListItem {
+  id: string
+  name: string
+  cnpj: string
+  idProtheus: string | null
+  active: boolean
+  createdAt: string
+  _count: { users: number; branches: number; orders: number }
+}
+
+export interface CompanyDetail {
+  id: string
+  name: string
+  cnpj: string
+  idProtheus: string | null
+  active: boolean
+  branches: Branch[]
+  users: UserPublic[]
+  _count: { orders: number }
+  apiToken: string | null
+  apiPord: string | null
+  apiCliente: string | null
+  apiMetaVend: string | null
+  apiPedido: string | null
+  apiConsPed: string | null
+  apiCondPag: string | null
+  apiTransp: string | null
+  usrProtheus: string | null
+  passProtheus: string | null
+}
+
+// ─── Protheus Log ──────────────────────────────────────────────────────────
+
+export interface ProtheusLog {
+  id: string
+  operation: string
+  endpointKey: string
+  success: boolean
+  httpStatus: number | null
+  durationMs: number | null
+  recordsSynced: number | null
+  totalRecords: number | null
+  errorMessage: string | null
+  metadata: unknown
+  createdAt: string
+}
+
+export interface ProtheusLogPage {
+  data: ProtheusLog[]
+  total: number
+  page: number
+  pages: number
 }
 
 // ─── Branch ────────────────────────────────────────────────────────────────
@@ -123,6 +179,7 @@ export interface Customer {
   bairro: string | null
   cep: string | null
   uf: string | null
+  vendorCode?: string | null
   ultcom: string | null
   msblql: string | null
   transpPadrao: string | null
@@ -144,10 +201,10 @@ export interface Product {
   protheusCode: string | null
   name: string
   description: string | null
-  price: string        // Decimal serializado como string
+  price: string // Decimal serializado como string
   unit: string
-  stock: string        // Decimal serializado como string
-  saldo: string        // Decimal serializado como string
+  stock: string // Decimal serializado como string
+  saldo: string // Decimal serializado como string
   active: boolean
 }
 
@@ -163,12 +220,12 @@ export interface OrderItemDetail {
   unitPrice: string
   discount: string
   total: string
-  descricao:    string | null
-  largura:      string | null
-  espessura:    string | null
+  descricao: string | null
+  largura: string | null
+  espessura: string | null
   encolhimento: string | null
-  xcrav:        string | null
-  tara:         string | null
+  xcrav: string | null
+  tara: string | null
 }
 
 export interface Order {
@@ -189,17 +246,22 @@ export interface Order {
   items: OrderItemDetail[]
 }
 
+// Pedido retornado nas rotas admin da empresa (inclui o vendedor que criou)
+export interface CompanyOrder extends Order {
+  user: { id: string; name: string }
+}
+
 export interface CreateOrderItemInput {
-  productId:    string
-  quantity:     number
-  discount?:    number
-  descricao?:   string
-  unitPrice?:   number
-  largura?:     number
-  espessura?:   number
+  productId: string
+  quantity: number
+  discount?: number
+  descricao?: string
+  unitPrice?: number
+  largura?: number
+  espessura?: number
   encolhimento?: string
-  xcrav?:       string
-  tara?:        number
+  xcrav?: string
+  tara?: number
 }
 
 export interface CreateOrderInput {
@@ -228,31 +290,31 @@ export interface DashboardStats {
   totalOrders: number
   pendingOrders: number
   syncedOrders: number
-  totalRevenue: string  // Decimal serializado como string
+  totalRevenue: string // Decimal serializado como string
 }
 
 // ─── Field Config ──────────────────────────────────────────────────────────
 
 export interface CompanyFieldConfig {
-  hidden: string[]    // lista de keys do FIELD_REGISTRY que estão ocultas para a empresa
-  required: string[]  // lista de keys do FIELD_REGISTRY que são obrigatórias no formulário
+  hidden: string[] // lista de keys do FIELD_REGISTRY que estão ocultas para a empresa
+  required: string[] // lista de keys do FIELD_REGISTRY que são obrigatórias no formulário
 }
 
 // ─── Sync Schedule ─────────────────────────────────────────────────────────
 
 export interface SyncScheduleEntity {
-  interv:      number   // INTERV enviado ao Protheus (0 = todos, N = alterados nos últimos N min)
-  scheduleMin: number   // intervalo de auto-sync em minutos (0 = desabilitado)
-  auto:        boolean  // auto-sync ligado/desligado
+  interv: number // INTERV enviado ao Protheus (0 = todos, N = alterados nos últimos N min)
+  scheduleMin: number // intervalo de auto-sync em minutos (0 = desabilitado)
+  auto: boolean // auto-sync ligado/desligado
 }
 
 export interface SyncSchedule {
-  products:  SyncScheduleEntity
+  products: SyncScheduleEntity
   customers: SyncScheduleEntity
 }
 
 export const DEFAULT_SYNC_SCHEDULE: SyncSchedule = {
-  products:  { interv: 0, scheduleMin: 0, auto: false },
+  products: { interv: 0, scheduleMin: 0, auto: false },
   customers: { interv: 0, scheduleMin: 0, auto: false },
 }
 

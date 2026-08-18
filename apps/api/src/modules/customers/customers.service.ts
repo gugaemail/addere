@@ -1,11 +1,15 @@
 import { prisma } from '@addere/db'
+import { notFound } from '../../lib/errors'
 
 const DEFAULT_LIMIT = 500
 
 export async function listCustomers(companyId: string, search?: string, userId?: string) {
   let vendorCode: string | null = null
   if (userId) {
-    const user = await prisma.user.findUnique({ where: { id: userId }, select: { idVendProt: true } })
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { idVendProt: true },
+    })
     vendorCode = user?.idVendProt ?? null
   }
 
@@ -33,12 +37,14 @@ export async function getCustomerById(companyId: string, id: string) {
       orders: {
         orderBy: { createdAt: 'desc' },
         take: 50,
-        include: { items: { include: { product: { select: { id: true, name: true, unit: true } } } } },
+        include: {
+          items: { include: { product: { select: { id: true, name: true, unit: true } } } },
+        },
       },
     },
   })
 
-  if (!customer) throw new Error('Cliente não encontrado')
+  if (!customer) throw notFound('Cliente não encontrado')
 
   return customer
 }

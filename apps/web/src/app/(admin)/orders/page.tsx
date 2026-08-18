@@ -19,7 +19,7 @@ export default function OrdersPage() {
       key: 'id',
       header: 'ID',
       render: (row) => (
-        <span className="font-mono text-xs text-gray-500">{row.id.slice(0, 8)}…</span>
+        <span className="font-mono text-xs text-[var(--text-muted)]">{row.id.slice(0, 8)}…</span>
       ),
     },
     { key: 'customer', header: 'Cliente', render: (row) => row.customer.name },
@@ -27,12 +27,20 @@ export default function OrdersPage() {
     {
       key: 'status',
       header: 'Status',
-      render: (row) => <Badge variant={row.status === 'SYNCED' ? 'success' : row.status === 'CANCELLED' ? 'danger' : 'warning'}>{row.status}</Badge>,
+      render: (row) => (
+        <Badge
+          variant={
+            row.status === 'SYNCED' ? 'success' : row.status === 'CANCELLED' ? 'danger' : 'warning'
+          }
+        >
+          {row.status}
+        </Badge>
+      ),
     },
     {
       key: 'protheusId',
       header: 'Protheus ID',
-      render: (row) => row.protheusOrderId ?? <span className="text-gray-600">—</span>,
+      render: (row) => row.protheusOrderId ?? <span className="text-[var(--text-muted)]">—</span>,
     },
     { key: 'createdAt', header: 'Data', render: (row) => formatDate(row.createdAt) },
   ]
@@ -49,7 +57,9 @@ export default function OrdersPage() {
       />
 
       {isLoading ? (
-        <div className="flex justify-center py-12"><Spinner size="lg" /></div>
+        <div className="flex justify-center py-12">
+          <Spinner size="lg" />
+        </div>
       ) : (
         <Table columns={columns} data={orders ?? []} emptyMessage="Nenhum pedido encontrado." />
       )}

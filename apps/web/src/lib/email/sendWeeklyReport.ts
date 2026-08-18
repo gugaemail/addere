@@ -1,9 +1,6 @@
 import { Resend } from 'resend'
 import { prisma } from '@addere/db'
-import {
-  avgOrderDuration, syncSuccessRate, offlineOrderRate,
-  avgQueueDuration, totalOrders,
-} from '../metrics/pilot'
+import { orderCompletionStats, syncSuccessRate, avgQueueDuration } from '../metrics/pilot'
 import { WeeklyPilotReport } from '../../emails/WeeklyPilotReport'
 
 function weekNumber(date: Date): number {
@@ -11,26 +8,32 @@ function weekNumber(date: Date): number {
   const dayNum = d.getUTCDay() || 7
   d.setUTCDate(d.getUTCDate() + 4 - dayNum)
   const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1))
-  return Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7)
+  return Math.ceil(((d.getTime() - yearStart.getTime()) / 86400000 + 1) / 7)
 }
 
 function generateHighlights(
   cur: Record<string, number | null>,
-  prev: Record<string, number | null>,
+  prev: Record<string, number | null>
 ): string[] {
   const highlights: string[] = []
   if (cur.syncRate !== null && prev.syncRate !== null) {
-    if (cur.syncRate >= 98) highlights.push(`Taxa de sync excelente: ${cur.syncRate}% — meta de 98% atingida.`)
-    else if (cur.syncRate < prev.syncRate) highlights.push(`Taxa de sync caiu de ${prev.syncRate}% para ${cur.syncRate}% — verificar conectividade.`)
+    if (cur.syncRate >= 98)
+      highlights.push(`Taxa de sync excelente: ${cur.syncRate}% — meta de 98% atingida.`)
+    else if (cur.syncRate < prev.syncRate)
+      highlights.push(
+        `Taxa de sync caiu de ${prev.syncRate}% para ${cur.syncRate}% — verificar conectividade.`
+      )
   }
   if (cur.syncRate !== null && cur.syncRate < 95) {
     highlights.push('Taxa de sync abaixo de 95% — investigar falhas de sincronização.')
   }
   if (cur.avgDuration !== null) {
     const mins = Math.round(cur.avgDuration / 60_000)
-    highlights.push(mins <= 5
-      ? `Tempo médio por pedido: ${mins}min — dentro da meta.`
-      : `Tempo médio por pedido: ${mins}min — acima da meta de 5 min.`)
+    highlights.push(
+      mins <= 5
+        ? `Tempo médio por pedido: ${mins}min — dentro da meta.`
+        : `Tempo médio por pedido: ${mins}min — acima da meta de 5 min.`
+    )
   }
   if (cur.offlineRate !== null && cur.offlineRate >= 50) {
     highlights.push(`${cur.offlineRate}% dos pedidos foram feitos em campo — ótima adoção.`)
@@ -56,24 +59,21 @@ export async function sendWeeklyReport(pilotId: string, to: string[]): Promise<v
   const prevWeekStart = new Date(now)
   prevWeekStart.setDate(now.getDate() - 14)
 
-  const [
-    curAvg, prevAvg,
-    curSync, prevSync,
-    curOffline, prevOffline,
-    curQueue, prevQueue,
-    curTotal, prevTotal,
-  ] = await Promise.all([
-    avgOrderDuration(pilotId, weekStart),
-    avgOrderDuration(pilotId, prevWeekStart),
+  const [curStats, prevStats, curSync, prevSync, curQueue, prevQueue] = await Promise.all([
+    orderCompletionStats(pilotId, weekStart),
+    orderCompletionStats(pilotId, prevWeekStart),
     syncSuccessRate(pilotId, weekStart),
     syncSuccessRate(pilotId, prevWeekStart),
-    offlineOrderRate(pilotId, weekStart),
-    offlineOrderRate(pilotId, prevWeekStart),
     avgQueueDuration(pilotId, weekStart),
     avgQueueDuration(pilotId, prevWeekStart),
-    totalOrders(pilotId, weekStart),
-    totalOrders(pilotId, prevWeekStart),
   ])
+
+  const curAvg = curStats.avgOrderDurationMs
+  const prevAvg = prevStats.avgOrderDurationMs
+  const curOffline = curStats.offlineOrderRate
+  const prevOffline = prevStats.offlineOrderRate
+  const curTotal = curStats.totalOrders
+  const prevTotal = prevStats.totalOrders
 
   const feedbackRows = await prisma.pilotFeedback.findMany({
     where: { pilotId, createdAt: { gte: weekStart } },
@@ -82,7 +82,7 @@ export async function sendWeeklyReport(pilotId: string, to: string[]): Promise<v
 
   const highlights = generateHighlights(
     { syncRate: curSync, avgDuration: curAvg, offlineRate: curOffline, total: curTotal },
-    { syncRate: prevSync, avgDuration: prevAvg, offlineRate: prevOffline, total: prevTotal },
+    { syncRate: prevSync, avgDuration: prevAvg, offlineRate: prevOffline, total: prevTotal }
   )
 
   const report = {

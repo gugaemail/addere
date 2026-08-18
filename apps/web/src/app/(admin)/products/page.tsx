@@ -17,14 +17,22 @@ export default function ProductsPage() {
   const { data: products, isLoading } = useProducts(search || undefined)
 
   const columns: Column<Product>[] = [
-    { key: 'name', header: 'Nome', render: (row) => <span className="font-medium text-white">{row.name}</span> },
+    {
+      key: 'name',
+      header: 'Nome',
+      render: (row) => <span className="font-medium text-[var(--text-primary)]">{row.name}</span>,
+    },
     { key: 'protheusCode', header: 'Cód. Protheus', render: (row) => row.protheusCode ?? '—' },
     { key: 'price', header: 'Preço', render: (row) => formatCurrency(row.price) },
     { key: 'stock', header: 'Estoque', render: (row) => `${row.stock} ${row.unit}` },
     {
       key: 'active',
       header: 'Status',
-      render: (row) => <Badge variant={row.active ? 'success' : 'danger'}>{row.active ? 'Ativo' : 'Inativo'}</Badge>,
+      render: (row) => (
+        <Badge variant={row.active ? 'success' : 'danger'}>
+          {row.active ? 'Ativo' : 'Inativo'}
+        </Badge>
+      ),
     },
   ]
 
@@ -41,13 +49,11 @@ export default function ProductsPage() {
       </div>
 
       {isLoading ? (
-        <div className="flex justify-center py-12"><Spinner size="lg" /></div>
+        <div className="flex justify-center py-12">
+          <Spinner size="lg" />
+        </div>
       ) : (
-        <Table
-          columns={columns}
-          data={products ?? []}
-          emptyMessage="Nenhum produto encontrado."
-        />
+        <Table columns={columns} data={products ?? []} emptyMessage="Nenhum produto encontrado." />
       )}
     </div>
   )

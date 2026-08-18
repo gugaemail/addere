@@ -22,5 +22,7 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/((?!_next/static|_next/image|favicon.ico).*)'],
+  // /api/* fica fora: essas rotas têm autenticação própria (CRON_SECRET/Bearer);
+  // o redirect para /login quebrava o Vercel Cron e o health-check
+  matcher: ['/((?!api|_next/static|_next/image|favicon.ico).*)'],
 }

@@ -1,55 +1,60 @@
 import { useState } from 'react'
-import { View, Text, FlatList, TextInput, TouchableOpacity, StyleSheet } from 'react-native'
+import { View, Text, FlatList, StyleSheet } from 'react-native'
 import { useRouter } from 'expo-router'
-import { ChevronRight, X } from 'lucide-react-native'
+import { ChevronRight, Search } from 'lucide-react-native'
 import { useClientes } from '../../../src/hooks/useClientes'
-import { ClienteItemSkeleton, EmptyState } from '../../../src/components/Skeleton'
+import { useDebouncedValue } from '../../../src/hooks/useDebounce'
+import { ClienteItemSkeleton } from '../../../src/components/Skeleton'
+import { Card } from '../../../src/components/ui/Card'
+import { Input } from '../../../src/components/ui/Input'
+import { EmptyState } from '../../../src/components/ui/EmptyState'
 import { useFieldVisible } from '../../../src/hooks/useFieldConfig'
+import { colors, spacing, typography } from '../../../src/theme'
 import type { Customer } from '@addere/types'
 import { formatDocument } from '../../../src/utils/format'
 
 function ClienteItem({ customer, onPress }: { customer: Customer; onPress: () => void }) {
   const showDocument = useFieldVisible('customer.document')
-  const showPhone    = useFieldVisible('customer.phone')
+  const showPhone = useFieldVisible('customer.phone')
   return (
-    <TouchableOpacity style={s.card} onPress={onPress} activeOpacity={0.75}>
+    <Card onPress={onPress} style={s.card}>
       <View style={{ flex: 1 }}>
         <Text style={s.name}>{customer.name}</Text>
-        {showDocument && customer.document && <Text style={s.sub}>{formatDocument(customer.document)}</Text>}
-        {showPhone    && customer.phone    && <Text style={s.sub}>{customer.phone}</Text>}
+        {showDocument && customer.document && (
+          <Text style={s.sub}>{formatDocument(customer.document)}</Text>
+        )}
+        {showPhone && customer.phone && <Text style={s.sub}>{customer.phone}</Text>}
       </View>
-      <ChevronRight size={18} color="#94A3B8" />
-    </TouchableOpacity>
+      <ChevronRight size={18} color={colors.neutral.placeholder} strokeWidth={1.5} />
+    </Card>
   )
 }
 
 export default function ClientesScreen() {
   const router = useRouter()
   const [search, setSearch] = useState('')
-  const { data: customers, isLoading, refetch } = useClientes(search || undefined)
+  const debouncedSearch = useDebouncedValue(search)
+  const { data: customers, isLoading, refetch } = useClientes(debouncedSearch || undefined)
 
   return (
     <View style={s.container}>
       <View style={s.searchContainer}>
-        <TextInput
-          style={s.searchInput}
+        <Input
+          leftElement={<Search size={18} color={colors.neutral.placeholder} strokeWidth={1.5} />}
           placeholder="Buscar por nome ou CPF/CNPJ..."
-          placeholderTextColor="#94A3B8"
           value={search}
           onChangeText={setSearch}
+          onClear={() => setSearch('')}
           returnKeyType="search"
           autoCorrect={false}
         />
-        {search ? (
-          <TouchableOpacity onPress={() => setSearch('')} style={s.clearBtn} activeOpacity={0.7}>
-            <X size={16} color="#94A3B8" />
-          </TouchableOpacity>
-        ) : null}
       </View>
 
       {isLoading ? (
-        <View style={{ paddingHorizontal: 16 }}>
-          {[0, 1, 2, 3, 4].map((i) => <ClienteItemSkeleton key={i} />)}
+        <View style={{ padding: spacing.md }}>
+          {[0, 1, 2, 3, 4].map((i) => (
+            <ClienteItemSkeleton key={i} />
+          ))}
         </View>
       ) : (
         <FlatList
@@ -65,12 +70,16 @@ export default function ClientesScreen() {
           refreshing={false}
           ListEmptyComponent={
             <EmptyState
-              icon={null}
+              illustration="clients"
               title={search ? 'Nenhum resultado' : 'Nenhum cliente ainda'}
-              description={search ? `Não encontramos clientes para "${search}".` : 'Sincronize os clientes pelo painel web.'}
+              subtitle={
+                search
+                  ? `Não encontramos clientes para "${search}".`
+                  : 'Sincronize os clientes pelo painel web.'
+              }
             />
           }
-          contentContainerStyle={{ padding: 16, gap: 8 }}
+          contentContainerStyle={{ padding: spacing.md, gap: spacing.sm }}
         />
       )}
     </View>
@@ -80,52 +89,25 @@ export default function ClientesScreen() {
 const s = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: colors.neutral.bg,
   },
   searchContainer: {
-    margin: 16,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 14,
-  },
-  searchInput: {
-    flex: 1,
-    paddingVertical: 12,
-    fontFamily: 'Inter_400Regular',
-    fontSize: 14,
-    color: '#0D2045',
-  },
-  clearBtn: {
-    padding: 4,
-    marginLeft: 4,
+    marginHorizontal: spacing.md,
+    marginTop: spacing.md,
   },
   card: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    padding: 16,
     flexDirection: 'row',
     alignItems: 'center',
-    shadowColor: '#0D2045',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06,
-    shadowRadius: 3,
-    elevation: 1,
   },
   name: {
-    fontFamily: 'PlusJakartaSans_600SemiBold',
-    fontSize: 15,
-    color: '#0D2045',
+    fontFamily: typography.fontFamily.sansSemibold,
+    fontSize: typography.size.md,
+    color: colors.brand.dark,
   },
   sub: {
-    fontFamily: 'Inter_400Regular',
-    fontSize: 13,
-    color: '#64748B',
-    marginTop: 2,
+    fontFamily: typography.fontFamily.body,
+    fontSize: typography.size.sm,
+    color: colors.neutral.textSub,
+    marginTop: spacing.xs,
   },
 })

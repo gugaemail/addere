@@ -1,7 +1,9 @@
 import React from 'react'
 import * as Sentry from '@sentry/react-native'
-import { View, Text, Pressable, StyleSheet } from 'react-native'
+import { View, Text, StyleSheet } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
+import { Button } from './ui/Button'
+import { colors, spacing, typography } from '../theme'
 
 function FallbackUI({ resetError }: { resetError: () => void }) {
   return (
@@ -11,9 +13,9 @@ function FallbackUI({ resetError }: { resetError: () => void }) {
         <Text style={styles.message}>
           Ocorreu um erro inesperado. Nossa equipe foi notificada automaticamente.
         </Text>
-        <Pressable style={styles.button} onPress={resetError}>
-          <Text style={styles.buttonText}>Reiniciar app</Text>
-        </Pressable>
+        <Button variant="primary" size="lg" style={styles.button} onPress={resetError}>
+          Reiniciar app
+        </Button>
       </View>
     </SafeAreaView>
   )
@@ -21,9 +23,7 @@ function FallbackUI({ resetError }: { resetError: () => void }) {
 
 export function AppErrorBoundary({ children }: { children: React.ReactNode }) {
   return (
-    <Sentry.ErrorBoundary
-      fallback={({ resetError }) => <FallbackUI resetError={resetError} />}
-    >
+    <Sentry.ErrorBoundary fallback={({ resetError }) => <FallbackUI resetError={resetError} />}>
       {children}
     </Sentry.ErrorBoundary>
   )
@@ -32,38 +32,29 @@ export function AppErrorBoundary({ children }: { children: React.ReactNode }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: colors.neutral.bg,
   },
   content: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 32,
-    gap: 16,
+    paddingHorizontal: spacing.xl,
+    gap: spacing.md,
   },
   title: {
-    fontFamily: 'PlusJakartaSans_700Bold',
+    fontFamily: typography.fontFamily.sansBold,
     fontSize: 22,
-    color: '#0D2045',
+    color: colors.brand.dark,
     textAlign: 'center',
   },
   message: {
-    fontFamily: 'Inter_400Regular',
-    fontSize: 15,
-    color: '#64748B',
+    fontFamily: typography.fontFamily.body,
+    fontSize: typography.size.md,
+    color: colors.neutral.textSub,
     textAlign: 'center',
     lineHeight: 22,
   },
   button: {
-    marginTop: 8,
-    backgroundColor: '#1B4FA8',
-    paddingVertical: 14,
-    paddingHorizontal: 32,
-    borderRadius: 10,
-  },
-  buttonText: {
-    fontFamily: 'Inter_600SemiBold',
-    fontSize: 15,
-    color: '#FFFFFF',
+    marginTop: spacing.sm,
   },
 })
