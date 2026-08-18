@@ -61,7 +61,3 @@ export function decryptCredential(value: string): string {
   return decipher.update(encryptedBuf).toString('utf8') + decipher.final('utf8')
 }
 
-/** Retorna true se o valor está criptografado */
-export function isEncrypted(value: string): boolean {
-  return value.startsWith(ENCRYPTED_PREFIX)
-}

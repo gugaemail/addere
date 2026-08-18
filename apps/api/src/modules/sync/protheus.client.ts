@@ -149,29 +149,12 @@ function enrichError(err: unknown, url: string): never {
   throw err as Error
 }
 
-export async function protheusGet(
-  companyId: string,
-  url: string,
-  creds: CompanyCredentials
-): Promise<unknown> {
-  await assertSafeUrl(url, 'url')
-  const token = await getToken(companyId, creds)
-  try {
-    const response = await axios.get(url, {
-      headers: { Authorization: `Bearer ${token}` },
-      timeout: 60000,
-    })
-    return response.data
-  } catch (err) {
-    return enrichError(err, url)
-  }
-}
-
 export async function protheusPost(
   companyId: string,
   url: string,
   body: unknown,
-  creds: CompanyCredentials
+  creds: CompanyCredentials,
+  isRetry = false
 ): Promise<unknown> {
   await assertSafeUrl(url, 'url')
   const token = await getToken(companyId, creds)
@@ -181,7 +164,12 @@ export async function protheusPost(
       'Content-Type': 'application/json',
     }, 60000)
   } catch (err) {
-    const e = err as { code?: string; message?: string }
+    const e = err as { code?: string; message?: string; response?: { status?: number } }
+    // Token cacheado pode ter sido revogado antes dos 55 min — renova e retenta uma vez
+    if (e.response?.status === 401 && !isRetry) {
+      invalidateToken(companyId)
+      return protheusPost(companyId, url, body, creds, true)
+    }
     if (e.code === 'ECONNRESET' || e.message === 'socket hang up') {
       throw new Error('Protheus encerrou a conexão sem responder. Verifique os logs do servidor Protheus (possível campo inválido ou erro interno).')
     }
