@@ -24,10 +24,8 @@ import usersRoutes from './modules/users/users.routes'
 import permissionsRoutes, { userPermissionsRoutes } from './modules/permissions/permissions.routes'
 import userTypesRoutes from './modules/user-types/user-types.routes'
 import { authenticate } from './middleware/authenticate'
-import { AppError } from './lib/errors'
 import { env } from './lib/env'
-import { ZodError } from 'zod'
-import { Prisma } from '@prisma/client'
+import { registerErrorHandling } from './lib/error-handler'
 
 export async function buildApp(): Promise<FastifyInstance> {
   const app = Fastify({
@@ -45,33 +43,7 @@ export async function buildApp(): Promise<FastifyInstance> {
   // Rate limiting: desabilitado globalmente, ativado por rota onde necessário
   await app.register(rateLimit, { global: false })
 
-  // ── Error handler global ───────────────────────────────────────────────────
-  // Formato único de erro: { message }. Services lançam AppError com o status;
-  // Zod e Prisma são mapeados aqui; o resto vira 500 sem vazar detalhes internos.
-  app.setErrorHandler((err, request, reply) => {
-    if (err instanceof AppError) {
-      return reply.status(err.statusCode).send({ message: err.message })
-    }
-    if (err instanceof ZodError) {
-      return reply.status(400).send({ message: err.errors[0]?.message ?? 'Dados inválidos' })
-    }
-    if (err instanceof Prisma.PrismaClientKnownRequestError) {
-      const e = err as Prisma.PrismaClientKnownRequestError
-      if (e.code === 'P2025') return reply.status(404).send({ message: 'Registro não encontrado' })
-      if (e.code === 'P2002') return reply.status(409).send({ message: 'Registro duplicado' })
-    }
-    // Erros do próprio Fastify que já têm statusCode (validação, rate limit, payload)
-    const statusCode = (err as { statusCode?: number }).statusCode
-    if (statusCode && statusCode >= 400 && statusCode < 500) {
-      return reply.status(statusCode).send({ message: (err as Error).message })
-    }
-    request.log.error({ err }, 'Erro não tratado')
-    return reply.status(500).send({ message: 'Erro interno do servidor' })
-  })
-
-  app.setNotFoundHandler((_request, reply) => {
-    return reply.status(404).send({ message: 'Rota não encontrada' })
-  })
+  registerErrorHandling(app)
 
   // Upload de arquivos (screenshots da Central de Ajuda) — max 5MB, 1 arquivo por request
   await app.register(multipart, {

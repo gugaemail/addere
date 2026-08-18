@@ -1,5 +1,6 @@
 import { prisma } from '@addere/db'
 import { notFound, forbidden, unprocessable } from '../../lib/errors'
+import { priceOrderItems } from './orders.pricing'
 import type { CreateOrderInput, UpdateOrderInput } from './orders.schema'
 
 const orderInclude = {
@@ -135,34 +136,8 @@ export async function updateOrder(userId: string, companyId: string, orderId: st
     throw unprocessable('Um ou mais produtos não foram encontrados ou estão inativos')
   }
 
-  const productMap = new Map(products.map((p) => [p.id, p]))
-
-  const itemsWithTotals = input.items.map((item) => {
-    const product = productMap.get(item.productId)!
-    const unitPrice = item.unitPrice !== undefined ? item.unitPrice : Number(product.price)
-    const discount = item.discount ?? 0
-
-    const priceCents  = Math.round(unitPrice * 100)
-    const qty1000     = Math.round(item.quantity * 1000)
-    const discountBP  = Math.round(discount * 100)
-    const totalCents  = Math.round(priceCents * qty1000 / 1000 * (10000 - discountBP) / 10000)
-
-    return {
-      productId:    item.productId,
-      quantity:     item.quantity,
-      unitPrice,
-      discount,
-      total:        totalCents / 100,
-      descricao:    item.descricao,
-      largura:      item.largura,
-      espessura:    item.espessura,
-      encolhimento: item.encolhimento,
-      xcrav:        item.xcrav,
-      tara:         item.tara,
-    }
-  })
-
-  const orderTotalCents = itemsWithTotals.reduce((sum, i) => sum + Math.round(i.total * 100), 0)
+  const defaultPrices = new Map(products.map((p) => [p.id, Number(p.price)]))
+  const { items: itemsWithTotals, orderTotal } = priceOrderItems(input.items, defaultPrices)
 
   return prisma.$transaction(async (tx) => {
     await tx.orderItem.deleteMany({ where: { orderId } })
@@ -174,7 +149,7 @@ export async function updateOrder(userId: string, companyId: string, orderId: st
         emissao:     input.emissao ? new Date(input.emissao) : null,
         mennota:     input.mennota,
         notes:       input.notes,
-        total:       orderTotalCents / 100,
+        total:       orderTotal,
         items:       { create: itemsWithTotals },
       },
       include: orderInclude,
@@ -196,36 +171,8 @@ export async function createOrder(userId: string, companyId: string, input: Crea
     throw unprocessable('Um ou mais produtos não foram encontrados ou estão inativos')
   }
 
-  const productMap = new Map(products.map((p) => [p.id, p]))
-
-  // Calcula totais de cada item usando aritmética inteira (centavos) para evitar erros de float
-  const itemsWithTotals = input.items.map((item) => {
-    const product = productMap.get(item.productId)!
-    const unitPrice = item.unitPrice !== undefined ? item.unitPrice : Number(product.price)
-    const discount = item.discount ?? 0
-
-    // Trabalha em centavos e milésimos de unidade para manter precisão inteira
-    const priceCents      = Math.round(unitPrice * 100)
-    const qty1000         = Math.round(item.quantity * 1000)
-    const discountBP      = Math.round(discount * 100)          // basis points 0-10000
-    const totalCents      = Math.round(priceCents * qty1000 / 1000 * (10000 - discountBP) / 10000)
-
-    return {
-      productId:    item.productId,
-      quantity:     item.quantity,
-      unitPrice,
-      discount,
-      total:        totalCents / 100,
-      descricao:    item.descricao,
-      largura:      item.largura,
-      espessura:    item.espessura,
-      encolhimento: item.encolhimento,
-      xcrav:        item.xcrav,
-      tara:         item.tara,
-    }
-  })
-
-  const orderTotalCents = itemsWithTotals.reduce((sum, i) => sum + Math.round(i.total * 100), 0)
+  const defaultPrices = new Map(products.map((p) => [p.id, Number(p.price)]))
+  const { items: itemsWithTotals, orderTotal } = priceOrderItems(input.items, defaultPrices)
 
   return prisma.order.create({
     data: {
@@ -238,7 +185,7 @@ export async function createOrder(userId: string, companyId: string, input: Crea
       emissao:     input.emissao ? new Date(input.emissao) : undefined,
       mennota:     input.mennota,
       notes:       input.notes,
-      total:       orderTotalCents / 100,
+      total:       orderTotal,
       items:       { create: itemsWithTotals },
     },
     include: orderInclude,
