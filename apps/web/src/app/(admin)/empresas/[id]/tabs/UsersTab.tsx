@@ -71,7 +71,7 @@ export function UsersTab({ company }: { company: CompanyDetail }) {
   return (
     <>
       <TabSection
-        action={{ label: '+ Novo usuário', onClick: () => setShowCreateModal(true) }}
+        action={{ label: 'Novo usuário', onClick: () => setShowCreateModal(true) }}
         search={<SearchInput value={search} onChange={(v) => { setSearch(v); setPage(1) }} placeholder="Pesquisar usuários…" />}
         footer={<Pagination page={page} total={table.total} pages={table.pages} onPage={setPage} />}
       >

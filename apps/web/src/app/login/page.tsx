@@ -2,8 +2,11 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { AlertCircle } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { Logo } from '@/components/Logo'
+import { Button } from '@/components/ui/Button'
+import { Input } from '@/components/ui/Input'
 import { getApiErrorMessage } from '@/lib/api'
 import { loginSchema } from '@/lib/schemas'
 
@@ -57,50 +60,34 @@ export default function LoginPage() {
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">
-                E-mail
-              </label>
-              <input
-                type="email"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="w-full bg-[var(--bg-subtle)] border border-[var(--border)] rounded-lg px-3 py-2.5 text-sm text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition-shadow"
-                placeholder="superadmin@addere.dev"
-              />
-            </div>
+            <Input
+              label="E-mail"
+              type="email"
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="superadmin@addere.dev"
+            />
 
-            <div>
-              <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">
-                Senha
-              </label>
-              <input
-                type="password"
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full bg-[var(--bg-subtle)] border border-[var(--border)] rounded-lg px-3 py-2.5 text-sm text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition-shadow"
-                placeholder="••••••••"
-              />
-            </div>
+            <Input
+              label="Senha"
+              type="password"
+              required
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="••••••••"
+            />
 
             {error && (
-              <div className="flex items-start gap-2 text-sm text-red-500 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2.5">
-                <svg className="w-4 h-4 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z" />
-                </svg>
+              <div className="flex items-start gap-2 text-sm text-danger bg-danger/10 border border-danger/20 rounded-lg px-3 py-2.5">
+                <AlertCircle size={16} strokeWidth={1.5} className="shrink-0 mt-0.5" aria-hidden />
                 {error}
               </div>
             )}
 
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full bg-brand-600 hover:bg-brand-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium rounded-lg py-2.5 text-sm transition-colors shadow-fab"
-            >
+            <Button type="submit" loading={loading} className="w-full shadow-fab">
               {loading ? 'Entrando...' : 'Entrar'}
-            </button>
+            </Button>
           </form>
         </div>
       </div>

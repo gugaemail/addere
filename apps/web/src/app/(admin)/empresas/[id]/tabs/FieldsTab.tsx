@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { FIELD_REGISTRY } from '@addere/types'
 import { useCompanyFieldConfig, useSaveFieldConfig } from '@/hooks/useCompany'
+import { Button } from '@/components/ui/Button'
 
 const ENTITY_LABELS: Record<string, string> = {
   customer: 'Cliente', order: 'Pedido', orderItem: 'Item do Pedido', product: 'Produto',
@@ -69,7 +70,7 @@ export function FieldsTab({ companyId }: { companyId: string }) {
                               setRequiredFields((prev) => prev.filter((k) => k !== field.key))
                             }
                           }}
-                          className="w-4 h-4 accent-brand-500 cursor-pointer"
+                          className="w-4 h-4 accent-brand cursor-pointer"
                         />
                       </div>
                       <div className="w-14 flex justify-center">
@@ -85,7 +86,7 @@ export function FieldsTab({ companyId }: { companyId: string }) {
                                 setRequiredFields((prev) => prev.filter((k) => k !== field.key))
                               }
                             }}
-                            className="w-4 h-4 accent-brand-500 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                            className="w-4 h-4 accent-brand cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                           />
                         ) : (
                           <span className="text-[var(--text-muted)] text-sm select-none">—</span>
@@ -101,13 +102,12 @@ export function FieldsTab({ companyId }: { companyId: string }) {
       })}
 
       <div className="flex items-center gap-4">
-        <button
+        <Button
           onClick={() => saveFieldConfig.mutate({ hidden: hiddenFields, required: requiredFields })}
-          disabled={saveFieldConfig.isPending}
-          className="px-5 py-2.5 rounded-lg text-sm font-semibold bg-brand-500 text-white hover:bg-brand-600 disabled:opacity-50 transition-colors"
+          loading={saveFieldConfig.isPending}
         >
           {saveFieldConfig.isPending ? 'Salvando…' : 'Salvar configuração'}
-        </button>
+        </Button>
       </div>
     </div>
   )

@@ -2,6 +2,7 @@ import {
   Html, Head, Body, Container, Section, Heading, Text,
   Row, Column, Hr, Link, Preview,
 } from '@react-email/components'
+import { BRAND, EMAIL_PALETTE as P } from '@/lib/brand-tokens'
 
 interface Metric {
   current: number | null
@@ -54,20 +55,20 @@ interface MetricRowProps {
 }
 
 function MetricRow({ label, value, goal, deltaStr, met }: MetricRowProps) {
-  const color = met === null ? '#64748B' : met ? '#22C55E' : '#EF4444'
+  const color = met === null ? BRAND.muted : met ? BRAND.success : BRAND.danger
   return (
     <Row style={{ marginBottom: 8 }}>
       <Column style={{ width: '40%' }}>
-        <Text style={{ margin: 0, fontSize: 13, color: '#475569' }}>{label}</Text>
+        <Text style={{ margin: 0, fontSize: 13, color: P.textSecondary }}>{label}</Text>
       </Column>
       <Column style={{ width: '25%' }}>
         <Text style={{ margin: 0, fontSize: 14, fontWeight: 'bold', color }}>{value}</Text>
       </Column>
       <Column style={{ width: '20%' }}>
-        <Text style={{ margin: 0, fontSize: 12, color: '#94A3B8' }}>Meta: {goal}</Text>
+        <Text style={{ margin: 0, fontSize: 12, color: P.textMuted }}>Meta: {goal}</Text>
       </Column>
       <Column style={{ width: '15%' }}>
-        <Text style={{ margin: 0, fontSize: 12, color: '#64748B' }}>{deltaStr}</Text>
+        <Text style={{ margin: 0, fontSize: 12, color: BRAND.muted }}>{deltaStr}</Text>
       </Column>
     </Row>
   )
@@ -84,38 +85,38 @@ export function WeeklyPilotReport({ report }: { report: WeeklyReportData }) {
     <Html>
       <Head />
       <Preview>{`Relatório semanal — ${report.clientName} — Semana ${report.weekNumber}`}</Preview>
-      <Body style={{ backgroundColor: '#F8FAFC', fontFamily: 'Inter, Helvetica, Arial, sans-serif' }}>
+      <Body style={{ backgroundColor: BRAND.surface, fontFamily: 'Inter, Helvetica, Arial, sans-serif' }}>
         <Container style={{ maxWidth: 580, margin: '0 auto', padding: '32px 16px' }}>
           {/* Header */}
-          <Section style={{ backgroundColor: '#0D2045', borderRadius: 12, padding: '24px 28px', marginBottom: 24 }}>
-            <Heading style={{ margin: 0, color: '#FFFFFF', fontSize: 22, fontWeight: 700 }}>
+          <Section style={{ backgroundColor: BRAND.navy, borderRadius: 12, padding: '24px 28px', marginBottom: 24 }}>
+            <Heading style={{ margin: 0, color: P.white, fontSize: 22, fontWeight: 700 }}>
               addere
             </Heading>
-            <Text style={{ margin: '8px 0 0', color: '#94A3B8', fontSize: 14 }}>
+            <Text style={{ margin: '8px 0 0', color: P.textMuted, fontSize: 14 }}>
               Relatório semanal · {report.clientName} · Semana {report.weekNumber}
             </Text>
-            <Text style={{ margin: '4px 0 0', color: '#64748B', fontSize: 12 }}>
+            <Text style={{ margin: '4px 0 0', color: BRAND.muted, fontSize: 12 }}>
               {new Date(report.período.start).toLocaleDateString('pt-BR')} a{' '}
               {new Date(report.período.end).toLocaleDateString('pt-BR')}
             </Text>
           </Section>
 
           {/* Destaque principal */}
-          <Section style={{ backgroundColor: '#1B4FA8', borderRadius: 12, padding: '20px 28px', marginBottom: 24, textAlign: 'center' }}>
-            <Text style={{ margin: 0, color: '#E8F4FF', fontSize: 13 }}>Total de pedidos na semana</Text>
-            <Text style={{ margin: '4px 0 0', color: '#FFFFFF', fontSize: 42, fontWeight: 700 }}>
+          <Section style={{ backgroundColor: BRAND.primary, borderRadius: 12, padding: '20px 28px', marginBottom: 24, textAlign: 'center' }}>
+            <Text style={{ margin: 0, color: BRAND.tint, fontSize: 13 }}>Total de pedidos na semana</Text>
+            <Text style={{ margin: '4px 0 0', color: P.white, fontSize: 42, fontWeight: 700 }}>
               {m.totalOrders.current ?? 0}
             </Text>
             {m.totalOrders.previous !== null && (
-              <Text style={{ margin: '4px 0 0', color: '#93C5FD', fontSize: 13 }}>
+              <Text style={{ margin: '4px 0 0', color: P.brandSoft, fontSize: 13 }}>
                 {delta(m.totalOrders.current, m.totalOrders.previous)} vs semana anterior
               </Text>
             )}
           </Section>
 
           {/* Métricas */}
-          <Section style={{ backgroundColor: '#FFFFFF', borderRadius: 12, padding: '20px 28px', marginBottom: 24 }}>
-            <Heading as="h2" style={{ margin: '0 0 16px', fontSize: 15, color: '#0D2045', fontWeight: 600 }}>
+          <Section style={{ backgroundColor: P.white, borderRadius: 12, padding: '20px 28px', marginBottom: 24 }}>
+            <Heading as="h2" style={{ margin: '0 0 16px', fontSize: 15, color: BRAND.navy, fontWeight: 600 }}>
               Métricas da semana
             </Heading>
             <MetricRow
@@ -125,7 +126,7 @@ export function WeeklyPilotReport({ report }: { report: WeeklyReportData }) {
               deltaStr={delta(m.avgOrderDuration.current, m.avgOrderDuration.previous, true)}
               met={avgMet}
             />
-            <Hr style={{ borderColor: '#F1F5F9', margin: '8px 0' }} />
+            <Hr style={{ borderColor: P.divider, margin: '8px 0' }} />
             <MetricRow
               label="📶 Taxa de sincronização"
               value={formatPercent(m.syncSuccessRate.current)}
@@ -133,7 +134,7 @@ export function WeeklyPilotReport({ report }: { report: WeeklyReportData }) {
               deltaStr={delta(m.syncSuccessRate.current, m.syncSuccessRate.previous)}
               met={syncMet}
             />
-            <Hr style={{ borderColor: '#F1F5F9', margin: '8px 0' }} />
+            <Hr style={{ borderColor: P.divider, margin: '8px 0' }} />
             <MetricRow
               label="📱 Pedidos em campo"
               value={formatPercent(m.offlineOrderRate.current)}
@@ -141,7 +142,7 @@ export function WeeklyPilotReport({ report }: { report: WeeklyReportData }) {
               deltaStr={delta(m.offlineOrderRate.current, m.offlineOrderRate.previous)}
               met={offlineMet}
             />
-            <Hr style={{ borderColor: '#F1F5F9', margin: '8px 0' }} />
+            <Hr style={{ borderColor: P.divider, margin: '8px 0' }} />
             <MetricRow
               label="⚡ Tempo médio de sync"
               value={formatDuration(m.avgQueueDuration.current)}
@@ -153,12 +154,12 @@ export function WeeklyPilotReport({ report }: { report: WeeklyReportData }) {
 
           {/* Destaques */}
           {report.highlights.length > 0 && (
-            <Section style={{ backgroundColor: '#EFF6FF', borderRadius: 12, padding: '20px 28px', marginBottom: 24 }}>
-              <Heading as="h2" style={{ margin: '0 0 12px', fontSize: 15, color: '#0D2045', fontWeight: 600 }}>
+            <Section style={{ backgroundColor: P.infoBg, borderRadius: 12, padding: '20px 28px', marginBottom: 24 }}>
+              <Heading as="h2" style={{ margin: '0 0 12px', fontSize: 15, color: BRAND.navy, fontWeight: 600 }}>
                 Destaques da semana
               </Heading>
               {report.highlights.map((h, i) => (
-                <Text key={i} style={{ margin: '0 0 8px', fontSize: 13, color: '#334155', lineHeight: '1.5' }}>
+                <Text key={i} style={{ margin: '0 0 8px', fontSize: 13, color: P.textBody, lineHeight: '1.5' }}>
                   • {h}
                 </Text>
               ))}
@@ -167,15 +168,15 @@ export function WeeklyPilotReport({ report }: { report: WeeklyReportData }) {
 
           {/* Feedbacks negativos */}
           {report.feedbacks.negative > 0 && (
-            <Section style={{ backgroundColor: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 12, padding: '20px 28px', marginBottom: 24 }}>
-              <Heading as="h2" style={{ margin: '0 0 8px', fontSize: 15, color: '#B91C1C', fontWeight: 600 }}>
+            <Section style={{ backgroundColor: P.dangerBg, border: `1px solid ${P.dangerBorder}`, borderRadius: 12, padding: '20px 28px', marginBottom: 24 }}>
+              <Heading as="h2" style={{ margin: '0 0 8px', fontSize: 15, color: P.dangerText, fontWeight: 600 }}>
                 Feedbacks negativos ({report.feedbacks.negative})
               </Heading>
-              <Text style={{ margin: '0 0 12px', fontSize: 12, color: '#94A3B8' }}>
+              <Text style={{ margin: '0 0 12px', fontSize: 12, color: P.textMuted }}>
                 Feedbacks positivos: {report.feedbacks.positive}
               </Text>
               {report.feedbacks.comments.filter(Boolean).map((c, i) => (
-                <Text key={i} style={{ margin: '0 0 8px', fontSize: 13, color: '#7F1D1D', fontStyle: 'italic' }}>
+                <Text key={i} style={{ margin: '0 0 8px', fontSize: 13, color: P.dangerTextDim, fontStyle: 'italic' }}>
                   &ldquo;{c}&rdquo;
                 </Text>
               ))}
@@ -187,8 +188,8 @@ export function WeeklyPilotReport({ report }: { report: WeeklyReportData }) {
             <Link
               href={`${process.env.NEXT_PUBLIC_APP_URL ?? 'https://admin.addere.com.br'}/piloto`}
               style={{
-                backgroundColor: '#1B4FA8',
-                color: '#FFFFFF',
+                backgroundColor: BRAND.primary,
+                color: P.white,
                 padding: '12px 28px',
                 borderRadius: 8,
                 fontSize: 14,
@@ -203,10 +204,10 @@ export function WeeklyPilotReport({ report }: { report: WeeklyReportData }) {
 
           {/* Footer */}
           <Section style={{ textAlign: 'center' }}>
-            <Text style={{ margin: 0, fontSize: 12, color: '#94A3B8' }}>
+            <Text style={{ margin: 0, fontSize: 12, color: P.textMuted }}>
               Addere ERP Mobile · Relatório gerado automaticamente
             </Text>
-            <Text style={{ margin: '4px 0 0', fontSize: 12, color: '#94A3B8' }}>
+            <Text style={{ margin: '4px 0 0', fontSize: 12, color: P.textMuted }}>
               Dúvidas? Contate Gustavo via WhatsApp.
             </Text>
           </Section>

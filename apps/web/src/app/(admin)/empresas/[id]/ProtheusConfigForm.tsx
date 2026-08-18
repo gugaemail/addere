@@ -1,9 +1,11 @@
 'use client'
 
 import { useState } from 'react'
+import { Pencil } from 'lucide-react'
 import { toast } from 'sonner'
 import { api } from '@/lib/api'
 import { FormField } from '@/components/ui/FormField'
+import { Button } from '@/components/ui/Button'
 
 interface CompanyProtheus {
   id: string
@@ -22,7 +24,7 @@ function ConfigRow({ label, value }: { label: string; value: string | null | und
   return (
     <div className="flex flex-col gap-0.5">
       <span className="text-xs text-[var(--text-muted)]">{label}</span>
-      <span className={`text-sm truncate font-mono ${value ? 'text-[var(--text-secondary)]' : 'text-[var(--border)]'}`}>
+      <span className={`text-sm truncate font-mono ${value ? 'text-[var(--text-secondary)]' : 'text-[var(--text-muted)]'}`}>
         {value ?? '—'}
       </span>
     </div>
@@ -89,12 +91,9 @@ export function ProtheusConfigForm({ company, onSaved }: Props) {
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-sm font-semibold tracking-tight text-[var(--text-primary)]">Configuração das APIs Protheus</h2>
         {!editing && (
-          <button
-            onClick={handleEdit}
-            className="text-sm font-medium px-4 py-2 rounded-lg border border-brand-500/30 text-brand-500 hover:bg-brand-500/10 transition-colors"
-          >
+          <Button variant="secondary" size="sm" leftIcon={Pencil} onClick={handleEdit}>
             Editar configuração
-          </button>
+          </Button>
         )}
       </div>
 
@@ -130,20 +129,12 @@ export function ProtheusConfigForm({ company, onSaved }: Props) {
           </div>
 
           <div className="flex gap-3 pt-2">
-            <button
-              type="button"
-              onClick={() => setEditing(false)}
-              className="flex-1 border border-[var(--border)] text-[var(--text-secondary)] text-sm font-medium rounded-lg py-2.5 hover:bg-[var(--bg-subtle)] transition-colors"
-            >
+            <Button type="button" variant="outline" onClick={() => setEditing(false)} className="flex-1">
               Cancelar
-            </button>
-            <button
-              type="submit"
-              disabled={loading}
-              className="flex-1 bg-brand-600 hover:bg-brand-700 disabled:opacity-50 text-white text-sm font-medium rounded-lg py-2.5 transition-colors"
-            >
+            </Button>
+            <Button type="submit" loading={loading} className="flex-1">
               {loading ? 'Salvando...' : 'Salvar configuração'}
-            </button>
+            </Button>
           </div>
         </form>
       ) : (

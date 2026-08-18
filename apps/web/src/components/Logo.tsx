@@ -1,3 +1,5 @@
+import { BRAND } from '@/lib/brand-tokens'
+
 interface LogoProps {
   size?: number
   showWordmark?: boolean
@@ -18,9 +20,9 @@ export function Logo({ size = 28, showWordmark = false, wordmarkClass }: LogoPro
       >
         <defs>
           <linearGradient id={`${uid}-g`} x1="10" y1="5" x2="90" y2="95" gradientUnits="userSpaceOnUse">
-            <stop offset="0%"   stopColor="#29BEFF" />
-            <stop offset="48%" stopColor="#1B4FA8" />
-            <stop offset="100%" stopColor="#0D2045" />
+            <stop offset="0%"   stopColor={BRAND.accent} />
+            <stop offset="48%" stopColor={BRAND.primary} />
+            <stop offset="100%" stopColor={BRAND.navy} />
           </linearGradient>
           <radialGradient id={`${uid}-s`} cx="30" cy="38" r="45" gradientUnits="userSpaceOnUse">
             <stop offset="0%"   stopColor="white" stopOpacity="0.25" />

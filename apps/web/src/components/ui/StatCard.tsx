@@ -12,7 +12,7 @@ interface StatCardProps {
 }
 
 const accentClasses: Record<Accent, string> = {
-  brand:   'border-l-2 border-l-brand-500',
+  brand:   'border-l-2 border-l-brand',
   success: 'border-l-2 border-l-success',
   neutral: 'border-l-2 border-l-[var(--border)]',
 }

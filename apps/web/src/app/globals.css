@@ -12,7 +12,7 @@
     --text-secondary: theme('colors.gray.600');
     --text-muted:     theme('colors.gray.400');
 
-    /* Addere brand tokens */
+    /* Addere brand tokens — a marca é a mesma nos dois temas (não redefinir no .dark) */
     --color-brand:   #1B4FA8;
     --color-accent:  #29BEFF;
     --color-navy:    #0D2045;
@@ -21,6 +21,7 @@
     --color-warning: #F59E0B;
     --color-danger:  #EF4444;
     --color-muted:   #64748B;
+    /* Neutros de superfície/borda da marca (têm equivalente dark abaixo) */
     --color-border:  #E2E8F0;
     --color-surface: #F8FAFC;
   }
@@ -33,6 +34,10 @@
     --text-primary:   #f1f5f9;
     --text-secondary: #94a3b8;
     --text-muted:     #64748b;
+
+    /* Equivalentes dark dos neutros de marca (alinhados a --border / --bg-surface) */
+    --color-border:  #2a3347;
+    --color-surface: #161b27;
   }
 
   html {

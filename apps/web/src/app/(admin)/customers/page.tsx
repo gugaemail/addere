@@ -16,7 +16,7 @@ export default function CustomersPage() {
   const { data: customers, isLoading } = useCustomers(search || undefined)
 
   const columns: Column<Customer>[] = [
-    { key: 'name', header: 'Nome', render: (row) => <span className="font-medium text-white">{row.name}</span> },
+    { key: 'name', header: 'Nome', render: (row) => <span className="font-medium text-[var(--text-primary)]">{row.name}</span> },
     { key: 'document', header: 'CPF/CNPJ', render: (row) => row.document ?? '—' },
     { key: 'email', header: 'Email', render: (row) => row.email ?? '—' },
     { key: 'phone', header: 'Telefone', render: (row) => row.phone ?? '—' },

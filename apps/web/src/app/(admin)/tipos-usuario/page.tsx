@@ -27,7 +27,7 @@ export default function UserTypesPage() {
   if (!isSuperAdmin) {
     return (
       <div className="flex h-full items-center justify-center">
-        <p className="text-gray-400">Acesso restrito ao super administrador.</p>
+        <p className="text-[var(--text-muted)]">Acesso restrito ao super administrador.</p>
       </div>
     )
   }
@@ -62,14 +62,14 @@ export default function UserTypesPage() {
       header: 'Nome',
       render: (row) =>
         editingId === row.id ? (
-          <input
+          <Input
             value={editingName}
             onChange={(e) => setEditingName(e.target.value)}
-            className="rounded-lg border border-gray-700 bg-gray-800 px-2 py-1 text-sm text-white focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            className="py-1 max-w-xs"
             autoFocus
           />
         ) : (
-          <span className="font-medium text-white">{row.name}</span>
+          <span className="font-medium text-[var(--text-primary)]">{row.name}</span>
         ),
     },
     {

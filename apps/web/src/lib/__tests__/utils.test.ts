@@ -47,7 +47,7 @@ describe('formatDocumentDisplay / formatCEPDisplay', () => {
 
 describe('formatCurrency', () => {
   it('formata em BRL', () => {
-    expect(formatCurrency(1234.5).replace(/ /g, ' ')).toBe('R$ 1.234,50')
-    expect(formatCurrency('10').replace(/ /g, ' ')).toBe('R$ 10,00')
+    expect(formatCurrency(1234.5).replace(/\u00A0/g, ' ')).toBe('R$ 1.234,50')
+    expect(formatCurrency('10').replace(/\u00A0/g, ' ')).toBe('R$ 10,00')
   })
 })

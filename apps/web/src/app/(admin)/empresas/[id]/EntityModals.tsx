@@ -142,13 +142,9 @@ export function BranchModal({ companyId, mode, branch, onClose, onSaved }: Branc
         {logo && (
           <div className="flex items-center gap-3">
             <img src={logo} alt="Logo da filial" className="h-14 w-auto object-contain rounded border border-[var(--border)] p-1 bg-white" />
-            <button
-              type="button"
-              onClick={() => setLogo(null)}
-              className="text-xs text-red-500 hover:underline"
-            >
+            <Button type="button" variant="ghost" size="xs" onClick={() => setLogo(null)} className="text-danger hover:bg-danger/10">
               Remover
-            </button>
+            </Button>
           </div>
         )}
         <div>
@@ -554,14 +550,16 @@ export function ActionMenu({ onEdit, onCopy, onToggle, onView, active, label }: 
 
   return (
     <div className="inline-block text-left">
-      <button
+      <Button
         ref={btnRef}
+        variant="ghost"
+        size="icon"
+        leftIcon={MoreVertical}
         onClick={() => setOpen((v) => !v)}
-        className="p-1.5 rounded-lg text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-subtle)] transition-colors"
+        className="text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-subtle)]"
         title="Ações"
-      >
-        <MoreVertical className="w-4 h-4" strokeWidth={2} />
-      </button>
+        aria-label="Ações"
+      />
 
       {open && (
         <>
@@ -595,8 +593,8 @@ export function ActionMenu({ onEdit, onCopy, onToggle, onView, active, label }: 
               onClick={() => { setOpen(false); onToggle() }}
               className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${
                 active
-                  ? 'text-red-500 hover:bg-red-500/10'
-                  : 'text-green-500 hover:bg-green-500/10'
+                  ? 'text-danger hover:bg-danger/10'
+                  : 'text-success hover:bg-success/10'
               }`}
             >
               {active ? 'Desativar' : 'Ativar'}

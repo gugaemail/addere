@@ -17,7 +17,7 @@ export default function ProductsPage() {
   const { data: products, isLoading } = useProducts(search || undefined)
 
   const columns: Column<Product>[] = [
-    { key: 'name', header: 'Nome', render: (row) => <span className="font-medium text-white">{row.name}</span> },
+    { key: 'name', header: 'Nome', render: (row) => <span className="font-medium text-[var(--text-primary)]">{row.name}</span> },
     { key: 'protheusCode', header: 'Cód. Protheus', render: (row) => row.protheusCode ?? '—' },
     { key: 'price', header: 'Preço', render: (row) => formatCurrency(row.price) },
     { key: 'stock', header: 'Estoque', render: (row) => `${row.stock} ${row.unit}` },

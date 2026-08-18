@@ -4,7 +4,7 @@ export const dynamic = 'force-dynamic'
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Building2, Lock, Pencil, Unlock } from 'lucide-react'
+import { Building2, Lock, Pencil, Plus, Unlock } from 'lucide-react'
 import { toast } from 'sonner'
 import type { CompanyListItem } from '@addere/types'
 import { StatCard } from '@/components/ui/StatCard'
@@ -12,6 +12,7 @@ import { StatusBadge } from '@/components/ui/StatusBadge'
 import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
 import { FormField } from '@/components/ui/FormField'
+import { Table, type Column } from '@/components/ui/Table'
 import { getApiErrorMessage } from '@/lib/api'
 import { useCompanies, useToggleCompanyActive, useUpdateCompany } from '@/hooks/useCompanies'
 import { CreateCompanyModal } from './CreateCompanyModal'
@@ -32,16 +33,56 @@ export default function DashboardPage() {
     )
   }
 
+  const columns: Column<CompanyListItem>[] = [
+    { key: 'name', header: 'Empresa', render: (c) => <span className="font-medium text-[var(--text-primary)]">{c.name}</span> },
+    { key: 'cnpj', header: 'CNPJ', render: (c) => c.cnpj },
+    { key: 'protheus', header: 'Protheus', render: (c) => <span className="text-[var(--text-muted)]">{c.idProtheus ?? '—'}</span> },
+    { key: 'branches', header: 'Filiais', className: 'text-center', render: (c) => c._count.branches },
+    { key: 'users', header: 'Usuários', className: 'text-center', render: (c) => c._count.users },
+    { key: 'orders', header: 'Pedidos', className: 'text-center', render: (c) => c._count.orders },
+    {
+      key: 'status', header: 'Status', className: 'text-center',
+      render: (c) => <StatusBadge active={c.active} activeLabel="Ativa" inactiveLabel="Inativa" />,
+    },
+    {
+      key: 'actions', header: 'Ações', className: 'text-center',
+      render: (c) => (
+        <div className="flex items-center justify-center gap-1" onClick={(e) => e.stopPropagation()}>
+          {/* Editar */}
+          <Button
+            variant="ghost"
+            size="icon"
+            title="Editar empresa"
+            aria-label="Editar empresa"
+            leftIcon={Pencil}
+            className="text-[var(--text-muted)] hover:text-brand"
+            onClick={(e) => { e.stopPropagation(); setEditingCompany(c) }}
+          />
+          {/* Bloquear / Ativar */}
+          <Button
+            variant="ghost"
+            size="icon"
+            title={c.active ? 'Bloquear empresa' : 'Ativar empresa'}
+            aria-label={c.active ? 'Bloquear empresa' : 'Ativar empresa'}
+            leftIcon={c.active ? Lock : Unlock}
+            disabled={toggleActive.isPending && toggleActive.variables?.id === c.id}
+            className={c.active
+              ? 'text-[var(--text-muted)] hover:text-danger hover:bg-danger/10'
+              : 'text-[var(--text-muted)] hover:text-success hover:bg-success/10'}
+            onClick={(e) => handleToggleActive(e, c)}
+          />
+        </div>
+      ),
+    },
+  ]
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold tracking-tight text-[var(--text-primary)]">Empresas</h1>
-        <button
-          onClick={() => setShowModal(true)}
-          className="bg-brand-600 hover:bg-brand-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
-        >
-          + Nova empresa
-        </button>
+        <Button onClick={() => setShowModal(true)} leftIcon={Plus}>
+          Nova empresa
+        </Button>
       </div>
 
       {/* Cards resumo */}
@@ -66,69 +107,16 @@ export default function DashboardPage() {
             icon={<Building2 className="w-10 h-10" strokeWidth={1.25} />}
             title="Nenhuma empresa cadastrada"
             description="Cadastre a primeira empresa para começar a gerenciar vendedores e pedidos."
-            action={{ label: '+ Nova empresa', onClick: () => setShowModal(true) }}
+            action={{ label: 'Nova empresa', onClick: () => setShowModal(true) }}
           />
         ) : (
-          <table className="w-full text-sm">
-            <thead className="bg-[var(--bg-subtle)] border-b border-[var(--border)]">
-              <tr>
-                <th className="text-left px-4 py-3 font-medium text-[var(--text-secondary)]">Empresa</th>
-                <th className="text-left px-4 py-3 font-medium text-[var(--text-secondary)]">CNPJ</th>
-                <th className="text-left px-4 py-3 font-medium text-[var(--text-secondary)]">Protheus</th>
-                <th className="text-center px-4 py-3 font-medium text-[var(--text-secondary)]">Filiais</th>
-                <th className="text-center px-4 py-3 font-medium text-[var(--text-secondary)]">Usuários</th>
-                <th className="text-center px-4 py-3 font-medium text-[var(--text-secondary)]">Pedidos</th>
-                <th className="text-center px-4 py-3 font-medium text-[var(--text-secondary)]">Status</th>
-                <th className="text-center px-4 py-3 font-medium text-[var(--text-secondary)]">Ações</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[var(--border)]">
-              {companies.map((company) => (
-                <tr
-                  key={company.id}
-                  onClick={() => router.push(`/empresas/${company.id}`)}
-                  className="hover:bg-[var(--bg-subtle)] cursor-pointer transition-colors"
-                >
-                  <td className="px-4 py-3 font-medium text-[var(--text-primary)]">{company.name}</td>
-                  <td className="px-4 py-3 text-[var(--text-secondary)]">{company.cnpj}</td>
-                  <td className="px-4 py-3 text-[var(--text-muted)]">{company.idProtheus ?? '—'}</td>
-                  <td className="px-4 py-3 text-center text-[var(--text-secondary)]">{company._count.branches}</td>
-                  <td className="px-4 py-3 text-center text-[var(--text-secondary)]">{company._count.users}</td>
-                  <td className="px-4 py-3 text-center text-[var(--text-secondary)]">{company._count.orders}</td>
-                  <td className="px-4 py-3 text-center">
-                    <StatusBadge active={company.active} activeLabel="Ativa" inactiveLabel="Inativa" />
-                  </td>
-                  <td className="px-4 py-3 text-center" onClick={(e) => e.stopPropagation()}>
-                    <div className="flex items-center justify-center gap-1">
-                      {/* Editar */}
-                      <button
-                        onClick={(e) => { e.stopPropagation(); setEditingCompany(company) }}
-                        title="Editar empresa"
-                        className="p-1.5 rounded-lg text-[var(--text-muted)] hover:text-brand-500 hover:bg-brand-500/10 transition-colors"
-                      >
-                        <Pencil className="w-4 h-4" strokeWidth={2} />
-                      </button>
-                      {/* Bloquear / Ativar */}
-                      <button
-                        onClick={(e) => handleToggleActive(e, company)}
-                        disabled={toggleActive.isPending && toggleActive.variables?.id === company.id}
-                        title={company.active ? 'Bloquear empresa' : 'Ativar empresa'}
-                        className={`p-1.5 rounded-lg transition-colors disabled:opacity-50 ${
-                          company.active
-                            ? 'text-[var(--text-muted)] hover:text-red-500 hover:bg-red-500/10'
-                            : 'text-[var(--text-muted)] hover:text-green-500 hover:bg-green-500/10'
-                        }`}
-                      >
-                        {company.active
-                          ? <Lock className="w-4 h-4" strokeWidth={2} />
-                          : <Unlock className="w-4 h-4" strokeWidth={2} />}
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <Table
+            columns={columns}
+            data={companies}
+            rowKey={(c) => c.id}
+            className="rounded-none"
+            onRowClick={(c) => router.push(`/empresas/${c.id}`)}
+          />
         )}
       </div>
 
@@ -196,12 +184,9 @@ function EmptyState({
         <p className="text-sm text-[var(--text-muted)] mt-1 max-w-xs mx-auto">{description}</p>
       </div>
       {action && (
-        <button
-          onClick={action.onClick}
-          className="mt-2 text-sm font-medium text-brand-600 hover:text-brand-500 transition-colors"
-        >
+        <Button variant="ghost" size="sm" leftIcon={Plus} onClick={action.onClick} className="mt-2">
           {action.label}
-        </button>
+        </Button>
       )}
     </div>
   )

@@ -1,9 +1,11 @@
 'use client'
 
 import { useState } from 'react'
-import { FileClock } from 'lucide-react'
+import { FileClock, RefreshCw } from 'lucide-react'
 import type { ProtheusLog } from '@addere/types'
 import { Table, type Column } from '@/components/ui/Table'
+import { Badge } from '@/components/ui/Badge'
+import { Button } from '@/components/ui/Button'
 import { useCompanyProtheusLogs } from '@/hooks/useCompany'
 import { TabSection, Pagination, TableEmptyState } from './shared'
 
@@ -15,7 +17,7 @@ const OPERATIONS = [
 ]
 
 const selectClass =
-  'text-sm border border-[var(--border)] bg-[var(--bg-surface)] text-[var(--text-primary)] rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-brand-500'
+  'text-sm border border-[var(--border)] bg-[var(--bg-surface)] text-[var(--text-primary)] rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-brand'
 
 export function LogsTab({ companyId }: { companyId: string }) {
   const [page, setPage] = useState(1)
@@ -41,11 +43,7 @@ export function LogsTab({ companyId }: { companyId: string }) {
       key: 'success',
       header: 'Status',
       render: (l) => (
-        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
-          l.success ? 'bg-green-500/10 text-green-600' : 'bg-red-500/10 text-red-500'
-        }`}>
-          {l.success ? 'Sucesso' : 'Falha'}
-        </span>
+        <Badge variant={l.success ? 'success' : 'danger'}>{l.success ? 'Sucesso' : 'Falha'}</Badge>
       ),
     },
     { key: 'httpStatus', header: 'HTTP', render: (l) => <span className="text-[var(--text-muted)] text-xs">{l.httpStatus ?? '—'}</span> },
@@ -68,7 +66,7 @@ export function LogsTab({ companyId }: { companyId: string }) {
       header: 'Erro',
       className: 'max-w-[200px]',
       render: (l) => l.errorMessage ? (
-        <span title={l.errorMessage} className="cursor-help text-xs text-red-500">
+        <span title={l.errorMessage} className="cursor-help text-xs text-danger">
           {l.errorMessage.length > 60 ? l.errorMessage.slice(0, 60) + '…' : l.errorMessage}
         </span>
       ) : <span className="text-xs text-[var(--text-muted)]">—</span>,
@@ -101,12 +99,9 @@ export function LogsTab({ companyId }: { companyId: string }) {
           <option value="true">Sucesso</option>
           <option value="false">Falha</option>
         </select>
-        <button
-          onClick={() => refetch()}
-          className="text-sm font-medium px-3 py-2 rounded-lg border border-[var(--border)] text-[var(--text-secondary)] hover:bg-[var(--bg-subtle)] transition-colors"
-        >
+        <Button variant="outline" size="sm" leftIcon={RefreshCw} onClick={() => refetch()}>
           Atualizar
-        </button>
+        </Button>
         {total > 0 && <span className="text-xs text-[var(--text-muted)]">{total} registro(s)</span>}
       </div>
 

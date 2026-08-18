@@ -6,7 +6,7 @@ import { cn } from '@/lib/utils'
 // Classe base dos controles de formulário do painel admin (tokens de tema).
 // Exportada para casos especiais (textarea, controles custom) manterem o visual.
 export const formControlClass =
-  'w-full bg-[var(--bg-subtle)] border border-[var(--border)] rounded-lg px-3 py-2.5 text-sm text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition-shadow disabled:opacity-40 disabled:cursor-not-allowed'
+  'w-full bg-[var(--bg-subtle)] border border-[var(--border)] rounded-lg px-3 py-2.5 text-sm text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent transition-shadow disabled:opacity-40 disabled:cursor-not-allowed'
 
 const labelClass = 'block text-sm font-medium text-[var(--text-secondary)] mb-1.5'
 

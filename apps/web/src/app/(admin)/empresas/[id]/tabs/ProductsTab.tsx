@@ -69,7 +69,7 @@ export function ProductsTab({ companyId }: { companyId: string }) {
   return (
     <>
       <TabSection
-        action={{ label: '+ Novo produto', onClick: () => setModal({ mode: 'create' }) }}
+        action={{ label: 'Novo produto', onClick: () => setModal({ mode: 'create' }) }}
         search={<SearchInput value={search} onChange={(v) => { setSearch(v); setPage(1) }} placeholder="Pesquisar produtos…" />}
         footer={<Pagination page={page} total={table.total} pages={table.pages} onPage={setPage} />}
       >

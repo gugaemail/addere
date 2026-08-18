@@ -1,4 +1,5 @@
 import React from 'react'
+import { cn } from '@/lib/utils'
 
 type Variant = 'default' | 'selected'
 
@@ -7,9 +8,10 @@ interface CardProps extends React.HTMLAttributes<HTMLDivElement> {
   children:  React.ReactNode
 }
 
+// Card padrão do painel — superfície/borda em tokens de tema (light/dark).
 const variantClasses: Record<Variant, string> = {
-  default:  'border border-border2 bg-white shadow-sm',
-  selected: 'border-2 border-brand bg-tint shadow-sm',
+  default:  'border border-[var(--border)] bg-[var(--bg-surface)] shadow-card',
+  selected: 'border-2 border-brand bg-tint shadow-card',
 }
 
 export function Card({
@@ -20,11 +22,7 @@ export function Card({
 }: CardProps) {
   return (
     <div
-      className={[
-        'rounded-xl p-4',
-        variantClasses[variant],
-        className,
-      ].join(' ')}
+      className={cn('rounded-xl p-4', variantClasses[variant], className)}
       {...props}
     >
       {children}

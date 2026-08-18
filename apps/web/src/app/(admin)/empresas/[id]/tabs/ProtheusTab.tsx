@@ -2,11 +2,13 @@
 
 import { useEffect, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { AlertCircle, CheckCircle2, Loader2 } from 'lucide-react'
+import { AlertCircle, CheckCircle2 } from 'lucide-react'
 import { toast } from 'sonner'
 import type { CompanyDetail, SyncSchedule } from '@addere/types'
 import { api, getApiErrorMessage } from '@/lib/api'
 import { Modal } from '@/components/ui/Modal'
+import { Button } from '@/components/ui/Button'
+import { formControlClass } from '@/components/ui/FormField'
 import { companiesKeys } from '@/hooks/useCompanies'
 import {
   useCompanySyncSchedule, useSaveSyncSchedule, useRunSync,
@@ -27,8 +29,7 @@ const DEFAULT_SCHEDULE: SyncSchedule = {
   customers: { interv: 0, scheduleMin: 0, auto: false },
 }
 
-const spinner = <Loader2 className="w-4 h-4 animate-spin shrink-0" />
-const warnIcon = <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" strokeWidth={2} />
+const warnIcon = <AlertCircle size={14} className="shrink-0 mt-0.5" strokeWidth={1.5} />
 
 function CardHeader({ title, subtitle }: { title: string; subtitle?: string }) {
   return (
@@ -104,24 +105,24 @@ export function ProtheusTab({ company }: { company: CompanyDetail }) {
             <label className="block text-xs text-[var(--text-muted)] mb-1">INTERV (min)</label>
             <input type="number" min={0} value={s.interv}
               onChange={(e) => setSchedule((prev) => ({ ...prev, [entity]: { ...prev[entity], interv: Number(e.target.value) } }))}
-              className="w-full bg-[var(--bg-subtle)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-brand-500" />
+              className={formControlClass} />
             <p className="text-xs text-[var(--text-muted)] mt-1">0 = busca todos</p>
           </div>
           <div>
             <label className="block text-xs text-[var(--text-muted)] mb-1">Intervalo auto-sync (min)</label>
             <input type="number" min={0} value={s.scheduleMin} disabled={!s.auto}
               onChange={(e) => setSchedule((prev) => ({ ...prev, [entity]: { ...prev[entity], scheduleMin: Number(e.target.value) } }))}
-              className="w-full bg-[var(--bg-subtle)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-brand-500 disabled:opacity-40" />
+              className={formControlClass} />
             <p className="text-xs text-[var(--text-muted)] mt-1">0 = desabilitado</p>
           </div>
         </div>
         <label className="flex items-center gap-3 cursor-pointer select-none">
           <input type="checkbox" checked={s.auto}
             onChange={(e) => setSchedule((prev) => ({ ...prev, [entity]: { ...prev[entity], auto: e.target.checked } }))}
-            className="w-4 h-4 accent-brand-500 cursor-pointer" />
+            className="w-4 h-4 accent-brand cursor-pointer" />
           <span className="text-sm text-[var(--text-primary)]">
             Auto-sync {s.auto
-              ? <span className="text-green-500 font-medium">Ativo{s.scheduleMin > 0 ? ` — a cada ${s.scheduleMin} min` : ''}</span>
+              ? <span className="text-success font-medium">Ativo{s.scheduleMin > 0 ? ` — a cada ${s.scheduleMin} min` : ''}</span>
               : <span className="text-[var(--text-muted)]">Inativo</span>}
           </span>
         </label>
@@ -137,12 +138,12 @@ export function ProtheusTab({ company }: { company: CompanyDetail }) {
       />
 
       {syncResult && (
-        <div className="flex items-start gap-2 p-3.5 bg-green-500/10 border border-green-500/20 rounded-lg">
-          <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5 text-green-500" strokeWidth={2} />
+        <div className="flex items-start gap-2 p-3.5 bg-success/10 border border-success/20 rounded-lg">
+          <CheckCircle2 size={16} className="shrink-0 mt-0.5 text-success" strokeWidth={1.5} />
           <div>
-            <p className="text-sm font-medium text-green-600">{syncResult.entity}: {syncResult.result.synced} de {syncResult.result.total} sincronizados.</p>
+            <p className="text-sm font-medium text-success">{syncResult.entity}: {syncResult.result.synced} de {syncResult.result.total} sincronizados.</p>
             {syncResult.result.errors.length > 0 && (
-              <ul className="mt-1.5 text-xs text-red-500 space-y-1 list-disc list-inside">
+              <ul className="mt-1.5 text-xs text-danger space-y-1 list-disc list-inside">
                 {syncResult.result.errors.map((e, i) => <li key={i}>{e}</li>)}
               </ul>
             )}
@@ -158,10 +159,10 @@ export function ProtheusTab({ company }: { company: CompanyDetail }) {
             <p className="text-sm font-medium text-[var(--text-primary)]">Testar autenticação Protheus</p>
             <p className="text-xs text-[var(--text-muted)] mt-0.5">Chama o endpoint <code className="bg-[var(--bg-subtle)] px-1 rounded">apiToken</code> e exibe a resposta bruta para diagnóstico.</p>
           </div>
-          <button onClick={() => handleTest('token')} disabled={testing === 'token' || !company.apiToken || !company.usrProtheus || !company.passProtheus}
-            className="shrink-0 px-4 py-2 rounded-lg text-sm font-medium bg-brand-500 text-white hover:bg-brand-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center gap-2">
-            {testing === 'token' && spinner}{testing === 'token' ? 'Testando…' : 'Testar Token'}
-          </button>
+          <Button onClick={() => handleTest('token')} loading={testing === 'token'}
+            disabled={!company.apiToken || !company.usrProtheus || !company.passProtheus} className="shrink-0">
+            {testing === 'token' ? 'Testando…' : 'Testar Token'}
+          </Button>
         </div>
       </div>
 
@@ -175,21 +176,20 @@ export function ProtheusTab({ company }: { company: CompanyDetail }) {
                 <p className="text-sm font-medium text-[var(--text-primary)]">Testar API</p>
                 <p className="text-xs text-[var(--text-muted)] mt-0.5">Busca página 1 via <code className="bg-[var(--bg-subtle)] px-1 rounded">apiPord</code> — sem salvar no banco.</p>
               </div>
-              <button onClick={() => handleTest('products')} disabled={testing === 'products' || !company.apiPord || !company.apiToken || !company.usrProtheus || !company.passProtheus}
-                className="w-full px-3 py-2 rounded-lg text-sm font-medium border border-[var(--border)] text-[var(--text-secondary)] hover:bg-[var(--bg-subtle)] disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2">
-                {testing === 'products' && spinner}{testing === 'products' ? 'Testando…' : 'Testar API'}
-              </button>
+              <Button variant="outline" onClick={() => handleTest('products')} loading={testing === 'products'}
+                disabled={!company.apiPord || !company.apiToken || !company.usrProtheus || !company.passProtheus} className="w-full">
+                {testing === 'products' ? 'Testando…' : 'Testar API'}
+              </Button>
             </div>
             <div className="border border-[var(--border)] rounded-lg p-3 flex flex-col justify-between gap-3">
               <div>
                 <p className="text-sm font-medium text-[var(--text-primary)]">Sincronizar</p>
                 <p className="text-xs text-[var(--text-muted)] mt-0.5">Importa via <code className="bg-[var(--bg-subtle)] px-1 rounded">apiPord</code> e atualiza o catálogo.</p>
-                {missingProd && <p className="flex items-start gap-1 mt-1.5 text-xs text-yellow-600">{warnIcon}{missingProd}</p>}
+                {missingProd && <p className="flex items-start gap-1 mt-1.5 text-xs text-warning">{warnIcon}{missingProd}</p>}
               </div>
-              <button onClick={() => handleSync('products')} disabled={syncing('products') || !!missingProd}
-                className="w-full px-3 py-2 rounded-lg text-sm font-medium bg-brand-600 text-white hover:bg-brand-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2">
-                {syncing('products') && spinner}{syncing('products') ? 'Sincronizando…' : 'Sincronizar Produtos'}
-              </button>
+              <Button onClick={() => handleSync('products')} loading={syncing('products')} disabled={!!missingProd} className="w-full">
+                {syncing('products') ? 'Sincronizando…' : 'Sincronizar Produtos'}
+              </Button>
             </div>
           </div>
           {scheduleSection('products')}
@@ -206,21 +206,20 @@ export function ProtheusTab({ company }: { company: CompanyDetail }) {
                 <p className="text-sm font-medium text-[var(--text-primary)]">Testar API</p>
                 <p className="text-xs text-[var(--text-muted)] mt-0.5">Busca página 1 via <code className="bg-[var(--bg-subtle)] px-1 rounded">apiCliente</code> — sem salvar no banco.</p>
               </div>
-              <button onClick={() => handleTest('customers')} disabled={testing === 'customers' || !company.apiCliente || !company.apiToken || !company.usrProtheus || !company.passProtheus}
-                className="w-full px-3 py-2 rounded-lg text-sm font-medium border border-[var(--border)] text-[var(--text-secondary)] hover:bg-[var(--bg-subtle)] disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2">
-                {testing === 'customers' && spinner}{testing === 'customers' ? 'Testando…' : 'Testar API'}
-              </button>
+              <Button variant="outline" onClick={() => handleTest('customers')} loading={testing === 'customers'}
+                disabled={!company.apiCliente || !company.apiToken || !company.usrProtheus || !company.passProtheus} className="w-full">
+                {testing === 'customers' ? 'Testando…' : 'Testar API'}
+              </Button>
             </div>
             <div className="border border-[var(--border)] rounded-lg p-3 flex flex-col justify-between gap-3">
               <div>
                 <p className="text-sm font-medium text-[var(--text-primary)]">Sincronizar</p>
                 <p className="text-xs text-[var(--text-muted)] mt-0.5">Importa via <code className="bg-[var(--bg-subtle)] px-1 rounded">apiCliente</code> e atualiza a base.</p>
-                {(!company.apiCliente || !company.apiToken) && <p className="flex items-start gap-1 mt-1.5 text-xs text-yellow-600">{warnIcon}Configure apiToken e apiCliente para habilitar.</p>}
+                {(!company.apiCliente || !company.apiToken) && <p className="flex items-start gap-1 mt-1.5 text-xs text-warning">{warnIcon}Configure apiToken e apiCliente para habilitar.</p>}
               </div>
-              <button onClick={() => handleSync('customers')} disabled={syncing('customers') || !company.apiCliente || !company.apiToken}
-                className="w-full px-3 py-2 rounded-lg text-sm font-medium bg-brand-600 text-white hover:bg-brand-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2">
-                {syncing('customers') && spinner}{syncing('customers') ? 'Sincronizando…' : 'Sincronizar Clientes'}
-              </button>
+              <Button onClick={() => handleSync('customers')} loading={syncing('customers')} disabled={!company.apiCliente || !company.apiToken} className="w-full">
+                {syncing('customers') ? 'Sincronizando…' : 'Sincronizar Clientes'}
+              </Button>
             </div>
           </div>
           {scheduleSection('customers')}
@@ -233,12 +232,11 @@ export function ProtheusTab({ company }: { company: CompanyDetail }) {
         <div className="p-4 flex items-center justify-between gap-4">
           <div>
             <p className="text-xs text-[var(--text-muted)]">Importa via <code className="bg-[var(--bg-subtle)] px-1 rounded">apiTransp</code> e atualiza a lista disponível nos pedidos.</p>
-            {(!company.apiTransp || !company.apiToken) && <p className="flex items-center gap-1 mt-1.5 text-xs text-yellow-600">{warnIcon}Configure apiToken e apiTransp para habilitar.</p>}
+            {(!company.apiTransp || !company.apiToken) && <p className="flex items-center gap-1 mt-1.5 text-xs text-warning">{warnIcon}Configure apiToken e apiTransp para habilitar.</p>}
           </div>
-          <button onClick={() => handleSync('transportadoras')} disabled={syncing('transportadoras') || !company.apiTransp || !company.apiToken}
-            className="shrink-0 px-4 py-2 rounded-lg text-sm font-medium bg-brand-600 text-white hover:bg-brand-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2">
-            {syncing('transportadoras') && spinner}{syncing('transportadoras') ? 'Sincronizando…' : 'Sincronizar Transportadoras'}
-          </button>
+          <Button onClick={() => handleSync('transportadoras')} loading={syncing('transportadoras')} disabled={!company.apiTransp || !company.apiToken} className="shrink-0">
+            {syncing('transportadoras') ? 'Sincronizando…' : 'Sincronizar Transportadoras'}
+          </Button>
         </div>
       </div>
 
@@ -248,21 +246,19 @@ export function ProtheusTab({ company }: { company: CompanyDetail }) {
         <div className="p-4 flex items-center justify-between gap-4">
           <div>
             <p className="text-xs text-[var(--text-muted)]">Importa via <code className="bg-[var(--bg-subtle)] px-1 rounded">apiCondPag</code> e atualiza as opções disponíveis nos pedidos.</p>
-            {(!company.apiCondPag || !company.apiToken) && <p className="flex items-center gap-1 mt-1.5 text-xs text-yellow-600">{warnIcon}Configure apiToken e apiCondPag para habilitar.</p>}
+            {(!company.apiCondPag || !company.apiToken) && <p className="flex items-center gap-1 mt-1.5 text-xs text-warning">{warnIcon}Configure apiToken e apiCondPag para habilitar.</p>}
           </div>
-          <button onClick={() => handleSync('cond-pags')} disabled={syncing('cond-pags') || !company.apiCondPag || !company.apiToken}
-            className="shrink-0 px-4 py-2 rounded-lg text-sm font-medium bg-brand-600 text-white hover:bg-brand-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2">
-            {syncing('cond-pags') && spinner}{syncing('cond-pags') ? 'Sincronizando…' : 'Sincronizar Cond. Pagamento'}
-          </button>
+          <Button onClick={() => handleSync('cond-pags')} loading={syncing('cond-pags')} disabled={!company.apiCondPag || !company.apiToken} className="shrink-0">
+            {syncing('cond-pags') ? 'Sincronizando…' : 'Sincronizar Cond. Pagamento'}
+          </Button>
         </div>
       </div>
 
       {/* ── Salvar auto-sync ── */}
       <div className="flex items-center gap-4 pt-1">
-        <button onClick={() => saveSchedule.mutate(schedule)} disabled={saveSchedule.isPending}
-          className="px-5 py-2.5 rounded-lg text-sm font-semibold bg-brand-500 text-white hover:bg-brand-600 disabled:opacity-50 transition-colors">
+        <Button onClick={() => saveSchedule.mutate(schedule)} loading={saveSchedule.isPending}>
           {saveSchedule.isPending ? 'Salvando…' : 'Salvar configuração auto-sync'}
-        </button>
+        </Button>
       </div>
 
       {/* ── Modal de diagnóstico ── */}
@@ -273,13 +269,13 @@ export function ProtheusTab({ company }: { company: CompanyDetail }) {
         title={
           <span className="flex items-center gap-2">
             {(testResult as { ok?: boolean })?.ok === false ? (
-              <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-red-500">
-                <AlertCircle className="w-4 h-4" strokeWidth={2} />
+              <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-danger">
+                <AlertCircle size={16} strokeWidth={1.5} />
                 {testTitle} — Falha
               </span>
             ) : (
-              <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-green-500">
-                <CheckCircle2 className="w-4 h-4" strokeWidth={2} />
+              <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-success">
+                <CheckCircle2 size={16} strokeWidth={1.5} />
                 {testTitle} — Sucesso
               </span>
             )}

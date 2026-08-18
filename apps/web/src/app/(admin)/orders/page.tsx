@@ -19,7 +19,7 @@ export default function OrdersPage() {
       key: 'id',
       header: 'ID',
       render: (row) => (
-        <span className="font-mono text-xs text-gray-500">{row.id.slice(0, 8)}…</span>
+        <span className="font-mono text-xs text-[var(--text-muted)]">{row.id.slice(0, 8)}…</span>
       ),
     },
     { key: 'customer', header: 'Cliente', render: (row) => row.customer.name },
@@ -32,7 +32,7 @@ export default function OrdersPage() {
     {
       key: 'protheusId',
       header: 'Protheus ID',
-      render: (row) => row.protheusOrderId ?? <span className="text-gray-600">—</span>,
+      render: (row) => row.protheusOrderId ?? <span className="text-[var(--text-muted)]">—</span>,
     },
     { key: 'createdAt', header: 'Data', render: (row) => formatDate(row.createdAt) },
   ]

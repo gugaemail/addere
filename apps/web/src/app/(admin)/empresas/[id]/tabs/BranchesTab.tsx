@@ -65,7 +65,7 @@ export function BranchesTab({ company }: { company: CompanyDetail }) {
   return (
     <>
       <TabSection
-        action={{ label: '+ Nova filial', onClick: () => setModal({ mode: 'create' }) }}
+        action={{ label: 'Nova filial', onClick: () => setModal({ mode: 'create' }) }}
         search={<SearchInput value={search} onChange={(v) => { setSearch(v); setPage(1) }} placeholder="Pesquisar filiais…" />}
         footer={<Pagination page={page} total={table.total} pages={table.pages} onPage={setPage} />}
       >

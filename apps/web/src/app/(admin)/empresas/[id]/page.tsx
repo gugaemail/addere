@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { ArrowLeft } from 'lucide-react'
+import { Button } from '@/components/ui/Button'
 import { StatCard } from '@/components/ui/StatCard'
 import { useCompany, useToggleCompany } from '@/hooks/useCompany'
 import { getApiErrorMessage } from '@/lib/api'
@@ -46,11 +47,11 @@ export default function EmpresaPage() {
 
   if (error) return (
     <div className="flex flex-col items-center justify-center py-20 text-center gap-3">
-      <p className="font-semibold text-red-600">Erro ao carregar empresa</p>
+      <p className="font-semibold text-danger">Erro ao carregar empresa</p>
       <p className="text-sm text-[var(--text-muted)]">{getApiErrorMessage(error, 'Erro ao carregar empresa')}</p>
-      <button onClick={() => refetch()} className="mt-2 px-4 py-2 rounded-lg bg-[var(--color-brand)] text-white text-sm">
+      <Button onClick={() => refetch()} className="mt-2">
         Tentar novamente
-      </button>
+      </Button>
     </div>
   )
 
@@ -76,30 +77,28 @@ export default function EmpresaPage() {
       {/* Header */}
       <div className="flex items-start justify-between">
         <div>
-          <button
+          <Button
+            variant="ghost"
+            size="sm"
+            leftIcon={ArrowLeft}
             onClick={() => router.push('/dashboard')}
-            className="flex items-center gap-1 text-sm text-[var(--text-muted)] hover:text-brand-500 mb-3 transition-colors"
+            className="mb-3 -ml-3 text-[var(--text-muted)] hover:text-brand font-medium"
           >
-            <ArrowLeft className="w-4 h-4" strokeWidth={2} />
             Voltar
-          </button>
+          </Button>
           <h1 className="text-2xl font-bold tracking-tight text-[var(--text-primary)]">{company.name}</h1>
           <p className="text-[var(--text-muted)] text-sm mt-1">
             {company.cnpj}
             {company.idProtheus && <span className="ml-3">Protheus: {company.idProtheus}</span>}
           </p>
         </div>
-        <button
+        <Button
+          variant={company.active ? 'danger-outline' : 'success-outline'}
           onClick={() => toggleCompany.mutate(!company.active)}
-          disabled={toggleCompany.isPending}
-          className={`text-sm font-medium px-4 py-2 rounded-lg border transition-colors disabled:opacity-50 ${
-            company.active
-              ? 'border-red-500/30 text-red-500 hover:bg-red-500/10'
-              : 'border-green-500/30 text-green-500 hover:bg-green-500/10'
-          }`}
+          loading={toggleCompany.isPending}
         >
           {company.active ? 'Desativar empresa' : 'Ativar empresa'}
-        </button>
+        </Button>
       </div>
 
       {/* Stats */}
@@ -119,7 +118,7 @@ export default function EmpresaPage() {
               onClick={() => setTab(t.key)}
               className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
                 tab === t.key
-                  ? 'border-brand-500 text-brand-500'
+                  ? 'border-brand text-brand'
                   : 'border-transparent text-[var(--text-muted)] hover:text-[var(--text-secondary)]'
               }`}
             >

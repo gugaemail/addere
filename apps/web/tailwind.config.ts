@@ -1,4 +1,5 @@
 import type { Config } from 'tailwindcss'
+import { BRAND } from './src/lib/brand-tokens'
 
 const config: Config = {
   darkMode: 'class',
@@ -23,13 +24,17 @@ const config: Config = {
           800: '#0F3275',
           900: '#0D2045',
         },
-        accent:  'var(--color-accent)',
-        navy:    'var(--color-navy)',
-        tint:    'var(--color-tint)',
-        success: 'var(--color-success)',
-        warning: 'var(--color-warning)',
-        danger:  'var(--color-danger)',
-        muted:   'var(--color-muted)',
+        // Tokens de marca iguais nos dois temas — hex (via brand-tokens) para
+        // que modificadores de opacidade (bg-success/10, border-danger/30) funcionem.
+        // Cores baseadas em var(--*) não suportam /alpha no Tailwind v3.
+        accent:  BRAND.accent,
+        navy:    BRAND.navy,
+        tint:    BRAND.tint,
+        success: BRAND.success,
+        warning: BRAND.warning,
+        danger:  BRAND.danger,
+        muted:   BRAND.muted,
+        // Neutros dependentes de tema (sem uso de opacidade)
         border2: 'var(--color-border)',
         surface: 'var(--color-surface)',
       },

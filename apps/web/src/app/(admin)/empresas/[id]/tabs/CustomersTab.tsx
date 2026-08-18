@@ -73,7 +73,7 @@ export function CustomersTab({ companyId }: { companyId: string }) {
   return (
     <>
       <TabSection
-        action={{ label: '+ Novo cliente', onClick: () => setModal({ mode: 'create' }) }}
+        action={{ label: 'Novo cliente', onClick: () => setModal({ mode: 'create' }) }}
         search={<SearchInput value={search} onChange={(v) => { setSearch(v); setPage(1) }} placeholder="Pesquisar clientes…" />}
         footer={<Pagination page={page} total={table.total} pages={table.pages} onPage={setPage} />}
       >

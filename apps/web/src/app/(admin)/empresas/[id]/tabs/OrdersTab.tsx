@@ -3,6 +3,8 @@
 import { useState } from 'react'
 import type { CompanyOrder, OrderStatus } from '@addere/types'
 import { Table, type Column } from '@/components/ui/Table'
+import { Badge } from '@/components/ui/Badge'
+import { Button } from '@/components/ui/Button'
 import { useCompanyOrders, useCancelOrder } from '@/hooks/useCompany'
 import { ConfirmModal } from '../ConfirmModal'
 import {
@@ -11,19 +13,13 @@ import {
 } from './shared'
 
 function OrderStatusBadge({ status }: { status: OrderStatus | string }) {
-  const styles: Record<string, string> = {
-    PENDING:   'bg-yellow-500/10 text-yellow-600 dark:text-yellow-400',
-    SYNCED:    'bg-green-500/10 text-green-600 dark:text-green-400',
-    CANCELLED: 'bg-red-500/10 text-red-500',
+  const variants: Record<string, 'warning' | 'success' | 'danger'> = {
+    PENDING: 'warning', SYNCED: 'success', CANCELLED: 'danger',
   }
   const labels: Record<string, string> = {
     PENDING: 'Pendente', SYNCED: 'Sincronizado', CANCELLED: 'Cancelado',
   }
-  return (
-    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${styles[status] ?? 'bg-[var(--bg-subtle)] text-[var(--text-muted)]'}`}>
-      {labels[status] ?? status}
-    </span>
-  )
+  return <Badge variant={variants[status] ?? 'neutral'}>{labels[status] ?? status}</Badge>
 }
 
 // Detalhe expandido do pedido (itens + metadados de sincronização)
@@ -115,12 +111,13 @@ export function OrdersTab({ companyId }: { companyId: string }) {
       header: '',
       className: 'text-right',
       render: (o) => o.status !== 'CANCELLED' ? (
-        <button
+        <Button
+          variant="danger-outline"
+          size="xs"
           onClick={(e) => { e.stopPropagation(); setConfirmCancel(o.id) }}
-          className="text-xs font-medium px-3 py-1 rounded-lg border border-red-500/20 text-red-500 hover:bg-red-500/10 transition-colors"
         >
           Cancelar
-        </button>
+        </Button>
       ) : null,
     },
   ]

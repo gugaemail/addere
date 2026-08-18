@@ -20,6 +20,8 @@ interface TableProps<T> {
   onRowClick?: (row: T) => void
   /** Conteúdo extra renderizado numa linha abaixo da atual quando não-nulo */
   renderExpanded?: (row: T) => React.ReactNode
+  /** Classe extra por linha (ex.: destacar linhas inativas) */
+  rowClassName?: (row: T) => string | undefined
 }
 
 export function Table<T>({
@@ -30,6 +32,7 @@ export function Table<T>({
   rowKey,
   onRowClick,
   renderExpanded,
+  rowClassName,
 }: TableProps<T>) {
   return (
     <div className={cn('overflow-x-auto rounded-xl', className)}>
@@ -61,6 +64,7 @@ export function Table<T>({
                     className={cn(
                       'bg-[var(--bg-surface)] transition-colors hover:bg-[var(--bg-subtle)]',
                       onRowClick && 'cursor-pointer',
+                      rowClassName?.(row),
                     )}
                   >
                     {columns.map((col) => (
