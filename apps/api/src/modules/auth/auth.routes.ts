@@ -1,3 +1,4 @@
+import { env } from '../../lib/env'
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify'
 import { loginSchema, forgotPasswordSchema, resetPasswordSchema } from './auth.schema'
 import {
@@ -29,163 +30,205 @@ function cookieOptions(secure: boolean) {
 }
 
 export default async function authRoutes(app: FastifyInstance) {
-  const isProduction = process.env.NODE_ENV === 'production'
+  const isProduction = env.NODE_ENV === 'production'
 
   // POST /auth/login — rate limit: 10 tentativas por minuto por IP
-  app.post('/login', {
-    config: {
-      rateLimit: {
-        max: 10,
-        timeWindow: '1 minute',
-        errorResponseBuilder: () => ({ message: 'Muitas tentativas. Aguarde 1 minuto e tente novamente.' }),
+  app.post(
+    '/login',
+    {
+      config: {
+        rateLimit: {
+          max: 10,
+          timeWindow: '1 minute',
+          errorResponseBuilder: () => ({
+            message: 'Muitas tentativas. Aguarde 1 minuto e tente novamente.',
+          }),
+        },
       },
     },
-  }, async (request: FastifyRequest, reply: FastifyReply) => {
-    const result = loginSchema.safeParse(request.body)
-    if (!result.success) {
-      return reply.status(400).send({ message: 'Dados inválidos', errors: result.error.flatten() })
-    }
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const result = loginSchema.safeParse(request.body)
+      if (!result.success) {
+        return reply
+          .status(400)
+          .send({ message: 'Dados inválidos', errors: result.error.flatten() })
+      }
 
-    try {
-      const user = await loginUser(result.data)
-      const refreshToken = await createRefreshToken(user.id)
+      try {
+        const user = await loginUser(result.data)
+        const refreshToken = await createRefreshToken(user.id)
 
-      const accessToken = app.jwt.sign({
-        sub: user.id,
-        email: user.email,
-        role: user.role,
-        companyId: user.companyId,
-      })
-
-      reply.setCookie(COOKIE_NAME, refreshToken, cookieOptions(isProduction))
-
-      return reply.send({
-        accessToken,
-        refreshToken, // mobile persiste no SecureStore para biometria
-        user: {
-          id: user.id,
-          name: user.name,
+        const accessToken = app.jwt.sign({
+          sub: user.id,
           email: user.email,
           role: user.role,
           companyId: user.companyId,
-          createdAt: user.createdAt,
-        },
-      })
-    } catch (err) {
-      return reply.status(401).send({ message: (err as Error).message })
+        })
+
+        reply.setCookie(COOKIE_NAME, refreshToken, cookieOptions(isProduction))
+
+        return reply.send({
+          accessToken,
+          refreshToken, // mobile persiste no SecureStore para biometria
+          user: {
+            id: user.id,
+            name: user.name,
+            email: user.email,
+            role: user.role,
+            companyId: user.companyId,
+            createdAt: user.createdAt,
+          },
+        })
+      } catch (err) {
+        return reply.status(401).send({ message: (err as Error).message })
+      }
     }
-  })
+  )
 
   // POST /auth/refresh — rate limit: 30 tentativas por minuto por IP
-  app.post('/refresh', {
-    config: {
-      rateLimit: {
-        max: 30,
-        timeWindow: '1 minute',
-        errorResponseBuilder: () => ({ message: 'Muitas tentativas. Aguarde 1 minuto e tente novamente.' }),
+  app.post(
+    '/refresh',
+    {
+      config: {
+        rateLimit: {
+          max: 30,
+          timeWindow: '1 minute',
+          errorResponseBuilder: () => ({
+            message: 'Muitas tentativas. Aguarde 1 minuto e tente novamente.',
+          }),
+        },
       },
     },
-  }, async (request: FastifyRequest, reply: FastifyReply) => {
-    // Cookie (web) tem prioridade; body (mobile/biometria) é fallback
-    const bodyToken = (request.body as { refreshToken?: string } | null)?.refreshToken
-    const token = request.cookies[COOKIE_NAME] ?? bodyToken
-    if (!token) {
-      return reply.status(401).send({ message: 'Refresh token ausente' })
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      // Cookie (web) tem prioridade; body (mobile/biometria) é fallback
+      const bodyToken = (request.body as { refreshToken?: string } | null)?.refreshToken
+      const token = request.cookies[COOKIE_NAME] ?? bodyToken
+      if (!token) {
+        return reply.status(401).send({ message: 'Refresh token ausente' })
+      }
+
+      try {
+        const { user, newToken } = await rotateRefreshToken(token)
+
+        const accessToken = app.jwt.sign({
+          sub: user.id,
+          email: user.email,
+          role: user.role,
+          companyId: user.companyId,
+        })
+
+        reply.setCookie(COOKIE_NAME, newToken, cookieOptions(isProduction))
+
+        return reply.send({ accessToken, refreshToken: newToken })
+      } catch (err) {
+        return reply.status(401).send({ message: (err as Error).message })
+      }
     }
-
-    try {
-      const { user, newToken } = await rotateRefreshToken(token)
-
-      const accessToken = app.jwt.sign({
-        sub: user.id,
-        email: user.email,
-        role: user.role,
-        companyId: user.companyId,
-      })
-
-      reply.setCookie(COOKIE_NAME, newToken, cookieOptions(isProduction))
-
-      return reply.send({ accessToken, refreshToken: newToken })
-    } catch (err) {
-      return reply.status(401).send({ message: (err as Error).message })
-    }
-  })
+  )
 
   // GET /auth/me — retorna o usuário autenticado
-  app.get('/me', { preHandler: authenticate }, async (request: FastifyRequest, reply: FastifyReply) => {
-    const user = await prisma.user.findUnique({
-      where: { id: request.user.sub },
-      select: { id: true, name: true, email: true, role: true, active: true, createdAt: true },
-    })
-    if (!user) return reply.status(404).send({ message: 'Usuário não encontrado' })
-    return reply.send(user)
-  })
+  app.get(
+    '/me',
+    { preHandler: authenticate },
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const user = await prisma.user.findUnique({
+        where: { id: request.user.sub },
+        select: { id: true, name: true, email: true, role: true, active: true, createdAt: true },
+      })
+      if (!user) return reply.status(404).send({ message: 'Usuário não encontrado' })
+      return reply.send(user)
+    }
+  )
 
   // GET /auth/me/permissions — permissões efetivas do usuário autenticado
-  app.get('/me/permissions', { preHandler: authenticate }, async (request: FastifyRequest, reply: FastifyReply) => {
-    const permissions = await getEffectivePermissions(request.user.sub, request.user.role)
-    return reply.send({ keys: Array.from(permissions) })
-  })
+  app.get(
+    '/me/permissions',
+    { preHandler: authenticate },
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const permissions = await getEffectivePermissions(request.user.sub, request.user.role)
+      return reply.send({ keys: Array.from(permissions) })
+    }
+  )
 
   // POST /auth/forgot-password — envia email de redefinição de senha
-  app.post('/forgot-password', {
-    config: {
-      rateLimit: {
-        max: 5,
-        timeWindow: '5 minutes',
-        errorResponseBuilder: () => ({ message: 'Muitas tentativas. Aguarde 5 minutos e tente novamente.' }),
+  app.post(
+    '/forgot-password',
+    {
+      config: {
+        rateLimit: {
+          max: 5,
+          timeWindow: '5 minutes',
+          errorResponseBuilder: () => ({
+            message: 'Muitas tentativas. Aguarde 5 minutos e tente novamente.',
+          }),
+        },
       },
     },
-  }, async (request: FastifyRequest, reply: FastifyReply) => {
-    const result = forgotPasswordSchema.safeParse(request.body)
-    if (!result.success) return reply.status(400).send({ message: 'Email inválido' })
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const result = forgotPasswordSchema.safeParse(request.body)
+      if (!result.success) return reply.status(400).send({ message: 'Email inválido' })
 
-    try {
-      await forgotPassword(result.data.email)
-    } catch (err) {
-      app.log.error(err, '[auth] forgotPassword falhou')
+      try {
+        await forgotPassword(result.data.email)
+      } catch (err) {
+        app.log.error(err, '[auth] forgotPassword falhou')
+      }
+      // Sempre retorna sucesso para não revelar se e-mail existe ou se ocorreu erro
+      return reply.send({
+        message: 'Se o e-mail estiver cadastrado, você receberá as instruções em breve.',
+      })
     }
-    // Sempre retorna sucesso para não revelar se e-mail existe ou se ocorreu erro
-    return reply.send({ message: 'Se o e-mail estiver cadastrado, você receberá as instruções em breve.' })
-  })
+  )
 
   // POST /auth/reset-password — redefine a senha com o token recebido por e-mail
-  app.post('/reset-password', {
-    config: {
-      rateLimit: {
-        max: 10,
-        timeWindow: '5 minutes',
-        errorResponseBuilder: () => ({ message: 'Muitas tentativas. Aguarde 5 minutos e tente novamente.' }),
+  app.post(
+    '/reset-password',
+    {
+      config: {
+        rateLimit: {
+          max: 10,
+          timeWindow: '5 minutes',
+          errorResponseBuilder: () => ({
+            message: 'Muitas tentativas. Aguarde 5 minutos e tente novamente.',
+          }),
+        },
       },
     },
-  }, async (request: FastifyRequest, reply: FastifyReply) => {
-    const result = resetPasswordSchema.safeParse(request.body)
-    if (!result.success) return reply.status(400).send({ message: 'Dados inválidos' })
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const result = resetPasswordSchema.safeParse(request.body)
+      if (!result.success) return reply.status(400).send({ message: 'Dados inválidos' })
 
-    try {
-      await resetPassword(result.data.token, result.data.newPassword)
-      return reply.send({ message: 'Senha redefinida com sucesso.' })
-    } catch (err) {
-      return reply.status(400).send({ message: (err as Error).message })
+      try {
+        await resetPassword(result.data.token, result.data.newPassword)
+        return reply.send({ message: 'Senha redefinida com sucesso.' })
+      } catch (err) {
+        return reply.status(400).send({ message: (err as Error).message })
+      }
     }
-  })
+  )
 
   // POST /auth/logout — revoga o refresh token e limpa o cookie
-  app.post('/logout', {
-    config: {
-      rateLimit: {
-        max: 20,
-        timeWindow: '1 minute',
-        errorResponseBuilder: () => ({ message: 'Muitas tentativas. Aguarde 1 minuto e tente novamente.' }),
+  app.post(
+    '/logout',
+    {
+      config: {
+        rateLimit: {
+          max: 20,
+          timeWindow: '1 minute',
+          errorResponseBuilder: () => ({
+            message: 'Muitas tentativas. Aguarde 1 minuto e tente novamente.',
+          }),
+        },
       },
     },
-  }, async (request: FastifyRequest, reply: FastifyReply) => {
-    const token = request.cookies[COOKIE_NAME]
-    if (token) {
-      await revokeRefreshToken(token)
-    }
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const token = request.cookies[COOKIE_NAME]
+      if (token) {
+        await revokeRefreshToken(token)
+      }
 
-    reply.clearCookie(COOKIE_NAME, { path: '/auth' })
-    return reply.send({ message: 'Logout realizado com sucesso' })
-  })
+      reply.clearCookie(COOKIE_NAME, { path: '/auth' })
+      return reply.send({ message: 'Logout realizado com sucesso' })
+    }
+  )
 }

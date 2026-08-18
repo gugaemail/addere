@@ -2,7 +2,7 @@ import { submitOrder } from '../createOrder'
 import { useSyncStore } from '../../store/syncStore'
 
 jest.mock('@react-native-async-storage/async-storage', () =>
-  require('@react-native-async-storage/async-storage/jest/async-storage-mock'),
+  require('@react-native-async-storage/async-storage/jest/async-storage-mock')
 )
 jest.mock('../../lib/api', () => ({
   api: { post: jest.fn() },
@@ -11,7 +11,11 @@ jest.mock('../../lib/query-client', () => ({
   queryClient: { invalidateQueries: jest.fn() },
 }))
 jest.mock('../../services/pilotTracking', () => ({
-  pilotTracker: { track: jest.fn(), getOrderDuration: jest.fn().mockReturnValue(0), startOrderTimer: jest.fn() },
+  pilotTracker: {
+    track: jest.fn(),
+    getOrderDuration: jest.fn().mockReturnValue(0),
+    startOrderTimer: jest.fn(),
+  },
 }))
 
 import { api } from '../../lib/api'

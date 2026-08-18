@@ -1,38 +1,48 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import { api } from '@/lib/api'
-import { Modal, Field, ModalActions, ErrorMsg } from './CreateBranchModal'
-
-// ─── Tipos ─────────────────────────────────────────────────────────────────────
-
-interface Branch    { id: string; name: string; cnpj: string | null; idProtheus: string | null; active: boolean; razaoSocial: string | null; endereco: string | null; complemento: string | null; cidade: string | null; estado: string | null; cep: string | null; logo: string | null }
-interface User      { id: string; name: string; email: string; role: 'ADMIN' | 'SALESPERSON'; active: boolean; idVendProt: string | null }
-interface Customer  {
-  id: string; name: string; document: string | null; email: string | null; phone: string | null
-  protheusCode: string | null; loja: string | null; address: string | null; municipio: string | null
-  bairro: string | null; cep: string | null; uf: string | null; vendorCode: string | null
-  msblql: string | null; transpPadrao: string | null; condPagPadrao: string | null
-  tes: string | null; xcodemp: string | null; active: boolean
-}
-interface Product   { id: string; name: string; protheusCode: string | null; price: string; unit: string; stock: string; saldo: string; description: string | null; active: boolean }
+import { useForm } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { MoreVertical } from 'lucide-react'
+import { toast } from 'sonner'
+import type { Branch, Customer, Product, UserPublic } from '@addere/types'
+import { api, getApiErrorMessage } from '@/lib/api'
+import { maskCEP, maskDocument, formatCEPDisplay, formatDocumentDisplay } from '@/lib/utils'
+import { Modal } from '@/components/ui/Modal'
+import { Button } from '@/components/ui/Button'
+import { FormField, FormSelect } from '@/components/ui/FormField'
+import {
+  branchSchema,
+  customerSchema,
+  productSchema,
+  makeCompanyUserSchema,
+  type BranchFormData,
+  type CompanyUserFormData,
+  type CustomerFormData,
+  type ProductFormData,
+} from '@/lib/schemas'
 
 type ModalMode = 'create' | 'edit' | 'copy' | 'view'
 
-// ─── Helper campo numérico ─────────────────────────────────────────────────────
+const SECTION_TITLE = 'text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wide'
 
-function NumField({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
+function FormActions({
+  loading,
+  onClose,
+  submitLabel,
+}: {
+  loading: boolean
+  onClose: () => void
+  submitLabel: string
+}) {
   return (
-    <div>
-      <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">{label}</label>
-      <input
-        type="number"
-        step="any"
-        min="0"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="w-full bg-[var(--bg-subtle)] border border-[var(--border)] rounded-lg px-3 py-2.5 text-sm text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition-shadow"
-      />
+    <div className="flex gap-3 pt-2">
+      <Button type="button" variant="secondary" onClick={onClose} className="flex-1">
+        Cancelar
+      </Button>
+      <Button type="submit" loading={loading} className="flex-1">
+        {submitLabel}
+      </Button>
     </div>
   )
 }
@@ -47,23 +57,62 @@ interface BranchModalProps {
   onSaved: () => void
 }
 
-const UF_OPTIONS = ['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO']
+const UF_OPTIONS = [
+  'AC',
+  'AL',
+  'AP',
+  'AM',
+  'BA',
+  'CE',
+  'DF',
+  'ES',
+  'GO',
+  'MA',
+  'MT',
+  'MS',
+  'MG',
+  'PA',
+  'PB',
+  'PR',
+  'PE',
+  'PI',
+  'RJ',
+  'RN',
+  'RS',
+  'RO',
+  'RR',
+  'SC',
+  'SP',
+  'SE',
+  'TO',
+]
 
 export function BranchModal({ companyId, mode, branch, onClose, onSaved }: BranchModalProps) {
-  const [name,        setName]        = useState(branch?.name        ?? '')
-  const [cnpj,        setCnpj]        = useState(branch?.cnpj        ?? '')
-  const [idProtheus,  setIdProtheus]  = useState(mode === 'copy' ? '' : (branch?.idProtheus ?? ''))
-  const [razaoSocial, setRazaoSocial] = useState(branch?.razaoSocial ?? '')
-  const [endereco,    setEndereco]    = useState(branch?.endereco    ?? '')
-  const [complemento, setComplemento] = useState(branch?.complemento ?? '')
-  const [cidade,      setCidade]      = useState(branch?.cidade      ?? '')
-  const [estado,      setEstado]      = useState(branch?.estado      ?? '')
-  const [cep,         setCep]         = useState(branch?.cep         ?? '')
-  const [logo,        setLogo]        = useState<string | null>(branch?.logo ?? null)
-  const [error,       setError]       = useState<string | null>(null)
-  const [loading,     setLoading]     = useState(false)
+  // Logo fica fora do react-hook-form (upload de arquivo com preview em data URL)
+  const [logo, setLogo] = useState<string | null>(branch?.logo ?? null)
 
-  const title = mode === 'create' ? 'Nova Filial' : mode === 'copy' ? 'Copiar Filial' : 'Editar Filial'
+  const {
+    register,
+    handleSubmit,
+    setValue,
+    formState: { errors, isSubmitting },
+  } = useForm<BranchFormData>({
+    resolver: zodResolver(branchSchema),
+    defaultValues: {
+      name: branch?.name ?? '',
+      cnpj: branch?.cnpj ?? '',
+      idProtheus: mode === 'copy' ? '' : (branch?.idProtheus ?? ''),
+      razaoSocial: branch?.razaoSocial ?? '',
+      endereco: branch?.endereco ?? '',
+      complemento: branch?.complemento ?? '',
+      cidade: branch?.cidade ?? '',
+      estado: branch?.estado ?? '',
+      cep: branch?.cep ?? '',
+    },
+  })
+
+  const title =
+    mode === 'create' ? 'Nova Filial' : mode === 'copy' ? 'Copiar Filial' : 'Editar Filial'
 
   function handleLogoChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -73,22 +122,19 @@ export function BranchModal({ companyId, mode, branch, onClose, onSaved }: Branc
     reader.readAsDataURL(file)
   }
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault()
-    setError(null)
-    setLoading(true)
+  async function onSubmit(data: BranchFormData) {
     try {
       const body = {
-        name,
-        cnpj:        cnpj        || undefined,
-        idProtheus:  idProtheus  || undefined,
-        razaoSocial: razaoSocial || undefined,
-        endereco:    endereco    || undefined,
-        complemento: complemento || undefined,
-        cidade:      cidade      || undefined,
-        estado:      estado      || undefined,
-        cep:         cep         || undefined,
-        logo:        logo        ?? undefined,
+        name: data.name,
+        cnpj: data.cnpj || undefined,
+        idProtheus: data.idProtheus || undefined,
+        razaoSocial: data.razaoSocial || undefined,
+        endereco: data.endereco || undefined,
+        complemento: data.complemento || undefined,
+        cidade: data.cidade || undefined,
+        estado: data.estado || undefined,
+        cep: data.cep || undefined,
+        logo: logo ?? undefined,
       }
       if (mode === 'edit' && branch) {
         await api.patch(`/companies/${companyId}/branches/${branch.id}`, body)
@@ -97,71 +143,73 @@ export function BranchModal({ companyId, mode, branch, onClose, onSaved }: Branc
       }
       onSaved()
     } catch (err: unknown) {
-      setError((err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? 'Erro ao salvar filial.')
-    } finally {
-      setLoading(false)
+      toast.error(getApiErrorMessage(err, 'Erro ao salvar filial.'))
     }
   }
 
   return (
-    <Modal title={title} onClose={onClose} wide>
-      <form onSubmit={handleSubmit} className="space-y-3 max-h-[75vh] overflow-y-auto pr-1">
-
-        <p className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wide">Identificação</p>
-        <Field label="Nome *" value={name} onChange={setName} required />
+    <Modal isOpen onClose={onClose} title={title} className="max-w-2xl">
+      <form
+        onSubmit={handleSubmit(onSubmit)}
+        className="space-y-3 max-h-[75vh] overflow-y-auto pr-1"
+      >
+        <p className={SECTION_TITLE}>Identificação</p>
+        <FormField label="Nome *" error={errors.name?.message} {...register('name')} />
         <div className="grid grid-cols-2 gap-3">
-          <Field label="CNPJ" value={cnpj} onChange={setCnpj} placeholder="Opcional" />
-          <Field label="Código Protheus" value={idProtheus} onChange={setIdProtheus} placeholder="Opcional" />
+          <FormField label="CNPJ" placeholder="Opcional" {...register('cnpj')} />
+          <FormField label="Código Protheus" placeholder="Opcional" {...register('idProtheus')} />
         </div>
-        <Field label="Razão Social" value={razaoSocial} onChange={setRazaoSocial} placeholder="Opcional" />
+        <FormField label="Razão Social" placeholder="Opcional" {...register('razaoSocial')} />
 
-        <p className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wide pt-1">Endereço</p>
+        <p className={`${SECTION_TITLE} pt-1`}>Endereço</p>
         <div className="grid grid-cols-3 gap-3">
           <div className="col-span-2">
-            <Field label="Endereço" value={endereco} onChange={setEndereco} placeholder="Rua, número" />
+            <FormField label="Endereço" placeholder="Rua, número" {...register('endereco')} />
           </div>
-          <Field label="Complemento" value={complemento} onChange={setComplemento} placeholder="Sala, andar..." />
+          <FormField
+            label="Complemento"
+            placeholder="Sala, andar..."
+            {...register('complemento')}
+          />
         </div>
         <div className="grid grid-cols-3 gap-3">
           <div className="col-span-2">
-            <Field label="Cidade" value={cidade} onChange={setCidade} placeholder="Opcional" />
+            <FormField label="Cidade" placeholder="Opcional" {...register('cidade')} />
           </div>
-          <div>
-            <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">Estado</label>
-            <select
-              value={estado}
-              onChange={(e) => setEstado(e.target.value)}
-              className="w-full bg-[var(--bg-subtle)] border border-[var(--border)] rounded-lg px-3 py-2.5 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition-shadow"
-            >
-              <option value="">UF</option>
-              {UF_OPTIONS.map((uf) => <option key={uf} value={uf}>{uf}</option>)}
-            </select>
-          </div>
+          <FormSelect label="Estado" {...register('estado')}>
+            <option value="">UF</option>
+            {UF_OPTIONS.map((uf) => (
+              <option key={uf} value={uf}>
+                {uf}
+              </option>
+            ))}
+          </FormSelect>
         </div>
         <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">CEP</label>
-            <input
-              value={cep}
-              onChange={(e) => setCep(maskCEP(e.target.value))}
-              placeholder="00000-000"
-              className="w-full bg-[var(--bg-subtle)] border border-[var(--border)] rounded-lg px-3 py-2.5 text-sm text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-brand-500"
-            />
-          </div>
+          <FormField
+            label="CEP"
+            placeholder="00000-000"
+            {...register('cep', { onChange: (e) => setValue('cep', maskCEP(e.target.value)) })}
+          />
         </div>
 
-        <p className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wide pt-1">Logo</p>
+        <p className={`${SECTION_TITLE} pt-1`}>Logo</p>
         {logo && (
           <div className="flex items-center gap-3">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={logo} alt="Logo da filial" className="h-14 w-auto object-contain rounded border border-[var(--border)] p-1 bg-white" />
-            <button
+            <img
+              src={logo}
+              alt="Logo da filial"
+              className="h-14 w-auto object-contain rounded border border-[var(--border)] p-1 bg-white"
+            />
+            <Button
               type="button"
+              variant="ghost"
+              size="xs"
               onClick={() => setLogo(null)}
-              className="text-xs text-red-500 hover:underline"
+              className="text-danger hover:bg-danger/10"
             >
               Remover
-            </button>
+            </Button>
           </div>
         )}
         <div>
@@ -174,11 +222,16 @@ export function BranchModal({ companyId, mode, branch, onClose, onSaved }: Branc
             onChange={handleLogoChange}
             className="w-full text-sm text-[var(--text-muted)] file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-[var(--bg-subtle)] file:text-[var(--text-primary)] hover:file:bg-[var(--border)] cursor-pointer"
           />
-          <p className="text-xs text-[var(--text-muted)] mt-1">PNG, JPG ou SVG. Recomendado: fundo transparente.</p>
+          <p className="text-xs text-[var(--text-muted)] mt-1">
+            PNG, JPG ou SVG. Recomendado: fundo transparente.
+          </p>
         </div>
 
-        <ModalActions loading={loading} onClose={onClose} submitLabel={mode === 'edit' ? 'Salvar' : 'Criar'} />
-        {error && <ErrorMsg message={error} />}
+        <FormActions
+          loading={isSubmitting}
+          onClose={onClose}
+          submitLabel={mode === 'edit' ? 'Salvar' : 'Criar'}
+        />
       </form>
     </Modal>
   )
@@ -189,127 +242,99 @@ export function BranchModal({ companyId, mode, branch, onClose, onSaved }: Branc
 interface UserModalProps {
   companyId: string
   mode: ModalMode
-  user?: User
+  user?: UserPublic
   onClose: () => void
   onSaved: () => void
 }
 
 export function UserModal({ companyId, mode, user, onClose, onSaved }: UserModalProps) {
-  const [name,       setName]       = useState(user?.name       ?? '')
-  const [email,      setEmail]      = useState(mode === 'copy' ? '' : (user?.email ?? ''))
-  const [password,   setPassword]   = useState('')
-  const [role,       setRole]       = useState<'ADMIN' | 'SALESPERSON'>(user?.role ?? 'SALESPERSON')
-  const [idVendProt, setIdVendProt] = useState(user?.idVendProt ?? '')
-  const [error,      setError]      = useState<string | null>(null)
-  const [loading,    setLoading]    = useState(false)
-
-  const title = mode === 'create' ? 'Novo Usuário' : mode === 'copy' ? 'Copiar Usuário' : 'Editar Usuário'
+  const title =
+    mode === 'create' ? 'Novo Usuário' : mode === 'copy' ? 'Copiar Usuário' : 'Editar Usuário'
   const isNew = mode !== 'edit'
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault()
-    setError(null)
-    setLoading(true)
+  const {
+    register,
+    handleSubmit,
+    watch,
+    formState: { errors, isSubmitting },
+  } = useForm<CompanyUserFormData>({
+    resolver: zodResolver(makeCompanyUserSchema(isNew)),
+    defaultValues: {
+      name: user?.name ?? '',
+      email: mode === 'copy' ? '' : (user?.email ?? ''),
+      password: '',
+      role: user?.role === 'ADMIN' ? 'ADMIN' : 'SALESPERSON',
+      idVendProt: user?.idVendProt ?? '',
+    },
+  })
+
+  const role = watch('role')
+
+  async function onSubmit(data: CompanyUserFormData) {
     try {
       if (mode === 'edit' && user) {
-        const body: Record<string, unknown> = { name, email, role }
-        if (password) body.password = password
-        if (role === 'SALESPERSON') body.idVendProt = idVendProt || null
+        const body: Record<string, unknown> = {
+          name: data.name,
+          email: data.email,
+          role: data.role,
+        }
+        if (data.password) body.password = data.password
+        if (data.role === 'SALESPERSON') body.idVendProt = data.idVendProt || null
         await api.patch(`/companies/${companyId}/users/${user.id}`, body)
       } else {
         await api.post(`/companies/${companyId}/users`, {
-          name, email, password, role,
-          ...(role === 'SALESPERSON' && { idVendProt: idVendProt || null }),
+          name: data.name,
+          email: data.email,
+          password: data.password,
+          role: data.role,
+          ...(data.role === 'SALESPERSON' && { idVendProt: data.idVendProt || null }),
         })
       }
       onSaved()
     } catch (err: unknown) {
-      setError((err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? 'Erro ao salvar usuário.')
-    } finally {
-      setLoading(false)
+      toast.error(getApiErrorMessage(err, 'Erro ao salvar usuário.'))
     }
   }
 
   return (
-    <Modal title={title} onClose={onClose}>
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <Field label="Nome" value={name} onChange={setName} required />
-        <Field label="E-mail" value={email} onChange={setEmail} required />
-        <div>
-          <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">
-            Senha {!isNew && <span className="text-[var(--text-muted)] font-normal">(deixe em branco para manter)</span>}
-          </label>
-          <input
-            type="password"
-            required={isNew}
-            minLength={isNew ? 8 : undefined}
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className="w-full bg-[var(--bg-subtle)] border border-[var(--border)] rounded-lg px-3 py-2.5 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition-shadow"
-          />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">Perfil</label>
-          <select
-            value={role}
-            onChange={(e) => setRole(e.target.value as 'ADMIN' | 'SALESPERSON')}
-            className="w-full bg-[var(--bg-subtle)] border border-[var(--border)] rounded-lg px-3 py-2.5 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition-shadow"
-          >
-            <option value="SALESPERSON">Vendedor</option>
-            <option value="ADMIN">Administrador</option>
-          </select>
-        </div>
+    <Modal isOpen onClose={onClose} title={title}>
+      <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+        <FormField label="Nome" error={errors.name?.message} {...register('name')} />
+        <FormField label="E-mail" error={errors.email?.message} {...register('email')} />
+        <FormField
+          type="password"
+          label={
+            <>
+              Senha{' '}
+              {!isNew && (
+                <span className="text-[var(--text-muted)] font-normal">
+                  (deixe em branco para manter)
+                </span>
+              )}
+            </>
+          }
+          error={errors.password?.message}
+          {...register('password')}
+        />
+        <FormSelect label="Perfil" error={errors.role?.message} {...register('role')}>
+          <option value="SALESPERSON">Vendedor</option>
+          <option value="ADMIN">Administrador</option>
+        </FormSelect>
         {role === 'SALESPERSON' && (
-          <Field
+          <FormField
             label="Cód. Vendedor (Protheus)"
-            value={idVendProt}
-            onChange={setIdVendProt}
             placeholder="Código do vendedor no ERP (ex: 001)"
+            {...register('idVendProt')}
           />
         )}
-        <ModalActions loading={loading} onClose={onClose} submitLabel={mode === 'edit' ? 'Salvar' : 'Criar'} />
-        {error && <ErrorMsg message={error} />}
+        <FormActions
+          loading={isSubmitting}
+          onClose={onClose}
+          submitLabel={mode === 'edit' ? 'Salvar' : 'Criar'}
+        />
       </form>
     </Modal>
   )
-}
-
-// ─── Máscaras ────────────────────────────────────────────────────────────────
-
-function maskDocument(v: string): string {
-  const d = v.replace(/\D/g, '').slice(0, 14)
-  if (d.length <= 11) {
-    if (d.length > 9) return `${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6, 9)}-${d.slice(9)}`
-    if (d.length > 6) return `${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6)}`
-    if (d.length > 3) return `${d.slice(0, 3)}.${d.slice(3)}`
-    return d
-  }
-  if (d.length > 12) return `${d.slice(0, 2)}.${d.slice(2, 5)}.${d.slice(5, 8)}/${d.slice(8, 12)}-${d.slice(12)}`
-  if (d.length > 8)  return `${d.slice(0, 2)}.${d.slice(2, 5)}.${d.slice(5, 8)}/${d.slice(8)}`
-  if (d.length > 5)  return `${d.slice(0, 2)}.${d.slice(2, 5)}.${d.slice(5)}`
-  if (d.length > 2)  return `${d.slice(0, 2)}.${d.slice(2)}`
-  return d
-}
-
-function maskCEP(v: string): string {
-  const d = v.replace(/\D/g, '').slice(0, 8)
-  if (d.length > 5) return `${d.slice(0, 5)}-${d.slice(5)}`
-  return d
-}
-
-function formatDocumentDisplay(v: string | null): string {
-  if (!v) return '—'
-  const d = v.replace(/\D/g, '')
-  if (d.length === 11) return d.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4')
-  if (d.length === 14) return d.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, '$1.$2.$3/$4-$5')
-  return v
-}
-
-function formatCEPDisplay(v: string | null): string {
-  if (!v) return '—'
-  const d = v.replace(/\D/g, '')
-  if (d.length === 8) return `${d.slice(0, 5)}-${d.slice(5)}`
-  return v
 }
 
 // ─── Modal Cliente ────────────────────────────────────────────────────────────
@@ -326,61 +351,72 @@ function ViewRow({ label, value }: { label: string; value: string | null | undef
   return (
     <div className="flex justify-between py-2 border-b border-[var(--border)] last:border-0">
       <span className="text-sm text-[var(--text-muted)] shrink-0 mr-4">{label}</span>
-      <span className="text-sm text-[var(--text-primary)] text-right break-all">{value || '—'}</span>
+      <span className="text-sm text-[var(--text-primary)] text-right break-all">
+        {value || '—'}
+      </span>
     </div>
   )
 }
 
 export function CustomerModal({ companyId, mode, customer, onClose, onSaved }: CustomerModalProps) {
-  const [name,          setName]          = useState(customer?.name          ?? '')
-  const [protheusCode,  setProtheusCode]  = useState(mode === 'copy' ? '' : (customer?.protheusCode  ?? ''))
-  const [loja,          setLoja]          = useState(mode === 'copy' ? '' : (customer?.loja          ?? ''))
-  const [document,      setDocument]      = useState(customer?.document      ?? '')
-  const [email,         setEmail]         = useState(customer?.email         ?? '')
-  const [phone,         setPhone]         = useState(customer?.phone         ?? '')
-  const [address,       setAddress]       = useState(customer?.address       ?? '')
-  const [municipio,     setMunicipio]     = useState(customer?.municipio     ?? '')
-  const [bairro,        setBairro]        = useState(customer?.bairro        ?? '')
-  const [cep,           setCep]           = useState(customer?.cep           ?? '')
-  const [uf,            setUf]            = useState(customer?.uf            ?? '')
-  const [vendorCode,    setVendorCode]    = useState(customer?.vendorCode    ?? '')
-  const [msblql,        setMsblql]        = useState(customer?.msblql        ?? '2')
-  const [transpPadrao,  setTranspPadrao]  = useState(customer?.transpPadrao  ?? '')
-  const [condPagPadrao, setCondPagPadrao] = useState(customer?.condPagPadrao ?? '')
-  const [tes,           setTes]           = useState(customer?.tes           ?? '')
-  const [xcodemp,       setXcodemp]       = useState(customer?.xcodemp       ?? '')
-  const [error,         setError]         = useState<string | null>(null)
-  const [loading,       setLoading]       = useState(false)
+  const {
+    register,
+    handleSubmit,
+    setValue,
+    formState: { errors, isSubmitting },
+  } = useForm<CustomerFormData>({
+    resolver: zodResolver(customerSchema),
+    defaultValues: {
+      name: customer?.name ?? '',
+      protheusCode: mode === 'copy' ? '' : (customer?.protheusCode ?? ''),
+      loja: mode === 'copy' ? '' : (customer?.loja ?? ''),
+      document: customer?.document ?? '',
+      email: customer?.email ?? '',
+      phone: customer?.phone ?? '',
+      address: customer?.address ?? '',
+      municipio: customer?.municipio ?? '',
+      bairro: customer?.bairro ?? '',
+      cep: customer?.cep ?? '',
+      uf: customer?.uf ?? '',
+      vendorCode: customer?.vendorCode ?? '',
+      msblql: customer?.msblql ?? '2',
+      transpPadrao: customer?.transpPadrao ?? '',
+      condPagPadrao: customer?.condPagPadrao ?? '',
+      tes: customer?.tes ?? '',
+      xcodemp: customer?.xcodemp ?? '',
+    },
+  })
 
-  const isView  = mode === 'view'
-  const title   = mode === 'create' ? 'Novo Cliente'
-                : mode === 'copy'   ? 'Copiar Cliente'
-                : mode === 'view'   ? 'Dados do Cliente'
-                : 'Editar Cliente'
+  const isView = mode === 'view'
+  const title =
+    mode === 'create'
+      ? 'Novo Cliente'
+      : mode === 'copy'
+        ? 'Copiar Cliente'
+        : mode === 'view'
+          ? 'Dados do Cliente'
+          : 'Editar Cliente'
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault()
-    setError(null)
-    setLoading(true)
+  async function onSubmit(data: CustomerFormData) {
     try {
       const body = {
-        name,
-        protheusCode:  protheusCode  || undefined,
-        loja:          loja          || undefined,
-        document:      document.replace(/\D/g, '') || undefined,
-        email:         email         || undefined,
-        phone:         phone         || undefined,
-        address:       address       || undefined,
-        municipio:     municipio     || undefined,
-        bairro:        bairro        || undefined,
-        cep:           cep.replace(/\D/g, '') || undefined,
-        uf:            uf            || undefined,
-        vendorCode:    vendorCode    || undefined,
-        msblql:        msblql        || undefined,
-        transpPadrao:  transpPadrao  || undefined,
-        condPagPadrao: condPagPadrao || undefined,
-        tes:           tes           || undefined,
-        xcodemp:       xcodemp       || undefined,
+        name: data.name,
+        protheusCode: data.protheusCode || undefined,
+        loja: data.loja || undefined,
+        document: data.document?.replace(/\D/g, '') || undefined,
+        email: data.email || undefined,
+        phone: data.phone || undefined,
+        address: data.address || undefined,
+        municipio: data.municipio || undefined,
+        bairro: data.bairro || undefined,
+        cep: data.cep?.replace(/\D/g, '') || undefined,
+        uf: data.uf || undefined,
+        vendorCode: data.vendorCode || undefined,
+        msblql: data.msblql || undefined,
+        transpPadrao: data.transpPadrao || undefined,
+        condPagPadrao: data.condPagPadrao || undefined,
+        tes: data.tes || undefined,
+        xcodemp: data.xcodemp || undefined,
       }
       if (mode === 'edit' && customer) {
         await api.patch(`/companies/${companyId}/customers/${customer.id}`, body)
@@ -389,108 +425,124 @@ export function CustomerModal({ companyId, mode, customer, onClose, onSaved }: C
       }
       onSaved()
     } catch (err: unknown) {
-      setError((err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? 'Erro ao salvar cliente.')
-    } finally {
-      setLoading(false)
+      toast.error(getApiErrorMessage(err, 'Erro ao salvar cliente.'))
     }
   }
 
   if (isView && customer) {
     return (
-      <Modal title={title} onClose={onClose} wide>
+      <Modal isOpen onClose={onClose} title={title} className="max-w-2xl">
         <div className="max-h-[70vh] overflow-y-auto pr-1 space-y-1">
-          <p className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wide mb-2">Identificação</p>
-          <ViewRow label="Nome"              value={customer.name} />
-          <ViewRow label="CPF / CNPJ"        value={formatDocumentDisplay(customer.document)} />
-          <ViewRow label="Cod. Protheus"      value={customer.protheusCode} />
-          <ViewRow label="Loja"               value={customer.loja} />
-          <ViewRow label="Cód. Vendedor"      value={customer.vendorCode} />
-          <ViewRow label="Status Protheus"    value={customer.msblql === '1' ? 'Bloqueado' : customer.msblql === '2' ? 'Liberado' : undefined} />
+          <p className={`${SECTION_TITLE} mb-2`}>Identificação</p>
+          <ViewRow label="Nome" value={customer.name} />
+          <ViewRow label="CPF / CNPJ" value={formatDocumentDisplay(customer.document)} />
+          <ViewRow label="Cod. Protheus" value={customer.protheusCode} />
+          <ViewRow label="Loja" value={customer.loja} />
+          <ViewRow label="Cód. Vendedor" value={customer.vendorCode} />
+          <ViewRow
+            label="Status Protheus"
+            value={
+              customer.msblql === '1'
+                ? 'Bloqueado'
+                : customer.msblql === '2'
+                  ? 'Liberado'
+                  : undefined
+            }
+          />
 
-          <p className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wide mt-4 mb-2">Contato</p>
-          <ViewRow label="E-mail"    value={customer.email} />
-          <ViewRow label="Telefone"  value={customer.phone} />
+          <p className={`${SECTION_TITLE} mt-4 mb-2`}>Contato</p>
+          <ViewRow label="E-mail" value={customer.email} />
+          <ViewRow label="Telefone" value={customer.phone} />
 
-          <p className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wide mt-4 mb-2">Endereço</p>
-          <ViewRow label="Endereço"   value={customer.address} />
-          <ViewRow label="Bairro"     value={customer.bairro} />
-          <ViewRow label="Município"  value={customer.municipio} />
-          <ViewRow label="UF"         value={customer.uf} />
-          <ViewRow label="CEP"        value={formatCEPDisplay(customer.cep)} />
+          <p className={`${SECTION_TITLE} mt-4 mb-2`}>Endereço</p>
+          <ViewRow label="Endereço" value={customer.address} />
+          <ViewRow label="Bairro" value={customer.bairro} />
+          <ViewRow label="Município" value={customer.municipio} />
+          <ViewRow label="UF" value={customer.uf} />
+          <ViewRow label="CEP" value={formatCEPDisplay(customer.cep)} />
 
-          <p className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wide mt-4 mb-2">Padrões Protheus</p>
-          <ViewRow label="Transp. Padrão"     value={customer.transpPadrao} />
-          <ViewRow label="Cond. Pgto Padrão"  value={customer.condPagPadrao} />
-          <ViewRow label="Código TES"          value={customer.tes} />
-          <ViewRow label="Filial Faturamento"  value={customer.xcodemp} />
+          <p className={`${SECTION_TITLE} mt-4 mb-2`}>Padrões Protheus</p>
+          <ViewRow label="Transp. Padrão" value={customer.transpPadrao} />
+          <ViewRow label="Cond. Pgto Padrão" value={customer.condPagPadrao} />
+          <ViewRow label="Código TES" value={customer.tes} />
+          <ViewRow label="Filial Faturamento" value={customer.xcodemp} />
         </div>
         <div className="mt-4 pt-4 border-t border-[var(--border)]">
-          <button type="button" onClick={onClose}
-            className="w-full border border-[var(--border)] text-[var(--text-secondary)] text-sm font-medium rounded-lg py-2.5 hover:bg-[var(--bg-subtle)] transition-colors">
+          <Button type="button" variant="secondary" onClick={onClose} className="w-full">
             Fechar
-          </button>
+          </Button>
         </div>
       </Modal>
     )
   }
 
   return (
-    <Modal title={title} onClose={onClose} wide>
-      <form onSubmit={handleSubmit} className="space-y-3 max-h-[70vh] overflow-y-auto pr-1">
-        <p className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wide">Identificação</p>
-        <Field label="Nome *" value={name} onChange={setName} required />
+    <Modal isOpen onClose={onClose} title={title} className="max-w-2xl">
+      <form
+        onSubmit={handleSubmit(onSubmit)}
+        className="space-y-3 max-h-[70vh] overflow-y-auto pr-1"
+      >
+        <p className={SECTION_TITLE}>Identificação</p>
+        <FormField label="Nome *" error={errors.name?.message} {...register('name')} />
         <div className="grid grid-cols-2 gap-3">
-          <Field label="Cod. Protheus" value={protheusCode} onChange={setProtheusCode} placeholder="Opcional" />
-          <Field label="Loja"          value={loja}         onChange={setLoja}         placeholder="01" />
+          <FormField label="Cod. Protheus" placeholder="Opcional" {...register('protheusCode')} />
+          <FormField label="Loja" placeholder="01" {...register('loja')} />
         </div>
-        <div>
-          <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">CPF / CNPJ</label>
-          <input value={document} onChange={(e) => setDocument(maskDocument(e.target.value))} placeholder="000.000.000-00 ou 00.000.000/0000-00"
-            className="w-full bg-[var(--bg-subtle)] border border-[var(--border)] rounded-lg px-3 py-2.5 text-sm text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-brand-500" />
-        </div>
+        <FormField
+          label="CPF / CNPJ"
+          placeholder="000.000.000-00 ou 00.000.000/0000-00"
+          {...register('document', {
+            onChange: (e) => setValue('document', maskDocument(e.target.value)),
+          })}
+        />
         <div className="grid grid-cols-2 gap-3">
-          <Field label="Cód. Vendedor"      value={vendorCode}    onChange={setVendorCode}    placeholder="Opcional" />
-          <div>
-            <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">Status Protheus</label>
-            <select value={msblql} onChange={(e) => setMsblql(e.target.value)}
-              className="w-full bg-[var(--bg-subtle)] border border-[var(--border)] rounded-lg px-3 py-2.5 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-brand-500">
-              <option value="2">Liberado</option>
-              <option value="1">Bloqueado</option>
-            </select>
-          </div>
+          <FormField label="Cód. Vendedor" placeholder="Opcional" {...register('vendorCode')} />
+          <FormSelect label="Status Protheus" {...register('msblql')}>
+            <option value="2">Liberado</option>
+            <option value="1">Bloqueado</option>
+          </FormSelect>
         </div>
 
-        <p className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wide pt-1">Contato</p>
-        <Field label="E-mail"   value={email} onChange={setEmail} placeholder="Opcional" />
-        <Field label="Telefone" value={phone} onChange={setPhone} placeholder="Opcional" />
+        <p className={`${SECTION_TITLE} pt-1`}>Contato</p>
+        <FormField label="E-mail" placeholder="Opcional" {...register('email')} />
+        <FormField label="Telefone" placeholder="Opcional" {...register('phone')} />
 
-        <p className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wide pt-1">Endereço</p>
-        <Field label="Endereço" value={address} onChange={setAddress} placeholder="Opcional" />
+        <p className={`${SECTION_TITLE} pt-1`}>Endereço</p>
+        <FormField label="Endereço" placeholder="Opcional" {...register('address')} />
         <div className="grid grid-cols-2 gap-3">
-          <Field label="Município" value={municipio} onChange={setMunicipio} placeholder="Opcional" />
-          <Field label="Bairro"    value={bairro}    onChange={setBairro}    placeholder="Opcional" />
+          <FormField label="Município" placeholder="Opcional" {...register('municipio')} />
+          <FormField label="Bairro" placeholder="Opcional" {...register('bairro')} />
         </div>
         <div className="grid grid-cols-3 gap-3">
           <div className="col-span-2">
-            <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">CEP</label>
-            <input value={cep} onChange={(e) => setCep(maskCEP(e.target.value))} placeholder="00000-000"
-              className="w-full bg-[var(--bg-subtle)] border border-[var(--border)] rounded-lg px-3 py-2.5 text-sm text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-brand-500" />
+            <FormField
+              label="CEP"
+              placeholder="00000-000"
+              {...register('cep', { onChange: (e) => setValue('cep', maskCEP(e.target.value)) })}
+            />
           </div>
-          <Field label="UF" value={uf} onChange={setUf} placeholder="SP" />
+          <FormField label="UF" placeholder="SP" {...register('uf')} />
         </div>
 
-        <p className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wide pt-1">Padrões Protheus</p>
+        <p className={`${SECTION_TITLE} pt-1`}>Padrões Protheus</p>
         <div className="grid grid-cols-2 gap-3">
-          <Field label="Transp. Padrão"    value={transpPadrao}  onChange={setTranspPadrao}  placeholder="Opcional" />
-          <Field label="Cond. Pgto Padrão" value={condPagPadrao} onChange={setCondPagPadrao} placeholder="Opcional" />
+          <FormField label="Transp. Padrão" placeholder="Opcional" {...register('transpPadrao')} />
+          <FormField
+            label="Cond. Pgto Padrão"
+            placeholder="Opcional"
+            {...register('condPagPadrao')}
+          />
         </div>
         <div className="grid grid-cols-2 gap-3">
-          <Field label="Código TES"         value={tes}     onChange={setTes}     placeholder="Opcional" />
-          <Field label="Filial Faturamento" value={xcodemp} onChange={setXcodemp} placeholder="Opcional" />
+          <FormField label="Código TES" placeholder="Opcional" {...register('tes')} />
+          <FormField label="Filial Faturamento" placeholder="Opcional" {...register('xcodemp')} />
         </div>
 
-        <ModalActions loading={loading} onClose={onClose} submitLabel={mode === 'edit' ? 'Salvar' : 'Criar'} />
-        {error && <ErrorMsg message={error} />}
+        <FormActions
+          loading={isSubmitting}
+          onClose={onClose}
+          submitLabel={mode === 'edit' ? 'Salvar' : 'Criar'}
+        />
       </form>
     </Modal>
   )
@@ -507,57 +559,42 @@ interface ProductModalProps {
 }
 
 export function ProductModal({ companyId, mode, product, onClose, onSaved }: ProductModalProps) {
-  const [name,         setName]         = useState(product?.name         ?? '')
-  const [protheusCode, setProtheusCode] = useState(mode === 'copy' ? '' : (product?.protheusCode ?? ''))
-  const [description,  setDescription]  = useState(product?.description  ?? '')
-  const [price,        setPrice]        = useState(product ? String(Number(product.price).toFixed(2)) : '0.00')
-  const [unit,         setUnit]         = useState(product?.unit         ?? 'UN')
-  const [stock,        setStock]        = useState(product ? String(Number(product.stock)) : '0')
-  const [saldo,        setSaldo]        = useState(product ? String(Number(product.saldo)) : '0')
-  const [error,        setError]        = useState<string | null>(null)
-  const [loading,      setLoading]      = useState(false)
+  const {
+    register,
+    handleSubmit,
+    formState: { errors, isSubmitting },
+  } = useForm<ProductFormData>({
+    resolver: zodResolver(productSchema),
+    defaultValues: {
+      name: product?.name ?? '',
+      protheusCode: mode === 'copy' ? '' : (product?.protheusCode ?? ''),
+      description: product?.description ?? '',
+      price: product ? String(Number(product.price).toFixed(2)) : '0.00',
+      unit: product?.unit ?? 'UN',
+      stock: product ? String(Number(product.stock)) : '0',
+      saldo: product ? String(Number(product.saldo)) : '0',
+    },
+  })
 
-  const title = mode === 'create' ? 'Novo Produto'
-              : mode === 'copy'   ? 'Copiar Produto'
-              : mode === 'view'   ? 'Dados do Produto'
-              : 'Editar Produto'
+  const title =
+    mode === 'create'
+      ? 'Novo Produto'
+      : mode === 'copy'
+        ? 'Copiar Produto'
+        : mode === 'view'
+          ? 'Dados do Produto'
+          : 'Editar Produto'
 
-  if (mode === 'view' && product) {
-    return (
-      <Modal title={title} onClose={onClose}>
-        <div className="space-y-1">
-          <ViewRow label="Nome"           value={product.name} />
-          <ViewRow label="Cód. Protheus"  value={product.protheusCode} />
-          <ViewRow label="Unidade"        value={product.unit} />
-          <ViewRow label="Descrição"      value={product.description} />
-          <ViewRow label="Preço (R$)"     value={Number(product.price).toLocaleString('pt-BR', { minimumFractionDigits: 2 })} />
-          <ViewRow label="Estoque"        value={Number(product.stock).toLocaleString('pt-BR', { maximumFractionDigits: 3 })} />
-          <ViewRow label="Saldo"          value={Number(product.saldo).toLocaleString('pt-BR', { maximumFractionDigits: 3 })} />
-          <ViewRow label="Status"         value={product.active ? 'Ativo' : 'Inativo'} />
-        </div>
-        <div className="mt-4 pt-4 border-t border-[var(--border)]">
-          <button type="button" onClick={onClose}
-            className="w-full border border-[var(--border)] text-[var(--text-secondary)] text-sm font-medium rounded-lg py-2.5 hover:bg-[var(--bg-subtle)] transition-colors">
-            Fechar
-          </button>
-        </div>
-      </Modal>
-    )
-  }
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault()
-    setError(null)
-    setLoading(true)
+  async function onSubmit(data: ProductFormData) {
     try {
       const body = {
-        name,
-        protheusCode: protheusCode || undefined,
-        description:  description  || undefined,
-        price:        parseFloat(price)  || 0,
-        unit:         unit || 'UN',
-        stock:        parseFloat(stock)  || 0,
-        saldo:        parseFloat(saldo)  || 0,
+        name: data.name,
+        protheusCode: data.protheusCode || undefined,
+        description: data.description || undefined,
+        price: parseFloat(data.price ?? '') || 0,
+        unit: data.unit || 'UN',
+        stock: parseFloat(data.stock ?? '') || 0,
+        saldo: parseFloat(data.saldo ?? '') || 0,
       }
       if (mode === 'edit' && product) {
         await api.patch(`/companies/${companyId}/products/${product.id}`, body)
@@ -566,28 +603,60 @@ export function ProductModal({ companyId, mode, product, onClose, onSaved }: Pro
       }
       onSaved()
     } catch (err: unknown) {
-      setError((err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? 'Erro ao salvar produto.')
-    } finally {
-      setLoading(false)
+      toast.error(getApiErrorMessage(err, 'Erro ao salvar produto.'))
     }
   }
 
+  if (mode === 'view' && product) {
+    return (
+      <Modal isOpen onClose={onClose} title={title}>
+        <div className="space-y-1">
+          <ViewRow label="Nome" value={product.name} />
+          <ViewRow label="Cód. Protheus" value={product.protheusCode} />
+          <ViewRow label="Unidade" value={product.unit} />
+          <ViewRow label="Descrição" value={product.description} />
+          <ViewRow
+            label="Preço (R$)"
+            value={Number(product.price).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+          />
+          <ViewRow
+            label="Estoque"
+            value={Number(product.stock).toLocaleString('pt-BR', { maximumFractionDigits: 3 })}
+          />
+          <ViewRow
+            label="Saldo"
+            value={Number(product.saldo).toLocaleString('pt-BR', { maximumFractionDigits: 3 })}
+          />
+          <ViewRow label="Status" value={product.active ? 'Ativo' : 'Inativo'} />
+        </div>
+        <div className="mt-4 pt-4 border-t border-[var(--border)]">
+          <Button type="button" variant="secondary" onClick={onClose} className="w-full">
+            Fechar
+          </Button>
+        </div>
+      </Modal>
+    )
+  }
+
   return (
-    <Modal title={title} onClose={onClose}>
-      <form onSubmit={handleSubmit} className="space-y-3">
-        <Field label="Nome *" value={name} onChange={setName} required />
+    <Modal isOpen onClose={onClose} title={title}>
+      <form onSubmit={handleSubmit(onSubmit)} className="space-y-3">
+        <FormField label="Nome *" error={errors.name?.message} {...register('name')} />
         <div className="grid grid-cols-2 gap-3">
-          <Field label="Cod. Protheus" value={protheusCode} onChange={setProtheusCode} placeholder="Opcional" />
-          <Field label="Unidade" value={unit} onChange={setUnit} placeholder="UN" />
+          <FormField label="Cod. Protheus" placeholder="Opcional" {...register('protheusCode')} />
+          <FormField label="Unidade" placeholder="UN" {...register('unit')} />
         </div>
-        <Field label="Descrição" value={description} onChange={setDescription} placeholder="Opcional" />
+        <FormField label="Descrição" placeholder="Opcional" {...register('description')} />
         <div className="grid grid-cols-3 gap-3">
-          <NumField label="Preço (R$)" value={price} onChange={setPrice} />
-          <NumField label="Estoque" value={stock} onChange={setStock} />
-          <NumField label="Saldo" value={saldo} onChange={setSaldo} />
+          <FormField label="Preço (R$)" type="number" step="any" min="0" {...register('price')} />
+          <FormField label="Estoque" type="number" step="any" min="0" {...register('stock')} />
+          <FormField label="Saldo" type="number" step="any" min="0" {...register('saldo')} />
         </div>
-        <ModalActions loading={loading} onClose={onClose} submitLabel={mode === 'edit' ? 'Salvar' : 'Criar'} />
-        {error && <ErrorMsg message={error} />}
+        <FormActions
+          loading={isSubmitting}
+          onClose={onClose}
+          submitLabel={mode === 'edit' ? 'Salvar' : 'Criar'}
+        />
       </form>
     </Modal>
   )
@@ -596,12 +665,12 @@ export function ProductModal({ companyId, mode, product, onClose, onSaved }: Pro
 // ─── Menu de ações ────────────────────────────────────────────────────────────
 
 interface ActionMenuProps {
-  onEdit:    () => void
-  onCopy:    () => void
-  onToggle:  () => void
-  onView?:   () => void
-  active:    boolean
-  label?:    string
+  onEdit: () => void
+  onCopy: () => void
+  onToggle: () => void
+  onView?: () => void
+  active: boolean
+  label?: string
 }
 
 export function ActionMenu({ onEdit, onCopy, onToggle, onView, active, label }: ActionMenuProps) {
@@ -618,16 +687,16 @@ export function ActionMenu({ onEdit, onCopy, onToggle, onView, active, label }: 
 
   return (
     <div className="inline-block text-left">
-      <button
+      <Button
         ref={btnRef}
+        variant="ghost"
+        size="icon"
+        leftIcon={MoreVertical}
         onClick={() => setOpen((v) => !v)}
-        className="p-1.5 rounded-lg text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-subtle)] transition-colors"
+        className="text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-subtle)]"
         title="Ações"
-      >
-        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-          <path d="M10 6a2 2 0 1 1 0-4 2 2 0 0 1 0 4Zm0 6a2 2 0 1 1 0-4 2 2 0 0 1 0 4Zm0 6a2 2 0 1 1 0-4 2 2 0 0 1 0 4Z" />
-        </svg>
-      </button>
+        aria-label="Ações"
+      />
 
       {open && (
         <>
@@ -638,31 +707,41 @@ export function ActionMenu({ onEdit, onCopy, onToggle, onView, active, label }: 
           >
             {onView && (
               <button
-                onClick={() => { setOpen(false); onView() }}
+                onClick={() => {
+                  setOpen(false)
+                  onView()
+                }}
                 className="w-full text-left px-4 py-2.5 text-sm text-[var(--text-secondary)] hover:bg-[var(--bg-subtle)] transition-colors"
               >
                 Visualizar {label}
               </button>
             )}
             <button
-              onClick={() => { setOpen(false); onEdit() }}
+              onClick={() => {
+                setOpen(false)
+                onEdit()
+              }}
               className="w-full text-left px-4 py-2.5 text-sm text-[var(--text-secondary)] hover:bg-[var(--bg-subtle)] transition-colors"
             >
               Editar {label}
             </button>
             <button
-              onClick={() => { setOpen(false); onCopy() }}
+              onClick={() => {
+                setOpen(false)
+                onCopy()
+              }}
               className="w-full text-left px-4 py-2.5 text-sm text-[var(--text-secondary)] hover:bg-[var(--bg-subtle)] transition-colors"
             >
               Copiar {label}
             </button>
             <div className="border-t border-[var(--border)]" />
             <button
-              onClick={() => { setOpen(false); onToggle() }}
+              onClick={() => {
+                setOpen(false)
+                onToggle()
+              }}
               className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${
-                active
-                  ? 'text-red-500 hover:bg-red-500/10'
-                  : 'text-green-500 hover:bg-green-500/10'
+                active ? 'text-danger hover:bg-danger/10' : 'text-success hover:bg-success/10'
               }`}
             >
               {active ? 'Desativar' : 'Ativar'}

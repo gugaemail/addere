@@ -1,75 +1,34 @@
 import React from 'react'
-import { View, Text, FlatList, TouchableOpacity, StyleSheet, Alert, ActivityIndicator } from 'react-native'
+import { View, Text, FlatList, TouchableOpacity, StyleSheet, Alert } from 'react-native'
 import { useRouter } from 'expo-router'
-import { Plus, RefreshCw, SearchCheck, WifiOff, Upload } from 'lucide-react-native'
-import { usePedidos, useSincronizarPedido, useConsultarStatusPedido } from '../../../src/hooks/usePedidos'
-import { OrderRowSkeleton, EmptyState } from '../../../src/components/Skeleton'
+import { Plus, RefreshCw, SearchCheck } from 'lucide-react-native'
+import {
+  usePedidos,
+  useSincronizarPedido,
+  useConsultarStatusPedido,
+} from '../../../src/hooks/usePedidos'
+import { OrderRowSkeleton } from '../../../src/components/Skeleton'
 import { Badge } from '../../../src/components/ui/Badge'
+import { Button, buttonForeground } from '../../../src/components/ui/Button'
+import { Card } from '../../../src/components/ui/Card'
+import { EmptyState } from '../../../src/components/ui/EmptyState'
+import { colors, spacing, radius, typography } from '../../../src/theme'
 import { OrderSwipeActions } from '../../../src/components/OrderSwipeActions'
 import { PdfPreviewModal } from '../../../src/components/PdfPreviewModal'
-import { useSyncStore } from '../../../src/store/syncStore'
+import { SyncStatusBar } from '../../../src/components/SyncStatusBar'
 import type { Order } from '@addere/types'
-import { fmtMoeda } from '../../../src/utils/format'
+import { fmtMoeda, fmtData } from '../../../src/utils/format'
+import { STATUS_BADGE, STATUS_LABEL } from '../../../src/utils/orderStatus'
+import { getApiErrorMessage } from '../../../src/lib/errors'
 
-function PendingBanner({ orders }: { orders: Order[] | undefined }) {
-  const networkAvailable = useSyncStore((s) => s.networkAvailable)
-  const isSyncing = useSyncStore((s) => s.isSyncing)
-  const pendingCount = orders?.filter((o) => o.status === 'PENDING').length ?? 0
-
-  if (!networkAvailable) {
-    return (
-      <View style={[b.bar, b.offline]}>
-        <WifiOff size={13} color="#fff" strokeWidth={1.5} />
-        <Text style={b.text}>Sem conexão — pedidos serão enviados ao reconectar</Text>
-      </View>
-    )
-  }
-
-  if (isSyncing) {
-    return (
-      <View style={[b.bar, b.syncing]}>
-        <ActivityIndicator size={13} color="#fff" />
-        <Text style={b.text}>Sincronizando...</Text>
-      </View>
-    )
-  }
-
-  if (pendingCount > 0) {
-    return (
-      <View style={[b.bar, b.pending]}>
-        <Upload size={13} color="#fff" strokeWidth={1.5} />
-        <Text style={b.text}>
-          {pendingCount} pedido{pendingCount !== 1 ? 's' : ''} pendente{pendingCount !== 1 ? 's' : ''} de sincronização
-        </Text>
-      </View>
-    )
-  }
-
-  return null
-}
-
-const b = StyleSheet.create({
-  bar: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 8, gap: 8 },
-  offline: { backgroundColor: '#EF4444' },
-  syncing: { backgroundColor: '#1B4FA8' },
-  pending: { backgroundColor: '#F59E0B' },
-  text: { flex: 1, fontFamily: 'Inter_400Regular', fontSize: 12, color: '#fff' },
-})
-
-type BadgeVariant = 'warning' | 'success' | 'danger' | 'neutral'
-
-const STATUS_BADGE: Record<string, BadgeVariant> = {
-  PENDING:   'warning',
-  SYNCED:    'success',
-  CANCELLED: 'danger',
-}
-const STATUS_LABEL: Record<string, string> = {
-  PENDING:   'Pendente',
-  SYNCED:    'Sincronizado',
-  CANCELLED: 'Cancelado',
-}
-
-function OrderCard({ order, syncingId, checkingId, onSync, onCheckStatus, onPress }: {
+function OrderCard({
+  order,
+  syncingId,
+  checkingId,
+  onSync,
+  onCheckStatus,
+  onPress,
+}: {
   order: Order
   syncingId: string | null
   checkingId: string | null
@@ -82,48 +41,42 @@ function OrderCard({ order, syncingId, checkingId, onSync, onCheckStatus, onPres
   const isChecking = checkingId === order.id
 
   return (
-    <TouchableOpacity onPress={onPress} activeOpacity={0.75} style={s.card}>
+    <Card onPress={onPress} style={s.card}>
       <View style={{ flex: 1 }}>
         <Text style={s.customer}>{order.customer.name}</Text>
-        <Text style={s.sub}>{new Date(order.createdAt).toLocaleDateString('pt-BR')}</Text>
+        <Text style={s.sub}>{fmtData(order.createdAt)}</Text>
         <Text style={s.sub}>{order.items.length} item(s)</Text>
         {order.protheusOrderId && (
           <Text style={s.protheusId}>Pedido Protheus: {order.protheusOrderId}</Text>
         )}
       </View>
-      <View style={{ alignItems: 'flex-end', gap: 6 }}>
+      <View style={{ alignItems: 'flex-end', gap: spacing.sm }}>
         <Text style={s.total}>R$ {fmtMoeda(order.total)}</Text>
         <Badge variant={variant}>{STATUS_LABEL[order.status]}</Badge>
         {order.status === 'PENDING' && (
-          <TouchableOpacity
-            style={[s.syncBtn, isSyncing && { opacity: 0.5 }]}
+          <Button
+            size="xs"
+            loading={isSyncing}
+            disabled={syncingId !== null}
             onPress={() => onSync(order.id)}
-            disabled={isSyncing || syncingId !== null}
-            activeOpacity={0.75}
+            icon={<RefreshCw size={12} color={buttonForeground.primary} strokeWidth={1.5} />}
           >
-            {isSyncing
-              ? <ActivityIndicator size={12} color="#fff" />
-              : <RefreshCw size={12} color="#fff" strokeWidth={2} />
-            }
-            <Text style={s.syncBtnText}>{isSyncing ? 'Enviando...' : 'Sincronizar'}</Text>
-          </TouchableOpacity>
+            Sincronizar
+          </Button>
         )}
         {order.status === 'SYNCED' && order.protheusOrderId && (
-          <TouchableOpacity
-            style={[s.statusBtn, isChecking && { opacity: 0.5 }]}
+          <Button
+            size="xs"
+            variant="secondary"
+            loading={isChecking}
             onPress={() => onCheckStatus(order.id)}
-            disabled={isChecking}
-            activeOpacity={0.75}
+            icon={<SearchCheck size={12} color={buttonForeground.secondary} strokeWidth={1.5} />}
           >
-            {isChecking
-              ? <ActivityIndicator size={12} color="#1B4FA8" />
-              : <SearchCheck size={12} color="#1B4FA8" strokeWidth={2} />
-            }
-            <Text style={s.statusBtnText}>{isChecking ? 'Consultando...' : 'Ver Status'}</Text>
-          </TouchableOpacity>
+            Ver Status
+          </Button>
         )}
       </View>
-    </TouchableOpacity>
+    </Card>
   )
 }
 
@@ -155,9 +108,7 @@ export default function PedidosScreen() {
       },
       onError: (err: unknown) => {
         setSyncingId(null)
-        const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
-          ?? 'Não foi possível sincronizar o pedido.'
-        Alert.alert('Erro', msg)
+        Alert.alert('Erro', getApiErrorMessage(err, 'Não foi possível sincronizar o pedido.'))
       },
     })
   }
@@ -174,19 +125,19 @@ export default function PedidosScreen() {
       },
       onError: (err: unknown) => {
         setCheckingId(null)
-        const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
-          ?? 'Não foi possível consultar o status.'
-        Alert.alert('Erro', msg)
+        Alert.alert('Erro', getApiErrorMessage(err, 'Não foi possível consultar o status.'))
       },
     })
   }
 
   return (
     <View style={s.container}>
-      <PendingBanner orders={orders} />
+      <SyncStatusBar />
       {isLoading ? (
-        <View style={{ padding: 16 }}>
-          {[0, 1, 2, 3].map((i) => <OrderRowSkeleton key={i} />)}
+        <View style={{ padding: spacing.md }}>
+          {[0, 1, 2, 3].map((i) => (
+            <OrderRowSkeleton key={i} />
+          ))}
         </View>
       ) : (
         <FlatList
@@ -208,29 +159,26 @@ export default function PedidosScreen() {
           refreshing={false}
           ListEmptyComponent={
             <EmptyState
-              icon={null}
+              illustration="orders"
               title="Nenhum pedido ainda"
-              description="Toque no botão + para criar seu primeiro pedido."
+              subtitle="Toque no botão + para criar seu primeiro pedido."
             />
           }
-          contentContainerStyle={{ padding: 16, paddingBottom: 90, gap: 8 }}
+          contentContainerStyle={{ padding: spacing.md, paddingBottom: 88, gap: spacing.sm }}
         />
       )}
 
       {/* FAB — Novo Pedido */}
       <TouchableOpacity
+        testID="btn-novo-pedido"
         style={s.fab}
         onPress={() => router.push('/(app)/novo-pedido')}
         activeOpacity={0.85}
       >
-        <Plus size={28} color="#FFFFFF" />
+        <Plus size={28} color={colors.neutral.white} strokeWidth={1.5} />
       </TouchableOpacity>
 
-      <PdfPreviewModal
-        visible={showPdfModal}
-        order={pdfOrder}
-        onClose={handleClosePdf}
-      />
+      <PdfPreviewModal visible={showPdfModal} order={pdfOrder} onClose={handleClosePdf} />
     </View>
   )
 }
@@ -238,84 +186,44 @@ export default function PedidosScreen() {
 const s = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: colors.neutral.bg,
   },
   card: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    padding: 16,
     flexDirection: 'row',
-    shadowColor: '#0D2045',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06,
-    shadowRadius: 3,
-    elevation: 1,
   },
   customer: {
-    fontFamily: 'PlusJakartaSans_600SemiBold',
+    fontFamily: typography.fontFamily.sansSemibold,
     fontSize: 15,
-    color: '#0D2045',
+    color: colors.brand.dark,
   },
   sub: {
-    fontFamily: 'Inter_400Regular',
+    fontFamily: typography.fontFamily.body,
     fontSize: 13,
-    color: '#64748B',
-    marginTop: 2,
+    color: colors.neutral.textSub,
+    marginTop: spacing.xs,
   },
   total: {
-    fontFamily: 'PlusJakartaSans_600SemiBold',
+    fontFamily: typography.fontFamily.sansSemibold,
     fontSize: 16,
-    color: '#0D2045',
-  },
-  syncBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: '#1B4FA8',
-    borderRadius: 6,
-    paddingHorizontal: 8,
-    paddingVertical: 5,
+    color: colors.brand.dark,
   },
   protheusId: {
-    fontFamily: 'Inter_400Regular',
+    fontFamily: typography.fontFamily.body,
     fontSize: 12,
-    color: '#1B4FA8',
-    marginTop: 3,
-  },
-  syncBtnText: {
-    color: '#fff',
-    fontSize: 11,
-    fontFamily: 'Inter_400Regular',
-  },
-  statusBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: '#E8F4FF',
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: '#1B4FA8',
-    paddingHorizontal: 8,
-    paddingVertical: 5,
-  },
-  statusBtnText: {
-    color: '#1B4FA8',
-    fontSize: 11,
-    fontFamily: 'Inter_400Regular',
+    color: colors.brand.primary,
+    marginTop: spacing.xs,
   },
   fab: {
     position: 'absolute',
-    bottom: 24,
-    right: 24,
+    bottom: spacing.lg,
+    right: spacing.lg,
     width: 56,
     height: 56,
-    borderRadius: 28,
-    backgroundColor: '#1B4FA8',
+    borderRadius: radius.full,
+    backgroundColor: colors.brand.primary,
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: '#1B4FA8',
+    shadowColor: colors.brand.primary,
     shadowOpacity: 0.35,
     shadowRadius: 10,
     shadowOffset: { width: 0, height: 4 },

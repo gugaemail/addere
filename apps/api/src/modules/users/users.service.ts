@@ -1,5 +1,6 @@
 import { prisma } from '@addere/db'
 import bcrypt from 'bcryptjs'
+import type { JwtPayload } from '@addere/types'
 import type { CreateUserInput } from './users.schema'
 import { copyUserPermissions } from '../permissions/permissions.service'
 
@@ -13,18 +14,27 @@ const userSelect = {
   createdAt: true,
 } as const
 
-export async function listUsers() {
+// SUPERADMIN enxerga todos os usuários; demais roles apenas os da própria empresa
+export async function listUsers(requester: JwtPayload) {
+  const where = requester.role === 'SUPERADMIN' ? {} : { companyId: requester.companyId }
   return prisma.user.findMany({
+    where,
     select: userSelect,
     orderBy: { createdAt: 'desc' },
+    take: 1000,
   })
 }
 
-export async function createUser(input: CreateUserInput) {
+export async function createUser(input: CreateUserInput, requester: JwtPayload) {
   const existing = await prisma.user.findUnique({ where: { email: input.email } })
   if (existing) throw new Error('Email já cadastrado')
 
   const hashedPassword = await bcrypt.hash(input.password, 10)
+
+  // Usuário criado por ADMIN nasce vinculado à empresa do criador;
+  // SUPERADMIN pode indicar a empresa (ou criar usuário global sem empresa)
+  const companyId =
+    requester.role === 'SUPERADMIN' ? (input.companyId ?? null) : requester.companyId
 
   const user = await prisma.user.create({
     data: {
@@ -33,6 +43,7 @@ export async function createUser(input: CreateUserInput) {
       password: hashedPassword,
       role: input.role,
       userTypeId: input.userTypeId,
+      companyId,
     },
     select: userSelect,
   })
@@ -45,9 +56,15 @@ export async function createUser(input: CreateUserInput) {
   return user
 }
 
-export async function toggleUserActive(id: string) {
-  const user = await prisma.user.findUnique({ where: { id } })
+export async function toggleUserActive(id: string, requester: JwtPayload) {
+  const where = requester.role === 'SUPERADMIN' ? { id } : { id, companyId: requester.companyId }
+  const user = await prisma.user.findFirst({ where })
   if (!user) throw new Error('Usuário não encontrado')
+
+  // Ao desativar, invalida todas as sessões ativas
+  if (user.active) {
+    await prisma.refreshToken.deleteMany({ where: { userId: id } })
+  }
 
   return prisma.user.update({
     where: { id },

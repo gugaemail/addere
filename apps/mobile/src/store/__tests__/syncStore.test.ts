@@ -2,7 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage'
 import { useSyncStore, selectPendingCount, selectHasPending } from '../syncStore'
 
 jest.mock('@react-native-async-storage/async-storage', () =>
-  require('@react-native-async-storage/async-storage/jest/async-storage-mock'),
+  require('@react-native-async-storage/async-storage/jest/async-storage-mock')
 )
 
 function getStore() {
@@ -71,7 +71,7 @@ describe('markError', () => {
 
 describe('pendingCount', () => {
   it('conta itens pending e error com attempts < maxAttempts', () => {
-    const id1 = getStore().enqueue('order', {})
+    const _id1 = getStore().enqueue('order', {})
     const id2 = getStore().enqueue('order', {})
     getStore().markError(id2, 'err')
 

@@ -6,7 +6,7 @@ const ORDERS_STALE_TIME = 1000 * 60 * 5 // 5 min — pedidos mudam com frequênc
 
 export function usePedido(id: string) {
   return useQuery({
-    queryKey: ['orders', id],
+    queryKey: ['orders', 'detail', id],
     queryFn: async () => {
       const { data } = await api.get<Order>(`/orders/${id}`)
       return data
@@ -18,7 +18,7 @@ export function usePedido(id: string) {
 
 export function usePedidos(limit?: number) {
   return useQuery({
-    queryKey: ['orders', limit],
+    queryKey: ['orders', 'list', limit],
     queryFn: async () => {
       const { data } = await api.get<Order[]>('/orders', { params: limit ? { limit } : undefined })
       return data
@@ -63,7 +63,7 @@ export function useAtualizarPedido() {
     },
     onSuccess: (_, { id }) => {
       queryClient.invalidateQueries({ queryKey: ['orders'] })
-      queryClient.invalidateQueries({ queryKey: ['orders', id] })
+      queryClient.invalidateQueries({ queryKey: ['orders', 'detail', id] })
     },
   })
 }
@@ -87,10 +87,13 @@ export function useMetaVendedor() {
   return useQuery({
     queryKey: ['meta-vendedor'],
     queryFn: async () => {
-      const { data } = await api.get<{ periodo: string; vendido: string; meta: string }>('/sync/metas')
+      const { data } = await api.get<{ periodo: string; vendido: string; meta: string }>(
+        '/sync/metas'
+      )
       return data
     },
-    staleTime: 0,
+    // Consulta cara ao Protheus — 15 min evita refetch a cada mount
+    staleTime: 1000 * 60 * 15,
   })
 }
 
@@ -111,7 +114,9 @@ export function useCancelarPedido() {
 export function useConsultarStatusPedido() {
   return useMutation({
     mutationFn: async (orderId: string) => {
-      const { data } = await api.get<{ protheusOrderId: string; codigo: string; status: string }>(`/orders/${orderId}/status`)
+      const { data } = await api.get<{ protheusOrderId: string; codigo: string; status: string }>(
+        `/orders/${orderId}/status`
+      )
       return data
     },
   })

@@ -5,7 +5,12 @@ import type { SyncQueueItem, SyncStatus } from '../types/sync'
 
 function generateId(): string {
   const bytes = new Uint8Array(16)
-  crypto.getRandomValues(bytes)
+  // Sem crypto disponível o enqueue não pode falhar — perderia o pedido offline
+  if (typeof crypto !== 'undefined' && typeof crypto.getRandomValues === 'function') {
+    crypto.getRandomValues(bytes)
+  } else {
+    for (let i = 0; i < bytes.length; i++) bytes[i] = Math.floor(Math.random() * 256)
+  }
   bytes[6] = (bytes[6] & 0x0f) | 0x40
   bytes[8] = (bytes[8] & 0x3f) | 0x80
   const hex = Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('')
@@ -23,7 +28,7 @@ interface SyncStoreState {
   markSyncing: (id: string) => void
   markSynced: (id: string) => void
   markError: (id: string, error: string) => void
-  removeItem: (id: string) => void
+  markFailedPermanently: (id: string, error: string) => void
   setNetworkAvailable: (available: boolean) => void
   clearSynced: () => void
   setIsSyncing: (value: boolean) => void
@@ -60,7 +65,7 @@ export const useSyncStore = create<SyncStoreState>()(
       markSyncing: (id) =>
         set((s) => ({
           queue: s.queue.map((item) =>
-            item.id === id ? { ...item, status: 'syncing' as SyncStatus } : item,
+            item.id === id ? { ...item, status: 'syncing' as SyncStatus } : item
           ),
         })),
 
@@ -71,12 +76,27 @@ export const useSyncStore = create<SyncStoreState>()(
             queue: s.queue.map((item) =>
               item.id === id
                 ? { ...item, status: 'synced' as SyncStatus, syncedAt: new Date().toISOString() }
-                : item,
+                : item
             ),
             lastSyncAt: new Date().toISOString(),
-            justSyncedOrderAt: syncedItem?.type === 'order' ? new Date().toISOString() : s.justSyncedOrderAt,
+            justSyncedOrderAt:
+              syncedItem?.type === 'order' ? new Date().toISOString() : s.justSyncedOrderAt,
           }
         }),
+
+      markFailedPermanently: (id, error) =>
+        set((s) => ({
+          queue: s.queue.map((item) =>
+            item.id === id
+              ? {
+                  ...item,
+                  status: 'error' as SyncStatus,
+                  attempts: item.maxAttempts,
+                  lastError: error,
+                }
+              : item
+          ),
+        })),
 
       markError: (id, error) =>
         set((s) => ({
@@ -88,12 +108,9 @@ export const useSyncStore = create<SyncStoreState>()(
                   attempts: item.attempts + 1,
                   lastError: error,
                 }
-              : item,
+              : item
           ),
         })),
-
-      removeItem: (id) =>
-        set((s) => ({ queue: s.queue.filter((item) => item.id !== id) })),
 
       setNetworkAvailable: (available) => set({ networkAvailable: available }),
 
@@ -113,26 +130,32 @@ export const useSyncStore = create<SyncStoreState>()(
         queue: state.queue,
         lastSyncAt: state.lastSyncAt,
       }),
-    },
-  ),
+      // Se o app morreu no meio de um envio, o item ficou 'syncing' no storage;
+      // sem este reset ele nunca mais entraria no filtro de processamento
+      onRehydrateStorage: () => (state) => {
+        if (!state) return
+        state.queue = state.queue.map((item) =>
+          item.status === 'syncing' ? { ...item, status: 'pending' as SyncStatus } : item
+        )
+      },
+    }
+  )
 )
 
 export const selectPendingCount = (state: SyncStoreState) =>
   state.queue.filter(
     (item) =>
-      item.status === 'pending' ||
-      (item.status === 'error' && item.attempts < item.maxAttempts),
+      item.status === 'pending' || (item.status === 'error' && item.attempts < item.maxAttempts)
   ).length
 
-export const selectHasPending = (state: SyncStoreState) =>
-  selectPendingCount(state) > 0
+export const selectHasPending = (state: SyncStoreState) => selectPendingCount(state) > 0
 
 export const selectPendingItems = (state: SyncStoreState) =>
   state.queue.filter(
     (item) =>
       item.status === 'pending' ||
       item.status === 'syncing' ||
-      (item.status === 'error' && item.attempts < item.maxAttempts),
+      (item.status === 'error' && item.attempts < item.maxAttempts)
   )
 
 export const selectErrorItems = (state: SyncStoreState) =>

@@ -4,35 +4,40 @@
 
 @layer base {
   :root {
-    --bg-page:    theme('colors.gray.50');
+    --bg-page: theme('colors.gray.50');
     --bg-surface: theme('colors.white');
-    --bg-subtle:  theme('colors.gray.100');
-    --border:     theme('colors.gray.200');
-    --text-primary:   theme('colors.gray.900');
+    --bg-subtle: theme('colors.gray.100');
+    --border: theme('colors.gray.200');
+    --text-primary: theme('colors.gray.900');
     --text-secondary: theme('colors.gray.600');
-    --text-muted:     theme('colors.gray.400');
+    --text-muted: theme('colors.gray.400');
 
-    /* Addere brand tokens */
-    --color-brand:   #1B4FA8;
-    --color-accent:  #29BEFF;
-    --color-navy:    #0D2045;
-    --color-tint:    #E8F4FF;
-    --color-success: #22C55E;
-    --color-warning: #F59E0B;
-    --color-danger:  #EF4444;
-    --color-muted:   #64748B;
-    --color-border:  #E2E8F0;
-    --color-surface: #F8FAFC;
+    /* Addere brand tokens — a marca é a mesma nos dois temas (não redefinir no .dark) */
+    --color-brand: #1b4fa8;
+    --color-accent: #29beff;
+    --color-navy: #0d2045;
+    --color-tint: #e8f4ff;
+    --color-success: #22c55e;
+    --color-warning: #f59e0b;
+    --color-danger: #ef4444;
+    --color-muted: #64748b;
+    /* Neutros de superfície/borda da marca (têm equivalente dark abaixo) */
+    --color-border: #e2e8f0;
+    --color-surface: #f8fafc;
   }
 
   .dark {
-    --bg-page:    #0f1117;
+    --bg-page: #0f1117;
     --bg-surface: #161b27;
-    --bg-subtle:  #1e2535;
-    --border:     #2a3347;
-    --text-primary:   #f1f5f9;
+    --bg-subtle: #1e2535;
+    --border: #2a3347;
+    --text-primary: #f1f5f9;
     --text-secondary: #94a3b8;
-    --text-muted:     #64748b;
+    --text-muted: #64748b;
+
+    /* Equivalentes dark dos neutros de marca (alinhados a --border / --bg-surface) */
+    --color-border: #2a3347;
+    --color-surface: #161b27;
   }
 
   html {
@@ -44,11 +49,16 @@
     color: var(--text-primary);
   }
 
-  h1, h2, h3, h4 {
+  h1,
+  h2,
+  h3,
+  h4 {
     font-family: var(--font-heading), sans-serif;
   }
 
-  body, p, span {
+  body,
+  p,
+  span {
     font-family: var(--font-body), sans-serif;
   }
 }

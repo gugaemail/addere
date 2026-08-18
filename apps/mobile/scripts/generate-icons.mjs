@@ -6,8 +6,8 @@ import { dirname, join } from 'path'
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const assetsDir = join(__dirname, '..', 'assets')
 
-const iconSvg         = readFileSync(join(assetsDir, 'icon-source.svg'))
-const adaptiveSvg     = readFileSync(join(assetsDir, 'adaptive-icon-source.svg'))
+const iconSvg = readFileSync(join(assetsDir, 'icon-source.svg'))
+const adaptiveSvg = readFileSync(join(assetsDir, 'adaptive-icon-source.svg'))
 
 const tasks = [
   {
@@ -39,10 +39,7 @@ const tasks = [
 console.log('Gerando ícones do Addere...\n')
 
 for (const task of tasks) {
-  await sharp(task.input)
-    .resize(task.size, task.size)
-    .png()
-    .toFile(task.output)
+  await sharp(task.input).resize(task.size, task.size).png().toFile(task.output)
 
   console.log(`✓ ${task.label} → ${task.size}x${task.size}px`)
 }

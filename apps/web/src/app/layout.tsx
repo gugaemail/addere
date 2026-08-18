@@ -26,7 +26,11 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="pt-BR" suppressHydrationWarning className={`${plusJakartaSans.variable} ${inter.variable}`}>
+    <html
+      lang="pt-BR"
+      suppressHydrationWarning
+      className={`${plusJakartaSans.variable} ${inter.variable}`}
+    >
       <body className="antialiased">
         <ThemeProvider>
           <Providers>{children}</Providers>

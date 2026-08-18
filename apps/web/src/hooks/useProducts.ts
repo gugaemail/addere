@@ -6,6 +6,8 @@ export function useProducts(search?: string) {
   return useQuery({
     queryKey: ['products', search],
     queryFn: () =>
-      api.get<Product[]>('/products', { params: search ? { search } : undefined }).then((r) => r.data),
+      api
+        .get<Product[]>('/products', { params: search ? { search } : undefined })
+        .then((r) => r.data),
   })
 }

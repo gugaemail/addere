@@ -1,9 +1,11 @@
 import React, { useState } from 'react'
-import { ScrollView, Text, View, StyleSheet } from 'react-native'
-import { Button } from '../../components/ui/Button'
+import { ScrollView, Text, View, StyleSheet, Alert } from 'react-native'
+import { Search, Plus, ChevronRight, Mail } from 'lucide-react-native'
+import { Button, buttonForeground } from '../../components/ui/Button'
 import { Input } from '../../components/ui/Input'
 import { Card } from '../../components/ui/Card'
 import { Badge } from '../../components/ui/Badge'
+import { EmptyState } from '../../components/ui/EmptyState'
 import { LogoMark } from '../../components/brand/LogoMark'
 import { colors, spacing, typography } from '../../theme'
 
@@ -30,6 +32,7 @@ function Label({ children }: { children: React.ReactNode }) {
 
 export function ComponentsPreview() {
   const [inputValue, setInputValue] = useState('')
+  const [searchValue, setSearchValue] = useState('')
 
   return (
     <ScrollView
@@ -65,20 +68,65 @@ export function ComponentsPreview() {
 
       {/* ── Button — variants ────────────────────────────────────────────── */}
       <Section title="Button — variants">
-        <Button variant="primary"   style={s.btn}>Primary</Button>
-        <Button variant="secondary" style={s.btn}>Secondary</Button>
-        <Button variant="ghost"     style={s.btn}>Ghost</Button>
-        <Button variant="danger"    style={s.btn}>Danger</Button>
-        <Button variant="primary"   style={s.btn} disabled>Disabled</Button>
-        <Button variant="primary"   style={s.btn} loading>Loading</Button>
+        <Button variant="primary" style={s.btn}>
+          Primary
+        </Button>
+        <Button variant="secondary" style={s.btn}>
+          Secondary
+        </Button>
+        <Button variant="ghost" style={s.btn}>
+          Ghost
+        </Button>
+        <Button variant="danger" style={s.btn}>
+          Danger
+        </Button>
+        <Button variant="primary" style={s.btn} disabled>
+          Disabled
+        </Button>
+        <Button variant="primary" style={s.btn} loading>
+          Loading
+        </Button>
       </Section>
 
       {/* ── Button — sizes ───────────────────────────────────────────────── */}
       <Section title="Button — sizes">
         <Row>
-          <Button size="sm" style={s.btnInline}>Small</Button>
-          <Button size="md" style={s.btnInline}>Medium</Button>
-          <Button size="lg" style={s.btnInline}>Large</Button>
+          <Button size="sm" style={s.btnInline}>
+            Small
+          </Button>
+          <Button size="md" style={s.btnInline}>
+            Medium
+          </Button>
+          <Button size="lg" style={s.btnInline}>
+            Large
+          </Button>
+        </Row>
+      </Section>
+
+      {/* ── Button — icons ───────────────────────────────────────────────── */}
+      <Section title="Button — icon">
+        <Button
+          variant="primary"
+          style={s.btn}
+          icon={<Plus size={16} color={buttonForeground.primary} strokeWidth={1.5} />}
+        >
+          Novo pedido
+        </Button>
+        <Button
+          variant="secondary"
+          style={s.btn}
+          iconPosition="right"
+          icon={<ChevronRight size={16} color={buttonForeground.secondary} strokeWidth={1.5} />}
+        >
+          Continuar
+        </Button>
+        <Row>
+          <Button size="xs" style={s.btnInline}>
+            Extra small
+          </Button>
+          <Button variant="ghostDanger" size="sm" style={s.btnInline}>
+            Ghost danger
+          </Button>
         </Row>
       </Section>
 
@@ -91,11 +139,7 @@ export function ComponentsPreview() {
           onChangeText={setInputValue}
         />
 
-        <Input
-          label="With value"
-          value="vendedor@addere.dev"
-          onChangeText={() => {}}
-        />
+        <Input label="With value" value="vendedor@addere.dev" onChangeText={() => {}} />
 
         <Input
           label="Error state"
@@ -112,10 +156,34 @@ export function ComponentsPreview() {
           onChangeText={() => {}}
         />
 
+        <Input placeholder="No label, hint-like placeholder" value="" onChangeText={() => {}} />
+
         <Input
-          placeholder="No label, hint-like placeholder"
-          value=""
+          label="Search (leftElement + onClear)"
+          placeholder="Buscar cliente…"
+          value={searchValue}
+          onChangeText={setSearchValue}
+          onClear={() => setSearchValue('')}
+          leftElement={<Search size={16} color={colors.neutral.textSub} strokeWidth={1.5} />}
+        />
+
+        <Input
+          label="E-mail (leftElement + error)"
+          value="wrong-email"
+          error="E-mail inválido"
           onChangeText={() => {}}
+          leftElement={<Mail size={16} color={colors.neutral.textSub} strokeWidth={1.5} />}
+        />
+      </Section>
+
+      {/* ── EmptyState ───────────────────────────────────────────────────── */}
+      <Section title="EmptyState">
+        <EmptyState
+          illustration="orders"
+          title="Nenhum pedido"
+          subtitle="Crie seu primeiro pedido para vê-lo aqui."
+          actionLabel="Novo pedido"
+          onAction={() => Alert.alert('EmptyState', 'onAction')}
         />
       </Section>
 
@@ -123,15 +191,32 @@ export function ComponentsPreview() {
       <Section title="Card — padding variants">
         {(['xs', 'sm', 'md', 'lg', 'xl'] as const).map((p) => (
           <Card key={p} padding={p} style={s.cardItem}>
-            <Text style={s.cardText}>padding="{p}" — {spacing[p]}px</Text>
+            <Text style={s.cardText}>
+              padding="{p}" — {spacing[p]}px
+            </Text>
           </Card>
         ))}
+      </Section>
+
+      {/* ── Card — pressable ─────────────────────────────────────────────── */}
+      <Section title="Card — onPress">
+        <Card onPress={() => Alert.alert('Card', 'onPress')}>
+          <View style={s.row}>
+            <Text style={s.cardHeading}>Card tocável</Text>
+            <ChevronRight size={18} color={colors.neutral.textSub} strokeWidth={1.5} />
+          </View>
+          <Text style={s.cardSub}>Vira TouchableOpacity quando recebe onPress</Text>
+        </Card>
+        <Card onPress={() => {}} disabled style={s.cardItem}>
+          <Text style={s.cardHeading}>Card desabilitado</Text>
+          <Text style={s.cardSub}>onPress + disabled</Text>
+        </Card>
       </Section>
 
       {/* ── Card — composition ───────────────────────────────────────────── */}
       <Section title="Card — composition">
         <Card>
-          <Text style={s.cardHeading}>Order #1042</Text>
+          <Text style={s.cardHeading}>Order nº 1042</Text>
           <Text style={s.cardSub}>Cliente Demonstração</Text>
           <View style={[s.row, { marginTop: spacing.sm }]}>
             <Badge variant="success">Aprovado</Badge>
@@ -156,21 +241,21 @@ export function ComponentsPreview() {
 const s = StyleSheet.create({
   scroll: {
     flex: 1,
-    backgroundColor: colors.neutral.background,
+    backgroundColor: colors.neutral.bg,
   },
   content: {
     padding: spacing.lg,
-    paddingBottom: spacing.xl * 2,
+    paddingBottom: spacing['3xl'],
     gap: spacing.xs,
   },
   pageTitle: {
     fontFamily: typography.fontFamily.sansBold,
     fontSize: typography.size.xl,
     color: colors.neutral.text,
-    marginBottom: 2,
+    marginBottom: spacing.xs,
   },
   pageSubtitle: {
-    fontFamily: typography.fontFamily.mono,
+    fontFamily: typography.fontFamily.body,
     fontSize: typography.size.xs,
     color: colors.neutral.textSub,
     marginBottom: spacing.lg,
@@ -185,7 +270,7 @@ const s = StyleSheet.create({
     color: colors.neutral.textSub,
     textTransform: 'uppercase',
     letterSpacing: 0.8,
-    marginBottom: 2,
+    marginBottom: spacing.xs,
   },
   row: {
     flexDirection: 'row',
@@ -196,11 +281,11 @@ const s = StyleSheet.create({
     flexWrap: 'wrap',
   },
   label: {
-    fontFamily: typography.fontFamily.mono,
+    fontFamily: typography.fontFamily.body,
     fontSize: typography.size.xs,
     color: colors.neutral.textSub,
     textAlign: 'center',
-    marginTop: 4,
+    marginTop: spacing.xs,
   },
   logoRow: {
     flexDirection: 'row',
@@ -221,7 +306,7 @@ const s = StyleSheet.create({
     marginTop: spacing.xs,
   },
   cardText: {
-    fontFamily: typography.fontFamily.mono,
+    fontFamily: typography.fontFamily.body,
     fontSize: typography.size.sm,
     color: colors.neutral.textSub,
   },
@@ -232,7 +317,7 @@ const s = StyleSheet.create({
     flex: 1,
   },
   cardSub: {
-    fontFamily: typography.fontFamily.mono,
+    fontFamily: typography.fontFamily.body,
     fontSize: typography.size.sm,
     color: colors.neutral.textSub,
   },

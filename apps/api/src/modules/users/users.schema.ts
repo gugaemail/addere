@@ -6,6 +6,8 @@ export const createUserSchema = z.object({
   password: z.string().min(8, 'Senha deve ter pelo menos 8 caracteres'),
   role: z.enum(['ADMIN', 'SALESPERSON']),
   userTypeId: z.string().optional(),
+  // Apenas SUPERADMIN pode indicar a empresa; demais roles herdam a própria
+  companyId: z.string().uuid().optional(),
   copyPermissionsFromUserId: z.string().optional(),
 })
 

@@ -6,14 +6,12 @@ import * as LocalAuthentication from 'expo-local-authentication'
 import { BIOMETRIC_KEY } from '../src/hooks/useAuth'
 import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client'
 import { createAsyncStoragePersister } from '@tanstack/query-async-storage-persister'
-import NetInfo from '@react-native-community/netinfo'
 import * as Sentry from '@sentry/react-native'
 import { env } from '../src/config/env'
 import { useFonts } from '../src/hooks/useFonts'
 import { queryClient } from '../src/lib/query-client'
 import { useAuthStore } from '../src/store/auth.store'
 import { useCompanyStore } from '../src/store/company.store'
-import { useSyncStore } from '../src/store/syncStore'
 import { startSyncListener } from '../src/services/syncEngine'
 import { pilotTracker } from '../src/services/pilotTracking'
 import { AppErrorBoundary } from '../src/components/ErrorBoundary'
@@ -39,9 +37,8 @@ function AuthGuard() {
   const router = useRouter()
   const segments = useSegments()
   const { accessToken, hydrated, hydrate } = useAuthStore()
-  const hydrateFieldConfig   = useCompanyStore((s) => s.hydrateFieldConfig)
-  const hydrateSyncSchedule  = useCompanyStore((s) => s.hydrateSyncSchedule)
-  const setNetworkAvailable = useSyncStore((s) => s.setNetworkAvailable)
+  const hydrateFieldConfig = useCompanyStore((s) => s.hydrateFieldConfig)
+  const hydrateSyncSchedule = useCompanyStore((s) => s.hydrateSyncSchedule)
 
   // Biometric gate: checked once per app lifecycle
   const biometricCheckedRef = useRef(false)
@@ -53,13 +50,8 @@ function AuthGuard() {
     hydrateSyncSchedule()
   }, [])
 
-  useEffect(() => {
-    const unsubscribe = NetInfo.addEventListener((state) => {
-      setNetworkAvailable(state.isConnected ?? false)
-    })
-    return unsubscribe
-  }, [])
-
+  // O listener de NetInfo vive dentro do startSyncListener — um segundo listener
+  // aqui competia escrevendo networkAvailable sem disparar o processamento da fila
   useEffect(() => {
     const cleanup = startSyncListener()
     return cleanup
@@ -109,8 +101,9 @@ function AuthGuard() {
   useEffect(() => {
     if (!hydrated || !biometricReady) return
 
-    const inAuthGroup  = segments[0] === '(auth)'
-    const inDevPreview = segments[0] === 'dev-preview'
+    const inAuthGroup = segments[0] === '(auth)'
+    // dev-preview dispensa login apenas fora de produção (a própria rota redireciona em prod)
+    const inDevPreview = segments[0] === 'dev-preview' && env.appEnv !== 'production'
 
     if (inDevPreview) return
 
@@ -130,8 +123,8 @@ const asyncStoragePersister = createAsyncStoragePersister({
   throttleTime: 1000,
 })
 
-// Queries de dados de referência que sobrevivem ao restart do app
-const NON_PERSISTENT_KEYS = ['meta-vendedor']
+// Todas as queries com sucesso são persistidas (inclui 'meta-vendedor',
+// que substituiu o antigo cache manual do dashboard em AsyncStorage)
 
 export default function RootLayout() {
   const { fontsLoaded } = useFonts()
@@ -147,9 +140,7 @@ export default function RootLayout() {
             persister: asyncStoragePersister,
             maxAge: 1000 * 60 * 60 * 24 * 7,
             dehydrateOptions: {
-              shouldDehydrateQuery: (query) =>
-                query.state.status === 'success' &&
-                !NON_PERSISTENT_KEYS.includes(query.queryKey[0] as string),
+              shouldDehydrateQuery: (query) => query.state.status === 'success',
             },
           }}
         >

@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { isPilotRequestAuthorized } from '@/lib/pilot-auth'
 import { prisma } from '@addere/db'
 
-export async function GET(
-  req: NextRequest,
-  { params }: { params: Promise<{ pilotId: string }> },
-) {
+export async function GET(req: NextRequest, { params }: { params: Promise<{ pilotId: string }> }) {
+  if (!(await isPilotRequestAuthorized(req))) {
+    return NextResponse.json({ message: 'Não autorizado' }, { status: 401 })
+  }
+
   const { pilotId } = await params
   const since = req.nextUrl.searchParams.get('since')
     ? new Date(req.nextUrl.searchParams.get('since')!)
@@ -31,7 +33,9 @@ export async function GET(
     }),
   ]
 
-  const csv = (rows as string[][]).map((r) => r.map((v) => `"${v.replace(/"/g, '""')}"`).join(',')).join('\n')
+  const csv = (rows as string[][])
+    .map((r) => r.map((v) => `"${v.replace(/"/g, '""')}"`).join(','))
+    .join('\n')
 
   return new NextResponse(csv, {
     headers: {

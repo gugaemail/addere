@@ -13,7 +13,14 @@ if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma
 
 // Re-exporta os tipos gerados pelo Prisma para uso nos outros workspaces
 export type {
-  User, Customer, Product, Order, OrderItem, RefreshToken,
-  Pilot, PilotEvent, PilotFeedback,
+  User,
+  Customer,
+  Product,
+  Order,
+  OrderItem,
+  RefreshToken,
+  Pilot,
+  PilotEvent,
+  PilotFeedback,
 } from '@prisma/client'
 export { Role, OrderStatus, PilotEventType, PilotStatus } from '@prisma/client'

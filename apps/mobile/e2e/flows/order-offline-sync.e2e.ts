@@ -1,4 +1,6 @@
+import { by, device, element, expect, waitFor } from 'detox'
 import { loginAs } from '../helpers/auth'
+import { goToPedidos } from '../helpers/navigation'
 import { goOffline, goOnline } from '../helpers/network'
 
 describe('Pedido offline com sync posterior', () => {
@@ -16,6 +18,7 @@ describe('Pedido offline com sync posterior', () => {
       .withTimeout(3000)
 
     // Criar pedido normalmente
+    await goToPedidos()
     await element(by.id('btn-novo-pedido')).tap()
     await element(by.id('input-busca-cliente')).typeText('Cliente Teste')
     await element(by.id('resultado-cliente-0')).tap()
@@ -52,6 +55,7 @@ describe('Pedido offline com sync posterior', () => {
 
   it('usa cache do catálogo quando offline', async () => {
     await goOffline()
+    await goToPedidos()
     await element(by.id('btn-novo-pedido')).tap()
 
     // Catálogo deve carregar do cache

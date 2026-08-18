@@ -1,96 +1,38 @@
 import { useState, useEffect } from 'react'
-import {
-  View,
-  Text,
-  ScrollView,
-  TextInput,
-  TouchableOpacity,
-  ActivityIndicator,
-  StyleSheet,
-  Alert,
-  FlatList,
-} from 'react-native'
+import { View, Text, ScrollView, StyleSheet, Alert, FlatList } from 'react-native'
 import { useLocalSearchParams, Stack, useRouter } from 'expo-router'
+import { Plus, Minus, Search } from 'lucide-react-native'
 import { usePedido, useAtualizarPedido } from '../../../../src/hooks/usePedidos'
-import { useProdutos } from '../../../../src/hooks/useProdutos'
+import { useCatalog } from '../../../../src/hooks/useCatalog'
+import { useDebouncedValue } from '../../../../src/hooks/useDebounce'
 import { useTransportadoras } from '../../../../src/hooks/useTransportadoras'
 import { useCondPags } from '../../../../src/hooks/useCondPags'
 import { useFieldVisible, useFieldRequired } from '../../../../src/hooks/useFieldConfig'
 import { useAuthStore } from '../../../../src/store/auth.store'
 import { fmtMoeda } from '../../../../src/utils/format'
+import { getApiErrorMessage } from '../../../../src/lib/errors'
+import { colors, spacing, radius, typography } from '../../../../src/theme'
+import { Button } from '../../../../src/components/ui/Button'
+import { Card } from '../../../../src/components/ui/Card'
+import { EmptyState } from '../../../../src/components/ui/EmptyState'
+import { Input } from '../../../../src/components/ui/Input'
+import { LoadingState } from '../../../../src/components/Skeleton'
+import { PickerField } from '../../../../src/components/order-form/PickerField'
+import { CartItemEditor } from '../../../../src/components/order-form/CartItemEditor'
+import {
+  useOrderValidation,
+  useOrderFormErrors,
+  changedItemFields,
+} from '../../../../src/components/order-form/validation'
+import { orderFormStyles } from '../../../../src/components/order-form/styles'
+import {
+  cartItemFromOrderItem,
+  cartItemFromProduct,
+  cartTotal,
+  cartToOrderItems,
+} from '../../../../src/components/order-form/types'
+import type { CartItem } from '../../../../src/components/order-form/types'
 import type { Product, Transportadora, CondPag } from '@addere/types'
-
-interface EditCartItem {
-  productId:    string
-  productName:  string
-  productUnit:  string
-  quantity:     number
-  unitPrice:    number
-  discount:     number
-  descricao?:   string
-  largura?:     number
-  espessura?:   number
-  encolhimento?: string
-  xcrav?:       string
-  tara?:        number
-}
-
-function PickerField({
-  label,
-  selected,
-  items,
-  onSelect,
-  loading,
-  disabled,
-}: {
-  label: string
-  selected: { id: string; nome: string } | null
-  items: { id: string; nome: string }[]
-  onSelect: (item: { id: string; nome: string } | null) => void
-  loading?: boolean
-  disabled?: boolean
-}) {
-  const [open, setOpen] = useState(false)
-
-  if (disabled) {
-    return (
-      <View style={s.box}>
-        <Text style={s.boxLabel}>{label}</Text>
-        <View style={[s.pickerBtn, s.pickerBtnDisabled]}>
-          <Text style={selected ? s.pickerBtnText : s.pickerBtnPlaceholder}>
-            {selected ? selected.nome : '— Nenhum —'}
-          </Text>
-        </View>
-      </View>
-    )
-  }
-
-  return (
-    <View style={s.box}>
-      <Text style={s.boxLabel}>{label}</Text>
-      <TouchableOpacity style={s.pickerBtn} onPress={() => setOpen((v) => !v)}>
-        <Text style={selected ? s.pickerBtnText : s.pickerBtnPlaceholder}>
-          {loading ? 'Carregando...' : selected ? selected.nome : `Selecionar ${label.toLowerCase().replace(' *', '')}...`}
-        </Text>
-        <Text style={s.pickerBtnIcon}>{open ? '▲' : '▼'}</Text>
-      </TouchableOpacity>
-      {open && (
-        <View style={s.pickerList}>
-          <TouchableOpacity style={s.pickerItem} onPress={() => { onSelect(null); setOpen(false) }}>
-            <Text style={s.pickerItemText}>— Nenhum —</Text>
-          </TouchableOpacity>
-          {items.map((item) => (
-            <TouchableOpacity key={item.id} style={s.pickerItem} onPress={() => { onSelect(item); setOpen(false) }}>
-              <Text style={[s.pickerItemText, selected?.id === item.id && s.pickerItemSelected]}>
-                {item.nome}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-      )}
-    </View>
-  )
-}
 
 export default function EditarPedidoScreen() {
   const { id } = useLocalSearchParams<{ id: string }>()
@@ -99,7 +41,7 @@ export default function EditarPedidoScreen() {
   const { data: order, isLoading: loadingOrder } = usePedido(id)
   const { mutate: atualizar, isPending: isSaving } = useAtualizarPedido()
 
-  const [cart, setCart] = useState<EditCartItem[]>([])
+  const [cart, setCart] = useState<CartItem[]>([])
   const [transportadora, setTransportadora] = useState<Transportadora | null>(null)
   const [condPag, setCondPag] = useState<CondPag | null>(null)
   const [mennota, setMennota] = useState('')
@@ -107,59 +49,54 @@ export default function EditarPedidoScreen() {
   const [initialized, setInitialized] = useState(false)
   const [showSearch, setShowSearch] = useState(false)
   const [search, setSearch] = useState('')
+  const debouncedSearch = useDebouncedValue(search)
 
   const { data: transportadoras = [], isLoading: loadingTransp } = useTransportadoras()
-  const { data: condPags = [], isLoading: loadingCond }          = useCondPags()
-  const { data: products = [], isLoading: loadingProducts }       = useProdutos(search || undefined)
+  const { data: condPags = [], isLoading: loadingCond } = useCondPags()
+  const { data: products = [], isLoading: loadingProducts } = useCatalog(
+    debouncedSearch || undefined
+  )
 
   const permissions = useAuthStore((s) => s.permissions)
   const canChangeCarrier = permissions.includes('orders.change_carrier')
   const canChangePaymentTerms = permissions.includes('orders.change_payment_terms')
 
-  const showTransportadora  = useFieldVisible('order.transportadora')
-  const showCondPag         = useFieldVisible('order.condPag')
-  const showMennota         = useFieldVisible('order.mennota')
-  const showNotes           = useFieldVisible('order.notes')
-  const showUnitPrice       = useFieldVisible('orderItem.unitPrice')
-  const showLargura         = useFieldVisible('orderItem.largura')
-  const showEspessura       = useFieldVisible('orderItem.espessura')
-  const showEncolhimento    = useFieldVisible('orderItem.encolhimento')
-  const showXcrav           = useFieldVisible('orderItem.xcrav')
-  const showTara            = useFieldVisible('orderItem.tara')
-  const showDescricao       = useFieldVisible('orderItem.descricao')
+  const showTransportadora = useFieldVisible('order.transportadora')
+  const showCondPag = useFieldVisible('order.condPag')
+  const showMennota = useFieldVisible('order.mennota')
+  const showNotes = useFieldVisible('order.notes')
 
-  const reqTransportadora   = useFieldRequired('order.transportadora')
-  const reqCondPag          = useFieldRequired('order.condPag')
-  const reqMennota          = useFieldRequired('order.mennota')
-  const reqNotes            = useFieldRequired('order.notes')
-  const reqUnitPrice        = useFieldRequired('orderItem.unitPrice')
-  const reqLargura          = useFieldRequired('orderItem.largura')
-  const reqEspessura        = useFieldRequired('orderItem.espessura')
-  const reqEncolhimento     = useFieldRequired('orderItem.encolhimento')
-  const reqXcrav            = useFieldRequired('orderItem.xcrav')
-  const reqTara             = useFieldRequired('orderItem.tara')
-  const reqDescricao        = useFieldRequired('orderItem.descricao')
+  const reqTransportadora = useFieldRequired('order.transportadora')
+  const reqCondPag = useFieldRequired('order.condPag')
+  const reqMennota = useFieldRequired('order.mennota')
+  const reqNotes = useFieldRequired('order.notes')
+
+  const validate = useOrderValidation({
+    emptyCart: 'Adicione pelo menos um produto antes de salvar.',
+    transportadora: 'Selecione uma transportadora.',
+    condPag: 'Selecione uma condição de pagamento.',
+  })
+
+  // Erros de validação exibidos inline (limpos campo a campo conforme o usuário edita)
+  const {
+    errors,
+    setErrors,
+    clearError,
+    clearItemErrors,
+    hasErrors: showErrorSummary,
+  } = useOrderFormErrors()
 
   useEffect(() => {
     if (!order || initialized) return
-    setCart(order.items.map((item) => ({
-      productId:    item.product.id,
-      productName:  item.product.name,
-      productUnit:  item.product.unit,
-      quantity:     Number(item.quantity),
-      unitPrice:    Number(item.unitPrice),
-      discount:     Number(item.discount),
-      descricao:    item.descricao ?? item.product.name,
-      largura:      item.largura != null ? Number(item.largura) : undefined,
-      espessura:    item.espessura != null ? Number(item.espessura) : undefined,
-      encolhimento: item.encolhimento ?? undefined,
-      xcrav:        item.xcrav ?? undefined,
-      tara:         item.tara != null ? Number(item.tara) : undefined,
-    })))
+    setCart(order.items.map(cartItemFromOrderItem))
     setMennota(order.mennota ?? '')
     setNotes(order.notes ?? '')
     if (order.transportadora) {
-      setTransportadora({ id: order.transportadora.id, nome: order.transportadora.nome, protheusCode: null })
+      setTransportadora({
+        id: order.transportadora.id,
+        nome: order.transportadora.nome,
+        protheusCode: null,
+      })
     }
     if (order.condPag) {
       setCondPag({ id: order.condPag.id, nome: order.condPag.nome, protheusCode: null })
@@ -167,130 +104,35 @@ export default function EditarPedidoScreen() {
     setInitialized(true)
   }, [order, initialized])
 
-  const total = cart.reduce(
-    (sum, i) => sum + i.unitPrice * i.quantity * (1 - i.discount / 100),
-    0
-  )
-
-  function updateQty(productId: string, qty: number) {
-    if (qty <= 0) {
-      setCart((prev) => prev.filter((i) => i.productId !== productId))
-      return
-    }
-    setCart((prev) => prev.map((i) => i.productId === productId ? { ...i, quantity: qty } : i))
-  }
-
-  function updatePrice(productId: string, raw: string) {
-    const value = parseFloat(raw.replace(',', '.'))
-    if (isNaN(value) || value < 0) return
-    setCart((prev) => prev.map((i) => i.productId === productId ? { ...i, unitPrice: value } : i))
-  }
-
-  function updateNumField(productId: string, field: 'largura' | 'espessura' | 'tara', raw: string) {
-    const value = parseFloat(raw.replace(',', '.'))
-    if (isNaN(value) || value < 0) return
-    setCart((prev) => prev.map((i) => i.productId === productId ? { ...i, [field]: value } : i))
-  }
-
-  function updateStrField(productId: string, field: 'encolhimento' | 'descricao', value: string) {
-    setCart((prev) => prev.map((i) => i.productId === productId ? { ...i, [field]: value } : i))
-  }
-
-  function toggleXcrav(productId: string) {
-    setCart((prev) => prev.map((i) =>
-      i.productId === productId ? { ...i, xcrav: i.xcrav === '1' ? '2' : '1' } : i
-    ))
-  }
-
-  function removeItem(productId: string) {
-    setCart((prev) => prev.filter((i) => i.productId !== productId))
-  }
+  const total = cartTotal(cart)
 
   function addProduct(product: Product) {
+    clearError('form')
     const existing = cart.find((i) => i.productId === product.id)
     if (existing) {
-      setCart((prev) => prev.map((i) => i.productId === product.id ? { ...i, quantity: i.quantity + 1 } : i))
+      setCart((prev) =>
+        prev.map((i) => (i.productId === product.id ? { ...i, quantity: i.quantity + 1 } : i))
+      )
     } else {
-      setCart((prev) => [...prev, {
-        productId:   product.id,
-        productName: product.name,
-        productUnit: product.unit,
-        quantity:    1,
-        unitPrice:   Number(product.price),
-        discount:    0,
-        descricao:   product.name,
-      }])
+      setCart((prev) => [...prev, cartItemFromProduct(product)])
     }
     setSearch('')
   }
 
   function handleSave() {
-    if (cart.length === 0) {
-      Alert.alert('Pedido inválido', 'Adicione pelo menos um produto antes de salvar.')
-      return
-    }
-    for (const item of cart) {
-      if (reqUnitPrice && (!item.unitPrice || item.unitPrice <= 0)) {
-        Alert.alert('Campo obrigatório', `Informe o preço unitário de "${item.productName}".`)
-        return
-      }
-      if (reqDescricao && !item.descricao?.trim()) {
-        Alert.alert('Campo obrigatório', `Informe a descrição de "${item.productName}".`)
-        return
-      }
-      if (reqLargura && item.largura == null) {
-        Alert.alert('Campo obrigatório', `Informe a largura de "${item.productName}".`)
-        return
-      }
-      if (reqEspessura && item.espessura == null) {
-        Alert.alert('Campo obrigatório', `Informe a espessura de "${item.productName}".`)
-        return
-      }
-      if (reqEncolhimento && !item.encolhimento?.trim()) {
-        Alert.alert('Campo obrigatório', `Informe o encolhimento de "${item.productName}".`)
-        return
-      }
-      if (reqTara && item.tara == null) {
-        Alert.alert('Campo obrigatório', `Informe a tara de "${item.productName}".`)
-        return
-      }
-    }
-    if (reqTransportadora && !transportadora) {
-      Alert.alert('Campo obrigatório', 'Selecione uma transportadora.')
-      return
-    }
-    if (reqCondPag && !condPag) {
-      Alert.alert('Campo obrigatório', 'Selecione uma condição de pagamento.')
-      return
-    }
-    if (reqMennota && !mennota.trim()) {
-      Alert.alert('Campo obrigatório', 'Preencha a observação da nota fiscal.')
-      return
-    }
-    if (reqNotes && !notes.trim()) {
-      Alert.alert('Campo obrigatório', 'Preencha a observação interna.')
-      return
-    }
+    const result = validate({ cart, transportadora, condPag, mennota, notes })
+    setErrors(result.errors)
+    if (!result.ok) return
+
     atualizar(
       {
         id,
         input: {
           transportId: transportadora?.id,
-          condId:      condPag?.id,
-          mennota:     mennota || undefined,
-          notes:       notes   || undefined,
-          items: cart.map((i) => ({
-            productId:    i.productId,
-            quantity:     i.quantity,
-            unitPrice:    i.unitPrice,
-            discount:     i.discount,
-            descricao:    i.descricao,
-            largura:      i.largura,
-            espessura:    i.espessura,
-            encolhimento: i.encolhimento,
-            xcrav:        i.xcrav as '1' | '2' | undefined,
-            tara:         i.tara,
-          })),
+          condId: condPag?.id,
+          mennota: mennota || undefined,
+          notes: notes || undefined,
+          items: cartToOrderItems(cart),
         },
       },
       {
@@ -300,16 +142,14 @@ export default function EditarPedidoScreen() {
           ])
         },
         onError: (err: unknown) => {
-          const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
-            ?? 'Não foi possível salvar as alterações.'
-          Alert.alert('Erro', msg)
+          Alert.alert('Erro', getApiErrorMessage(err, 'Não foi possível salvar as alterações.'))
         },
       }
     )
   }
 
   if (loadingOrder || !initialized) {
-    return <ActivityIndicator style={{ flex: 1, marginTop: 40 }} color="#1B4FA8" />
+    return <LoadingState />
   }
 
   if (!order || order.status !== 'PENDING') {
@@ -321,184 +161,87 @@ export default function EditarPedidoScreen() {
   }
 
   return (
-    <ScrollView style={s.container} contentContainerStyle={{ padding: 16, paddingBottom: 40 }}>
+    <ScrollView
+      style={s.container}
+      contentContainerStyle={{ padding: spacing.md, paddingBottom: spacing.xl }}
+    >
       <Stack.Screen options={{ title: 'Editar pedido' }} />
 
       {/* Itens */}
-      <View style={s.box}>
-        <Text style={s.boxLabel}>Itens ({cart.length})</Text>
+      <View style={orderFormStyles.fieldBox}>
+        <Text style={orderFormStyles.fieldLabel}>Itens ({cart.length})</Text>
 
         {cart.length === 0 && (
           <Text style={s.emptyText}>Nenhum item. Adicione um produto abaixo.</Text>
         )}
 
         {cart.map((item) => (
-          <View key={item.productId} style={s.itemRow}>
-            {showDescricao ? (
-              <View style={s.itemExtraFull}>
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                  <Text style={s.controlLabel}>Descrição{reqDescricao ? ' *' : ''}</Text>
-                  <TouchableOpacity onPress={() => removeItem(item.productId)} style={s.removeBtn}>
-                    <Text style={s.removeBtnText}>×</Text>
-                  </TouchableOpacity>
-                </View>
-                <TextInput
-                  style={s.priceInput}
-                  placeholder="Descrição do item"
-                  defaultValue={item.descricao ?? ''}
-                  onEndEditing={(e) => updateStrField(item.productId, 'descricao', e.nativeEvent.text)}
-                  placeholderTextColor="#94A3B8"
-                />
-              </View>
-            ) : (
-              <View style={s.itemHeader}>
-                <Text style={s.itemName} numberOfLines={2}>{item.productName}</Text>
-                <TouchableOpacity onPress={() => removeItem(item.productId)} style={s.removeBtn}>
-                  <Text style={s.removeBtnText}>×</Text>
-                </TouchableOpacity>
-              </View>
-            )}
-
-            <View style={[s.itemControls, { marginTop: 8 }]}>
-              <View style={s.itemQty}>
-                <Text style={s.controlLabel}>Qtd</Text>
-                <TextInput
-                  style={s.priceInput}
-                  keyboardType="decimal-pad"
-                  defaultValue={item.quantity.toLocaleString('pt-BR', { maximumFractionDigits: 3 })}
-                  onEndEditing={(e) => {
-                    const raw = parseFloat(e.nativeEvent.text.replace(',', '.'))
-                    updateQty(item.productId, isNaN(raw) ? 1 : raw)
-                  }}
-                  placeholderTextColor="#94A3B8"
-                />
-              </View>
-
-              {showUnitPrice && (
-                <View style={s.itemPrice}>
-                  <Text style={s.controlLabel}>Preço unit. (R$){reqUnitPrice ? ' *' : ''}</Text>
-                  <TextInput
-                    style={s.priceInput}
-                    keyboardType="decimal-pad"
-                    defaultValue={item.unitPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                    onEndEditing={(e) => updatePrice(item.productId, e.nativeEvent.text)}
-                    placeholderTextColor="#94A3B8"
-                  />
-                </View>
-              )}
-
-              <View style={s.itemSubtotal}>
-                <Text style={s.controlLabel}>Subtotal</Text>
-                <Text style={s.subtotalValue}>
-                  R$ {fmtMoeda(item.unitPrice * item.quantity * (1 - item.discount / 100))}
-                </Text>
-              </View>
-            </View>
-
-            {(showLargura || showEspessura || showTara) && (
-              <View style={s.itemExtraRow}>
-                {showLargura && (
-                  <View style={s.itemExtraField}>
-                    <Text style={s.controlLabel}>Largura{reqLargura ? ' *' : ''}</Text>
-                    <TextInput
-                      style={s.priceInput}
-                      keyboardType="decimal-pad"
-                      placeholder="0"
-                      defaultValue={item.largura != null ? String(item.largura) : ''}
-                      onEndEditing={(e) => updateNumField(item.productId, 'largura', e.nativeEvent.text)}
-                    />
-                  </View>
-                )}
-                {showEspessura && (
-                  <View style={s.itemExtraField}>
-                    <Text style={s.controlLabel}>Espessura{reqEspessura ? ' *' : ''}</Text>
-                    <TextInput
-                      style={s.priceInput}
-                      keyboardType="decimal-pad"
-                      placeholder="0"
-                      defaultValue={item.espessura != null ? String(item.espessura) : ''}
-                      onEndEditing={(e) => updateNumField(item.productId, 'espessura', e.nativeEvent.text)}
-                    />
-                  </View>
-                )}
-                {showTara && (
-                  <View style={s.itemExtraField}>
-                    <Text style={s.controlLabel}>Tara{reqTara ? ' *' : ''}</Text>
-                    <TextInput
-                      style={s.priceInput}
-                      keyboardType="decimal-pad"
-                      placeholder="0"
-                      defaultValue={item.tara != null ? String(item.tara) : ''}
-                      onEndEditing={(e) => updateNumField(item.productId, 'tara', e.nativeEvent.text)}
-                    />
-                  </View>
-                )}
-              </View>
-            )}
-
-            {showEncolhimento && (
-              <View style={s.itemExtraFull}>
-                <Text style={s.controlLabel}>Encolhimento{reqEncolhimento ? ' *' : ''}</Text>
-                <TextInput
-                  style={s.priceInput}
-                  placeholder="Texto"
-                  defaultValue={item.encolhimento ?? ''}
-                  onEndEditing={(e) => updateStrField(item.productId, 'encolhimento', e.nativeEvent.text)}
-                />
-              </View>
-            )}
-
-            {showXcrav && (
-              <View style={s.itemExtraFull}>
-                <Text style={s.controlLabel}>Largura Crav.{reqXcrav ? ' *' : ''}</Text>
-                <TouchableOpacity
-                  style={[s.xcravBtn, item.xcrav === '1' && s.xcravBtnActive]}
-                  onPress={() => toggleXcrav(item.productId)}
-                  activeOpacity={0.8}
-                >
-                  <Text style={[s.xcravBtnText, item.xcrav === '1' && s.xcravBtnTextActive]}>
-                    {item.xcrav === '1' ? 'Sim' : 'Não'}
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            )}
-          </View>
+          <CartItemEditor
+            key={item.productId}
+            item={item}
+            errors={errors.items[item.productId]}
+            onChange={(updated) => {
+              clearItemErrors(item.productId, changedItemFields(item, updated))
+              setCart((prev) => prev.map((i) => (i.productId === item.productId ? updated : i)))
+            }}
+            onRemove={() => {
+              clearItemErrors(item.productId)
+              setCart((prev) => prev.filter((i) => i.productId !== item.productId))
+            }}
+          />
         ))}
       </View>
 
       {/* Adicionar produto */}
-      <TouchableOpacity
+      <Button
+        variant="secondary"
         style={s.addProductBtn}
         onPress={() => setShowSearch((v) => !v)}
-        activeOpacity={0.8}
+        icon={
+          showSearch ? (
+            <Minus size={16} color={colors.brand.primary} strokeWidth={1.5} />
+          ) : (
+            <Plus size={16} color={colors.brand.primary} strokeWidth={1.5} />
+          )
+        }
       >
-        <Text style={s.addProductBtnText}>{showSearch ? '− Fechar busca' : '+ Adicionar produto'}</Text>
-      </TouchableOpacity>
+        {showSearch ? 'Fechar busca' : 'Adicionar produto'}
+      </Button>
 
       {showSearch && (
-        <View style={s.box}>
-          <TextInput
-            style={s.searchInput}
+        <View style={orderFormStyles.fieldBox}>
+          <Input
             placeholder="Buscar produto..."
             value={search}
             onChangeText={setSearch}
+            onClear={() => setSearch('')}
+            leftElement={<Search size={16} color={colors.neutral.placeholder} strokeWidth={1.5} />}
+            containerStyle={s.searchInput}
             autoFocus
           />
           {loadingProducts ? (
-            <ActivityIndicator style={{ marginTop: 8 }} color="#1B4FA8" />
+            <LoadingState style={s.searchLoading} />
           ) : (
             <FlatList
               data={products}
               keyExtractor={(p) => p.id}
               scrollEnabled={false}
               renderItem={({ item }) => (
-                <TouchableOpacity style={s.productItem} onPress={() => addProduct(item)}>
+                <Card padding="sm" style={s.productItem} onPress={() => addProduct(item)}>
                   <Text style={s.productItemName}>{item.name}</Text>
-                  <Text style={s.productItemSub}>R$ {fmtMoeda(item.price)} / {item.unit}</Text>
-                </TouchableOpacity>
+                  <Text style={s.productItemSub}>
+                    R$ {fmtMoeda(item.price)} / {item.unit}
+                  </Text>
+                </Card>
               )}
               ListEmptyComponent={
-                search.length > 0 ? <Text style={s.emptyText}>Nenhum produto encontrado.</Text> : null
+                search.length > 0 ? (
+                  <EmptyState
+                    illustration="products"
+                    title="Nenhum produto encontrado"
+                    subtitle={`Não encontramos produtos para "${search}".`}
+                  />
+                ) : null
               }
             />
           )}
@@ -511,9 +254,13 @@ export default function EditarPedidoScreen() {
           label={reqTransportadora ? 'Transportadora *' : 'Transportadora'}
           selected={transportadora ? { id: transportadora.id, nome: transportadora.nome } : null}
           items={transportadoras.map((t) => ({ id: t.id, nome: t.nome }))}
-          onSelect={(item) => setTransportadora(item ? (transportadoras.find((t) => t.id === item.id) ?? null) : null)}
+          onSelect={(item) => {
+            clearError('transportadora')
+            setTransportadora(item ? (transportadoras.find((t) => t.id === item.id) ?? null) : null)
+          }}
           loading={loadingTransp}
           disabled={!canChangeCarrier}
+          error={errors.transportadora}
         />
       )}
 
@@ -523,265 +270,154 @@ export default function EditarPedidoScreen() {
           label={reqCondPag ? 'Cond. Pagamento *' : 'Cond. Pagamento'}
           selected={condPag ? { id: condPag.id, nome: condPag.nome } : null}
           items={condPags.map((c) => ({ id: c.id, nome: c.nome }))}
-          onSelect={(item) => setCondPag(item ? (condPags.find((c) => c.id === item.id) ?? null) : null)}
+          onSelect={(item) => {
+            clearError('condPag')
+            setCondPag(item ? (condPags.find((c) => c.id === item.id) ?? null) : null)
+          }}
           loading={loadingCond}
           disabled={!canChangePaymentTerms}
+          error={errors.condPag}
         />
       )}
 
       {/* Obs. Nota Fiscal */}
       {showMennota && (
-        <View style={s.box}>
-          <Text style={s.boxLabel}>Obs. Nota Fiscal{reqMennota ? ' *' : ''}</Text>
-          <TextInput
-            style={s.notesInput}
+        <View style={orderFormStyles.fieldBox}>
+          <Text style={orderFormStyles.fieldLabel}>Obs. Nota Fiscal{reqMennota ? ' *' : ''}</Text>
+          <Input
+            containerStyle={orderFormStyles.notesField}
+            style={orderFormStyles.notesInput}
             placeholder="Mensagem para a nota fiscal (opcional)..."
             value={mennota}
-            onChangeText={setMennota}
+            onChangeText={(text) => {
+              clearError('mennota')
+              setMennota(text)
+            }}
             multiline
             numberOfLines={3}
             textAlignVertical="top"
+            error={errors.mennota}
           />
         </View>
       )}
 
       {/* Obs. Interna */}
       {showNotes && (
-        <View style={s.box}>
-          <Text style={s.boxLabel}>Obs. Interna{reqNotes ? ' *' : ''}</Text>
-          <TextInput
-            style={s.notesInput}
+        <View style={orderFormStyles.fieldBox}>
+          <Text style={orderFormStyles.fieldLabel}>Obs. Interna{reqNotes ? ' *' : ''}</Text>
+          <Input
+            containerStyle={orderFormStyles.notesField}
+            style={orderFormStyles.notesInput}
             placeholder="Observação interna (não sai na nota)..."
             value={notes}
-            onChangeText={setNotes}
+            onChangeText={(text) => {
+              clearError('notes')
+              setNotes(text)
+            }}
             multiline
             numberOfLines={3}
             textAlignVertical="top"
+            error={errors.notes}
           />
         </View>
       )}
 
       {/* Total */}
-      <View style={s.totalCard}>
+      <Card style={s.totalCard}>
         <Text style={s.totalLabel}>Total do pedido</Text>
         <Text style={s.totalValue}>R$ {fmtMoeda(total)}</Text>
-      </View>
+      </Card>
+
+      {showErrorSummary && (
+        <Text style={orderFormStyles.formError} accessibilityLiveRegion="polite">
+          {errors.form ?? 'Corrija os campos destacados antes de salvar.'}
+        </Text>
+      )}
 
       {/* Salvar */}
-      <TouchableOpacity
-        style={[s.saveBtn, (isSaving || cart.length === 0) && { opacity: 0.5 }]}
+      <Button
+        size="lg"
+        style={s.saveBtn}
         onPress={handleSave}
-        disabled={isSaving || cart.length === 0}
-        activeOpacity={0.8}
+        loading={isSaving}
+        disabled={cart.length === 0}
       >
-        {isSaving
-          ? <ActivityIndicator color="#fff" />
-          : <Text style={s.saveBtnText}>Salvar alterações</Text>
-        }
-      </TouchableOpacity>
+        Salvar alterações
+      </Button>
 
-      <TouchableOpacity style={s.cancelBtn} onPress={() => router.back()} disabled={isSaving}>
-        <Text style={s.cancelBtnText}>Cancelar</Text>
-      </TouchableOpacity>
+      <Button
+        variant="ghostDanger"
+        style={s.cancelBtn}
+        onPress={() => router.back()}
+        disabled={isSaving}
+      >
+        Cancelar
+      </Button>
     </ScrollView>
   )
 }
 
 const s = StyleSheet.create({
-  container:  { flex: 1, backgroundColor: '#F8FAFC' },
-  center:     { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  errorText:  { color: '#EF4444', fontFamily: 'Inter_400Regular' },
-  emptyText:  { color: '#94A3B8', fontFamily: 'Inter_400Regular', fontSize: 13, textAlign: 'center', paddingVertical: 8 },
-
-  box: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    padding: 14,
-    marginBottom: 10,
-  },
-  boxLabel: {
-    fontFamily: 'PlusJakartaSans_600SemiBold',
-    fontSize: 12,
-    color: '#64748B',
-    marginBottom: 10,
-  },
-
-  itemRow: {
-    borderTopWidth: 1,
-    borderTopColor: '#F1F5F9',
-    paddingTop: 10,
-    marginTop: 6,
-  },
-  itemHeader: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
-    marginBottom: 8,
-  },
-  itemName: {
-    flex: 1,
-    fontFamily: 'PlusJakartaSans_600SemiBold',
+  container: { flex: 1, backgroundColor: colors.neutral.bg },
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  errorText: { color: colors.semantic.danger, fontFamily: typography.fontFamily.body },
+  emptyText: {
+    color: colors.neutral.textSub,
+    fontFamily: typography.fontFamily.body,
     fontSize: 13,
-    color: '#0D2045',
-    marginRight: 8,
+    textAlign: 'center',
+    paddingVertical: spacing.sm,
   },
-  removeBtn: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: '#FEE2E2',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  removeBtnText: { color: '#DC2626', fontSize: 18, fontWeight: '700', lineHeight: 22 },
-
-  itemControls:  { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  itemQty:       { alignItems: 'center' },
-  itemPrice:     { flex: 1, alignItems: 'flex-start' },
-  itemSubtotal:  { alignItems: 'flex-end' },
-  controlLabel:  { fontFamily: 'Inter_400Regular', fontSize: 10, color: '#94A3B8', marginBottom: 4 },
-  qtyRow:        { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  qtyBtn:        { fontSize: 20, color: '#1B4FA8', paddingHorizontal: 4 },
-  qtyNum:        { fontFamily: 'PlusJakartaSans_700Bold', fontSize: 14, minWidth: 20, textAlign: 'center', color: '#0D2045' },
-  priceInput: {
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    borderRadius: 6,
-    padding: 6,
-    fontSize: 13,
-    minWidth: 80,
-    backgroundColor: '#F8FAFC',
-    fontFamily: 'Inter_400Regular',
-    color: '#0D2045',
-  },
-  subtotalValue: { fontFamily: 'PlusJakartaSans_700Bold', fontSize: 13, color: '#0D2045' },
-
-  itemExtraRow:   { flexDirection: 'row', gap: 8, marginTop: 8, flexWrap: 'wrap' },
-  itemExtraField: { flex: 1, minWidth: 80 },
-  itemExtraFull:  { marginTop: 8 },
-  xcravBtn: {
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    borderRadius: 6,
-    paddingHorizontal: 16,
-    paddingVertical: 6,
-    alignSelf: 'flex-start',
-    backgroundColor: '#F8FAFC',
-  },
-  xcravBtnActive:     { backgroundColor: '#1B4FA8', borderColor: '#1B4FA8' },
-  xcravBtnText:       { fontFamily: 'Inter_400Regular', fontSize: 13, color: '#475569' },
-  xcravBtnTextActive: { color: '#FFFFFF' },
 
   addProductBtn: {
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#1B4FA8',
-    borderStyle: 'dashed',
-    padding: 12,
-    alignItems: 'center',
-    marginBottom: 10,
-    backgroundColor: '#FFFFFF',
-  },
-  addProductBtnText: {
-    fontFamily: 'PlusJakartaSans_600SemiBold',
-    fontSize: 14,
-    color: '#1B4FA8',
+    marginBottom: spacing.sm,
+    backgroundColor: colors.neutral.white,
   },
 
   searchInput: {
-    backgroundColor: '#F8FAFC',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    padding: 10,
-    fontSize: 14,
-    fontFamily: 'Inter_400Regular',
-    marginBottom: 8,
-    color: '#0D2045',
+    backgroundColor: colors.neutral.bg,
+    marginBottom: spacing.sm,
+  },
+  searchLoading: {
+    paddingVertical: spacing.md,
   },
   productItem: {
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F1F5F9',
+    marginBottom: spacing.sm,
   },
-  productItemName: { fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: 14, color: '#0D2045' },
-  productItemSub:  { fontFamily: 'Inter_400Regular', fontSize: 12, color: '#64748B', marginTop: 2 },
-
-  pickerBtn: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    borderRadius: 8,
-    padding: 10,
-    backgroundColor: '#F8FAFC',
-  },
-  pickerBtnDisabled: { opacity: 0.6 },
-  pickerBtnText:        { fontFamily: 'Inter_400Regular', fontSize: 14, color: '#0D2045' },
-  pickerBtnPlaceholder: { fontFamily: 'Inter_400Regular', fontSize: 14, color: '#94A3B8' },
-  pickerBtnIcon:        { fontSize: 12, color: '#64748B' },
-  pickerList: {
-    marginTop: 4,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    borderRadius: 8,
-    backgroundColor: '#FFFFFF',
-    overflow: 'hidden',
-  },
-  pickerItem:         { paddingVertical: 10, paddingHorizontal: 12, borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
-  pickerItemText:     { fontFamily: 'Inter_400Regular', fontSize: 14, color: '#475569' },
-  pickerItemSelected: { fontFamily: 'PlusJakartaSans_600SemiBold', color: '#1B4FA8' },
-
-  notesInput: {
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    borderRadius: 8,
-    padding: 10,
+  productItemName: {
+    fontFamily: typography.fontFamily.sansSemibold,
     fontSize: 14,
-    fontFamily: 'Inter_400Regular',
-    minHeight: 80,
-    backgroundColor: '#F8FAFC',
-    color: '#0D2045',
+    color: colors.brand.dark,
+  },
+  productItemSub: {
+    fontFamily: typography.fontFamily.body,
+    fontSize: 12,
+    color: colors.neutral.textSub,
+    marginTop: spacing.xs,
   },
 
   totalCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    padding: 16,
+    borderRadius: radius.md,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: spacing.sm,
   },
-  totalLabel: { fontFamily: 'Inter_400Regular', fontSize: 14, color: '#64748B' },
-  totalValue: { fontFamily: 'PlusJakartaSans_700Bold', fontSize: 22, color: '#0D2045' },
+  totalLabel: {
+    fontFamily: typography.fontFamily.body,
+    fontSize: 14,
+    color: colors.neutral.textSub,
+  },
+  totalValue: {
+    fontFamily: typography.fontFamily.sansBold,
+    fontSize: 22,
+    color: colors.brand.dark,
+  },
 
   saveBtn: {
-    backgroundColor: '#1B4FA8',
-    borderRadius: 10,
-    padding: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 8,
-  },
-  saveBtnText: {
-    fontFamily: 'PlusJakartaSans_600SemiBold',
-    fontSize: 15,
-    color: '#FFFFFF',
+    marginBottom: spacing.sm,
   },
   cancelBtn: {
-    padding: 14,
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  cancelBtnText: {
-    fontFamily: 'PlusJakartaSans_600SemiBold',
-    fontSize: 14,
-    color: '#EF4444',
+    marginBottom: spacing.sm,
   },
 })

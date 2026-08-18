@@ -1,8 +1,14 @@
-import { useSyncStore, selectPendingCount, selectHasPending, selectPendingItems, selectErrorItems } from '../../store/syncStore'
+import {
+  useSyncStore,
+  selectPendingCount,
+  selectHasPending,
+  selectPendingItems,
+  selectErrorItems,
+} from '../../store/syncStore'
 import { processSyncQueue } from '../../services/syncEngine'
 
 jest.mock('@react-native-async-storage/async-storage', () =>
-  require('@react-native-async-storage/async-storage/jest/async-storage-mock'),
+  require('@react-native-async-storage/async-storage/jest/async-storage-mock')
 )
 jest.mock('../../lib/api', () => ({
   api: { post: jest.fn() },
@@ -14,7 +20,11 @@ jest.mock('@react-native-community/netinfo', () => ({
   addEventListener: jest.fn(() => jest.fn()),
 }))
 jest.mock('../../services/pilotTracking', () => ({
-  pilotTracker: { track: jest.fn(), getOrderDuration: jest.fn().mockReturnValue(0), startOrderTimer: jest.fn() },
+  pilotTracker: {
+    track: jest.fn(),
+    getOrderDuration: jest.fn().mockReturnValue(0),
+    startOrderTimer: jest.fn(),
+  },
 }))
 
 const validPayload = { customerId: 'c1', branchId: 'b1', items: [{ productId: 'p1', quantity: 1 }] }
@@ -25,9 +35,7 @@ const validPayload = { customerId: 'c1', branchId: 'b1', items: [{ productId: 'p
 function retryItem(id: string) {
   useSyncStore.setState((s) => ({
     queue: s.queue.map((item) =>
-      item.id === id
-        ? { ...item, status: 'pending' as const, attempts: 0, lastError: null }
-        : item,
+      item.id === id ? { ...item, status: 'pending' as const, attempts: 0, lastError: null } : item
     ),
   }))
   return processSyncQueue()

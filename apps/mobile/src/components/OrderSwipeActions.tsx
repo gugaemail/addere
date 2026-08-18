@@ -3,6 +3,7 @@ import { View, Text, TouchableOpacity, StyleSheet } from 'react-native'
 import ReanimatedSwipeable from 'react-native-gesture-handler/ReanimatedSwipeable'
 import { FileText } from 'lucide-react-native'
 import type { Order } from '@addere/types'
+import { colors, spacing, radius, typography } from '../theme'
 
 interface Props {
   order: Order
@@ -13,7 +14,7 @@ interface Props {
 function PdfActionButton({ onPress }: { onPress: () => void }) {
   return (
     <TouchableOpacity style={s.action} onPress={onPress} activeOpacity={0.75}>
-      <FileText size={20} color="#fff" strokeWidth={1.5} />
+      <FileText size={20} color={colors.neutral.white} strokeWidth={1.5} />
       <Text style={s.actionText}>PDF</Text>
     </TouchableOpacity>
   )
@@ -40,20 +41,20 @@ const s = StyleSheet.create({
   rightContainer: {
     justifyContent: 'center',
     alignItems: 'center',
-    marginLeft: 6,
+    marginLeft: spacing.sm,
   },
   action: {
-    backgroundColor: '#1B4FA8',
+    backgroundColor: colors.brand.primary,
     justifyContent: 'center',
     alignItems: 'center',
     width: 68,
     height: '100%',
-    borderRadius: 12,
-    gap: 5,
+    borderRadius: radius.md,
+    gap: spacing.xs,
   },
   actionText: {
-    color: '#fff',
-    fontFamily: 'PlusJakartaSans_600SemiBold',
+    color: colors.neutral.white,
+    fontFamily: typography.fontFamily.sansSemibold,
     fontSize: 11,
   },
 })

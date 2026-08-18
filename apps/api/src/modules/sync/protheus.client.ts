@@ -15,18 +15,24 @@ interface TokenCache {
 const tokenCache = new Map<string, TokenCache>()
 
 export interface CompanyCredentials {
-  apiToken:     string  // URL do endpoint de autenticação
-  usrProtheus:  string
+  apiToken: string // URL do endpoint de autenticação
+  usrProtheus: string
   passProtheus: string
-  syncConfig?:  Record<string, unknown> | null
+  syncConfig?: Record<string, unknown> | null
 }
 
 function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => reject(new Error(`Timeout de ${ms / 1000}s ao ${label}`)), ms)
     promise.then(
-      (v) => { clearTimeout(timer); resolve(v) },
-      (e) => { clearTimeout(timer); reject(e) }
+      (v) => {
+        clearTimeout(timer)
+        resolve(v)
+      },
+      (e) => {
+        clearTimeout(timer)
+        reject(e)
+      }
     )
   })
 }
@@ -55,7 +61,10 @@ async function getToken(companyId: string, creds: CompanyCredentials): Promise<s
   const tokenField = (creds.syncConfig?.tokenField as string | undefined) ?? 'access_token'
   const token = response.data[tokenField] as string | undefined
 
-  if (!token) throw new Error(`Token não encontrado na resposta (campo esperado: "${tokenField}"). Campos recebidos: ${Object.keys(response.data as object).join(', ')}`)
+  if (!token)
+    throw new Error(
+      `Token não encontrado na resposta (campo esperado: "${tokenField}"). Campos recebidos: ${Object.keys(response.data as object).join(', ')}`
+    )
 
   // Cache por 55 minutos (tokens Protheus geralmente expiram em 1h)
   tokenCache.set(companyId, {
@@ -81,7 +90,11 @@ async function postJson(
 
   return new Promise<unknown>((resolve, reject) => {
     let u: URL
-    try { u = new URL(urlStr) } catch { return reject(new Error(`URL inválida: ${urlStr}`)) }
+    try {
+      u = new URL(urlStr)
+    } catch {
+      return reject(new Error(`URL inválida: ${urlStr}`))
+    }
 
     const client = u.protocol === 'https:' ? https : http
     const req = client.request(
@@ -99,7 +112,10 @@ async function postJson(
           if (hopsLeft <= 0) return reject(new Error(`Muitos redirects em ${urlStr}`))
           const loc = res.headers.location
           if (!loc) return reject(new Error(`Redirect sem Location em ${urlStr}`))
-          postJson(new URL(loc, urlStr).href, body, headers, timeoutMs, hopsLeft - 1)
+          // Revalida o destino do redirect — sem isso um 302 para IP privado contorna o anti-SSRF
+          const nextUrl = new URL(loc, urlStr).href
+          assertSafeUrl(nextUrl, 'redirect')
+            .then(() => postJson(nextUrl, body, headers, timeoutMs, hopsLeft - 1))
             .then(resolve, reject)
           return
         }
@@ -111,15 +127,27 @@ async function postJson(
           const raw = Buffer.concat(chunks).toString('utf-8')
           if (res.statusCode && res.statusCode >= 400) {
             let data: unknown = raw
-            try { data = JSON.parse(raw) } catch { /* mantém string */ }
-            return reject(Object.assign(
-              new Error(`Protheus ${res.statusCode} em ${urlStr}`),
-              { response: { status: res.statusCode, data } }
-            ))
+            try {
+              data = JSON.parse(raw)
+            } catch {
+              /* mantém string */
+            }
+            return reject(
+              Object.assign(new Error(`Protheus ${res.statusCode} em ${urlStr}`), {
+                response: { status: res.statusCode, data },
+              })
+            )
           }
-          try { resolve(JSON.parse(raw)) } catch { resolve(raw) }
+          try {
+            resolve(JSON.parse(raw))
+          } catch {
+            resolve(raw)
+          }
         })
-        res.on('error', (e) => { clearTimeout(timer); reject(e) })
+        res.on('error', (e) => {
+          clearTimeout(timer)
+          reject(e)
+        })
       }
     )
 
@@ -127,7 +155,10 @@ async function postJson(
       () => req.destroy(new Error(`Timeout de ${timeoutMs / 1000}s em ${urlStr}`)),
       timeoutMs
     )
-    req.on('error', (e) => { clearTimeout(timer); reject(e) })
+    req.on('error', (e) => {
+      clearTimeout(timer)
+      reject(e)
+    })
     req.write(bodyBuf)
     req.end()
   })
@@ -136,49 +167,46 @@ async function postJson(
 function enrichError(err: unknown, url: string): never {
   const e = err as { response?: { status: number; data: unknown }; message: string }
   if (e.response) {
-    const detail = typeof e.response.data === 'object'
-      ? JSON.stringify(e.response.data)
-      : String(e.response.data ?? '')
-    throw new Error(`Protheus ${e.response.status} em ${url}${detail ? ': ' + detail : ''}`)
+    // O corpo da resposta do ERP não entra na mensagem — mensagens de erro
+    // acabam em respostas HTTP ao cliente; o detalhe segue em response.data para log
+    throw Object.assign(new Error(`Protheus ${e.response.status} em ${url}`), {
+      response: e.response,
+    })
   }
   throw err as Error
-}
-
-export async function protheusGet(
-  companyId: string,
-  url: string,
-  creds: CompanyCredentials
-): Promise<unknown> {
-  await assertSafeUrl(url, 'url')
-  const token = await getToken(companyId, creds)
-  try {
-    const response = await axios.get(url, {
-      headers: { Authorization: `Bearer ${token}` },
-      timeout: 60000,
-    })
-    return response.data
-  } catch (err) {
-    return enrichError(err, url)
-  }
 }
 
 export async function protheusPost(
   companyId: string,
   url: string,
   body: unknown,
-  creds: CompanyCredentials
+  creds: CompanyCredentials,
+  isRetry = false
 ): Promise<unknown> {
   await assertSafeUrl(url, 'url')
   const token = await getToken(companyId, creds)
   try {
-    return await postJson(url, body, {
-      Authorization: `Bearer ${token}`,
-      'Content-Type': 'application/json',
-    }, 60000)
+    return await postJson(
+      url,
+      body,
+      {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      60000
+    )
   } catch (err) {
-    const e = err as { code?: string; message?: string }
+    const e = err as { code?: string; message?: string; response?: { status?: number } }
+    // Token cacheado pode ter sido revogado antes dos 55 min — renova e retenta uma vez
+    if (e.response?.status === 401 && !isRetry) {
+      invalidateToken(companyId)
+      return protheusPost(companyId, url, body, creds, true)
+    }
     if (e.code === 'ECONNRESET' || e.message === 'socket hang up') {
-      throw new Error('Protheus encerrou a conexão sem responder. Verifique os logs do servidor Protheus (possível campo inválido ou erro interno).')
+      throw new Error(
+        'Protheus encerrou a conexão sem responder. Verifique os logs do servidor Protheus (possível campo inválido ou erro interno).',
+        { cause: err }
+      )
     }
     return enrichError(err, url)
   }

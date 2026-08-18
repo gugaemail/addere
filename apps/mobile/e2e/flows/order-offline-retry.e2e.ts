@@ -1,5 +1,7 @@
+import { by, device, element, expect, waitFor } from 'detox'
 import { loginAs } from '../helpers/auth'
-import { goOffline, goOnline } from '../helpers/network'
+import { goToPedidos } from '../helpers/navigation'
+import { adbShell, goOffline, goOnline } from '../helpers/network'
 
 describe('Reenvio manual de pedido com erro', () => {
   beforeAll(async () => {
@@ -10,6 +12,8 @@ describe('Reenvio manual de pedido com erro', () => {
   it('exibe botão de reenvio e permite retry manual após falha de sync', async () => {
     // Criar pedido offline
     await goOffline()
+
+    await goToPedidos()
 
     await element(by.id('btn-novo-pedido')).tap()
     await element(by.id('input-busca-cliente')).typeText('Cliente Teste')
@@ -35,8 +39,8 @@ describe('Reenvio manual de pedido com erro', () => {
     // Voltar online com rota /orders bloqueada para forçar erro no sync
     await device.setURLBlacklist(['.*/orders.*'])
     if (device.getPlatform() === 'android') {
-      await device.execOnDevice('adb shell svc wifi enable')
-      await device.execOnDevice('adb shell svc data enable')
+      adbShell('svc wifi enable')
+      adbShell('svc data enable')
     }
     await new Promise<void>((r) => setTimeout(r, 3000))
 

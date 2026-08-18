@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from 'react'
 import { Animated, StyleSheet, View } from 'react-native'
 import { LogoMark } from '../components/brand/LogoMark'
+import { colors, spacing, typography } from '../theme'
 
 export function SplashScreen() {
   const opacity = useRef(new Animated.Value(0)).current
@@ -11,7 +12,7 @@ export function SplashScreen() {
       duration: 800,
       useNativeDriver: true,
     }).start()
-  }, [])
+  }, [opacity])
 
   return (
     <View style={styles.container}>
@@ -27,7 +28,7 @@ export function SplashScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0D2045',
+    backgroundColor: colors.brand.dark,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -35,16 +36,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   logoText: {
-    marginTop: 16,
-    fontFamily: 'PlusJakartaSans_700Bold',
+    marginTop: spacing.md,
+    fontFamily: typography.fontFamily.sansBold,
     fontSize: 32,
-    color: '#FFFFFF',
+    color: colors.neutral.white,
     letterSpacing: 32 * -0.03,
   },
   subtitle: {
-    marginTop: 6,
-    fontFamily: 'Inter_400Regular',
+    marginTop: spacing.sm,
+    fontFamily: typography.fontFamily.body,
     fontSize: 14,
-    color: '#29BEFF',
+    color: colors.brand.accent,
   },
 })
