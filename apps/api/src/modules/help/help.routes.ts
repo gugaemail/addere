@@ -35,7 +35,7 @@ export default async function helpRoutes(app: FastifyInstance) {
           if (!ALLOWED_EXTENSIONS.has(ext)) {
             await part.toBuffer()
             return reply.status(400).send({
-              error: `Extensão não permitida. Use: ${[...ALLOWED_EXTENSIONS].join(', ')}`,
+              message: `Extensão não permitida. Use: ${[...ALLOWED_EXTENSIONS].join(', ')}`,
             })
           }
 
@@ -55,7 +55,7 @@ export default async function helpRoutes(app: FastifyInstance) {
     } catch (err: unknown) {
       const httpErr = err as { statusCode?: number }
       if (httpErr.statusCode === 413) {
-        return reply.status(413).send({ error: 'Arquivo muito grande. Máximo: 5MB.' })
+        return reply.status(413).send({ message: 'Arquivo muito grande. Máximo: 5MB.' })
       }
       throw err
     }
@@ -64,7 +64,7 @@ export default async function helpRoutes(app: FastifyInstance) {
     if (!result.success) {
       if (screenshotDiskPath) fs.rmSync(screenshotDiskPath, { force: true })
       const msg = result.error.errors[0]?.message ?? 'Dados inválidos'
-      return reply.status(400).send({ error: msg })
+      return reply.status(400).send({ message: msg })
     }
 
     try {
@@ -78,7 +78,7 @@ export default async function helpRoutes(app: FastifyInstance) {
     } catch (err) {
       if (screenshotDiskPath) fs.rmSync(screenshotDiskPath, { force: true })
       request.log.error(err, 'Erro ao criar help report')
-      return reply.status(500).send({ error: 'Erro interno. Tente novamente.' })
+      return reply.status(500).send({ message: 'Erro interno. Tente novamente.' })
     }
   })
 
@@ -88,7 +88,7 @@ export default async function helpRoutes(app: FastifyInstance) {
 
     const queryResult = listReportsQuerySchema.safeParse(request.query)
     if (!queryResult.success) {
-      return reply.status(400).send({ error: 'Parâmetros inválidos' })
+      return reply.status(400).send({ message: 'Parâmetros inválidos' })
     }
 
     const { limit, status } = queryResult.data
@@ -98,7 +98,7 @@ export default async function helpRoutes(app: FastifyInstance) {
       return reply.send(data)
     } catch (err) {
       request.log.error(err, 'Erro ao listar help reports')
-      return reply.status(500).send({ error: 'Erro interno. Tente novamente.' })
+      return reply.status(500).send({ message: 'Erro interno. Tente novamente.' })
     }
   })
 }

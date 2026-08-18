@@ -1,4 +1,5 @@
 import { prisma } from '@addere/db'
+import { notFound, forbidden, unprocessable } from '../../lib/errors'
 import type { CreateOrderInput, UpdateOrderInput } from './orders.schema'
 
 const orderInclude = {
@@ -22,14 +23,14 @@ export async function assertCarrierAndPaymentTermsAllowed(
   if (input.transportId === undefined && input.condId === undefined) return
 
   const customer = await prisma.customer.findFirst({ where: { id: customerId, companyId } })
-  if (!customer) throw new Error('Cliente não encontrado')
+  if (!customer) throw notFound('Cliente não encontrado')
 
   if (input.transportId !== undefined && !permissions.has('orders.change_carrier')) {
     const defaultTransp = customer.transpPadrao
       ? await prisma.transportadora.findFirst({ where: { companyId, protheusCode: customer.transpPadrao } })
       : null
     if (input.transportId !== (defaultTransp?.id ?? '')) {
-      throw new Error('Você não tem permissão para alterar a transportadora do pedido')
+      throw forbidden('Você não tem permissão para alterar a transportadora do pedido')
     }
   }
 
@@ -38,7 +39,7 @@ export async function assertCarrierAndPaymentTermsAllowed(
       ? await prisma.condPag.findFirst({ where: { companyId, protheusCode: customer.condPagPadrao } })
       : null
     if (input.condId !== (defaultCond?.id ?? '')) {
-      throw new Error('Você não tem permissão para alterar a condição de pagamento do pedido')
+      throw forbidden('Você não tem permissão para alterar a condição de pagamento do pedido')
     }
   }
 }
@@ -61,9 +62,9 @@ async function assertOrderRefsBelongToCompany(
       ? prisma.condPag.findFirst({ where: { id: refs.condId, companyId }, select: { id: true } })
       : Promise.resolve(null),
   ])
-  if (refs.branchId && !branch) throw new Error('Filial não encontrada')
-  if (refs.transportId && !transp) throw new Error('Transportadora não encontrada')
-  if (refs.condId && !cond) throw new Error('Condição de pagamento não encontrada')
+  if (refs.branchId && !branch) throw unprocessable('Filial não encontrada')
+  if (refs.transportId && !transp) throw unprocessable('Transportadora não encontrada')
+  if (refs.condId && !cond) throw unprocessable('Condição de pagamento não encontrada')
 }
 
 export async function getOrder(userId: string, companyId: string, orderId: string) {
@@ -100,8 +101,8 @@ export async function getOrderStats(userId: string, companyId: string) {
 
 export async function resetOrderToPending(companyId: string, orderId: string) {
   const order = await prisma.order.findFirst({ where: { id: orderId, companyId } })
-  if (!order) throw new Error('Pedido não encontrado')
-  if (order.status !== 'SYNCED') throw new Error('Apenas pedidos com status SYNCED podem ser revertidos para PENDING')
+  if (!order) throw notFound('Pedido não encontrado')
+  if (order.status !== 'SYNCED') throw unprocessable('Apenas pedidos com status SYNCED podem ser revertidos para PENDING')
   return prisma.order.update({
     where: { id: orderId },
     data: { status: 'PENDING', protheusOrderId: null, syncedAt: null },
@@ -111,16 +112,16 @@ export async function resetOrderToPending(companyId: string, orderId: string) {
 
 export async function cancelOrder(userId: string, companyId: string, orderId: string) {
   const order = await prisma.order.findFirst({ where: { id: orderId, userId, companyId } })
-  if (!order) throw new Error('Pedido não encontrado')
-  if (order.status === 'CANCELLED') throw new Error('Pedido já está cancelado')
-  if (order.status !== 'PENDING' && order.status !== 'SYNCED') throw new Error('Apenas pedidos pendentes ou sincronizados podem ser cancelados')
+  if (!order) throw notFound('Pedido não encontrado')
+  if (order.status === 'CANCELLED') throw unprocessable('Pedido já está cancelado')
+  if (order.status !== 'PENDING' && order.status !== 'SYNCED') throw unprocessable('Apenas pedidos pendentes ou sincronizados podem ser cancelados')
   return prisma.order.update({ where: { id: orderId }, data: { status: 'CANCELLED' }, include: orderInclude })
 }
 
 export async function updateOrder(userId: string, companyId: string, orderId: string, input: UpdateOrderInput, permissions: Set<string>) {
   const order = await prisma.order.findFirst({ where: { id: orderId, userId, companyId } })
-  if (!order) throw new Error('Pedido não encontrado')
-  if (order.status !== 'PENDING') throw new Error('Apenas pedidos pendentes podem ser editados')
+  if (!order) throw notFound('Pedido não encontrado')
+  if (order.status !== 'PENDING') throw unprocessable('Apenas pedidos pendentes podem ser editados')
 
   await assertCarrierAndPaymentTermsAllowed(companyId, order.customerId, input, permissions)
   await assertOrderRefsBelongToCompany(companyId, input)
@@ -131,7 +132,7 @@ export async function updateOrder(userId: string, companyId: string, orderId: st
   })
 
   if (products.length !== productIds.length) {
-    throw new Error('Um ou mais produtos não foram encontrados ou estão inativos')
+    throw unprocessable('Um ou mais produtos não foram encontrados ou estão inativos')
   }
 
   const productMap = new Map(products.map((p) => [p.id, p]))
@@ -192,7 +193,7 @@ export async function createOrder(userId: string, companyId: string, input: Crea
   })
 
   if (products.length !== productIds.length) {
-    throw new Error('Um ou mais produtos não foram encontrados ou estão inativos')
+    throw unprocessable('Um ou mais produtos não foram encontrados ou estão inativos')
   }
 
   const productMap = new Map(products.map((p) => [p.id, p]))

@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { Prisma } from '@prisma/client'
 import { prisma } from '@addere/db'
 import { authenticate, requireSuperAdmin } from '../../middleware/authenticate'
+import { requireCompany } from '../../middleware/require-company'
 
 // ─── Schemas ─────────────────────────────────────────────────────────────────
 
@@ -39,13 +40,10 @@ const updatePilotStatusSchema = z.object({
 export async function pilotRoutes(app: FastifyInstance) {
   // Recebimento de eventos do app mobile (autenticado por JWT do rep)
   app.post('/pilot/events', {
-    preHandler: authenticate,
+    preHandler: [authenticate, requireCompany],
   }, async (request, reply) => {
-    const { sub: repId, companyId } = request.user
-
-    if (!companyId) {
-      return reply.status(400).send({ message: 'Usuário sem empresa associada' })
-    }
+    const { sub: repId } = request.user
+    const companyId = request.user.companyId!
 
     const parsed = pilotEventSchema.safeParse(request.body)
     if (!parsed.success) {
@@ -77,13 +75,10 @@ export async function pilotRoutes(app: FastifyInstance) {
 
   // Feedback pós-sync do app mobile
   app.post('/pilot/feedback', {
-    preHandler: authenticate,
+    preHandler: [authenticate, requireCompany],
   }, async (request, reply) => {
-    const { sub: repId, companyId } = request.user
-
-    if (!companyId) {
-      return reply.status(400).send({ message: 'Usuário sem empresa associada' })
-    }
+    const { sub: repId } = request.user
+    const companyId = request.user.companyId!
 
     const parsed = pilotFeedbackSchema.safeParse(request.body)
     if (!parsed.success) {
@@ -124,6 +119,7 @@ export async function pilotRoutes(app: FastifyInstance) {
         _count: { select: { events: true, feedbacks: true } },
       },
       orderBy: { createdAt: 'desc' },
+      take: 200,
     })
     return reply.send(pilots)
   })

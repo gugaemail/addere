@@ -1,4 +1,5 @@
 import { prisma } from '@addere/db'
+import { notFound } from '../../lib/errors'
 
 const DEFAULT_LIMIT = 500
 
@@ -38,7 +39,7 @@ export async function getCustomerById(companyId: string, id: string) {
     },
   })
 
-  if (!customer) throw new Error('Cliente não encontrado')
+  if (!customer) throw notFound('Cliente não encontrado')
 
   return customer
 }

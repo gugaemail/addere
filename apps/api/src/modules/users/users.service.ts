@@ -21,6 +21,7 @@ export async function listUsers(requester: JwtPayload) {
     where,
     select: userSelect,
     orderBy: { createdAt: 'desc' },
+    take: 1000,
   })
 }
 
