@@ -1,11 +1,12 @@
 import { useState, useCallback } from 'react'
 import {
-  View, Text, StyleSheet, Modal, TouchableOpacity,
+  View, Text, StyleSheet, Modal,
   Dimensions,
 } from 'react-native'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import Svg, { Circle, Rect, Path, Line } from 'react-native-svg'
-import { colors } from '../../theme/colors'
+import { colors, spacing, radius, typography } from '../../theme'
+import { Button } from '../ui/Button'
 
 const STORAGE_KEY = 'hasCompletedOnboarding'
 const { width } = Dimensions.get('window')
@@ -19,13 +20,13 @@ function RepIllustration() {
       <Circle cx="80" cy="60" r="28" fill={colors.brand.primary} />
       <Rect x="52" y="88" width="56" height="52" rx="12" fill={colors.brand.primary} />
       {/* Rosto */}
-      <Circle cx="80" cy="60" r="20" fill="#E8F4FF" />
+      <Circle cx="80" cy="60" r="20" fill={colors.brand.tint} />
       <Circle cx="74" cy="57" r="3" fill={colors.brand.dark} />
       <Circle cx="86" cy="57" r="3" fill={colors.brand.dark} />
       <Path d="M74 67 Q80 73 86 67" stroke={colors.brand.dark} strokeWidth="2" fill="none" strokeLinecap="round" />
       {/* Tablet */}
-      <Rect x="88" y="96" width="28" height="36" rx="4" fill="#FFFFFF" stroke={colors.brand.accent} strokeWidth="2" />
-      <Rect x="92" y="102" width="20" height="12" rx="2" fill="#E8F4FF" />
+      <Rect x="88" y="96" width="28" height="36" rx="4" fill={colors.neutral.white} stroke={colors.brand.accent} strokeWidth="2" />
+      <Rect x="92" y="102" width="20" height="12" rx="2" fill={colors.brand.tint} />
       <Line x1="92" y1="120" x2="112" y2="120" stroke={colors.brand.accent} strokeWidth="1.5" />
       <Line x1="92" y1="125" x2="108" y2="125" stroke={colors.brand.accent} strokeWidth="1.5" />
     </Svg>
@@ -33,7 +34,7 @@ function RepIllustration() {
 }
 
 function OrderFlowIllustration({ step }: { step: number }) {
-  const stepColor = (s: number) => (step >= s ? colors.brand.primary : '#CBD5E1')
+  const stepColor = (s: number) => (step >= s ? colors.brand.primary : colors.neutral.disabled)
   return (
     <Svg width={260} height={100} viewBox="0 0 260 100">
       {[0, 1, 2].map((i) => (
@@ -45,15 +46,15 @@ function OrderFlowIllustration({ step }: { step: number }) {
       <Path d="M154 50 L186 50" stroke={stepColor(3)} strokeWidth={2} strokeDasharray="4 2" />
       {/* ícone cliente */}
       <Circle cx="50" cy="50" r="24" fill={stepColor(1)} />
-      <Circle cx="50" cy="44" r="8" fill="white" opacity="0.9" />
-      <Path d="M34 66 Q50 56 66 66" stroke="white" strokeWidth="2" fill="none" opacity="0.9" />
+      <Circle cx="50" cy="44" r="8" fill={colors.neutral.white} opacity="0.9" />
+      <Path d="M34 66 Q50 56 66 66" stroke={colors.neutral.white} strokeWidth="2" fill="none" opacity="0.9" />
       {/* ícone produto */}
       <Circle cx="130" cy="50" r="24" fill={stepColor(2)} />
-      <Rect x="120" y="41" width="20" height="18" rx="3" fill="white" opacity="0.9" />
+      <Rect x="120" y="41" width="20" height="18" rx="3" fill={colors.neutral.white} opacity="0.9" />
       <Path d="M124 45 L136 45M124 50 L133 50" stroke={stepColor(2)} strokeWidth="1.5" />
       {/* ícone confirmar */}
       <Circle cx="210" cy="50" r="24" fill={stepColor(3)} />
-      <Path d="M200 50 L207 57 L220 44" stroke="white" strokeWidth="2.5" fill="none" strokeLinecap="round" strokeLinejoin="round" opacity="0.9" />
+      <Path d="M200 50 L207 57 L220 44" stroke={colors.neutral.white} strokeWidth="2.5" fill="none" strokeLinecap="round" strokeLinejoin="round" opacity="0.9" />
     </Svg>
   )
 }
@@ -62,17 +63,17 @@ function OfflineIllustration() {
   return (
     <Svg width={120} height={120} viewBox="0 0 120 120">
       {/* Círculo de fundo com cor positiva */}
-      <Circle cx="60" cy="60" r="52" fill="#E8F4FF" />
+      <Circle cx="60" cy="60" r="52" fill={colors.brand.tint} />
       {/* Ícone wifi com X */}
       <Path d="M60 82 L60 82" stroke={colors.brand.primary} strokeWidth="4" strokeLinecap="round" />
       <Path d="M47 70 Q60 64 73 70" stroke={colors.brand.primary} strokeWidth="3" fill="none" strokeLinecap="round" opacity="0.5" />
       <Path d="M36 60 Q60 48 84 60" stroke={colors.brand.primary} strokeWidth="3" fill="none" strokeLinecap="round" opacity="0.3" />
       {/* Nuvem com seta para baixo (offline salvo) */}
       <Path d="M38 46 Q38 36 48 36 Q50 28 62 30 Q72 24 76 34 Q86 34 84 46 Z" fill={colors.brand.primary} />
-      <Path d="M60 42 L60 54 M54 50 L60 56 L66 50" stroke="white" strokeWidth="2.5" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+      <Path d="M60 42 L60 54 M54 50 L60 56 L66 50" stroke={colors.neutral.white} strokeWidth="2.5" fill="none" strokeLinecap="round" strokeLinejoin="round" />
       {/* Check verde */}
-      <Circle cx="82" cy="76" r="14" fill="#22C55E" />
-      <Path d="M76 76 L80 80 L88 70" stroke="white" strokeWidth="2.5" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+      <Circle cx="82" cy="76" r="14" fill={colors.semantic.success} />
+      <Path d="M76 76 L80 80 L88 70" stroke={colors.neutral.white} strokeWidth="2.5" fill="none" strokeLinecap="round" strokeLinejoin="round" />
     </Svg>
   )
 }
@@ -166,9 +167,9 @@ export function OnboardingFlow({ visible, onComplete }: Props) {
         </View>
 
         {/* Botão */}
-        <TouchableOpacity style={styles.button} onPress={advance} activeOpacity={0.85}>
-          <Text style={styles.buttonText}>{screen.buttonLabel}</Text>
-        </TouchableOpacity>
+        <Button variant="primary" size="lg" onPress={advance} style={styles.button}>
+          {screen.buttonLabel}
+        </Button>
       </View>
     </Modal>
   )
@@ -182,32 +183,32 @@ export async function shouldShowOnboarding(): Promise<boolean> {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F8FAFC',
-    paddingHorizontal: 24,
-    paddingTop: 60,
-    paddingBottom: 40,
+    backgroundColor: colors.neutral.bg,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing['3xl'],
+    paddingBottom: spacing.xl,
     alignItems: 'center',
   },
   dots: {
     flexDirection: 'row',
-    gap: 8,
-    marginBottom: 40,
+    gap: spacing.sm,
+    marginBottom: spacing.xl,
   },
   dot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: '#CBD5E1',
+    width: spacing.sm,
+    height: spacing.sm,
+    borderRadius: radius.xs,
+    backgroundColor: colors.neutral.disabled,
   },
   dotActive: {
     backgroundColor: colors.brand.primary,
-    width: 24,
+    width: spacing.lg,
   },
   illustration: {
     height: 180,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 40,
+    marginBottom: spacing.xl,
   },
   content: {
     flex: 1,
@@ -215,58 +216,49 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   title: {
-    fontFamily: 'PlusJakartaSans_700Bold',
+    fontFamily: typography.fontFamily.sansBold,
     fontSize: 26,
     color: colors.brand.dark,
     textAlign: 'center',
-    marginBottom: 12,
+    marginBottom: spacing.md,
   },
   subtitle: {
-    fontFamily: 'Inter_400Regular',
+    fontFamily: typography.fontFamily.body,
     fontSize: 16,
-    color: '#64748B',
+    color: colors.neutral.textSub,
     textAlign: 'center',
     lineHeight: 24,
     maxWidth: width - 80,
   },
   steps: {
     width: '100%',
-    gap: 16,
-    marginTop: 8,
+    gap: spacing.md,
+    marginTop: spacing.sm,
   },
   stepRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: spacing.md,
   },
   stepNumber: {
     width: 32,
     height: 32,
-    borderRadius: 16,
+    borderRadius: radius.full,
     backgroundColor: colors.brand.primary,
     alignItems: 'center',
     justifyContent: 'center',
   },
   stepNumberText: {
-    fontFamily: 'PlusJakartaSans_700Bold',
+    fontFamily: typography.fontFamily.sansBold,
     fontSize: 14,
-    color: '#FFFFFF',
+    color: colors.neutral.white,
   },
   stepText: {
-    fontFamily: 'Inter_400Regular',
+    fontFamily: typography.fontFamily.body,
     fontSize: 16,
     color: colors.brand.dark,
   },
   button: {
     width: '100%',
-    backgroundColor: colors.brand.primary,
-    paddingVertical: 16,
-    borderRadius: 10,
-    alignItems: 'center',
-  },
-  buttonText: {
-    fontFamily: 'PlusJakartaSans_700Bold',
-    fontSize: 16,
-    color: '#FFFFFF',
   },
 })

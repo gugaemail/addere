@@ -22,6 +22,8 @@ export const colors = {
     text:        '#1E293B',
     textSub:     '#64748B',
     placeholder: '#94A3B8',
+    // Elementos inativos/desabilitados (ex.: indicador de passo não atingido)
+    disabled:    '#CBD5E1',
   },
   // Paleta do tema escuro — consumida por src/theme.ts (useTheme)
   dark: {
@@ -32,6 +34,14 @@ export const colors = {
     text:      '#F1F5F9',
     textSub:   '#94A3B8',
     textMuted: '#64748B',
+  },
+  // Fundo escurecido atrás de modais/bottom sheets (navy a 45%)
+  overlay: {
+    scrim: 'rgba(13, 32, 69, 0.45)',
+  },
+  // Cores de marcas de terceiros usadas em ações de compartilhamento
+  external: {
+    whatsapp: '#25D366',
   },
   // Gradientes do logotipo (LogoMark) — variantes claro/escuro da marca
   logo: {

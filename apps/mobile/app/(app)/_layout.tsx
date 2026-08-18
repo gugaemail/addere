@@ -5,6 +5,7 @@ import { LayoutDashboard, Users, Package, ClipboardList } from 'lucide-react-nat
 import { brandScreenOptions } from '../../src/navigation/BrandHeader'
 import { OnboardingFlow, shouldShowOnboarding } from '../../src/components/onboarding/OnboardingFlow'
 import { FeedbackPrompt } from '../../src/components/FeedbackPrompt'
+import { colors, spacing, typography } from '../../src/theme'
 
 export default function AppLayout() {
   const [showOnboarding, setShowOnboarding] = useState(false)
@@ -23,19 +24,18 @@ export default function AppLayout() {
       <Tabs
       screenOptions={{
         ...brandScreenOptions,
-        tabBarActiveTintColor:   '#1B4FA8',
-        tabBarInactiveTintColor: '#94A3B8',
+        tabBarActiveTintColor:   colors.brand.primary,
+        tabBarInactiveTintColor: colors.neutral.placeholder,
         tabBarStyle: {
-          backgroundColor: '#FFFFFF',
-          borderTopColor:  '#E2E8F0',
+          backgroundColor: colors.neutral.white,
+          borderTopColor:  colors.neutral.border,
           borderTopWidth:  1,
           height:          60,
-          paddingBottom:   8,
+          paddingBottom:   spacing.sm,
         },
         tabBarLabelStyle: {
-          fontFamily: 'Inter_400Regular',
+          fontFamily: typography.fontFamily.bodySemibold,
           fontSize:   11,
-          fontWeight: '500',
         },
       }}
     >
@@ -44,7 +44,7 @@ export default function AppLayout() {
         options={{
           title: 'Dashboard',
           tabBarIcon: ({ color }) => (
-            <LayoutDashboard size={22} color={color} />
+            <LayoutDashboard size={22} color={color} strokeWidth={1.5} />
           ),
         }}
       />
@@ -54,7 +54,7 @@ export default function AppLayout() {
           title: 'Clientes',
           headerShown: false,
           tabBarIcon: ({ color }) => (
-            <Users size={22} color={color} />
+            <Users size={22} color={color} strokeWidth={1.5} />
           ),
         }}
       />
@@ -64,7 +64,7 @@ export default function AppLayout() {
           title: 'Produtos',
           headerShown: false,
           tabBarIcon: ({ color }) => (
-            <Package size={22} color={color} />
+            <Package size={22} color={color} strokeWidth={1.5} />
           ),
         }}
       />
@@ -74,7 +74,7 @@ export default function AppLayout() {
           title: 'Pedidos',
           headerShown: false,
           tabBarIcon: ({ color }) => (
-            <ClipboardList size={22} color={color} />
+            <ClipboardList size={22} color={color} strokeWidth={1.5} />
           ),
         }}
       />

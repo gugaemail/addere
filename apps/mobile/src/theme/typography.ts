@@ -1,10 +1,12 @@
 export const fontFamily = {
-  sans:         'PlusJakartaSans_400Regular',
+  // Plus Jakarta Sans — títulos e destaques
   sansMedium:   'PlusJakartaSans_500Medium',
   sansSemibold: 'PlusJakartaSans_600SemiBold',
   sansBold:     'PlusJakartaSans_700Bold',
-  mono:         'Inter_400Regular',
-  monoBold:     'Inter_700Bold',
+  // Inter — texto corrido (body)
+  body:         'Inter_400Regular',
+  bodySemibold: 'Inter_600SemiBold',
+  bodyBold:     'Inter_700Bold',
 } as const
 
 export const typography = {

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import {
-  View, Text, TouchableOpacity, StyleSheet,
+  View, Text, StyleSheet,
   KeyboardAvoidingView, Platform, ScrollView, Alert,
 } from 'react-native'
 import { useRouter } from 'expo-router'
@@ -8,19 +8,22 @@ import { Input } from '../../src/components/ui/Input'
 import { Button } from '../../src/components/ui/Button'
 import { LogoMark } from '../../src/components/brand/LogoMark'
 import { api } from '../../src/lib/api'
+import { colors, spacing, radius, typography } from '../../src/theme'
 
 export default function EsqueciSenhaScreen() {
   const router = useRouter()
   const [email, setEmail] = useState('')
+  const [emailError, setEmailError] = useState<string | undefined>(undefined)
   const [isPending, setIsPending] = useState(false)
   const [sent, setSent] = useState(false)
 
   async function handleSubmit() {
     const trimmed = email.trim().toLowerCase()
     if (!trimmed.includes('@')) {
-      Alert.alert('E-mail inválido', 'Informe um e-mail válido.')
+      setEmailError('Informe um e-mail válido.')
       return
     }
+    setEmailError(undefined)
 
     setIsPending(true)
     try {
@@ -53,9 +56,9 @@ export default function EsqueciSenhaScreen() {
                 Verifique sua caixa de entrada e clique no link para redefinir sua senha.
                 O link expira em 1 hora.
               </Text>
-              <TouchableOpacity onPress={() => router.back()} style={s.backBtn}>
-                <Text style={s.backBtnText}>Voltar para o login</Text>
-              </TouchableOpacity>
+              <Button variant="ghost" size="sm" onPress={() => router.back()} style={s.backBtn}>
+                Voltar para o login
+              </Button>
             </View>
           ) : (
             <>
@@ -67,19 +70,20 @@ export default function EsqueciSenhaScreen() {
                 <Input
                   label="E-mail"
                   value={email}
-                  onChangeText={setEmail}
+                  onChangeText={(t) => { setEmail(t); if (emailError) setEmailError(undefined) }}
                   autoCapitalize="none"
                   keyboardType="email-address"
                   autoComplete="email"
+                  error={emailError}
                 />
 
                 <Button onPress={handleSubmit} loading={isPending} size="lg" style={s.button}>
                   Enviar link de recuperação
                 </Button>
 
-                <TouchableOpacity onPress={() => router.back()} style={s.cancelBtn}>
-                  <Text style={s.cancelBtnText}>Voltar para o login</Text>
-                </TouchableOpacity>
+                <Button variant="ghost" size="sm" onPress={() => router.back()}>
+                  Voltar para o login
+                </Button>
               </View>
             </>
           )}
@@ -90,20 +94,17 @@ export default function EsqueciSenhaScreen() {
 }
 
 const s = StyleSheet.create({
-  container:   { flex: 1, backgroundColor: '#F8FAFC' },
-  scroll:      { flexGrow: 1, justifyContent: 'center', padding: 24 },
-  card:        { backgroundColor: '#FFFFFF', borderRadius: 20, padding: 32, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.08, shadowRadius: 4, elevation: 2 },
-  logoGroup:   { alignItems: 'center', marginBottom: 24 },
-  appName:     { fontFamily: 'PlusJakartaSans_700Bold', fontSize: 28, color: '#0D2045', marginTop: 12 },
-  title:       { fontFamily: 'Inter_400Regular', fontSize: 14, color: '#64748B', marginTop: 4 },
-  description: { fontFamily: 'Inter_400Regular', fontSize: 14, color: '#64748B', lineHeight: 20, marginBottom: 24 },
-  fields:      { gap: 12 },
-  button:      { marginTop: 8 },
-  cancelBtn:   { alignItems: 'center', paddingVertical: 8 },
-  cancelBtnText: { fontFamily: 'Inter_400Regular', fontSize: 13, color: '#64748B' },
-  successBox:  { alignItems: 'center', gap: 12 },
-  successTitle: { fontFamily: 'PlusJakartaSans_700Bold', fontSize: 18, color: '#22C55E' },
-  successText: { fontFamily: 'Inter_400Regular', fontSize: 14, color: '#64748B', textAlign: 'center', lineHeight: 20 },
-  backBtn:     { marginTop: 8 },
-  backBtnText: { fontFamily: 'Inter_400Regular', fontSize: 13, color: '#1B4FA8' },
+  container:   { flex: 1, backgroundColor: colors.neutral.bg },
+  scroll:      { flexGrow: 1, justifyContent: 'center', padding: spacing.lg },
+  card:        { backgroundColor: colors.neutral.white, borderRadius: radius.lg, padding: spacing.xl, shadowColor: colors.neutral.black, shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.08, shadowRadius: 4, elevation: 2 },
+  logoGroup:   { alignItems: 'center', marginBottom: spacing.lg },
+  appName:     { fontFamily: typography.fontFamily.sansBold, fontSize: 28, color: colors.brand.dark, marginTop: spacing.md },
+  title:       { fontFamily: typography.fontFamily.body, fontSize: 14, color: colors.neutral.textSub, marginTop: spacing.xs },
+  description: { fontFamily: typography.fontFamily.body, fontSize: 14, color: colors.neutral.textSub, lineHeight: 20, marginBottom: spacing.lg },
+  fields:      { gap: spacing.md },
+  button:      { marginTop: spacing.sm },
+  successBox:  { alignItems: 'center', gap: spacing.md },
+  successTitle: { fontFamily: typography.fontFamily.sansBold, fontSize: 18, color: colors.semantic.success },
+  successText: { fontFamily: typography.fontFamily.body, fontSize: 14, color: colors.neutral.textSub, textAlign: 'center', lineHeight: 20 },
+  backBtn:     { marginTop: spacing.sm },
 })

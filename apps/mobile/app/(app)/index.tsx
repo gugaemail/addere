@@ -2,10 +2,11 @@ import { View, Text, FlatList, StyleSheet, ScrollView, TouchableOpacity, Alert }
 import { useDashboardStats, usePedidos, useMetaVendedor } from '../../src/hooks/usePedidos'
 import { useAuthStore } from '../../src/store/auth.store'
 import { useLogout } from '../../src/hooks/useAuth'
-import { StatGridSkeleton, OrderRowSkeleton, EmptyState } from '../../src/components/Skeleton'
-import { Ionicons } from '@expo/vector-icons'
+import { StatGridSkeleton, OrderRowSkeleton } from '../../src/components/Skeleton'
+import { Card } from '../../src/components/ui/Card'
+import { EmptyState } from '../../src/components/ui/EmptyState'
 import { LogOut } from 'lucide-react-native'
-import { colors } from '../../src/theme/colors'
+import { colors, spacing, radius } from '../../src/theme'
 import { STATUS_LABEL, STATUS_COLOR } from '../../src/utils/orderStatus'
 import { fmtMoeda, fmtData } from '../../src/utils/format'
 import type { Order } from '@addere/types'
@@ -26,7 +27,7 @@ function MetaProgress({ vendido, meta, periodo }: { vendido: number; meta: numbe
     : '—'
 
   return (
-    <View style={[s.metaCard, { borderTopColor: barColor }]}>
+    <Card style={[s.metaCard, { borderTopColor: barColor }]}>
       <View style={s.metaHeader}>
         <Text style={s.metaTitulo}>Meta do mês — {mes}</Text>
         <Text style={[s.metaPct, { color: barColor }]}>{pctStr}%</Text>
@@ -46,7 +47,7 @@ function MetaProgress({ vendido, meta, periodo }: { vendido: number; meta: numbe
           <Text style={s.metaFooterBold}>R$ {fmtMoeda(meta)}</Text>
         </Text>
       </View>
-    </View>
+    </Card>
   )
 }
 
@@ -80,7 +81,7 @@ export default function DashboardScreen() {
           ])}
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
         >
-          <LogOut size={20} color={colors.semantic.muted} />
+          <LogOut size={20} color={colors.semantic.muted} strokeWidth={1.5} />
         </TouchableOpacity>
       </View>
 
@@ -90,10 +91,10 @@ export default function DashboardScreen() {
       ) : (
         <View style={s.statsGrid}>
           {statItems.map((item, i) => (
-            <View key={item.label} style={[s.statCard, { borderTopColor: STAT_ACCENT[i] }]}>
+            <Card key={item.label} style={[s.statCard, { borderTopColor: STAT_ACCENT[i] }]}>
               <Text style={s.statValue}>{item.value}</Text>
               <Text style={s.statLabel}>{item.label}</Text>
-            </View>
+            </Card>
           ))}
         </View>
       )}
@@ -120,9 +121,9 @@ export default function DashboardScreen() {
           scrollEnabled={false}
           ListEmptyComponent={
             <EmptyState
-              icon={<Ionicons name="receipt-outline" size={28} color={colors.semantic.muted} />}
+              illustration="orders"
               title="Nenhum pedido ainda"
-              description="Seus pedidos mais recentes aparecerão aqui."
+              subtitle="Seus pedidos mais recentes aparecerão aqui."
             />
           }
         />
@@ -133,7 +134,7 @@ export default function DashboardScreen() {
 
 function OrderRow({ order }: { order: Order }) {
   return (
-    <View style={s.orderRow}>
+    <Card style={s.orderRow}>
       <View style={{ flex: 1 }}>
         <Text style={s.orderCustomer}>{order.customer.name}</Text>
         <Text style={s.orderDate}>{fmtData(order.createdAt)}</Text>
@@ -144,82 +145,62 @@ function OrderRow({ order }: { order: Order }) {
           {STATUS_LABEL[order.status]}
         </Text>
       </View>
-    </View>
+    </Card>
   )
 }
 
 const s = StyleSheet.create({
-  scroll:   { flex: 1, backgroundColor: '#F8FAFC' },
-  content:  { padding: 16 },
+  scroll:   { flex: 1, backgroundColor: colors.neutral.bg },
+  content:  { padding: spacing.md },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: spacing.md,
   },
   greeting: {
     fontFamily: 'PlusJakartaSans_700Bold',
     fontSize: 20,
-    color: '#0D2045',
+    color: colors.brand.dark,
   },
   statsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 12,
-    marginBottom: 16,
+    gap: spacing.sm,
+    marginBottom: spacing.md,
   },
   statCard: {
-    borderRadius: 12,
-    padding: 14,
     flex: 1,
     minWidth: '45%',
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
     borderTopWidth: 3,
-    shadowColor: '#0D2045',
-    shadowOpacity: 0.06,
-    shadowOffset: { width: 0, height: 1 },
-    shadowRadius: 3,
-    elevation: 2,
   },
   statValue: {
     fontFamily: 'PlusJakartaSans_700Bold',
     fontSize: 20,
-    color: '#0D2045',
+    color: colors.brand.dark,
   },
   statLabel: {
     fontFamily: 'Inter_400Regular',
     fontSize: 12,
-    marginTop: 2,
-    color: '#64748B',
+    marginTop: spacing.xs,
+    color: colors.neutral.textSub,
   },
   // ── Barra de meta ──────────────────────────────────────────
   metaCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
     borderTopWidth: 3,
-    borderTopColor: '#1B4FA8',
-    padding: 16,
-    marginBottom: 20,
-    shadowColor: '#0D2045',
-    shadowOpacity: 0.06,
-    shadowOffset: { width: 0, height: 1 },
-    shadowRadius: 3,
-    elevation: 2,
+    borderTopColor: colors.brand.primary,
+    marginBottom: spacing.lg,
   },
   metaHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'baseline',
-    marginBottom: 10,
+    marginBottom: spacing.sm,
   },
   metaTitulo: {
     fontFamily: 'Inter_400Regular',
     fontSize: 12,
-    color: '#64748B',
+    color: colors.neutral.textSub,
   },
   metaPct: {
     fontFamily: 'PlusJakartaSans_700Bold',
@@ -227,14 +208,14 @@ const s = StyleSheet.create({
   },
   barTrack: {
     height: 8,
-    backgroundColor: '#E8F4FF',
-    borderRadius: 999,
+    backgroundColor: colors.brand.tint,
+    borderRadius: radius.full,
     overflow: 'hidden',
-    marginBottom: 8,
+    marginBottom: spacing.sm,
   },
   barFill: {
     height: 8,
-    borderRadius: 999,
+    borderRadius: radius.full,
   },
   metaFooter: {
     flexDirection: 'row',
@@ -243,54 +224,43 @@ const s = StyleSheet.create({
   metaFooterText: {
     fontFamily: 'Inter_400Regular',
     fontSize: 11,
-    color: '#64748B',
+    color: colors.neutral.textSub,
   },
   metaFooterBold: {
-    fontFamily: 'Inter_400Regular',
+    fontFamily: 'Inter_600SemiBold',
     fontSize: 11,
-    color: '#0D2045',
+    color: colors.brand.dark,
   },
   // ── Últimos pedidos ─────────────────────────────────────────
   sectionTitle: {
     fontFamily: 'PlusJakartaSans_600SemiBold',
     fontSize: 15,
-    marginBottom: 8,
-    color: '#0D2045',
+    marginBottom: spacing.sm,
+    color: colors.brand.dark,
   },
   orderRow: {
-    borderRadius: 12,
-    padding: 12,
     flexDirection: 'row',
-    marginBottom: 8,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    shadowColor: '#0D2045',
-    shadowOpacity: 0.06,
-    shadowOffset: { width: 0, height: 1 },
-    shadowRadius: 3,
-    elevation: 1,
+    marginBottom: spacing.sm,
   },
   orderCustomer: {
     fontFamily: 'PlusJakartaSans_600SemiBold',
     fontSize: 14,
-    color: '#0D2045',
+    color: colors.brand.dark,
   },
   orderDate: {
     fontFamily: 'Inter_400Regular',
     fontSize: 12,
-    marginTop: 2,
-    color: '#64748B',
+    marginTop: spacing.xs,
+    color: colors.neutral.textSub,
   },
   orderTotal: {
     fontFamily: 'PlusJakartaSans_700Bold',
     fontSize: 14,
-    color: '#0D2045',
+    color: colors.brand.dark,
   },
   orderStatus: {
-    fontFamily: 'Inter_400Regular',
+    fontFamily: 'Inter_600SemiBold',
     fontSize: 12,
-    marginTop: 2,
-    fontWeight: '600',
+    marginTop: spacing.xs,
   },
 })

@@ -3,7 +3,7 @@ import { View, Text, TouchableOpacity, ActivityIndicator, StyleSheet, ViewStyle 
 import { useRouter } from 'expo-router'
 import { WifiOff, Upload, AlertCircle, CheckCircle } from 'lucide-react-native'
 import { useSyncQueue } from '../hooks/useSyncQueue'
-import { colors } from '../theme/colors'
+import { colors, spacing, typography } from '../theme'
 
 interface SyncStatusBarProps {
   style?: ViewStyle
@@ -84,9 +84,9 @@ const s = StyleSheet.create({
   bar: {
     flexDirection:     'row',
     alignItems:        'center',
-    paddingHorizontal: 16,
-    paddingVertical:   8,
-    gap: 8,
+    paddingHorizontal: spacing.md,
+    paddingVertical:   spacing.sm,
+    gap: spacing.sm,
   },
   synced:  { backgroundColor: colors.semantic.success },
   pending: { backgroundColor: colors.semantic.warning },
@@ -95,13 +95,13 @@ const s = StyleSheet.create({
   error:   { backgroundColor: colors.semantic.danger },
   text: {
     flex:       1,
-    fontFamily: 'Inter_400Regular',
-    fontSize:   12,
+    fontFamily: typography.fontFamily.body,
+    fontSize:   typography.size.xs,
     color:      colors.neutral.white,
   },
   link: {
-    fontFamily:         'Inter_400Regular',
-    fontSize:           12,
+    fontFamily:         typography.fontFamily.bodySemibold,
+    fontSize:           typography.size.xs,
     color:              colors.neutral.white,
     textDecorationLine: 'underline',
   },

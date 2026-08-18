@@ -1,21 +1,29 @@
-import { View, Text, TextInput, TouchableOpacity } from 'react-native'
+import { View, Text, TouchableOpacity } from 'react-native'
+import { X } from 'lucide-react-native'
 import { useFieldVisible, useFieldRequired } from '../../hooks/useFieldConfig'
 import { colors } from '../../theme/colors'
+import { spacing } from '../../theme/spacing'
 import { fmtMoeda } from '../../utils/format'
+import { Button } from '../ui/Button'
+import { Input } from '../ui/Input'
 import { orderFormStyles as s } from './styles'
 import type { CartItem } from './types'
+import type { CartItemErrors } from './validation'
 
 // Editor de um item do carrinho: quantidade, preço e campos extras
 // (descrição, largura, espessura, encolhimento, xcrav, tara).
 // Antes duplicado no wizard de novo pedido e na tela de edição.
+// `errors` exibe as mensagens de validação inline em cada campo.
 export function CartItemEditor({
   item,
   onChange,
   onRemove,
+  errors,
 }: {
   item: CartItem
   onChange: (updated: CartItem) => void
   onRemove: () => void
+  errors?: CartItemErrors
 }) {
   const showUnitPrice    = useFieldVisible('orderItem.unitPrice')
   const showLargura      = useFieldVisible('orderItem.largura')
@@ -61,57 +69,67 @@ export function CartItemEditor({
     onChange({ ...item, xcrav: item.xcrav === '1' ? '2' : '1' })
   }
 
+  const removeButton = (
+    <TouchableOpacity
+      onPress={onRemove}
+      style={s.removeBtn}
+      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+      accessibilityLabel="Remover item"
+      accessibilityRole="button"
+    >
+      <X size={16} color={colors.semantic.danger} strokeWidth={1.5} />
+    </TouchableOpacity>
+  )
+
   return (
     <View style={s.itemRow}>
       {showDescricao ? (
         <View style={s.itemExtraFull}>
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.xs }}>
             <Text style={s.controlLabel}>Descrição{reqDescricao ? ' *' : ''}</Text>
-            <TouchableOpacity onPress={onRemove} style={s.removeBtn}>
-              <Text style={s.removeBtnText}>×</Text>
-            </TouchableOpacity>
+            {removeButton}
           </View>
-          <TextInput
-            style={s.priceInput}
+          <Input
+            containerStyle={s.compactField}
+            style={s.compactInput}
             placeholder="Descrição do item"
             defaultValue={item.descricao ?? ''}
             onEndEditing={(e) => updateStrField('descricao', e.nativeEvent.text)}
-            placeholderTextColor={colors.neutral.textSub}
+            error={errors?.descricao}
           />
         </View>
       ) : (
         <View style={s.itemHeader}>
           <Text style={s.itemName} numberOfLines={2}>{item.productName}</Text>
-          <TouchableOpacity onPress={onRemove} style={s.removeBtn}>
-            <Text style={s.removeBtnText}>×</Text>
-          </TouchableOpacity>
+          {removeButton}
         </View>
       )}
 
-      <View style={[s.itemControls, { marginTop: 8 }]}>
+      <View style={[s.itemControls, { marginTop: spacing.sm }]}>
         <View style={s.itemQty}>
           <Text style={s.controlLabel}>Qtd</Text>
-          <TextInput
-            style={s.priceInput}
+          <Input
+            containerStyle={s.compactField}
+            style={s.compactInput}
             keyboardType="decimal-pad"
             defaultValue={item.quantity.toLocaleString('pt-BR', { maximumFractionDigits: 3 })}
             onEndEditing={(e) => {
               const raw = parseFloat(e.nativeEvent.text.replace(',', '.'))
               updateQty(isNaN(raw) ? 1 : raw)
             }}
-            placeholderTextColor={colors.neutral.textSub}
           />
         </View>
 
         {showUnitPrice && (
           <View style={s.itemPrice}>
             <Text style={s.controlLabel}>Preço unit. (R$){reqUnitPrice ? ' *' : ''}</Text>
-            <TextInput
-              style={s.priceInput}
+            <Input
+              containerStyle={s.compactField}
+              style={s.compactInput}
               keyboardType="decimal-pad"
               defaultValue={item.unitPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               onEndEditing={(e) => updatePrice(e.nativeEvent.text)}
-              placeholderTextColor={colors.neutral.textSub}
+              error={errors?.unitPrice}
             />
           </View>
         )}
@@ -129,36 +147,42 @@ export function CartItemEditor({
           {showLargura && (
             <View style={s.itemExtraField}>
               <Text style={s.controlLabel}>Largura{reqLargura ? ' *' : ''}</Text>
-              <TextInput
-                style={s.priceInput}
+              <Input
+                containerStyle={s.compactField}
+                style={s.compactInput}
                 keyboardType="decimal-pad"
                 placeholder="0"
                 defaultValue={item.largura != null ? String(item.largura) : ''}
                 onEndEditing={(e) => updateNumField('largura', e.nativeEvent.text)}
+                error={errors?.largura}
               />
             </View>
           )}
           {showEspessura && (
             <View style={s.itemExtraField}>
               <Text style={s.controlLabel}>Espessura{reqEspessura ? ' *' : ''}</Text>
-              <TextInput
-                style={s.priceInput}
+              <Input
+                containerStyle={s.compactField}
+                style={s.compactInput}
                 keyboardType="decimal-pad"
                 placeholder="0"
                 defaultValue={item.espessura != null ? String(item.espessura) : ''}
                 onEndEditing={(e) => updateNumField('espessura', e.nativeEvent.text)}
+                error={errors?.espessura}
               />
             </View>
           )}
           {showTara && (
             <View style={s.itemExtraField}>
               <Text style={s.controlLabel}>Tara{reqTara ? ' *' : ''}</Text>
-              <TextInput
-                style={s.priceInput}
+              <Input
+                containerStyle={s.compactField}
+                style={s.compactInput}
                 keyboardType="decimal-pad"
                 placeholder="0"
                 defaultValue={item.tara != null ? String(item.tara) : ''}
                 onEndEditing={(e) => updateNumField('tara', e.nativeEvent.text)}
+                error={errors?.tara}
               />
             </View>
           )}
@@ -168,11 +192,13 @@ export function CartItemEditor({
       {showEncolhimento && (
         <View style={s.itemExtraFull}>
           <Text style={s.controlLabel}>Encolhimento{reqEncolhimento ? ' *' : ''}</Text>
-          <TextInput
-            style={s.priceInput}
+          <Input
+            containerStyle={s.compactField}
+            style={s.compactInput}
             placeholder="Texto"
             defaultValue={item.encolhimento ?? ''}
             onEndEditing={(e) => updateStrField('encolhimento', e.nativeEvent.text)}
+            error={errors?.encolhimento}
           />
         </View>
       )}
@@ -180,15 +206,16 @@ export function CartItemEditor({
       {showXcrav && (
         <View style={s.itemExtraFull}>
           <Text style={s.controlLabel}>Largura Crav.{reqXcrav ? ' *' : ''}</Text>
-          <TouchableOpacity
-            style={[s.xcravBtn, item.xcrav === '1' && s.xcravBtnActive]}
+          <Button
+            size="xs"
+            variant={item.xcrav === '1' ? 'primary' : 'secondary'}
+            style={s.xcravBtn}
             onPress={toggleXcrav}
-            activeOpacity={0.8}
+            accessibilityRole="switch"
+            accessibilityState={{ checked: item.xcrav === '1' }}
           >
-            <Text style={[s.xcravBtnText, item.xcrav === '1' && s.xcravBtnTextActive]}>
-              {item.xcrav === '1' ? 'Sim' : 'Não'}
-            </Text>
-          </TouchableOpacity>
+            {item.xcrav === '1' ? 'Sim' : 'Não'}
+          </Button>
         </View>
       )}
     </View>

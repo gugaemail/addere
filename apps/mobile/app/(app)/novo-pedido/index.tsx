@@ -3,14 +3,12 @@ import {
   View,
   Text,
   FlatList,
-  TextInput,
-  TouchableOpacity,
-  ActivityIndicator,
   StyleSheet,
   Alert,
   ScrollView,
 } from 'react-native'
 import { useRouter, Stack } from 'expo-router'
+import { ArrowLeft, ArrowRight, Minus, Plus, Search } from 'lucide-react-native'
 import { useFocusEffect } from '@react-navigation/native'
 import { useClientes } from '../../../src/hooks/useClientes'
 import { useCatalog } from '../../../src/hooks/useCatalog'
@@ -21,10 +19,20 @@ import { useTransportadoras } from '../../../src/hooks/useTransportadoras'
 import { useCondPags } from '../../../src/hooks/useCondPags'
 import { useFieldVisible, useFieldRequired } from '../../../src/hooks/useFieldConfig'
 import { useAuthStore } from '../../../src/store/auth.store'
-import { colors } from '../../../src/theme/colors'
+import { colors, spacing, radius } from '../../../src/theme'
+import { Badge } from '../../../src/components/ui/Badge'
+import { Button, buttonForeground } from '../../../src/components/ui/Button'
+import { Card } from '../../../src/components/ui/Card'
+import { EmptyState } from '../../../src/components/ui/EmptyState'
+import { Input } from '../../../src/components/ui/Input'
+import { LoadingState } from '../../../src/components/Skeleton'
 import { PickerField } from '../../../src/components/order-form/PickerField'
 import { CartItemEditor } from '../../../src/components/order-form/CartItemEditor'
-import { useOrderValidation } from '../../../src/components/order-form/validation'
+import {
+  useOrderValidation,
+  useOrderFormErrors,
+  changedItemFields,
+} from '../../../src/components/order-form/validation'
 import { orderFormStyles } from '../../../src/components/order-form/styles'
 import { cartItemFromProduct, cartTotal, cartToOrderItems } from '../../../src/components/order-form/types'
 import type { CartItem } from '../../../src/components/order-form/types'
@@ -62,31 +70,36 @@ function Step1({
   if (selectedCustomer) {
     return (
       <View style={{ flex: 1 }}>
-        <TouchableOpacity style={styles.selectedCard} onPress={() => setSelectedCustomer(null)}>
+        <Card style={styles.selectedCard} onPress={() => setSelectedCustomer(null)}>
           <Text style={styles.selectedCardLabel}>Cliente selecionado</Text>
           <Text style={styles.selectedCardValue}>{selectedCustomer.name}</Text>
-          <Text style={styles.selectedCardChange}>Trocar →</Text>
-        </TouchableOpacity>
+          <View style={styles.selectedCardChange}>
+            <Text style={styles.selectedCardChangeText}>Trocar</Text>
+            <ArrowRight size={14} color={colors.brand.primary} strokeWidth={1.5} />
+          </View>
+        </Card>
 
-        <Text style={[styles.stepTitle, { marginTop: 16 }]}>Selecione a filial</Text>
+        <Text style={[styles.stepTitle, { marginTop: spacing.md }]}>Selecione a filial</Text>
 
         {loadingBranches ? (
-          <ActivityIndicator style={{ marginTop: 16 }} />
+          <LoadingState />
         ) : (
           <FlatList
             data={branches}
             keyExtractor={(b) => b.id}
             renderItem={({ item, index }) => (
-              <TouchableOpacity
+              <Card
                 testID={`btn-adicionar-produto-${index}`}
                 style={styles.listItem}
                 onPress={() => onComplete(selectedCustomer, item)}
               >
                 <Text style={styles.listItemTitle}>{item.name}</Text>
                 {item.cnpj && <Text style={styles.listItemSub}>{formatDocument(item.cnpj)}</Text>}
-              </TouchableOpacity>
+              </Card>
             )}
-            ListEmptyComponent={<Text style={styles.empty}>Nenhuma filial encontrada.</Text>}
+            ListEmptyComponent={
+              <EmptyState illustration="orders" title="Nenhuma filial encontrada" />
+            }
           />
         )}
       </View>
@@ -96,30 +109,38 @@ function Step1({
   return (
     <View style={{ flex: 1 }}>
       <Text style={styles.stepTitle}>Selecione o cliente</Text>
-      <TextInput
+      <Input
         testID="input-busca-cliente"
-        style={styles.input}
+        containerStyle={styles.input}
         placeholder="Buscar cliente..."
         value={search}
         onChangeText={setSearch}
+        onClear={() => setSearch('')}
+        leftElement={<Search size={16} color={colors.neutral.placeholder} strokeWidth={1.5} />}
       />
       {loadingCustomers ? (
-        <ActivityIndicator style={{ marginTop: 16 }} />
+        <LoadingState />
       ) : (
         <FlatList
           data={customers}
           keyExtractor={(c) => c.id}
           renderItem={({ item, index }) => (
-            <TouchableOpacity
+            <Card
               testID={`resultado-cliente-${index}`}
               style={styles.listItem}
               onPress={() => setSelectedCustomer(item)}
             >
               <Text style={styles.listItemTitle}>{item.name}</Text>
               {item.document && <Text style={styles.listItemSub}>{formatDocument(item.document)}</Text>}
-            </TouchableOpacity>
+            </Card>
           )}
-          ListEmptyComponent={<Text style={styles.empty}>Nenhum cliente encontrado.</Text>}
+          ListEmptyComponent={
+            <EmptyState
+              illustration="clients"
+              title="Nenhum cliente encontrado"
+              subtitle={search ? `Não encontramos clientes para "${search}".` : undefined}
+            />
+          }
         />
       )}
     </View>
@@ -161,15 +182,22 @@ function Step2({
 
   return (
     <View style={{ flex: 1 }}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
         <Text style={styles.stepTitle}>Adicionar produtos</Text>
         {isFromCache && (
-          <View testID="cache-badge" style={{ marginLeft: 8, paddingHorizontal: 6, paddingVertical: 2, backgroundColor: colors.semantic.warning, borderRadius: 6 }}>
-            <Text style={{ fontSize: 10, color: '#fff', fontFamily: 'Inter_400Regular' }}>cache</Text>
+          <View style={styles.cacheBadge}>
+            <Badge testID="cache-badge" variant="warning">cache</Badge>
           </View>
         )}
       </View>
-      <TextInput style={styles.input} placeholder="Buscar produto..." value={search} onChangeText={setSearch} />
+      <Input
+        containerStyle={styles.input}
+        placeholder="Buscar produto..."
+        value={search}
+        onChangeText={setSearch}
+        onClear={() => setSearch('')}
+        leftElement={<Search size={16} color={colors.neutral.placeholder} strokeWidth={1.5} />}
+      />
 
       {cart.length > 0 && (
         <View style={styles.cartBox}>
@@ -178,13 +206,21 @@ function Step2({
             <View key={item.productId} style={styles.cartRow}>
               <Text style={styles.cartName} numberOfLines={1}>{item.productName}</Text>
               <View style={styles.qtyRow}>
-                <TouchableOpacity onPress={() => updateQty(item.productId, item.quantity - 1)}>
-                  <Text style={styles.qtyBtn}>−</Text>
-                </TouchableOpacity>
+                <Button
+                  variant="ghost"
+                  size="xs"
+                  onPress={() => updateQty(item.productId, item.quantity - 1)}
+                  icon={<Minus size={16} color={buttonForeground.ghost} strokeWidth={1.5} />}
+                  accessibilityLabel="Diminuir quantidade"
+                />
                 <Text style={styles.qtyNum}>{item.quantity}</Text>
-                <TouchableOpacity onPress={() => updateQty(item.productId, item.quantity + 1)}>
-                  <Text style={styles.qtyBtn}>+</Text>
-                </TouchableOpacity>
+                <Button
+                  variant="ghost"
+                  size="xs"
+                  onPress={() => updateQty(item.productId, item.quantity + 1)}
+                  icon={<Plus size={16} color={buttonForeground.ghost} strokeWidth={1.5} />}
+                  accessibilityLabel="Aumentar quantidade"
+                />
               </View>
             </View>
           ))}
@@ -192,29 +228,40 @@ function Step2({
       )}
 
       {isLoading ? (
-        <ActivityIndicator style={{ marginTop: 8 }} />
+        <LoadingState />
       ) : (
         <FlatList
           testID="produto-lista"
           data={products}
           keyExtractor={(p) => p.id}
           renderItem={({ item, index }) => (
-            <TouchableOpacity
+            <Card
               testID={`produto-${index}`}
               style={styles.listItem}
               onPress={() => addToCart(item)}
             >
               <Text style={styles.listItemTitle}>{item.name}</Text>
               <Text style={styles.listItemSub}>R$ {fmtMoeda(item.price)} / {item.unit}</Text>
-            </TouchableOpacity>
+            </Card>
           )}
-          ListEmptyComponent={<Text style={styles.empty}>Nenhum produto encontrado.</Text>}
+          ListEmptyComponent={
+            <EmptyState
+              illustration="products"
+              title="Nenhum produto encontrado"
+              subtitle={search ? `Não encontramos produtos para "${search}".` : undefined}
+            />
+          }
         />
       )}
 
-      <TouchableOpacity style={styles.backBtn} onPress={onBack}>
-        <Text style={styles.backBtnText}>← Voltar</Text>
-      </TouchableOpacity>
+      <Button
+        variant="secondary"
+        style={styles.backBtn}
+        onPress={onBack}
+        icon={<ArrowLeft size={16} color={buttonForeground.secondary} strokeWidth={1.5} />}
+      >
+        Voltar
+      </Button>
     </View>
   )
 }
@@ -277,6 +324,9 @@ function Step3({
     condPag:        'Selecione uma condição de pagamento antes de confirmar.',
   })
 
+  // Erros de validação exibidos inline (limpos campo a campo conforme o usuário edita)
+  const { errors, setErrors, clearError, clearItemErrors, hasErrors: showErrorSummary } = useOrderFormErrors()
+
   const total = cartTotal(cart)
 
   function handleCancel() {
@@ -291,7 +341,9 @@ function Step3({
   }
 
   function handleConfirmWithValidation() {
-    if (!validate({ cart, transportadora, condPag, mennota, notes })) return
+    const result = validate({ cart, transportadora, condPag, mennota, notes })
+    setErrors(result.errors)
+    if (!result.ok) return
     onConfirm()
   }
 
@@ -299,17 +351,17 @@ function Step3({
     <ScrollView>
       <Text style={styles.stepTitle}>Resumo do pedido</Text>
 
-      <View style={styles.summaryBox}>
+      <Card style={styles.summaryBox}>
         <Text style={styles.summaryLabel}>Cliente</Text>
         <Text style={styles.summaryValue}>{customer.name}</Text>
-      </View>
+      </Card>
 
-      <View style={styles.summaryBox}>
+      <Card style={styles.summaryBox}>
         <Text style={styles.summaryLabel}>Filial</Text>
         <Text style={styles.summaryValue}>{branch.name}</Text>
-      </View>
+      </Card>
 
-      <View style={styles.summaryBox}>
+      <Card style={styles.summaryBox}>
         <Text style={styles.summaryLabel}>Itens</Text>
         {cart.length === 0 && (
           <Text style={styles.empty}>Nenhum item. Volte e adicione produtos.</Text>
@@ -318,20 +370,31 @@ function Step3({
           <CartItemEditor
             key={item.productId}
             item={item}
-            onChange={(updated) => onCartChange(cart.map((i) => i.productId === item.productId ? updated : i))}
-            onRemove={() => onCartChange(cart.filter((i) => i.productId !== item.productId))}
+            errors={errors.items[item.productId]}
+            onChange={(updated) => {
+              clearItemErrors(item.productId, changedItemFields(item, updated))
+              onCartChange(cart.map((i) => i.productId === item.productId ? updated : i))
+            }}
+            onRemove={() => {
+              clearItemErrors(item.productId)
+              onCartChange(cart.filter((i) => i.productId !== item.productId))
+            }}
           />
         ))}
-      </View>
+      </Card>
 
       {showTransportadora && (
         <PickerField
           label={reqTransportadora ? 'Transportadora *' : 'Transportadora'}
           selected={transportadora ? { id: transportadora.id, nome: transportadora.nome } : null}
           items={transportadoras.map((t) => ({ id: t.id, nome: t.nome }))}
-          onSelect={(item) => onTransportChange(item ? (transportadoras.find((t) => t.id === item.id) ?? null) : null)}
+          onSelect={(item) => {
+            clearError('transportadora')
+            onTransportChange(item ? (transportadoras.find((t) => t.id === item.id) ?? null) : null)
+          }}
           loading={loadingTransp}
           disabled={!canChangeCarrier}
+          error={errors.transportadora}
         />
       )}
 
@@ -340,63 +403,85 @@ function Step3({
           label={reqCondPag ? 'Cond. Pagamento *' : 'Cond. Pagamento'}
           selected={condPag ? { id: condPag.id, nome: condPag.nome } : null}
           items={condPags.map((c) => ({ id: c.id, nome: c.nome }))}
-          onSelect={(item) => onCondChange(item ? (condPags.find((c) => c.id === item.id) ?? null) : null)}
+          onSelect={(item) => {
+            clearError('condPag')
+            onCondChange(item ? (condPags.find((c) => c.id === item.id) ?? null) : null)
+          }}
           loading={loadingCond}
           disabled={!canChangePaymentTerms}
+          error={errors.condPag}
         />
       )}
 
       {showMennota && (
-        <View style={styles.summaryBox}>
+        <Card style={styles.summaryBox}>
           <Text style={styles.summaryLabel}>Obs. Nota Fiscal{reqMennota ? ' *' : ''}</Text>
-          <TextInput
+          <Input
+            containerStyle={orderFormStyles.notesField}
             style={orderFormStyles.notesInput}
             placeholder="Mensagem para a nota fiscal (opcional)..."
             value={mennota}
-            onChangeText={onMennotaChange}
+            onChangeText={(text) => { clearError('mennota'); onMennotaChange(text) }}
             multiline
             numberOfLines={3}
             textAlignVertical="top"
+            error={errors.mennota}
           />
-        </View>
+        </Card>
       )}
 
       {showNotes && (
-        <View style={styles.summaryBox}>
+        <Card style={styles.summaryBox}>
           <Text style={styles.summaryLabel}>Obs. Interna{reqNotes ? ' *' : ''}</Text>
-          <TextInput
+          <Input
+            containerStyle={orderFormStyles.notesField}
             style={orderFormStyles.notesInput}
             placeholder="Observação interna (não sai na nota)..."
             value={notes}
-            onChangeText={onNotesChange}
+            onChangeText={(text) => { clearError('notes'); onNotesChange(text) }}
             multiline
             numberOfLines={3}
             textAlignVertical="top"
+            error={errors.notes}
           />
-        </View>
+        </Card>
       )}
 
-      <View style={[styles.summaryBox, { flexDirection: 'row', justifyContent: 'space-between' }]}>
+      <Card style={[styles.summaryBox, { flexDirection: 'row', justifyContent: 'space-between' }]}>
         <Text style={styles.totalLabel}>Total</Text>
         <Text style={styles.totalValue}>R$ {fmtMoeda(total)}</Text>
-      </View>
+      </Card>
 
-      <TouchableOpacity
+      {showErrorSummary && (
+        <Text style={orderFormStyles.formError} accessibilityLiveRegion="polite">
+          {errors.form ?? 'Corrija os campos destacados antes de confirmar.'}
+        </Text>
+      )}
+
+      <Button
         testID="btn-confirmar-pedido"
-        style={[styles.confirmBtn, cart.length === 0 && { opacity: 0.4 }]}
+        size="lg"
+        style={styles.confirmBtn}
         onPress={handleConfirmWithValidation}
-        disabled={isLoading || cart.length === 0}
+        loading={isLoading}
+        disabled={cart.length === 0}
       >
-        {isLoading ? <ActivityIndicator color="#fff" /> : <Text style={styles.confirmBtnText}>Confirmar pedido</Text>}
-      </TouchableOpacity>
+        Confirmar pedido
+      </Button>
 
-      <TouchableOpacity style={styles.backBtn} onPress={onBack} disabled={isLoading}>
-        <Text style={styles.backBtnText}>← Voltar</Text>
-      </TouchableOpacity>
+      <Button
+        variant="secondary"
+        style={styles.backBtn}
+        onPress={onBack}
+        disabled={isLoading}
+        icon={<ArrowLeft size={16} color={buttonForeground.secondary} strokeWidth={1.5} />}
+      >
+        Voltar
+      </Button>
 
-      <TouchableOpacity style={styles.cancelBtn} onPress={handleCancel} disabled={isLoading}>
-        <Text style={styles.cancelBtnText}>Cancelar</Text>
-      </TouchableOpacity>
+      <Button variant="ghostDanger" style={styles.cancelBtn} onPress={handleCancel} disabled={isLoading}>
+        Cancelar
+      </Button>
     </ScrollView>
   )
 }
@@ -448,7 +533,7 @@ export default function NovoPedidoScreen() {
       : null
     setTransportadora(t)
     setCondPag(c)
-  }, [customer?.id, transportadoras, condPags])
+  }, [customer, transportadoras, condPags])
 
   function handleStep1Complete(c: Customer, b: Branch) {
     setCustomer(c)
@@ -500,19 +585,22 @@ export default function NovoPedidoScreen() {
       <Stack.Screen options={{ title: `Novo pedido — ${stepLabel[step - 1]}` }} />
       <StepIndicator current={step} />
 
-      <View style={{ flex: 1, padding: 16 }}>
+      <View style={{ flex: 1, padding: spacing.md }}>
         {step === 1 && <Step1 onComplete={handleStep1Complete} />}
         {step === 2 && (
           <View style={{ flex: 1 }}>
             <Step2 cart={cart} onCartChange={setCart} onBack={() => setStep(1)} />
-            <TouchableOpacity
+            <Button
               testID="btn-proximo-step"
-              style={[styles.confirmBtn, cart.length === 0 && { opacity: 0.4 }]}
+              size="lg"
+              style={styles.confirmBtn}
               disabled={cart.length === 0}
               onPress={() => setStep(3)}
+              iconPosition="right"
+              icon={<ArrowRight size={16} color={buttonForeground.primary} strokeWidth={1.5} />}
             >
-              <Text style={styles.confirmBtnText}>Próximo →</Text>
-            </TouchableOpacity>
+              Próximo
+            </Button>
           </View>
         )}
         {step === 3 && customer && branch && (
@@ -541,37 +629,35 @@ export default function NovoPedidoScreen() {
 }
 
 const styles = StyleSheet.create({
-  steps: { flexDirection: 'row', justifyContent: 'center', gap: 12, padding: 16, backgroundColor: colors.neutral.white, borderBottomWidth: 1, borderBottomColor: colors.neutral.border },
-  step: { width: 32, height: 32, borderRadius: 16, backgroundColor: colors.neutral.border, justifyContent: 'center', alignItems: 'center' },
+  steps: { flexDirection: 'row', justifyContent: 'center', gap: spacing.md, padding: spacing.md, backgroundColor: colors.neutral.white, borderBottomWidth: 1, borderBottomColor: colors.neutral.border },
+  step: { width: 32, height: 32, borderRadius: radius.full, backgroundColor: colors.neutral.border, justifyContent: 'center', alignItems: 'center' },
   stepActive: { backgroundColor: colors.brand.primary },
-  stepText: { fontFamily: 'Inter_400Regular', color: colors.neutral.textSub, fontWeight: '700' },
+  stepText: { fontFamily: 'Inter_700Bold', color: colors.neutral.textSub },
   stepTextActive: { color: colors.neutral.white },
-  stepTitle: { fontFamily: 'PlusJakartaSans_700Bold', fontSize: 16, color: colors.brand.dark, marginBottom: 12 },
-  input: { backgroundColor: colors.neutral.white, borderRadius: 8, borderWidth: 1, borderColor: colors.neutral.border, padding: 12, fontFamily: 'Inter_400Regular', fontSize: 14, marginBottom: 8, color: colors.brand.dark },
-  listItem: { backgroundColor: colors.neutral.white, borderRadius: 8, padding: 14, marginBottom: 6, shadowColor: '#000', shadowOpacity: 0.03, elevation: 1 },
+  stepTitle: { fontFamily: 'PlusJakartaSans_700Bold', fontSize: 16, color: colors.brand.dark, marginBottom: spacing.md },
+  cacheBadge: { marginBottom: spacing.md },
+  input: { marginBottom: spacing.sm },
+  listItem: { marginBottom: spacing.sm },
   listItemTitle: { fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: 14, color: colors.brand.dark },
-  listItemSub: { fontFamily: 'Inter_400Regular', fontSize: 12, color: colors.neutral.textSub, marginTop: 2 },
-  cartBox: { backgroundColor: colors.brand.tint, borderRadius: 8, padding: 12, marginBottom: 8 },
-  cartTitle: { fontFamily: 'PlusJakartaSans_700Bold', fontSize: 13, color: colors.brand.primary, marginBottom: 6 },
-  cartRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 4 },
+  listItemSub: { fontFamily: 'Inter_400Regular', fontSize: 12, color: colors.neutral.textSub, marginTop: spacing.xs },
+  cartBox: { backgroundColor: colors.brand.tint, borderRadius: radius.md, padding: spacing.md, marginBottom: spacing.sm },
+  cartTitle: { fontFamily: 'PlusJakartaSans_700Bold', fontSize: 13, color: colors.brand.primary, marginBottom: spacing.sm },
+  cartRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: spacing.xs },
   cartName: { flex: 1, fontFamily: 'Inter_400Regular', fontSize: 13, color: colors.brand.dark },
-  qtyRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  qtyBtn: { fontFamily: 'Inter_400Regular', fontSize: 20, color: colors.brand.primary, paddingHorizontal: 4 },
-  qtyNum: { fontFamily: 'PlusJakartaSans_700Bold', fontSize: 14, minWidth: 20, textAlign: 'center' },
-  empty: { fontFamily: 'Inter_400Regular', color: colors.neutral.textSub, textAlign: 'center', marginTop: 8, marginBottom: 4 },
-  summaryBox: { backgroundColor: colors.neutral.white, borderRadius: 8, padding: 14, marginBottom: 8 },
-  summaryLabel: { fontFamily: 'Inter_400Regular', fontSize: 12, color: colors.neutral.textSub, marginBottom: 6 },
+  qtyRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
+  qtyNum: { fontFamily: 'PlusJakartaSans_700Bold', fontSize: 14, minWidth: 20, textAlign: 'center', color: colors.brand.dark },
+  empty: { fontFamily: 'Inter_400Regular', color: colors.neutral.textSub, textAlign: 'center', marginTop: spacing.sm, marginBottom: spacing.xs },
+  summaryBox: { borderRadius: radius.md, marginBottom: spacing.sm },
+  summaryLabel: { fontFamily: 'Inter_400Regular', fontSize: 12, color: colors.neutral.textSub, marginBottom: spacing.sm },
   summaryValue: { fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: 15, color: colors.brand.dark },
   totalLabel: { fontFamily: 'PlusJakartaSans_700Bold', fontSize: 16, color: colors.brand.dark },
   totalValue: { fontFamily: 'PlusJakartaSans_700Bold', fontSize: 20, color: colors.brand.primary },
-  confirmBtn: { backgroundColor: colors.brand.primary, borderRadius: 8, padding: 14, alignItems: 'center', marginTop: 12 },
-  confirmBtnText: { fontFamily: 'PlusJakartaSans_700Bold', color: colors.neutral.white, fontSize: 15 },
-  backBtn: { borderRadius: 8, borderWidth: 1, borderColor: colors.neutral.border, padding: 14, alignItems: 'center', marginTop: 8, backgroundColor: colors.neutral.white },
-  backBtnText: { fontFamily: 'PlusJakartaSans_600SemiBold', color: colors.neutral.text, fontSize: 15 },
-  cancelBtn: { padding: 14, alignItems: 'center', marginTop: 4, marginBottom: 24 },
-  cancelBtnText: { fontFamily: 'PlusJakartaSans_600SemiBold', color: colors.semantic.danger, fontSize: 14 },
-  selectedCard: { backgroundColor: colors.brand.tint, borderRadius: 8, padding: 14, borderWidth: 1, borderColor: colors.brand.tint },
-  selectedCardLabel: { fontFamily: 'Inter_400Regular', fontSize: 11, color: colors.neutral.textSub, marginBottom: 2 },
+  confirmBtn: { marginTop: spacing.md },
+  backBtn: { marginTop: spacing.sm, backgroundColor: colors.neutral.white },
+  cancelBtn: { marginTop: spacing.xs, marginBottom: spacing.lg },
+  selectedCard: { backgroundColor: colors.brand.tint, borderColor: colors.brand.tint, borderRadius: radius.md },
+  selectedCardLabel: { fontFamily: 'Inter_400Regular', fontSize: 11, color: colors.neutral.textSub, marginBottom: spacing.xs },
   selectedCardValue: { fontFamily: 'PlusJakartaSans_700Bold', fontSize: 15, color: colors.brand.dark },
-  selectedCardChange: { fontFamily: 'Inter_400Regular', fontSize: 12, color: colors.brand.primary, marginTop: 4 },
+  selectedCardChange: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, marginTop: spacing.xs },
+  selectedCardChangeText: { fontFamily: 'Inter_400Regular', fontSize: 12, color: colors.brand.primary },
 })

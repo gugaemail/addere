@@ -1,6 +1,10 @@
 import { StyleSheet } from 'react-native'
 import { colors } from '../../theme/colors'
 import { radius } from '../../theme/radius'
+import { spacing } from '../../theme/spacing'
+import { typography } from '../../theme/typography'
+
+const { fontFamily } = typography
 
 // Estilos compartilhados entre o wizard de novo pedido e a tela de edição.
 // Antes cada tela redefinia estas ~40 chaves com valores quase idênticos.
@@ -11,83 +15,80 @@ export const orderFormStyles = StyleSheet.create({
     borderRadius: radius.md,
     borderWidth: 1,
     borderColor: colors.neutral.border,
-    padding: 14,
-    marginBottom: 10,
+    padding: spacing.md,
+    marginBottom: spacing.sm,
   },
   fieldLabel: {
-    fontFamily: 'PlusJakartaSans_600SemiBold',
+    fontFamily: fontFamily.sansSemibold,
     fontSize: 12,
     color: colors.neutral.textSub,
-    marginBottom: 10,
+    marginBottom: spacing.sm,
+  },
+  // Mensagem de erro inline (mesmo visual do Input)
+  fieldError: {
+    fontFamily: fontFamily.body,
+    fontSize: typography.size.xs,
+    color: colors.semantic.danger,
+    marginTop: spacing.xs,
+  },
+  // Aviso geral do formulário (ex.: carrinho vazio / campos pendentes)
+  formError: {
+    fontFamily: fontFamily.body,
+    fontSize: typography.size.sm,
+    color: colors.semantic.danger,
+    textAlign: 'center',
+    marginTop: spacing.sm,
   },
 
   // ── Editor de item do carrinho ──────────────────────────────
   itemRow: {
     borderTopWidth: 1,
     borderTopColor: colors.neutral.bg,
-    paddingTop: 10,
-    marginTop: 6,
+    paddingTop: spacing.sm,
+    marginTop: spacing.sm,
   },
   itemHeader: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     justifyContent: 'space-between',
-    marginBottom: 8,
+    marginBottom: spacing.sm,
   },
   itemName: {
     flex: 1,
-    fontFamily: 'PlusJakartaSans_600SemiBold',
+    fontFamily: fontFamily.sansSemibold,
     fontSize: 13,
     color: colors.brand.dark,
-    marginRight: 8,
+    marginRight: spacing.sm,
   },
   removeBtn: {
     width: 28,
     height: 28,
-    borderRadius: 14,
+    borderRadius: radius.full,
     backgroundColor: colors.semantic.dangerLight,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  removeBtnText: {
-    fontFamily: 'Inter_400Regular',
-    color: colors.semantic.danger,
-    fontSize: 18,
-    fontWeight: '700',
-    lineHeight: 22,
-  },
-  itemControls:  { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  itemQty:       { alignItems: 'center' },
-  itemPrice:     { flex: 1, alignItems: 'flex-start' },
+  itemControls:  { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.md },
+  itemQty:       { minWidth: 80 },
+  itemPrice:     { flex: 1 },
   itemSubtotal:  { alignItems: 'flex-end' },
-  controlLabel:  { fontFamily: 'Inter_400Regular', fontSize: 10, color: colors.neutral.textSub, marginBottom: 4 },
-  priceInput: {
-    borderWidth: 1,
-    borderColor: colors.neutral.border,
-    borderRadius: radius.sm,
-    padding: 6,
-    fontFamily: 'Inter_400Regular',
-    fontSize: 13,
-    minWidth: 80,
+  controlLabel:  { fontFamily: fontFamily.body, fontSize: typography.size.xs, color: colors.neutral.textSub, marginBottom: spacing.xs },
+  // Campo compacto do editor de item (aplicado via containerStyle/style do Input)
+  compactField: {
     backgroundColor: colors.neutral.bg,
+    paddingHorizontal: spacing.sm,
+    minWidth: 80,
+  },
+  compactInput: {
+    fontSize: 13,
+    paddingVertical: spacing.xs,
     color: colors.brand.dark,
   },
-  subtotalValue: { fontFamily: 'PlusJakartaSans_700Bold', fontSize: 13, color: colors.brand.dark },
-  itemExtraRow:   { flexDirection: 'row', gap: 8, marginTop: 8, flexWrap: 'wrap' },
+  subtotalValue: { fontFamily: fontFamily.sansBold, fontSize: 13, color: colors.brand.dark, paddingVertical: spacing.xs },
+  itemExtraRow:   { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.sm, flexWrap: 'wrap' },
   itemExtraField: { flex: 1, minWidth: 80 },
-  itemExtraFull:  { marginTop: 8 },
-  xcravBtn: {
-    borderWidth: 1,
-    borderColor: colors.neutral.border,
-    borderRadius: radius.sm,
-    paddingHorizontal: 16,
-    paddingVertical: 6,
-    alignSelf: 'flex-start',
-    backgroundColor: colors.neutral.bg,
-  },
-  xcravBtnActive:     { backgroundColor: colors.brand.primary, borderColor: colors.brand.primary },
-  xcravBtnText:       { fontFamily: 'Inter_400Regular', fontSize: 13, color: colors.neutral.text },
-  xcravBtnTextActive: { color: colors.neutral.white },
+  itemExtraFull:  { marginTop: spacing.sm },
+  xcravBtn:       { alignSelf: 'flex-start' },
 
   // ── PickerField ─────────────────────────────────────────────
   pickerBtn: {
@@ -96,36 +97,35 @@ export const orderFormStyles = StyleSheet.create({
     alignItems: 'center',
     borderWidth: 1,
     borderColor: colors.neutral.border,
-    borderRadius: 8,
-    padding: 10,
+    borderRadius: radius.sm,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
     backgroundColor: colors.neutral.bg,
   },
+  pickerBtnError:       { borderColor: colors.semantic.danger },
   pickerBtnDisabled:    { opacity: 0.6 },
-  pickerBtnText:        { fontFamily: 'Inter_400Regular', fontSize: 14, color: colors.brand.dark },
-  pickerBtnPlaceholder: { fontFamily: 'Inter_400Regular', fontSize: 14, color: colors.neutral.textSub },
-  pickerBtnIcon:        { fontFamily: 'Inter_400Regular', fontSize: 12, color: colors.neutral.textSub },
+  pickerBtnText:        { fontFamily: fontFamily.body, fontSize: 14, color: colors.brand.dark },
+  pickerBtnPlaceholder: { fontFamily: fontFamily.body, fontSize: 14, color: colors.neutral.textSub },
   pickerList: {
-    marginTop: 4,
+    marginTop: spacing.xs,
     borderWidth: 1,
     borderColor: colors.neutral.border,
-    borderRadius: 8,
+    borderRadius: radius.sm,
     backgroundColor: colors.neutral.white,
     overflow: 'hidden',
   },
-  pickerItem:         { paddingVertical: 10, paddingHorizontal: 12, borderBottomWidth: 1, borderBottomColor: colors.neutral.bg },
-  pickerItemText:     { fontFamily: 'Inter_400Regular', fontSize: 14, color: colors.neutral.text },
-  pickerItemSelected: { fontFamily: 'PlusJakartaSans_600SemiBold', color: colors.brand.primary },
+  pickerItem:         { paddingVertical: spacing.md, paddingHorizontal: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.neutral.bg },
+  pickerItemText:     { fontFamily: fontFamily.body, fontSize: 14, color: colors.neutral.text },
+  pickerItemSelected: { fontFamily: fontFamily.sansSemibold, color: colors.brand.primary },
 
-  // ── Observações ─────────────────────────────────────────────
-  notesInput: {
-    borderWidth: 1,
-    borderColor: colors.neutral.border,
-    borderRadius: 8,
-    padding: 10,
-    fontFamily: 'Inter_400Regular',
-    fontSize: 14,
-    minHeight: 80,
+  // ── Observações (Input multiline) ───────────────────────────
+  notesField: {
     backgroundColor: colors.neutral.bg,
+    alignItems: 'flex-start',
+  },
+  notesInput: {
+    minHeight: 80,
+    textAlignVertical: 'top',
     color: colors.brand.dark,
   },
 })

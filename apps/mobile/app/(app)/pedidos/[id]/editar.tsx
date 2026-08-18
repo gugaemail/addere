@@ -3,14 +3,12 @@ import {
   View,
   Text,
   ScrollView,
-  TextInput,
-  TouchableOpacity,
-  ActivityIndicator,
   StyleSheet,
   Alert,
   FlatList,
 } from 'react-native'
 import { useLocalSearchParams, Stack, useRouter } from 'expo-router'
+import { Plus, Minus, Search } from 'lucide-react-native'
 import { usePedido, useAtualizarPedido } from '../../../../src/hooks/usePedidos'
 import { useCatalog } from '../../../../src/hooks/useCatalog'
 import { useDebouncedValue } from '../../../../src/hooks/useDebounce'
@@ -20,10 +18,19 @@ import { useFieldVisible, useFieldRequired } from '../../../../src/hooks/useFiel
 import { useAuthStore } from '../../../../src/store/auth.store'
 import { fmtMoeda } from '../../../../src/utils/format'
 import { getApiErrorMessage } from '../../../../src/lib/errors'
-import { colors } from '../../../../src/theme/colors'
+import { colors, spacing, radius } from '../../../../src/theme'
+import { Button } from '../../../../src/components/ui/Button'
+import { Card } from '../../../../src/components/ui/Card'
+import { EmptyState } from '../../../../src/components/ui/EmptyState'
+import { Input } from '../../../../src/components/ui/Input'
+import { LoadingState } from '../../../../src/components/Skeleton'
 import { PickerField } from '../../../../src/components/order-form/PickerField'
 import { CartItemEditor } from '../../../../src/components/order-form/CartItemEditor'
-import { useOrderValidation } from '../../../../src/components/order-form/validation'
+import {
+  useOrderValidation,
+  useOrderFormErrors,
+  changedItemFields,
+} from '../../../../src/components/order-form/validation'
 import { orderFormStyles } from '../../../../src/components/order-form/styles'
 import { cartItemFromOrderItem, cartItemFromProduct, cartTotal, cartToOrderItems } from '../../../../src/components/order-form/types'
 import type { CartItem } from '../../../../src/components/order-form/types'
@@ -70,6 +77,9 @@ export default function EditarPedidoScreen() {
     condPag:        'Selecione uma condição de pagamento.',
   })
 
+  // Erros de validação exibidos inline (limpos campo a campo conforme o usuário edita)
+  const { errors, setErrors, clearError, clearItemErrors, hasErrors: showErrorSummary } = useOrderFormErrors()
+
   useEffect(() => {
     if (!order || initialized) return
     setCart(order.items.map(cartItemFromOrderItem))
@@ -87,6 +97,7 @@ export default function EditarPedidoScreen() {
   const total = cartTotal(cart)
 
   function addProduct(product: Product) {
+    clearError('form')
     const existing = cart.find((i) => i.productId === product.id)
     if (existing) {
       setCart((prev) => prev.map((i) => i.productId === product.id ? { ...i, quantity: i.quantity + 1 } : i))
@@ -97,7 +108,9 @@ export default function EditarPedidoScreen() {
   }
 
   function handleSave() {
-    if (!validate({ cart, transportadora, condPag, mennota, notes })) return
+    const result = validate({ cart, transportadora, condPag, mennota, notes })
+    setErrors(result.errors)
+    if (!result.ok) return
 
     atualizar(
       {
@@ -124,7 +137,7 @@ export default function EditarPedidoScreen() {
   }
 
   if (loadingOrder || !initialized) {
-    return <ActivityIndicator style={{ flex: 1, marginTop: 40 }} color={colors.brand.primary} />
+    return <LoadingState />
   }
 
   if (!order || order.status !== 'PENDING') {
@@ -136,7 +149,7 @@ export default function EditarPedidoScreen() {
   }
 
   return (
-    <ScrollView style={s.container} contentContainerStyle={{ padding: 16, paddingBottom: 40 }}>
+    <ScrollView style={s.container} contentContainerStyle={{ padding: spacing.md, paddingBottom: spacing.xl }}>
       <Stack.Screen options={{ title: 'Editar pedido' }} />
 
       {/* Itens */}
@@ -151,45 +164,63 @@ export default function EditarPedidoScreen() {
           <CartItemEditor
             key={item.productId}
             item={item}
-            onChange={(updated) => setCart((prev) => prev.map((i) => i.productId === item.productId ? updated : i))}
-            onRemove={() => setCart((prev) => prev.filter((i) => i.productId !== item.productId))}
+            errors={errors.items[item.productId]}
+            onChange={(updated) => {
+              clearItemErrors(item.productId, changedItemFields(item, updated))
+              setCart((prev) => prev.map((i) => i.productId === item.productId ? updated : i))
+            }}
+            onRemove={() => {
+              clearItemErrors(item.productId)
+              setCart((prev) => prev.filter((i) => i.productId !== item.productId))
+            }}
           />
         ))}
       </View>
 
       {/* Adicionar produto */}
-      <TouchableOpacity
+      <Button
+        variant="secondary"
         style={s.addProductBtn}
         onPress={() => setShowSearch((v) => !v)}
-        activeOpacity={0.8}
+        icon={showSearch
+          ? <Minus size={16} color={colors.brand.primary} strokeWidth={1.5} />
+          : <Plus  size={16} color={colors.brand.primary} strokeWidth={1.5} />}
       >
-        <Text style={s.addProductBtnText}>{showSearch ? '− Fechar busca' : '+ Adicionar produto'}</Text>
-      </TouchableOpacity>
+        {showSearch ? 'Fechar busca' : 'Adicionar produto'}
+      </Button>
 
       {showSearch && (
         <View style={orderFormStyles.fieldBox}>
-          <TextInput
-            style={s.searchInput}
+          <Input
             placeholder="Buscar produto..."
             value={search}
             onChangeText={setSearch}
+            onClear={() => setSearch('')}
+            leftElement={<Search size={16} color={colors.neutral.placeholder} strokeWidth={1.5} />}
+            containerStyle={s.searchInput}
             autoFocus
           />
           {loadingProducts ? (
-            <ActivityIndicator style={{ marginTop: 8 }} color={colors.brand.primary} />
+            <LoadingState style={s.searchLoading} />
           ) : (
             <FlatList
               data={products}
               keyExtractor={(p) => p.id}
               scrollEnabled={false}
               renderItem={({ item }) => (
-                <TouchableOpacity style={s.productItem} onPress={() => addProduct(item)}>
+                <Card padding="sm" style={s.productItem} onPress={() => addProduct(item)}>
                   <Text style={s.productItemName}>{item.name}</Text>
                   <Text style={s.productItemSub}>R$ {fmtMoeda(item.price)} / {item.unit}</Text>
-                </TouchableOpacity>
+                </Card>
               )}
               ListEmptyComponent={
-                search.length > 0 ? <Text style={s.emptyText}>Nenhum produto encontrado.</Text> : null
+                search.length > 0 ? (
+                  <EmptyState
+                    illustration="products"
+                    title="Nenhum produto encontrado"
+                    subtitle={`Não encontramos produtos para "${search}".`}
+                  />
+                ) : null
               }
             />
           )}
@@ -202,9 +233,13 @@ export default function EditarPedidoScreen() {
           label={reqTransportadora ? 'Transportadora *' : 'Transportadora'}
           selected={transportadora ? { id: transportadora.id, nome: transportadora.nome } : null}
           items={transportadoras.map((t) => ({ id: t.id, nome: t.nome }))}
-          onSelect={(item) => setTransportadora(item ? (transportadoras.find((t) => t.id === item.id) ?? null) : null)}
+          onSelect={(item) => {
+            clearError('transportadora')
+            setTransportadora(item ? (transportadoras.find((t) => t.id === item.id) ?? null) : null)
+          }}
           loading={loadingTransp}
           disabled={!canChangeCarrier}
+          error={errors.transportadora}
         />
       )}
 
@@ -214,9 +249,13 @@ export default function EditarPedidoScreen() {
           label={reqCondPag ? 'Cond. Pagamento *' : 'Cond. Pagamento'}
           selected={condPag ? { id: condPag.id, nome: condPag.nome } : null}
           items={condPags.map((c) => ({ id: c.id, nome: c.nome }))}
-          onSelect={(item) => setCondPag(item ? (condPags.find((c) => c.id === item.id) ?? null) : null)}
+          onSelect={(item) => {
+            clearError('condPag')
+            setCondPag(item ? (condPags.find((c) => c.id === item.id) ?? null) : null)
+          }}
           loading={loadingCond}
           disabled={!canChangePaymentTerms}
+          error={errors.condPag}
         />
       )}
 
@@ -224,14 +263,16 @@ export default function EditarPedidoScreen() {
       {showMennota && (
         <View style={orderFormStyles.fieldBox}>
           <Text style={orderFormStyles.fieldLabel}>Obs. Nota Fiscal{reqMennota ? ' *' : ''}</Text>
-          <TextInput
+          <Input
+            containerStyle={orderFormStyles.notesField}
             style={orderFormStyles.notesInput}
             placeholder="Mensagem para a nota fiscal (opcional)..."
             value={mennota}
-            onChangeText={setMennota}
+            onChangeText={(text) => { clearError('mennota'); setMennota(text) }}
             multiline
             numberOfLines={3}
             textAlignVertical="top"
+            error={errors.mennota}
           />
         </View>
       )}
@@ -240,40 +281,46 @@ export default function EditarPedidoScreen() {
       {showNotes && (
         <View style={orderFormStyles.fieldBox}>
           <Text style={orderFormStyles.fieldLabel}>Obs. Interna{reqNotes ? ' *' : ''}</Text>
-          <TextInput
+          <Input
+            containerStyle={orderFormStyles.notesField}
             style={orderFormStyles.notesInput}
             placeholder="Observação interna (não sai na nota)..."
             value={notes}
-            onChangeText={setNotes}
+            onChangeText={(text) => { clearError('notes'); setNotes(text) }}
             multiline
             numberOfLines={3}
             textAlignVertical="top"
+            error={errors.notes}
           />
         </View>
       )}
 
       {/* Total */}
-      <View style={s.totalCard}>
+      <Card style={s.totalCard}>
         <Text style={s.totalLabel}>Total do pedido</Text>
         <Text style={s.totalValue}>R$ {fmtMoeda(total)}</Text>
-      </View>
+      </Card>
+
+      {showErrorSummary && (
+        <Text style={orderFormStyles.formError} accessibilityLiveRegion="polite">
+          {errors.form ?? 'Corrija os campos destacados antes de salvar.'}
+        </Text>
+      )}
 
       {/* Salvar */}
-      <TouchableOpacity
-        style={[s.saveBtn, (isSaving || cart.length === 0) && { opacity: 0.5 }]}
+      <Button
+        size="lg"
+        style={s.saveBtn}
         onPress={handleSave}
-        disabled={isSaving || cart.length === 0}
-        activeOpacity={0.8}
+        loading={isSaving}
+        disabled={cart.length === 0}
       >
-        {isSaving
-          ? <ActivityIndicator color="#fff" />
-          : <Text style={s.saveBtnText}>Salvar alterações</Text>
-        }
-      </TouchableOpacity>
+        Salvar alterações
+      </Button>
 
-      <TouchableOpacity style={s.cancelBtn} onPress={() => router.back()} disabled={isSaving}>
-        <Text style={s.cancelBtnText}>Cancelar</Text>
-      </TouchableOpacity>
+      <Button variant="ghostDanger" style={s.cancelBtn} onPress={() => router.back()} disabled={isSaving}>
+        Cancelar
+      </Button>
     </ScrollView>
   )
 }
@@ -282,78 +329,40 @@ const s = StyleSheet.create({
   container:  { flex: 1, backgroundColor: colors.neutral.bg },
   center:     { flex: 1, justifyContent: 'center', alignItems: 'center' },
   errorText:  { color: colors.semantic.danger, fontFamily: 'Inter_400Regular' },
-  emptyText:  { color: colors.neutral.textSub, fontFamily: 'Inter_400Regular', fontSize: 13, textAlign: 'center', paddingVertical: 8 },
+  emptyText:  { color: colors.neutral.textSub, fontFamily: 'Inter_400Regular', fontSize: 13, textAlign: 'center', paddingVertical: spacing.sm },
 
   addProductBtn: {
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: colors.brand.primary,
-    borderStyle: 'dashed',
-    padding: 12,
-    alignItems: 'center',
-    marginBottom: 10,
+    marginBottom: spacing.sm,
     backgroundColor: colors.neutral.white,
-  },
-  addProductBtnText: {
-    fontFamily: 'PlusJakartaSans_600SemiBold',
-    fontSize: 14,
-    color: colors.brand.primary,
   },
 
   searchInput: {
     backgroundColor: colors.neutral.bg,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: colors.neutral.border,
-    padding: 10,
-    fontSize: 14,
-    fontFamily: 'Inter_400Regular',
-    marginBottom: 8,
-    color: colors.brand.dark,
+    marginBottom: spacing.sm,
+  },
+  searchLoading: {
+    paddingVertical: spacing.md,
   },
   productItem: {
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.neutral.bg,
+    marginBottom: spacing.sm,
   },
   productItemName: { fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: 14, color: colors.brand.dark },
-  productItemSub:  { fontFamily: 'Inter_400Regular', fontSize: 12, color: colors.neutral.textSub, marginTop: 2 },
+  productItemSub:  { fontFamily: 'Inter_400Regular', fontSize: 12, color: colors.neutral.textSub, marginTop: spacing.xs },
 
   totalCard: {
-    backgroundColor: colors.neutral.white,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: colors.neutral.border,
-    padding: 16,
+    borderRadius: radius.md,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: spacing.sm,
   },
   totalLabel: { fontFamily: 'Inter_400Regular', fontSize: 14, color: colors.neutral.textSub },
   totalValue: { fontFamily: 'PlusJakartaSans_700Bold', fontSize: 22, color: colors.brand.dark },
 
   saveBtn: {
-    backgroundColor: colors.brand.primary,
-    borderRadius: 10,
-    padding: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 8,
-  },
-  saveBtnText: {
-    fontFamily: 'PlusJakartaSans_600SemiBold',
-    fontSize: 15,
-    color: colors.neutral.white,
+    marginBottom: spacing.sm,
   },
   cancelBtn: {
-    padding: 14,
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  cancelBtnText: {
-    fontFamily: 'PlusJakartaSans_600SemiBold',
-    fontSize: 14,
-    color: colors.semantic.danger,
+    marginBottom: spacing.sm,
   },
 })

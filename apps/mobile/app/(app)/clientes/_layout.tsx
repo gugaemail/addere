@@ -1,5 +1,5 @@
 import { Stack } from 'expo-router'
-import { brandScreenOptions } from '../../../src/navigation/BrandHeader'
+import { brandScreenOptions, detailScreenOptions } from '../../../src/navigation/BrandHeader'
 
 export default function ClientesLayout() {
   return (
@@ -7,29 +7,11 @@ export default function ClientesLayout() {
       <Stack.Screen name="index" options={brandScreenOptions} />
       <Stack.Screen
         name="[id]"
-        options={{
-          title: 'Detalhe do Cliente',
-          headerStyle: { backgroundColor: '#FFFFFF' },
-          headerTintColor: '#0D2045',
-          headerShadowVisible: false,
-          headerTitleStyle: {
-            fontFamily: 'PlusJakartaSans_600SemiBold',
-            fontSize: 16,
-          },
-        }}
+        options={{ title: 'Detalhe do Cliente', ...detailScreenOptions }}
       />
       <Stack.Screen
         name="pedido/[id]"
-        options={{
-          title: 'Detalhe do Pedido',
-          headerStyle: { backgroundColor: '#FFFFFF' },
-          headerTintColor: '#0D2045',
-          headerShadowVisible: false,
-          headerTitleStyle: {
-            fontFamily: 'PlusJakartaSans_600SemiBold',
-            fontSize: 16,
-          },
-        }}
+        options={{ title: 'Detalhe do Pedido', ...detailScreenOptions }}
       />
     </Stack>
   )

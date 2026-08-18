@@ -1,10 +1,15 @@
 import { useState } from 'react'
-import { View, Text, FlatList, TextInput, TouchableOpacity, ActivityIndicator, StyleSheet } from 'react-native'
-import { X } from 'lucide-react-native'
+import { View, Text, FlatList, StyleSheet } from 'react-native'
+import { Search } from 'lucide-react-native'
 import { useCatalog } from '../../../src/hooks/useCatalog'
 import { useDebouncedValue } from '../../../src/hooks/useDebounce'
 import { Badge } from '../../../src/components/ui/Badge'
+import { Card } from '../../../src/components/ui/Card'
+import { Input } from '../../../src/components/ui/Input'
+import { EmptyState } from '../../../src/components/ui/EmptyState'
+import { LoadingState } from '../../../src/components/Skeleton'
 import { useFieldVisible } from '../../../src/hooks/useFieldConfig'
+import { colors, spacing, typography } from '../../../src/theme'
 import type { Product } from '@addere/types'
 import { fmtMoeda, fmtQtd } from '../../../src/utils/format'
 
@@ -14,7 +19,7 @@ function ProductCard({ product }: { product: Product }) {
   const showDescription  = useFieldVisible('product.description')
   const showProtheusCode = useFieldVisible('product.protheusCode')
   return (
-    <View style={s.card}>
+    <Card style={s.card}>
       <View style={{ flex: 1 }}>
         <Text style={s.name}>{product.name}</Text>
         {showProtheusCode && product.protheusCode && (
@@ -33,7 +38,7 @@ function ProductCard({ product }: { product: Product }) {
           </Badge>
         )}
       </View>
-    </View>
+    </Card>
   )
 }
 
@@ -45,22 +50,17 @@ export default function ProdutosScreen() {
   return (
     <View style={s.container}>
       <View style={s.searchContainer}>
-        <TextInput
-          style={s.searchInput}
+        <Input
           placeholder="Buscar por nome ou código..."
-          placeholderTextColor="#94A3B8"
           value={search}
           onChangeText={setSearch}
+          leftElement={<Search size={18} color={colors.neutral.placeholder} strokeWidth={1.5} />}
+          onClear={() => setSearch('')}
         />
-        {search.length > 0 && (
-          <TouchableOpacity onPress={() => setSearch('')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-            <X size={16} color="#94A3B8" strokeWidth={2} />
-          </TouchableOpacity>
-        )}
       </View>
 
       {isLoading ? (
-        <ActivityIndicator color="#1B4FA8" style={{ marginTop: 24 }} />
+        <LoadingState style={{ marginTop: spacing.lg }} />
       ) : (
         <FlatList
           data={products}
@@ -69,9 +69,12 @@ export default function ProdutosScreen() {
           onRefresh={refetch}
           refreshing={isLoading}
           ListEmptyComponent={
-            <Text style={s.empty}>Nenhum produto encontrado.</Text>
+            <EmptyState
+              illustration="products"
+              title="Nenhum produto encontrado."
+            />
           }
-          contentContainerStyle={{ padding: 16, gap: 8 }}
+          contentContainerStyle={{ padding: spacing.md, gap: spacing.sm }}
         />
       )}
     </View>
@@ -81,76 +84,45 @@ export default function ProdutosScreen() {
 const s = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: colors.neutral.bg,
   },
   searchContainer: {
-    margin: 16,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  searchInput: {
-    flex: 1,
-    fontFamily: 'Inter_400Regular',
-    fontSize: 14,
-    color: '#0D2045',
-    padding: 0,
+    marginHorizontal: spacing.md,
+    marginTop: spacing.md,
   },
   card: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    padding: 16,
     flexDirection: 'row',
-    shadowColor: '#0D2045',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06,
-    shadowRadius: 3,
-    elevation: 1,
   },
   name: {
-    fontFamily: 'PlusJakartaSans_600SemiBold',
+    fontFamily: typography.fontFamily.sansSemibold,
     fontSize: 15,
-    color: '#0D2045',
+    color: colors.brand.dark,
   },
   sub: {
-    fontFamily: 'Inter_400Regular',
+    fontFamily: typography.fontFamily.body,
     fontSize: 13,
-    color: '#64748B',
-    marginTop: 2,
+    color: colors.neutral.textSub,
+    marginTop: spacing.xs,
   },
   desc: {
-    fontFamily: 'Inter_400Regular',
+    fontFamily: typography.fontFamily.body,
     fontSize: 13,
-    color: '#64748B',
-    marginTop: 4,
+    color: colors.neutral.textSub,
+    marginTop: spacing.xs,
   },
   right: {
     alignItems: 'flex-end',
     justifyContent: 'center',
-    gap: 4,
+    gap: spacing.xs,
   },
   price: {
-    fontFamily: 'PlusJakartaSans_600SemiBold',
+    fontFamily: typography.fontFamily.sansSemibold,
     fontSize: 16,
-    color: '#0D2045',
+    color: colors.brand.dark,
   },
   unit: {
-    fontFamily: 'Inter_400Regular',
+    fontFamily: typography.fontFamily.body,
     fontSize: 12,
-    color: '#64748B',
-  },
-  empty: {
-    fontFamily: 'Inter_400Regular',
-    textAlign: 'center',
-    marginTop: 40,
-    color: '#64748B',
+    color: colors.neutral.textSub,
   },
 })

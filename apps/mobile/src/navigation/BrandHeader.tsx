@@ -3,6 +3,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { User } from 'lucide-react-native'
 import { LogoMark } from '../components/brand/LogoMark'
 import { useLogout } from '../hooks/useAuth'
+import { colors, spacing, radius, typography } from '../theme'
 
 export function BrandHeader() {
   const insets = useSafeAreaInsets()
@@ -27,7 +28,7 @@ export function BrandHeader() {
           <Text style={s.wordmark}>Addere</Text>
         </View>
         <TouchableOpacity onPress={handleUserPress} style={s.userBtn} activeOpacity={0.7}>
-          <User size={18} color="#1B4FA8" />
+          <User size={18} color={colors.brand.primary} strokeWidth={1.5} />
         </TouchableOpacity>
       </View>
     </View>
@@ -38,33 +39,44 @@ export const brandScreenOptions = {
   header: () => <BrandHeader />,
 } as const
 
+// Opções de header para telas de detalhe (título nativo com tipografia da marca)
+export const detailScreenOptions = {
+  headerStyle: { backgroundColor: colors.neutral.white },
+  headerTintColor: colors.brand.dark,
+  headerShadowVisible: false,
+  headerTitleStyle: {
+    fontFamily: typography.fontFamily.sansSemibold,
+    fontSize: 16,
+  },
+} as const
+
 const s = StyleSheet.create({
   wrapper: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.neutral.white,
     borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
+    borderBottomColor: colors.neutral.border,
   },
   row: {
     height: 56,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
+    paddingHorizontal: spacing.md,
   },
   left: {
     flexDirection: 'row',
     alignItems: 'center',
   },
   wordmark: {
-    fontFamily: 'PlusJakartaSans_700Bold',
+    fontFamily: typography.fontFamily.sansBold,
     fontSize: 16,
-    color: '#0D2045',
+    color: colors.brand.dark,
     letterSpacing: 16 * -0.02,
-    marginLeft: 8,
+    marginLeft: spacing.sm,
   },
   userBtn: {
-    backgroundColor: '#E8F4FF',
-    borderRadius: 6,
-    padding: 6,
+    backgroundColor: colors.brand.tint,
+    borderRadius: radius.sm,
+    padding: spacing.sm,
   },
 })

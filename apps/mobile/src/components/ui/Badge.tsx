@@ -1,12 +1,14 @@
 import React from 'react'
-import { View, Text, StyleSheet } from 'react-native'
+import { View, Text, StyleSheet, type TextProps } from 'react-native'
 import { colors, spacing, radius, typography } from '../../theme'
 
 type Variant = 'success' | 'warning' | 'danger' | 'info' | 'neutral'
 
 interface BadgeProps {
   variant?: Variant
-  children: React.ReactNode
+  // Tipado a partir do Text para ficar compatível com os tipos do react-native
+  children: NonNullable<TextProps['children']>
+  testID?: string
 }
 
 const bg: Record<Variant, string> = {
@@ -25,9 +27,9 @@ const fg: Record<Variant, string> = {
   neutral: colors.semantic.muted,
 }
 
-export function Badge({ variant = 'neutral', children }: BadgeProps) {
+export function Badge({ variant = 'neutral', children, testID }: BadgeProps) {
   return (
-    <View style={[styles.pill, { backgroundColor: bg[variant] }]}>
+    <View style={[styles.pill, { backgroundColor: bg[variant] }]} testID={testID}>
       <Text style={[styles.label, { color: fg[variant] }]}>{children}</Text>
     </View>
   )
@@ -37,11 +39,11 @@ const styles = StyleSheet.create({
   pill: {
     alignSelf:         'flex-start',
     borderRadius:      radius.full,
-    paddingVertical:   spacing.xs - 2,
+    paddingVertical:   spacing.xs,
     paddingHorizontal: spacing.sm,
   },
   label: {
-    fontFamily:         typography.fontFamily.monoBold,
+    fontFamily:         typography.fontFamily.bodyBold,
     fontSize:           typography.size.xs,
     includeFontPadding: false,
   },

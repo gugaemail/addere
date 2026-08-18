@@ -143,6 +143,7 @@ interface EmptyStateProps {
   subtitle?: string
   actionLabel?: string
   onAction?: () => void
+  testID?: string
 }
 
 export function EmptyState({
@@ -151,11 +152,12 @@ export function EmptyState({
   subtitle,
   actionLabel,
   onAction,
+  testID,
 }: EmptyStateProps) {
   const Illustration = illustrations[illustration]
 
   return (
-    <View style={styles.container}>
+    <View style={styles.container} testID={testID}>
       <Illustration />
       <Text style={styles.title}>{title}</Text>
       {subtitle && <Text style={styles.subtitle}>{subtitle}</Text>}
@@ -188,7 +190,7 @@ const styles = StyleSheet.create({
     marginTop: spacing.sm,
   },
   subtitle: {
-    fontFamily: typography.fontFamily.mono,
+    fontFamily: typography.fontFamily.body,
     fontSize: typography.size.md,
     color: colors.semantic.muted,
     textAlign: 'center',

@@ -1,21 +1,25 @@
 import React from 'react'
-import { View, Text, ScrollView, ActivityIndicator, StyleSheet, TouchableOpacity, Alert } from 'react-native'
+import { View, Text, ScrollView, StyleSheet, Alert, type ViewProps } from 'react-native'
 import { useLocalSearchParams, Stack, useRouter } from 'expo-router'
 import { RefreshCw, SearchCheck, Pencil } from 'lucide-react-native'
 import { usePedido, useSincronizarPedido, useConsultarStatusPedido, useCancelarPedido } from '../../../../src/hooks/usePedidos'
 import { Badge } from '../../../../src/components/ui/Badge'
+import { Button, buttonForeground } from '../../../../src/components/ui/Button'
+import { Card } from '../../../../src/components/ui/Card'
+import { LoadingState } from '../../../../src/components/Skeleton'
+import { colors, spacing } from '../../../../src/theme'
 import { useFieldVisible } from '../../../../src/hooks/useFieldConfig'
 import { useQueryClient } from '@tanstack/react-query'
 import { fmtMoeda, fmtQtd, fmtData, formatDocument } from '../../../../src/utils/format'
 import { STATUS_BADGE, STATUS_LABEL } from '../../../../src/utils/orderStatus'
 import { getApiErrorMessage } from '../../../../src/lib/errors'
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function Section({ title, children }: { title: string; children: ViewProps['children'] }) {
   return (
-    <View style={s.section}>
+    <Card style={s.section}>
       <Text style={s.sectionTitle}>{title}</Text>
       {children}
-    </View>
+    </Card>
   )
 }
 
@@ -100,7 +104,7 @@ export default function PedidoDetailScreen() {
   }
 
   if (isLoading) {
-    return <ActivityIndicator style={{ flex: 1, marginTop: 40 }} color="#1B4FA8" />
+    return <LoadingState />
   }
 
   if (error || !order) {
@@ -114,7 +118,7 @@ export default function PedidoDetailScreen() {
   const variant = STATUS_BADGE[order.status] ?? 'neutral'
 
   return (
-    <ScrollView style={s.container} contentContainerStyle={{ padding: 16, paddingBottom: 32 }}>
+    <ScrollView style={s.container} contentContainerStyle={{ padding: spacing.md, paddingBottom: spacing.xl }}>
       <Stack.Screen options={{ title: order.customer.name }} />
 
       <Section title="Informações">
@@ -178,151 +182,98 @@ export default function PedidoDetailScreen() {
         </Section>
       ) : null}
 
-      <View style={s.totalCard}>
+      <Card style={s.totalCard}>
         <Text style={s.totalLabel}>Total do pedido</Text>
         <Text style={s.totalValue}>R$ {fmtMoeda(order.total)}</Text>
-      </View>
+      </Card>
 
       {order.status === 'PENDING' && (
-        <TouchableOpacity
-          style={s.editBtn}
+        <Button
+          variant="secondary"
+          size="lg"
+          style={s.actionBtn}
           onPress={() => router.push(`/(app)/pedidos/${id}/editar` as never)}
-          activeOpacity={0.8}
+          icon={<Pencil size={16} color={buttonForeground.secondary} strokeWidth={1.5} />}
         >
-          <Pencil size={16} color="#1B4FA8" strokeWidth={1.5} />
-          <Text style={s.editBtnText}>Editar pedido</Text>
-        </TouchableOpacity>
+          Editar pedido
+        </Button>
       )}
 
       {order.status === 'PENDING' && (
-        <TouchableOpacity
-          style={[s.syncBtn, isSyncing && { opacity: 0.6 }]}
+        <Button
+          size="lg"
+          style={s.actionBtn}
           onPress={handleSync}
-          disabled={isSyncing}
-          activeOpacity={0.8}
+          loading={isSyncing}
+          icon={<RefreshCw size={16} color={buttonForeground.primary} strokeWidth={1.5} />}
         >
-          <RefreshCw size={16} color="#fff" strokeWidth={1.5} />
-          <Text style={s.syncBtnText}>{isSyncing ? 'Enviando ao Protheus...' : 'Sincronizar com Protheus'}</Text>
-        </TouchableOpacity>
+          Sincronizar com Protheus
+        </Button>
       )}
 
       {order.status === 'SYNCED' && order.protheusOrderId && (
-        <TouchableOpacity
-          style={[s.statusBtn, isChecking && { opacity: 0.6 }]}
+        <Button
+          variant="secondary"
+          size="lg"
+          style={s.actionBtn}
           onPress={handleCheckStatus}
-          disabled={isChecking}
-          activeOpacity={0.8}
+          loading={isChecking}
+          icon={<SearchCheck size={16} color={buttonForeground.secondary} strokeWidth={1.5} />}
         >
-          <SearchCheck size={16} color="#1B4FA8" strokeWidth={1.5} />
-          <Text style={s.statusBtnText}>{isChecking ? 'Consultando...' : 'Atualizar Status Protheus'}</Text>
-        </TouchableOpacity>
+          Atualizar Status Protheus
+        </Button>
       )}
     </ScrollView>
   )
 }
 
 const s = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F8FAFC' },
+  container: { flex: 1, backgroundColor: colors.neutral.bg },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  errorText: { color: '#EF4444', fontFamily: 'Inter_400Regular' },
+  errorText: { color: colors.semantic.danger, fontFamily: 'Inter_400Regular' },
   section: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    padding: 16,
-    marginBottom: 12,
+    marginBottom: spacing.sm,
   },
   sectionTitle: {
     fontFamily: 'PlusJakartaSans_600SemiBold',
     fontSize: 14,
-    color: '#0D2045',
-    marginBottom: 12,
+    color: colors.brand.dark,
+    marginBottom: spacing.sm,
   },
-  statusRow: { marginBottom: 10 },
+  statusRow: { marginBottom: spacing.sm },
   infoRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    paddingVertical: 7,
+    paddingVertical: spacing.sm,
     borderBottomWidth: 1,
-    borderBottomColor: '#F1F5F9',
+    borderBottomColor: colors.neutral.subtle,
   },
-  infoLabel: { fontFamily: 'Inter_400Regular', fontSize: 13, color: '#64748B' },
-  infoValue: { fontFamily: 'Inter_400Regular', fontSize: 13, color: '#0D2045', maxWidth: '60%', textAlign: 'right' },
+  infoLabel: { fontFamily: 'Inter_400Regular', fontSize: 13, color: colors.neutral.textSub },
+  infoValue: { fontFamily: 'Inter_400Regular', fontSize: 13, color: colors.brand.dark, maxWidth: '60%', textAlign: 'right' },
   itemRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    paddingVertical: 10,
-    gap: 8,
+    paddingVertical: spacing.sm,
+    gap: spacing.sm,
   },
   itemBorder: {
     borderBottomWidth: 1,
-    borderBottomColor: '#F1F5F9',
+    borderBottomColor: colors.neutral.subtle,
   },
-  itemName:   { fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: 14, color: '#0D2045' },
-  itemDesc:   { fontFamily: 'Inter_400Regular', fontSize: 12, color: '#64748B', marginTop: 1 },
-  itemDetail: { fontFamily: 'Inter_400Regular', fontSize: 12, color: '#64748B', marginTop: 2 },
-  itemTotal:  { fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: 14, color: '#0D2045' },
-  notes: { fontFamily: 'Inter_400Regular', fontSize: 13, color: '#475569', lineHeight: 20 },
+  itemName:   { fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: 14, color: colors.brand.dark },
+  itemDesc:   { fontFamily: 'Inter_400Regular', fontSize: 12, color: colors.neutral.textSub, marginTop: spacing.xs },
+  itemDetail: { fontFamily: 'Inter_400Regular', fontSize: 12, color: colors.neutral.textSub, marginTop: spacing.xs },
+  itemTotal:  { fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: 14, color: colors.brand.dark },
+  notes: { fontFamily: 'Inter_400Regular', fontSize: 13, color: colors.neutral.text, lineHeight: 20 },
   totalCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    padding: 16,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: spacing.sm,
   },
-  totalLabel: { fontFamily: 'Inter_400Regular', fontSize: 14, color: '#64748B' },
-  totalValue: { fontFamily: 'PlusJakartaSans_700Bold', fontSize: 22, color: '#0D2045' },
-  editBtn: {
-    backgroundColor: '#E8F4FF',
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#1B4FA8',
-    padding: 14,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    marginBottom: 8,
-  },
-  editBtnText: {
-    fontFamily: 'PlusJakartaSans_600SemiBold',
-    fontSize: 15,
-    color: '#1B4FA8',
-  },
-  syncBtn: {
-    backgroundColor: '#1B4FA8',
-    borderRadius: 10,
-    padding: 14,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    marginBottom: 8,
-  },
-  syncBtnText: {
-    fontFamily: 'PlusJakartaSans_600SemiBold',
-    fontSize: 15,
-    color: '#FFFFFF',
-  },
-  statusBtn: {
-    backgroundColor: '#E8F4FF',
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#1B4FA8',
-    padding: 14,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-  },
-  statusBtnText: {
-    fontFamily: 'PlusJakartaSans_600SemiBold',
-    fontSize: 15,
-    color: '#1B4FA8',
+  totalLabel: { fontFamily: 'Inter_400Regular', fontSize: 14, color: colors.neutral.textSub },
+  totalValue: { fontFamily: 'PlusJakartaSans_700Bold', fontSize: 22, color: colors.brand.dark },
+  actionBtn: {
+    marginBottom: spacing.sm,
   },
 })
