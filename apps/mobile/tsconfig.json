@@ -3,7 +3,12 @@
   "compilerOptions": {
     "strict": true,
     "paths": {
-      "@addere/types": ["../../packages/types/src/index.ts"]
+      "@addere/types": ["../../packages/types/src/index.ts"],
+      // O react-native fica hoisted na raiz e resolveria o @types/react 18 de lá;
+      // força o @types/react 19 do mobile para app e libs (evita ReactNode duplicado).
+      // Só afeta o type-check — o Jest remapeia `react` para o pacote real (package.json).
+      "react": ["./node_modules/@types/react"],
+      "react/*": ["./node_modules/@types/react/*"]
     }
   }
 }

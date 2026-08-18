@@ -1,3 +1,4 @@
+import { by, device, element, expect, waitFor } from 'detox'
 import { loginAs } from '../helpers/auth'
 import { goToPedidos } from '../helpers/navigation'
 import { goOffline, goOnline } from '../helpers/network'

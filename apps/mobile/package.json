@@ -25,6 +25,8 @@
       "node_modules/(?!((jest-)?react-native|@react-native(-community)?)|expo(nent)?|@expo(nent)?/.*|@expo-google-fonts/.*|react-navigation|@react-navigation/.*|@unimodules/.*|unimodules|sentry-expo|@sentry/.*|native-base|react-native-svg|zustand)"
     ],
     "moduleNameMapper": {
+      "^react$": "<rootDir>/node_modules/react",
+      "^react/(.*)$": "<rootDir>/node_modules/react/$1",
       "^@addere/types$": "<rootDir>/../../packages/types/src/index.ts"
     }
   },
@@ -67,13 +69,12 @@
   },
   "devDependencies": {
     "@babel/core": "^7.24.0",
-    "@types/detox": "^17.14.3",
+    "@types/jest": "29.5.14",
     "@types/react": "~19.1.10",
     "detox": "^20.51.1",
-    "sharp": "^0.34.5",
-    "typescript": "~5.9.2",
     "jest": "~29.7.0",
     "jest-expo": "~54.0.17",
-    "@types/jest": "29.5.14"
+    "sharp": "^0.34.5",
+    "typescript": "~5.9.2"
   }
 }

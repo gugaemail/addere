@@ -22,8 +22,7 @@
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "type-check": "tsc --noEmit -p apps/api && tsc --noEmit -p apps/web",
-    "type-check:mobile": "tsc --noEmit -p apps/mobile",
+    "type-check": "tsc --noEmit -p apps/api && tsc --noEmit -p apps/web && tsc --noEmit -p apps/mobile",
     "test": "npm test --workspace=apps/api && npm test --workspace=apps/web && npm run test:unit --workspace=apps/mobile"
   },
   "dependencies": {

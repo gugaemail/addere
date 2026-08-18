@@ -19,6 +19,14 @@ Requer uma API acessível em `EXPO_PUBLIC_API_URL` com os usuários de teste
 `rep@addere.test` / `manager@addere.test` (senha `test123`) — veja
 `helpers/auth.ts`.
 
+## Tipos
+
+Os fluxos importam `{ by, device, element, expect, waitFor }` de `'detox'` (tipos que o
+próprio Detox 20 traz) — não use os globais nem `@types/detox` (desatualizado), senão o
+`expect` do Jest sobrepõe o do Detox no type-check. No Android, `helpers/network.ts`
+alterna WiFi/dados via `adb` (`execSync` no runner), pois o Detox não executa comandos
+no device.
+
 ## testIDs esperados pelos fluxos
 
 Todos os testIDs abaixo existem no código (confira com `grep -rn testID app src`).

@@ -10,9 +10,10 @@ jest.mock('../../lib/api', () => ({
 jest.mock('../../lib/query-client', () => ({
   queryClient: { invalidateQueries: jest.fn() },
 }))
-const mockNetInfoAddEventListener = jest.fn(() => jest.fn())
+type NetInfoListener = (state: { isConnected: boolean }) => void
+const mockNetInfoAddEventListener = jest.fn((_cb: NetInfoListener): (() => void) => jest.fn())
 jest.mock('@react-native-community/netinfo', () => ({
-  addEventListener: (...args: unknown[]) => mockNetInfoAddEventListener(...args),
+  addEventListener: (cb: NetInfoListener) => mockNetInfoAddEventListener(cb),
 }))
 jest.mock('../pilotTracking', () => ({
   pilotTracker: {

@@ -1,3 +1,5 @@
+import { by, element, waitFor } from 'detox'
+
 export async function loginAs(role: 'rep' | 'manager') {
   const credentials = {
     rep: { email: 'rep@addere.test', password: 'test123' },

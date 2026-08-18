@@ -91,8 +91,7 @@ npx prisma validate         # validar schema sem DB
 # Qualidade (raiz do monorepo)
 npm run lint          # ESLint flat config (eslint.config.mjs)
 npm run format        # Prettier (.prettierrc.json)
-npm run type-check    # tsc --noEmit (api + web)
-npm run type-check:mobile  # tsc do mobile — não bloqueante (baseline de erros de @types/react no ci.yml)
+npm run type-check    # tsc --noEmit (api + web + mobile)
 npm test              # Vitest (api, web) + Jest unit (mobile)
 ```
 
