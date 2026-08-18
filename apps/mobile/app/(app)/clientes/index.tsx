@@ -3,6 +3,7 @@ import { View, Text, FlatList, TextInput, TouchableOpacity, StyleSheet } from 'r
 import { useRouter } from 'expo-router'
 import { ChevronRight, X } from 'lucide-react-native'
 import { useClientes } from '../../../src/hooks/useClientes'
+import { useDebouncedValue } from '../../../src/hooks/useDebounce'
 import { ClienteItemSkeleton, EmptyState } from '../../../src/components/Skeleton'
 import { useFieldVisible } from '../../../src/hooks/useFieldConfig'
 import type { Customer } from '@addere/types'
@@ -26,7 +27,8 @@ function ClienteItem({ customer, onPress }: { customer: Customer; onPress: () =>
 export default function ClientesScreen() {
   const router = useRouter()
   const [search, setSearch] = useState('')
-  const { data: customers, isLoading, refetch } = useClientes(search || undefined)
+  const debouncedSearch = useDebouncedValue(search)
+  const { data: customers, isLoading, refetch } = useClientes(debouncedSearch || undefined)
 
   return (
     <View style={s.container}>

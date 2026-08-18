@@ -1,101 +1,26 @@
-import { useState, useEffect } from 'react'
 import { View, Text, FlatList, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native'
-import AsyncStorage from '@react-native-async-storage/async-storage'
 import { useDashboardStats, usePedidos, useMetaVendedor } from '../../src/hooks/usePedidos'
 import { useAuthStore } from '../../src/store/auth.store'
 import { useLogout } from '../../src/hooks/useAuth'
-import { useTheme } from '../../src/theme'
 import { StatGridSkeleton, OrderRowSkeleton, EmptyState } from '../../src/components/Skeleton'
 import { Ionicons } from '@expo/vector-icons'
 import { LogOut } from 'lucide-react-native'
-import type { Order, DashboardStats } from '@addere/types'
+import { colors } from '../../src/theme/colors'
+import { STATUS_LABEL, STATUS_COLOR } from '../../src/utils/orderStatus'
+import { fmtMoeda, fmtData } from '../../src/utils/format'
+import type { Order } from '@addere/types'
 
-const META_CACHE_KEY   = 'addere_meta_cache'
-const STATS_CACHE_KEY  = 'addere_stats_cache'
-const ORDERS_CACHE_KEY = 'addere_orders_cache'
-
-type MetaData = { periodo: string; vendido: string; meta: string }
-
-function useStatsComCache(): DashboardStats | null {
-  const [cached, setCached] = useState<DashboardStats | null>(null)
-  const query = useDashboardStats()
-
-  useEffect(() => {
-    AsyncStorage.getItem(STATS_CACHE_KEY).then((v) => {
-      if (v) setCached(JSON.parse(v) as DashboardStats)
-    })
-  }, [])
-
-  useEffect(() => {
-    if (query.data) {
-      AsyncStorage.setItem(STATS_CACHE_KEY, JSON.stringify(query.data))
-      setCached(query.data)
-    }
-  }, [query.data])
-
-  return query.data ?? cached
-}
-
-function usePedidosComCache(): Order[] | null {
-  const [cached, setCached] = useState<Order[] | null>(null)
-  const query = usePedidos(5)
-
-  useEffect(() => {
-    AsyncStorage.getItem(ORDERS_CACHE_KEY).then((v) => {
-      if (v) setCached(JSON.parse(v) as Order[])
-    })
-  }, [])
-
-  useEffect(() => {
-    if (query.data) {
-      AsyncStorage.setItem(ORDERS_CACHE_KEY, JSON.stringify(query.data))
-      setCached(query.data)
-    }
-  }, [query.data])
-
-  return query.data ?? cached
-}
-
-function useMetaComCache(): MetaData | null {
-  const [cached, setCached] = useState<MetaData | null>(null)
-  const query = useMetaVendedor()
-
-  useEffect(() => {
-    AsyncStorage.getItem(META_CACHE_KEY).then((v) => {
-      if (v) setCached(JSON.parse(v) as MetaData)
-    })
-  }, [])
-
-  useEffect(() => {
-    if (query.data) {
-      AsyncStorage.setItem(META_CACHE_KEY, JSON.stringify(query.data))
-      setCached(query.data)
-    }
-  }, [query.data])
-
-  return query.data ?? cached
-}
-
-const STATUS_LABEL: Record<string, string> = {
-  PENDING:   'Pendente',
-  SYNCED:    'Sincronizado',
-  CANCELLED: 'Cancelado',
-}
-const STATUS_COLOR: Record<string, string> = {
-  PENDING:   '#F59E0B',
-  SYNCED:    '#22C55E',
-  CANCELLED: '#EF4444',
-}
-const STAT_ACCENT = ['#1B4FA8', '#F59E0B', '#22C55E', '#29BEFF']
-
-function fmtMoeda(value: number) {
-  return value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-}
+const STAT_ACCENT = [
+  colors.brand.primary,
+  colors.semantic.warning,
+  colors.semantic.success,
+  colors.brand.accent,
+]
 
 function MetaProgress({ vendido, meta, periodo }: { vendido: number; meta: number; periodo: string }) {
   const pct      = meta > 0 ? Math.min((vendido / meta) * 100, 100) : 0
   const pctStr   = pct.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-  const barColor = pct >= 80 ? '#22C55E' : pct >= 50 ? '#F59E0B' : '#1B4FA8'
+  const barColor = pct >= 80 ? colors.semantic.success : pct >= 50 ? colors.semantic.warning : colors.brand.primary
   const mes      = periodo.length === 6
     ? `${periodo.slice(4)}/${periodo.slice(0, 4)}`
     : '—'
@@ -126,13 +51,12 @@ function MetaProgress({ vendido, meta, periodo }: { vendido: number; meta: numbe
 }
 
 export default function DashboardScreen() {
-  const user    = useAuthStore((s) => s.user)
-  const theme   = useTheme()
-  const stats        = useStatsComCache()
-  const recentOrders = usePedidosComCache()
-  const loadingStats   = stats === null
-  const loadingOrders  = recentOrders === null
-  const metaData                                         = useMetaComCache()
+  const user = useAuthStore((s) => s.user)
+  // O PersistQueryClientProvider restaura estas queries do AsyncStorage,
+  // então o dado cacheado aparece imediatamente mesmo offline
+  const { data: stats, isLoading: loadingStats }         = useDashboardStats()
+  const { data: recentOrders, isLoading: loadingOrders } = usePedidos(5)
+  const { data: metaData }                               = useMetaVendedor()
   const { mutate: logout } = useLogout()
 
   const totalRevenue = Number(stats?.totalRevenue ?? 0)
@@ -156,7 +80,7 @@ export default function DashboardScreen() {
           ])}
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
         >
-          <LogOut size={20} color="#64748B" />
+          <LogOut size={20} color={colors.semantic.muted} />
         </TouchableOpacity>
       </View>
 
@@ -196,7 +120,7 @@ export default function DashboardScreen() {
           scrollEnabled={false}
           ListEmptyComponent={
             <EmptyState
-              icon={<Ionicons name="receipt-outline" size={28} color="#64748B" />}
+              icon={<Ionicons name="receipt-outline" size={28} color={colors.semantic.muted} />}
               title="Nenhum pedido ainda"
               description="Seus pedidos mais recentes aparecerão aqui."
             />
@@ -212,7 +136,7 @@ function OrderRow({ order }: { order: Order }) {
     <View style={s.orderRow}>
       <View style={{ flex: 1 }}>
         <Text style={s.orderCustomer}>{order.customer.name}</Text>
-        <Text style={s.orderDate}>{new Date(order.createdAt).toLocaleDateString('pt-BR')}</Text>
+        <Text style={s.orderDate}>{fmtData(order.createdAt)}</Text>
       </View>
       <View style={{ alignItems: 'flex-end' }}>
         <Text style={s.orderTotal}>R$ {fmtMoeda(Number(order.total))}</Text>

@@ -5,7 +5,8 @@ import * as Clipboard from 'expo-clipboard'
 import { useCliente } from '../../../src/hooks/useClientes'
 import { useFieldVisible } from '../../../src/hooks/useFieldConfig'
 import type { Order } from '@addere/types'
-import { fmtMoeda, formatDocument } from '../../../src/utils/format'
+import { fmtMoeda, fmtData, formatDocument } from '../../../src/utils/format'
+import { STATUS_LABEL, STATUS_COLOR } from '../../../src/utils/orderStatus'
 
 // Remove caracteres não numéricos e adiciona +55 se necessário
 function toDialable(phone: string): string {
@@ -62,18 +63,7 @@ function PhoneRow({ phone }: { phone: string | null | undefined }) {
 
 function formatUltcom(ultcom: string | null | undefined): string | null {
   if (!ultcom) return null
-  return new Date(ultcom).toLocaleDateString('pt-BR')
-}
-
-const STATUS_COLOR: Record<string, string> = {
-  PENDING: '#f59e0b',
-  SYNCED: '#16a34a',
-  CANCELLED: '#dc2626',
-}
-const STATUS_LABEL: Record<string, string> = {
-  PENDING: 'Pendente',
-  SYNCED: 'Sincronizado',
-  CANCELLED: 'Cancelado',
+  return fmtData(ultcom)
 }
 
 function InfoRow({ label, value }: { label: string; value?: string | null }) {
@@ -91,7 +81,7 @@ function OrderCard({ order, onPress }: { order: Order; onPress: () => void }) {
     <TouchableOpacity style={styles.orderCard} onPress={onPress} activeOpacity={0.75}>
       <View style={{ flex: 1 }}>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Text style={styles.orderDate}>{new Date(order.createdAt).toLocaleDateString('pt-BR')}</Text>
+          <Text style={styles.orderDate}>{fmtData(order.createdAt)}</Text>
           <Text style={[styles.orderStatus, { color: STATUS_COLOR[order.status] }]}>
             {STATUS_LABEL[order.status]}
           </Text>

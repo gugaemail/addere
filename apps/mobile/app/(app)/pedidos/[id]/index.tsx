@@ -6,25 +6,9 @@ import { usePedido, useSincronizarPedido, useConsultarStatusPedido, useCancelarP
 import { Badge } from '../../../../src/components/ui/Badge'
 import { useFieldVisible } from '../../../../src/hooks/useFieldConfig'
 import { useQueryClient } from '@tanstack/react-query'
-import { fmtMoeda, formatDocument } from '../../../../src/utils/format'
-
-type BadgeVariant = 'warning' | 'success' | 'danger' | 'neutral'
-
-const STATUS_BADGE: Record<string, BadgeVariant> = {
-  PENDING:   'warning',
-  SYNCED:    'success',
-  CANCELLED: 'danger',
-}
-const STATUS_LABEL: Record<string, string> = {
-  PENDING:   'Pendente',
-  SYNCED:    'Sincronizado',
-  CANCELLED: 'Cancelado',
-}
-
-function fmtQtd(value: string | number) {
-  const n = Number(value)
-  return n % 1 === 0 ? String(n) : n.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 3 })
-}
+import { fmtMoeda, fmtQtd, fmtData, formatDocument } from '../../../../src/utils/format'
+import { STATUS_BADGE, STATUS_LABEL } from '../../../../src/utils/orderStatus'
+import { getApiErrorMessage } from '../../../../src/lib/errors'
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -72,9 +56,7 @@ export default function PedidoDetailScreen() {
     sincronizar(id, {
       onSuccess: () => Alert.alert('Sucesso', 'Pedido enviado ao Protheus com sucesso!'),
       onError: (err: unknown) => {
-        const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
-          ?? 'Não foi possível sincronizar o pedido.'
-        Alert.alert('Erro', msg)
+        Alert.alert('Erro', getApiErrorMessage(err, 'Não foi possível sincronizar o pedido.'))
       },
     })
   }
@@ -91,9 +73,7 @@ export default function PedidoDetailScreen() {
           onPress: () => cancelar(id, {
             onSuccess: () => Alert.alert('Pedido cancelado', 'O pedido foi cancelado com sucesso.'),
             onError: (err: unknown) => {
-              const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
-                ?? 'Não foi possível cancelar o pedido.'
-              Alert.alert('Erro', msg)
+              Alert.alert('Erro', getApiErrorMessage(err, 'Não foi possível cancelar o pedido.'))
             },
           }),
         },
@@ -104,7 +84,7 @@ export default function PedidoDetailScreen() {
   function handleCheckStatus() {
     consultarStatus(id, {
       onSuccess: (result) => {
-        queryClient.invalidateQueries({ queryKey: ['orders', id] })
+        queryClient.invalidateQueries({ queryKey: ['orders', 'detail', id] })
         const naoEncontrado = result.status?.toLowerCase().includes('nao encontrado')
           || result.status?.toLowerCase().includes('não encontrado')
         if (naoEncontrado) {
@@ -114,9 +94,7 @@ export default function PedidoDetailScreen() {
         }
       },
       onError: (err: unknown) => {
-        const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
-          ?? 'Não foi possível consultar o status.'
-        Alert.alert('Erro', msg)
+        Alert.alert('Erro', getApiErrorMessage(err, 'Não foi possível consultar o status.'))
       },
     })
   }
@@ -148,15 +126,15 @@ export default function PedidoDetailScreen() {
         <InfoRow label="Filial"          value={order.branch?.name ?? null} />
         {showTransportadora && <InfoRow label="Transportadora"  value={order.transportadora?.nome ?? null} />}
         {showCondPag        && <InfoRow label="Cond. Pagamento" value={order.condPag?.nome ?? null} />}
-        <InfoRow label="Data" value={new Date(order.createdAt).toLocaleDateString('pt-BR')} />
+        <InfoRow label="Data" value={fmtData(order.createdAt)} />
         {showEmissao && order.emissao && (
-          <InfoRow label="Emissão" value={new Date(order.emissao).toLocaleDateString('pt-BR')} />
+          <InfoRow label="Emissão" value={fmtData(order.emissao)} />
         )}
         {order.protheusOrderId && (
           <InfoRow label="Pedido Protheus" value={order.protheusOrderId} />
         )}
         {order.syncedAt && (
-          <InfoRow label="Sincronizado em" value={new Date(order.syncedAt).toLocaleDateString('pt-BR')} />
+          <InfoRow label="Sincronizado em" value={fmtData(order.syncedAt)} />
         )}
         {showProtheusStatus && order.protheusStatus && (
           <InfoRow label="Status Protheus" value={order.protheusStatus} />

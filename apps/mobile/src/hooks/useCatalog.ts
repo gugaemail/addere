@@ -8,6 +8,8 @@ import type { Product } from '@addere/types'
 
 const FALLBACK_STALE_TIME = 1000 * 60 * 60 * 24 // 24h
 
+// Hook único do catálogo de produtos (fusão dos dois hooks antigos de produtos):
+// cache offline-first com staleTime dinâmico vindo do sync schedule da empresa.
 export function useCatalog(search?: string) {
   const trackedRef = useRef(false)
   const networkAvailable = useSyncStore((s) => s.networkAvailable)
@@ -17,7 +19,7 @@ export function useCatalog(search?: string) {
   const staleTime = scheduleMin > 0 ? scheduleMin * 60_000 : FALLBACK_STALE_TIME
 
   const query = useQuery({
-    queryKey: ['products', search],
+    queryKey: ['products', 'list', search],
     queryFn: async () => {
       const { data } = await api.get<Product[]>('/products', { params: { search } })
       return data

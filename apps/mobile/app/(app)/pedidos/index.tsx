@@ -9,20 +9,9 @@ import { OrderSwipeActions } from '../../../src/components/OrderSwipeActions'
 import { PdfPreviewModal } from '../../../src/components/PdfPreviewModal'
 import { SyncStatusBar } from '../../../src/components/SyncStatusBar'
 import type { Order } from '@addere/types'
-import { fmtMoeda } from '../../../src/utils/format'
-
-type BadgeVariant = 'warning' | 'success' | 'danger' | 'neutral'
-
-const STATUS_BADGE: Record<string, BadgeVariant> = {
-  PENDING:   'warning',
-  SYNCED:    'success',
-  CANCELLED: 'danger',
-}
-const STATUS_LABEL: Record<string, string> = {
-  PENDING:   'Pendente',
-  SYNCED:    'Sincronizado',
-  CANCELLED: 'Cancelado',
-}
+import { fmtMoeda, fmtData } from '../../../src/utils/format'
+import { STATUS_BADGE, STATUS_LABEL } from '../../../src/utils/orderStatus'
+import { getApiErrorMessage } from '../../../src/lib/errors'
 
 function OrderCard({ order, syncingId, checkingId, onSync, onCheckStatus, onPress }: {
   order: Order
@@ -40,7 +29,7 @@ function OrderCard({ order, syncingId, checkingId, onSync, onCheckStatus, onPres
     <TouchableOpacity onPress={onPress} activeOpacity={0.75} style={s.card}>
       <View style={{ flex: 1 }}>
         <Text style={s.customer}>{order.customer.name}</Text>
-        <Text style={s.sub}>{new Date(order.createdAt).toLocaleDateString('pt-BR')}</Text>
+        <Text style={s.sub}>{fmtData(order.createdAt)}</Text>
         <Text style={s.sub}>{order.items.length} item(s)</Text>
         {order.protheusOrderId && (
           <Text style={s.protheusId}>Pedido Protheus: {order.protheusOrderId}</Text>
@@ -110,9 +99,7 @@ export default function PedidosScreen() {
       },
       onError: (err: unknown) => {
         setSyncingId(null)
-        const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
-          ?? 'Não foi possível sincronizar o pedido.'
-        Alert.alert('Erro', msg)
+        Alert.alert('Erro', getApiErrorMessage(err, 'Não foi possível sincronizar o pedido.'))
       },
     })
   }
@@ -129,9 +116,7 @@ export default function PedidosScreen() {
       },
       onError: (err: unknown) => {
         setCheckingId(null)
-        const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
-          ?? 'Não foi possível consultar o status.'
-        Alert.alert('Erro', msg)
+        Alert.alert('Erro', getApiErrorMessage(err, 'Não foi possível consultar o status.'))
       },
     })
   }

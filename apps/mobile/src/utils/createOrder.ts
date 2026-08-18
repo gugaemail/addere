@@ -10,8 +10,11 @@ export interface SubmitOrderResult {
   data?: Order
 }
 
+// Chamado quando o wizard de novo pedido ganha foco: inicia o timer de
+// duração e registra o evento ORDER_STARTED no tracking do piloto
 export function startOrderSession() {
   pilotTracker.startOrderTimer()
+  pilotTracker.track({ type: 'ORDER_STARTED' })
 }
 
 export async function submitOrder(

@@ -11,6 +11,7 @@ import {
 import { RefreshCw, AlertCircle, Clock, CheckCircle } from 'lucide-react-native'
 import { useSyncQueue } from '../../../src/hooks/useSyncQueue'
 import { colors } from '../../../src/theme/colors'
+import { fmtDataHora } from '../../../src/utils/format'
 import type { SyncQueueItem } from '../../../src/types/sync'
 import type { CreateOrderInput } from '@addere/types'
 
@@ -35,10 +36,6 @@ function getCustomerName(payload: unknown): string {
   } catch {
     return '—'
   }
-}
-
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })
 }
 
 function QueueItemCard({
@@ -66,7 +63,7 @@ function QueueItemCard({
           )}
           <Text style={[s.statusText, { color }]}>{label}</Text>
         </View>
-        <Text style={s.date}>{formatDate(item.createdAt)}</Text>
+        <Text style={s.date}>{fmtDataHora(item.createdAt)}</Text>
       </View>
 
       <Text style={s.customer}>{getCustomerName(item.payload)}</Text>

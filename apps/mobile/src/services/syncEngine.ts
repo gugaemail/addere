@@ -2,6 +2,7 @@ import { AppState, AppStateStatus } from 'react-native'
 import NetInfo from '@react-native-community/netinfo'
 import * as Sentry from '@sentry/react-native'
 import { api } from '../lib/api'
+import { getApiErrorMessage } from '../lib/errors'
 import { queryClient } from '../lib/query-client'
 import { useSyncStore } from '../store/syncStore'
 import { pilotTracker } from './pilotTracking'
@@ -53,9 +54,7 @@ async function processItem(item: SyncQueueItem): Promise<void> {
       pilotTracker.track({ type: 'ORDER_SYNCED', metadata: { queuedDurationMs } })
     }
   } catch (err: unknown) {
-    const msg =
-      (err as { response?: { data?: { message?: string } } })?.response?.data?.message ??
-      (err instanceof Error ? err.message : 'Erro desconhecido')
+    const msg = getApiErrorMessage(err)
     markError(item.id, msg)
 
     if (item.attempts + 1 >= item.maxAttempts) {

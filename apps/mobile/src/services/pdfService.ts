@@ -1,11 +1,7 @@
 import * as Print from 'expo-print'
 import type { Order } from '@addere/types'
-
-const STATUS_LABEL: Record<string, string> = {
-  PENDING: 'Pendente',
-  SYNCED: 'Sincronizado',
-  CANCELLED: 'Cancelado',
-}
+import { STATUS_LABEL } from '../utils/orderStatus'
+import { fmtData } from '../utils/format'
 
 function fmtDecimal(value: string | number | null | undefined): string {
   if (value === null || value === undefined || value === '') return '—'
@@ -19,8 +15,8 @@ function fmtDecimal(value: string | number | null | undefined): string {
 
 function buildHtml(order: Order): string {
   const emissao = order.emissao ?? order.createdAt
-  const dateFormatted = new Date(emissao).toLocaleDateString('pt-BR')
-  const generatedAt = new Date().toLocaleDateString('pt-BR')
+  const dateFormatted = fmtData(emissao)
+  const generatedAt = fmtData(new Date().toISOString())
   const generatedTime = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
   const statusLabel = STATUS_LABEL[order.status] ?? order.status
 

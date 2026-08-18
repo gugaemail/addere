@@ -19,6 +19,7 @@ import { useAuthStore } from '../../store/auth.store'
 import { useCompanyStore } from '../../store/company.store'
 import { api } from '../../lib/api'
 import { LogoMark } from '../../components/brand/LogoMark'
+import { getApiErrorMessage } from '../../lib/errors'
 import { Input } from '../../components/ui/Input'
 import { Button } from '../../components/ui/Button'
 import type { CompanyFieldConfig, SyncSchedule, UserPublic } from '@addere/types'
@@ -90,7 +91,7 @@ export function LoginScreen() {
   }
 
   const apiErrorMessage = error
-    ? ((error as { response?: { data?: { message?: string } } })?.response?.data?.message ?? 'Erro ao conectar com o servidor')
+    ? getApiErrorMessage(error, 'Erro ao conectar com o servidor')
     : null
 
   function handleLogin() {

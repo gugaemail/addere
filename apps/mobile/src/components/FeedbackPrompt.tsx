@@ -8,7 +8,6 @@ import { useSyncStore } from '../store/syncStore'
 import { api } from '../lib/api'
 import { colors } from '../theme/colors'
 
-const SESSION_SHOWN_KEY = '__feedback_shown_this_session__'
 let shownThisSession = false
 
 export function FeedbackPrompt() {

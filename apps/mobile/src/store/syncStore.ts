@@ -29,7 +29,6 @@ interface SyncStoreState {
   markSynced: (id: string) => void
   markError: (id: string, error: string) => void
   markFailedPermanently: (id: string, error: string) => void
-  removeItem: (id: string) => void
   setNetworkAvailable: (available: boolean) => void
   clearSynced: () => void
   setIsSyncing: (value: boolean) => void
@@ -111,9 +110,6 @@ export const useSyncStore = create<SyncStoreState>()(
               : item,
           ),
         })),
-
-      removeItem: (id) =>
-        set((s) => ({ queue: s.queue.filter((item) => item.id !== id) })),
 
       setNetworkAvailable: (available) => set({ networkAvailable: available }),
 

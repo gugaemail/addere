@@ -1,17 +1,12 @@
 import { useState } from 'react'
 import { View, Text, FlatList, TextInput, TouchableOpacity, ActivityIndicator, StyleSheet } from 'react-native'
 import { X } from 'lucide-react-native'
-import { useProdutos } from '../../../src/hooks/useProdutos'
+import { useCatalog } from '../../../src/hooks/useCatalog'
+import { useDebouncedValue } from '../../../src/hooks/useDebounce'
 import { Badge } from '../../../src/components/ui/Badge'
 import { useFieldVisible } from '../../../src/hooks/useFieldConfig'
 import type { Product } from '@addere/types'
-import { fmtMoeda } from '../../../src/utils/format'
-
-function fmtQtd(value: number) {
-  return value % 1 === 0
-    ? value.toLocaleString('pt-BR')
-    : value.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 3 })
-}
+import { fmtMoeda, fmtQtd } from '../../../src/utils/format'
 
 function ProductCard({ product }: { product: Product }) {
   const stockNum         = Number(product.stock)
@@ -44,7 +39,8 @@ function ProductCard({ product }: { product: Product }) {
 
 export default function ProdutosScreen() {
   const [search, setSearch] = useState('')
-  const { data: products, isLoading, refetch } = useProdutos(search || undefined)
+  const debouncedSearch = useDebouncedValue(search)
+  const { data: products, isLoading, refetch } = useCatalog(debouncedSearch || undefined)
 
   return (
     <View style={s.container}>

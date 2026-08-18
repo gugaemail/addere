@@ -11,7 +11,7 @@ export function useClientes(search?: string) {
   const staleTime    = scheduleMin > 0 ? scheduleMin * 60_000 : FALLBACK_STALE_TIME
 
   return useQuery({
-    queryKey: ['customers', search],
+    queryKey: ['customers', 'list', search],
     queryFn: async () => {
       const { data } = await api.get<Customer[]>('/customers', { params: { search } })
       return data
@@ -22,7 +22,7 @@ export function useClientes(search?: string) {
 
 export function useCliente(id: string) {
   return useQuery({
-    queryKey: ['customers', id],
+    queryKey: ['customers', 'detail', id],
     queryFn: async () => {
       const { data } = await api.get<CustomerWithOrders>(`/customers/${id}`)
       return data

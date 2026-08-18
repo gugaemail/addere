@@ -123,8 +123,8 @@ const asyncStoragePersister = createAsyncStoragePersister({
   throttleTime: 1000,
 })
 
-// Queries de dados de referência que sobrevivem ao restart do app
-const NON_PERSISTENT_KEYS = ['meta-vendedor']
+// Todas as queries com sucesso são persistidas (inclui 'meta-vendedor',
+// que substituiu o antigo cache manual do dashboard em AsyncStorage)
 
 export default function RootLayout() {
   const { fontsLoaded } = useFonts()
@@ -140,9 +140,7 @@ export default function RootLayout() {
             persister: asyncStoragePersister,
             maxAge: 1000 * 60 * 60 * 24 * 7,
             dehydrateOptions: {
-              shouldDehydrateQuery: (query) =>
-                query.state.status === 'success' &&
-                !NON_PERSISTENT_KEYS.includes(query.queryKey[0] as string),
+              shouldDehydrateQuery: (query) => query.state.status === 'success',
             },
           }}
         >

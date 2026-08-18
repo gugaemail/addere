@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import {
   View,
   Text,
@@ -15,30 +15,24 @@ import { useFocusEffect } from '@react-navigation/native'
 import { useClientes } from '../../../src/hooks/useClientes'
 import { useCatalog } from '../../../src/hooks/useCatalog'
 import { useBranches } from '../../../src/hooks/useBranches'
-import { submitOrder } from '../../../src/utils/createOrder'
-import { useEffect } from 'react'
+import { useDebouncedValue } from '../../../src/hooks/useDebounce'
+import { submitOrder, startOrderSession } from '../../../src/utils/createOrder'
 import { useTransportadoras } from '../../../src/hooks/useTransportadoras'
 import { useCondPags } from '../../../src/hooks/useCondPags'
 import { useFieldVisible, useFieldRequired } from '../../../src/hooks/useFieldConfig'
 import { useAuthStore } from '../../../src/store/auth.store'
 import { colors } from '../../../src/theme/colors'
+import { PickerField } from '../../../src/components/order-form/PickerField'
+import { CartItemEditor } from '../../../src/components/order-form/CartItemEditor'
+import { useOrderValidation } from '../../../src/components/order-form/validation'
+import { orderFormStyles } from '../../../src/components/order-form/styles'
+import { cartItemFromProduct, cartTotal, cartToOrderItems } from '../../../src/components/order-form/types'
+import type { CartItem } from '../../../src/components/order-form/types'
 import type { Branch, Customer, Product, Transportadora, CondPag, CreateOrderItemInput } from '@addere/types'
 import { fmtMoeda, formatDocument } from '../../../src/utils/format'
+import { getApiErrorMessage } from '../../../src/lib/errors'
 
 type Step = 1 | 2 | 3
-
-interface CartItem {
-  product:      Product
-  quantity:     number
-  discount:     number
-  unitPrice:    number
-  descricao?:   string
-  largura?:     number
-  espessura?:   number
-  encolhimento?: string
-  xcrav?:       string
-  tara?:        number
-}
 
 function StepIndicator({ current }: { current: Step }) {
   return (
@@ -60,8 +54,9 @@ function Step1({
   onComplete: (customer: Customer, branch: Branch) => void
 }) {
   const [search, setSearch] = useState('')
+  const debouncedSearch = useDebouncedValue(search)
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null)
-  const { data: customers, isLoading: loadingCustomers } = useClientes(search || undefined)
+  const { data: customers, isLoading: loadingCustomers } = useClientes(debouncedSearch || undefined)
   const { data: branches, isLoading: loadingBranches } = useBranches()
 
   if (selectedCustomer) {
@@ -143,24 +138,25 @@ function Step2({
   onBack: () => void
 }) {
   const [search, setSearch] = useState('')
-  const { data: products, isLoading, isFromCache } = useCatalog(search || undefined)
+  const debouncedSearch = useDebouncedValue(search)
+  const { data: products, isLoading, isFromCache } = useCatalog(debouncedSearch || undefined)
 
   function addToCart(product: Product) {
-    const existing = cart.find((i) => i.product.id === product.id)
+    const existing = cart.find((i) => i.productId === product.id)
     if (existing) {
-      onCartChange(cart.map((i) => i.product.id === product.id ? { ...i, quantity: i.quantity + 1 } : i))
+      onCartChange(cart.map((i) => i.productId === product.id ? { ...i, quantity: i.quantity + 1 } : i))
     } else {
-      onCartChange([...cart, { product, quantity: 1, discount: 0, unitPrice: Number(product.price), descricao: product.name }])
+      onCartChange([...cart, cartItemFromProduct(product)])
     }
   }
 
   function removeFromCart(productId: string) {
-    onCartChange(cart.filter((i) => i.product.id !== productId))
+    onCartChange(cart.filter((i) => i.productId !== productId))
   }
 
   function updateQty(productId: string, qty: number) {
     if (qty <= 0) { removeFromCart(productId); return }
-    onCartChange(cart.map((i) => i.product.id === productId ? { ...i, quantity: qty } : i))
+    onCartChange(cart.map((i) => i.productId === productId ? { ...i, quantity: qty } : i))
   }
 
   return (
@@ -179,14 +175,14 @@ function Step2({
         <View style={styles.cartBox}>
           <Text style={styles.cartTitle}>Carrinho ({cart.length})</Text>
           {cart.map((item) => (
-            <View key={item.product.id} style={styles.cartRow}>
-              <Text style={styles.cartName} numberOfLines={1}>{item.product.name}</Text>
+            <View key={item.productId} style={styles.cartRow}>
+              <Text style={styles.cartName} numberOfLines={1}>{item.productName}</Text>
               <View style={styles.qtyRow}>
-                <TouchableOpacity onPress={() => updateQty(item.product.id, item.quantity - 1)}>
+                <TouchableOpacity onPress={() => updateQty(item.productId, item.quantity - 1)}>
                   <Text style={styles.qtyBtn}>−</Text>
                 </TouchableOpacity>
                 <Text style={styles.qtyNum}>{item.quantity}</Text>
-                <TouchableOpacity onPress={() => updateQty(item.product.id, item.quantity + 1)}>
+                <TouchableOpacity onPress={() => updateQty(item.productId, item.quantity + 1)}>
                   <Text style={styles.qtyBtn}>+</Text>
                 </TouchableOpacity>
               </View>
@@ -224,63 +220,6 @@ function Step2({
 }
 
 // ─── Step 3: Resumo e confirmação (editável) ──────────────────────────────
-
-function PickerField({
-  label,
-  selected,
-  items,
-  onSelect,
-  loading,
-  disabled,
-}: {
-  label: string
-  selected: { id: string; nome: string } | null
-  items: { id: string; nome: string }[]
-  onSelect: (item: { id: string; nome: string } | null) => void
-  loading?: boolean
-  disabled?: boolean
-}) {
-  const [open, setOpen] = useState(false)
-
-  if (disabled) {
-    return (
-      <View style={styles.summaryBox}>
-        <Text style={styles.summaryLabel}>{label}</Text>
-        <View style={[styles.pickerBtn, styles.pickerBtnDisabled]}>
-          <Text style={selected ? styles.pickerBtnText : styles.pickerBtnPlaceholder}>
-            {selected ? selected.nome : '— Nenhum —'}
-          </Text>
-        </View>
-      </View>
-    )
-  }
-
-  return (
-    <View style={styles.summaryBox}>
-      <Text style={styles.summaryLabel}>{label}</Text>
-      <TouchableOpacity style={styles.pickerBtn} onPress={() => setOpen((v) => !v)}>
-        <Text style={selected ? styles.pickerBtnText : styles.pickerBtnPlaceholder}>
-          {loading ? 'Carregando...' : selected ? selected.nome : `Selecionar ${label.toLowerCase()}...`}
-        </Text>
-        <Text style={styles.pickerBtnIcon}>{open ? '▲' : '▼'}</Text>
-      </TouchableOpacity>
-      {open && (
-        <View style={styles.pickerList}>
-          <TouchableOpacity style={styles.pickerItem} onPress={() => { onSelect(null); setOpen(false) }}>
-            <Text style={styles.pickerItemText}>— Nenhum —</Text>
-          </TouchableOpacity>
-          {items.map((item) => (
-            <TouchableOpacity key={item.id} style={styles.pickerItem} onPress={() => { onSelect(item); setOpen(false) }}>
-              <Text style={[styles.pickerItemText, selected?.id === item.id && styles.pickerItemSelected]}>
-                {item.nome}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-      )}
-    </View>
-  )
-}
 
 function Step3({
   customer,
@@ -326,65 +265,19 @@ function Step3({
   const showCondPag        = useFieldVisible('order.condPag')
   const showMennota        = useFieldVisible('order.mennota')
   const showNotes          = useFieldVisible('order.notes')
-  const showUnitPrice      = useFieldVisible('orderItem.unitPrice')
-  const showLargura        = useFieldVisible('orderItem.largura')
-  const showEspessura      = useFieldVisible('orderItem.espessura')
-  const showEncolhimento   = useFieldVisible('orderItem.encolhimento')
-  const showXcrav          = useFieldVisible('orderItem.xcrav')
-  const showTara           = useFieldVisible('orderItem.tara')
-  const showDescricao      = useFieldVisible('orderItem.descricao')
 
   const reqTransportadora = useFieldRequired('order.transportadora')
   const reqCondPag        = useFieldRequired('order.condPag')
   const reqMennota        = useFieldRequired('order.mennota')
   const reqNotes          = useFieldRequired('order.notes')
-  const reqUnitPrice      = useFieldRequired('orderItem.unitPrice')
-  const reqLargura        = useFieldRequired('orderItem.largura')
-  const reqEspessura      = useFieldRequired('orderItem.espessura')
-  const reqEncolhimento   = useFieldRequired('orderItem.encolhimento')
-  const reqXcrav          = useFieldRequired('orderItem.xcrav')
-  const reqTara           = useFieldRequired('orderItem.tara')
-  const reqDescricao      = useFieldRequired('orderItem.descricao')
 
-  const total = cart.reduce(
-    (sum, i) => sum + i.unitPrice * i.quantity * (1 - i.discount / 100),
-    0
-  )
+  const validate = useOrderValidation({
+    emptyCart:      'Adicione pelo menos um produto antes de confirmar.',
+    transportadora: 'Selecione uma transportadora antes de confirmar.',
+    condPag:        'Selecione uma condição de pagamento antes de confirmar.',
+  })
 
-  function updateQty(productId: string, qty: number) {
-    if (qty <= 0) {
-      onCartChange(cart.filter((i) => i.product.id !== productId))
-      return
-    }
-    onCartChange(cart.map((i) => i.product.id === productId ? { ...i, quantity: qty } : i))
-  }
-
-  function updatePrice(productId: string, raw: string) {
-    const value = parseFloat(raw.replace(',', '.'))
-    if (isNaN(value) || value < 0) return
-    onCartChange(cart.map((i) => i.product.id === productId ? { ...i, unitPrice: value } : i))
-  }
-
-  function removeItem(productId: string) {
-    onCartChange(cart.filter((i) => i.product.id !== productId))
-  }
-
-  function updateNumField(productId: string, field: 'largura' | 'espessura' | 'tara', raw: string) {
-    const value = parseFloat(raw.replace(',', '.'))
-    if (isNaN(value) || value < 0) return
-    onCartChange(cart.map((i) => i.product.id === productId ? { ...i, [field]: value } : i))
-  }
-
-  function updateStrField(productId: string, field: 'encolhimento' | 'descricao', value: string) {
-    onCartChange(cart.map((i) => i.product.id === productId ? { ...i, [field]: value } : i))
-  }
-
-  function toggleXcrav(productId: string) {
-    onCartChange(cart.map((i) => i.product.id === productId
-      ? { ...i, xcrav: i.xcrav === '1' ? '2' : '1' }
-      : i
-    ))
-  }
+  const total = cartTotal(cart)
 
   function handleCancel() {
     Alert.alert(
@@ -398,52 +291,7 @@ function Step3({
   }
 
   function handleConfirmWithValidation() {
-    if (cart.length === 0) {
-      Alert.alert('Pedido inválido', 'Adicione pelo menos um produto antes de confirmar.')
-      return
-    }
-    if (reqTransportadora && !transportadora) {
-      Alert.alert('Campo obrigatório', 'Selecione uma transportadora antes de confirmar.')
-      return
-    }
-    if (reqCondPag && !condPag) {
-      Alert.alert('Campo obrigatório', 'Selecione uma condição de pagamento antes de confirmar.')
-      return
-    }
-    if (reqMennota && !mennota.trim()) {
-      Alert.alert('Campo obrigatório', 'Preencha a observação da nota fiscal.')
-      return
-    }
-    if (reqNotes && !notes.trim()) {
-      Alert.alert('Campo obrigatório', 'Preencha a observação interna.')
-      return
-    }
-    for (const item of cart) {
-      if (reqUnitPrice && (!item.unitPrice || item.unitPrice <= 0)) {
-        Alert.alert('Campo obrigatório', `Informe o preço unitário de "${item.product.name}".`)
-        return
-      }
-      if (reqDescricao && !item.descricao?.trim()) {
-        Alert.alert('Campo obrigatório', `Informe a descrição de "${item.product.name}".`)
-        return
-      }
-      if (reqLargura && item.largura == null) {
-        Alert.alert('Campo obrigatório', `Informe a largura de "${item.product.name}".`)
-        return
-      }
-      if (reqEspessura && item.espessura == null) {
-        Alert.alert('Campo obrigatório', `Informe a espessura de "${item.product.name}".`)
-        return
-      }
-      if (reqEncolhimento && !item.encolhimento?.trim()) {
-        Alert.alert('Campo obrigatório', `Informe o encolhimento de "${item.product.name}".`)
-        return
-      }
-      if (reqTara && item.tara == null) {
-        Alert.alert('Campo obrigatório', `Informe a tara de "${item.product.name}".`)
-        return
-      }
-    }
+    if (!validate({ cart, transportadora, condPag, mennota, notes })) return
     onConfirm()
   }
 
@@ -467,130 +315,12 @@ function Step3({
           <Text style={styles.empty}>Nenhum item. Volte e adicione produtos.</Text>
         )}
         {cart.map((item) => (
-          <View key={item.product.id} style={styles.itemEditRow}>
-            {showDescricao ? (
-              <View style={styles.itemExtraFull}>
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                  <Text style={styles.itemControlLabel}>Descrição{reqDescricao ? ' *' : ''}</Text>
-                  <TouchableOpacity onPress={() => removeItem(item.product.id)} style={styles.removeBtn}>
-                    <Text style={styles.removeBtnText}>×</Text>
-                  </TouchableOpacity>
-                </View>
-                <TextInput
-                  style={styles.priceInput}
-                  placeholder="Descrição do item"
-                  defaultValue={item.descricao ?? ''}
-                  onEndEditing={(e) => updateStrField(item.product.id, 'descricao', e.nativeEvent.text)}
-                  placeholderTextColor={colors.neutral.textSub}
-                />
-              </View>
-            ) : (
-              <View style={styles.itemEditHeader}>
-                <Text style={styles.itemEditName} numberOfLines={2}>{item.product.name}</Text>
-                <TouchableOpacity onPress={() => removeItem(item.product.id)} style={styles.removeBtn}>
-                  <Text style={styles.removeBtnText}>×</Text>
-                </TouchableOpacity>
-              </View>
-            )}
-            <View style={[styles.itemEditControls, { marginTop: 8 }]}>
-              <View style={styles.itemEditQty}>
-                <Text style={styles.itemControlLabel}>Qtd</Text>
-                <TextInput
-                  style={styles.priceInput}
-                  keyboardType="decimal-pad"
-                  defaultValue={item.quantity.toLocaleString('pt-BR', { maximumFractionDigits: 3 })}
-                  onEndEditing={(e) => {
-                    const raw = parseFloat(e.nativeEvent.text.replace(',', '.'))
-                    updateQty(item.product.id, isNaN(raw) ? 1 : raw)
-                  }}
-                  placeholderTextColor={colors.neutral.textSub}
-                />
-              </View>
-              {showUnitPrice && (
-                <View style={styles.itemEditPrice}>
-                  <Text style={styles.itemControlLabel}>Preço unit. (R$){reqUnitPrice ? ' *' : ''}</Text>
-                  <TextInput
-                    style={styles.priceInput}
-                    keyboardType="decimal-pad"
-                    defaultValue={item.unitPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                    onEndEditing={(e) => updatePrice(item.product.id, e.nativeEvent.text)}
-                    placeholderTextColor={colors.neutral.textSub}
-                  />
-                </View>
-              )}
-              <View style={styles.itemEditSubtotal}>
-                <Text style={styles.itemControlLabel}>Subtotal</Text>
-                <Text style={styles.itemSubtotalValue}>
-                  R$ {fmtMoeda(item.unitPrice * item.quantity * (1 - item.discount / 100))}
-                </Text>
-              </View>
-            </View>
-            {(showLargura || showEspessura || showTara) && (
-              <View style={styles.itemExtraRow}>
-                {showLargura && (
-                  <View style={styles.itemExtraField}>
-                    <Text style={styles.itemControlLabel}>Largura{reqLargura ? ' *' : ''}</Text>
-                    <TextInput
-                      style={styles.priceInput}
-                      keyboardType="decimal-pad"
-                      placeholder="0"
-                      defaultValue={item.largura != null ? String(item.largura) : ''}
-                      onEndEditing={(e) => updateNumField(item.product.id, 'largura', e.nativeEvent.text)}
-                    />
-                  </View>
-                )}
-                {showEspessura && (
-                  <View style={styles.itemExtraField}>
-                    <Text style={styles.itemControlLabel}>Espessura{reqEspessura ? ' *' : ''}</Text>
-                    <TextInput
-                      style={styles.priceInput}
-                      keyboardType="decimal-pad"
-                      placeholder="0"
-                      defaultValue={item.espessura != null ? String(item.espessura) : ''}
-                      onEndEditing={(e) => updateNumField(item.product.id, 'espessura', e.nativeEvent.text)}
-                    />
-                  </View>
-                )}
-                {showTara && (
-                  <View style={styles.itemExtraField}>
-                    <Text style={styles.itemControlLabel}>Tara{reqTara ? ' *' : ''}</Text>
-                    <TextInput
-                      style={styles.priceInput}
-                      keyboardType="decimal-pad"
-                      placeholder="0"
-                      defaultValue={item.tara != null ? String(item.tara) : ''}
-                      onEndEditing={(e) => updateNumField(item.product.id, 'tara', e.nativeEvent.text)}
-                    />
-                  </View>
-                )}
-              </View>
-            )}
-            {showEncolhimento && (
-              <View style={styles.itemExtraFull}>
-                <Text style={styles.itemControlLabel}>Encolhimento{reqEncolhimento ? ' *' : ''}</Text>
-                <TextInput
-                  style={styles.priceInput}
-                  placeholder="Texto"
-                  defaultValue={item.encolhimento ?? ''}
-                  onEndEditing={(e) => updateStrField(item.product.id, 'encolhimento', e.nativeEvent.text)}
-                />
-              </View>
-            )}
-            {showXcrav && (
-              <View style={styles.itemExtraFull}>
-                <Text style={styles.itemControlLabel}>Largura Crav.{reqXcrav ? ' *' : ''}</Text>
-                <TouchableOpacity
-                  style={[styles.xcravBtn, item.xcrav === '1' && styles.xcravBtnActive]}
-                  onPress={() => toggleXcrav(item.product.id)}
-                  activeOpacity={0.8}
-                >
-                  <Text style={[styles.xcravBtnText, item.xcrav === '1' && styles.xcravBtnTextActive]}>
-                    {item.xcrav === '1' ? 'Sim' : 'Não'}
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            )}
-          </View>
+          <CartItemEditor
+            key={item.productId}
+            item={item}
+            onChange={(updated) => onCartChange(cart.map((i) => i.productId === item.productId ? updated : i))}
+            onRemove={() => onCartChange(cart.filter((i) => i.productId !== item.productId))}
+          />
         ))}
       </View>
 
@@ -620,7 +350,7 @@ function Step3({
         <View style={styles.summaryBox}>
           <Text style={styles.summaryLabel}>Obs. Nota Fiscal{reqMennota ? ' *' : ''}</Text>
           <TextInput
-            style={styles.notesInput}
+            style={orderFormStyles.notesInput}
             placeholder="Mensagem para a nota fiscal (opcional)..."
             value={mennota}
             onChangeText={onMennotaChange}
@@ -635,7 +365,7 @@ function Step3({
         <View style={styles.summaryBox}>
           <Text style={styles.summaryLabel}>Obs. Interna{reqNotes ? ' *' : ''}</Text>
           <TextInput
-            style={styles.notesInput}
+            style={orderFormStyles.notesInput}
             placeholder="Observação interna (não sai na nota)..."
             value={notes}
             onChangeText={onNotesChange}
@@ -702,6 +432,8 @@ export default function NovoPedidoScreen() {
       setTransportadora(null)
       setCondPag(null)
       setIsPending(false)
+      // Marca o início da sessão de pedido para medir a duração no tracking
+      startOrderSession()
     }, [])
   )
 
@@ -729,18 +461,7 @@ export default function NovoPedidoScreen() {
 
     setIsPending(true)
 
-    const items: CreateOrderItemInput[] = cart.map((i) => ({
-      productId:    i.product.id,
-      quantity:     i.quantity,
-      discount:     i.discount,
-      unitPrice:    i.unitPrice,
-      descricao:    i.descricao,
-      largura:      i.largura,
-      espessura:    i.espessura,
-      encolhimento: i.encolhimento,
-      xcrav:        i.xcrav,
-      tara:         i.tara,
-    }))
+    const items: CreateOrderItemInput[] = cartToOrderItems(cart)
 
     try {
       const result = await submitOrder({
@@ -768,10 +489,7 @@ export default function NovoPedidoScreen() {
       }
     } catch (err: unknown) {
       setIsPending(false)
-      const msg =
-        (err as { response?: { data?: { message?: string } } })?.response?.data?.message ??
-        'Verifique os dados e tente novamente.'
-      Alert.alert('Erro ao criar pedido', msg)
+      Alert.alert('Erro ao criar pedido', getApiErrorMessage(err, 'Verifique os dados e tente novamente.'))
     }
   }
 
@@ -856,33 +574,4 @@ const styles = StyleSheet.create({
   selectedCardLabel: { fontFamily: 'Inter_400Regular', fontSize: 11, color: colors.neutral.textSub, marginBottom: 2 },
   selectedCardValue: { fontFamily: 'PlusJakartaSans_700Bold', fontSize: 15, color: colors.brand.dark },
   selectedCardChange: { fontFamily: 'Inter_400Regular', fontSize: 12, color: colors.brand.primary, marginTop: 4 },
-  itemEditRow: { borderTopWidth: 1, borderTopColor: colors.neutral.bg, paddingTop: 10, marginTop: 6 },
-  itemEditHeader: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 8 },
-  itemEditName: { flex: 1, fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: 13, color: colors.brand.dark, marginRight: 8 },
-  removeBtn: { width: 28, height: 28, borderRadius: 14, backgroundColor: colors.semantic.dangerLight, justifyContent: 'center', alignItems: 'center' },
-  removeBtnText: { fontFamily: 'Inter_400Regular', color: colors.semantic.danger, fontSize: 18, fontWeight: '700', lineHeight: 22 },
-  itemEditControls: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  itemEditQty: { alignItems: 'center' },
-  itemEditPrice: { flex: 1, alignItems: 'flex-start' },
-  itemEditSubtotal: { alignItems: 'flex-end' },
-  itemControlLabel: { fontFamily: 'Inter_400Regular', fontSize: 10, color: colors.neutral.textSub, marginBottom: 4 },
-  priceInput: { borderWidth: 1, borderColor: colors.neutral.border, borderRadius: 6, padding: 6, fontFamily: 'Inter_400Regular', fontSize: 13, minWidth: 80, backgroundColor: colors.neutral.bg, color: colors.brand.dark },
-  itemSubtotalValue: { fontFamily: 'PlusJakartaSans_700Bold', fontSize: 13, color: colors.brand.dark },
-  itemExtraRow: { flexDirection: 'row', gap: 8, marginTop: 8, flexWrap: 'wrap' },
-  itemExtraField: { flex: 1, minWidth: 80 },
-  itemExtraFull: { marginTop: 8 },
-  xcravBtn: { borderWidth: 1, borderColor: colors.neutral.border, borderRadius: 6, paddingHorizontal: 16, paddingVertical: 6, alignSelf: 'flex-start', backgroundColor: colors.neutral.bg },
-  xcravBtnActive: { backgroundColor: colors.brand.primary, borderColor: colors.brand.primary },
-  xcravBtnText: { fontFamily: 'Inter_400Regular', fontSize: 13, color: colors.neutral.text },
-  xcravBtnTextActive: { color: colors.neutral.white },
-  notesInput: { borderWidth: 1, borderColor: colors.neutral.border, borderRadius: 8, padding: 10, fontFamily: 'Inter_400Regular', fontSize: 14, minHeight: 80, backgroundColor: colors.neutral.bg, color: colors.brand.dark },
-  pickerBtn: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderWidth: 1, borderColor: colors.neutral.border, borderRadius: 8, padding: 10, backgroundColor: colors.neutral.bg },
-  pickerBtnDisabled: { opacity: 0.6 },
-  pickerBtnText: { fontFamily: 'Inter_400Regular', fontSize: 14, color: colors.brand.dark },
-  pickerBtnPlaceholder: { fontFamily: 'Inter_400Regular', fontSize: 14, color: colors.neutral.textSub },
-  pickerBtnIcon: { fontFamily: 'Inter_400Regular', fontSize: 12, color: colors.neutral.textSub },
-  pickerList: { marginTop: 4, borderWidth: 1, borderColor: colors.neutral.border, borderRadius: 8, backgroundColor: colors.neutral.white, overflow: 'hidden' },
-  pickerItem: { paddingVertical: 10, paddingHorizontal: 12, borderBottomWidth: 1, borderBottomColor: colors.neutral.bg },
-  pickerItemText: { fontFamily: 'Inter_400Regular', fontSize: 14, color: colors.neutral.text },
-  pickerItemSelected: { fontFamily: 'PlusJakartaSans_600SemiBold', color: colors.brand.primary },
 })
