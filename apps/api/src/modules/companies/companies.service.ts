@@ -1,7 +1,9 @@
 import { prisma } from '@addere/db'
 import bcrypt from 'bcryptjs'
-import { encryptCredential, decryptCredential } from '../../lib/protheus-crypto'
+import { encryptCredential } from '../../lib/protheus-crypto'
 import { invalidateToken } from '../sync/protheus.client'
+import { applySchedule, clearSchedule } from '../sync/scheduler'
+import { notFound } from '../../lib/errors'
 
 const MAX_PAGE_SIZE = 500
 
@@ -33,7 +35,7 @@ export async function getCompanyById(id: string) {
     },
   })
 
-  if (!company) throw new Error('Empresa não encontrada')
+  if (!company) throw notFound('Empresa não encontrada')
 
   // Nunca expõe a senha; retorna null para não vazar nem o valor criptografado
   return { ...company, passProtheus: company.passProtheus ? '••••••••' : null }
@@ -50,7 +52,14 @@ export async function createCompany(input: CreateCompanyInput) {
 }
 
 export async function toggleCompanyActive(id: string, active: boolean) {
-  return prisma.company.update({ where: { id }, data: { active } })
+  const company = await prisma.company.update({ where: { id }, data: { active } })
+  // Desativar a empresa também interrompe o auto-sync; reativar retoma o agendamento salvo
+  if (!active) {
+    clearSchedule(id)
+  } else {
+    applySchedule(id, await getSyncSchedule(id))
+  }
+  return company
 }
 
 export async function updateCompany(id: string, input: { name?: string; cnpj?: string; idProtheus?: string | null }) {
@@ -178,31 +187,6 @@ export async function listCompanyOrders(companyId: string, limit?: number, page?
   })
 }
 
-// ─── Branches ────────────────────────────────────────────────────────────────
-
-export interface CreateBranchInput {
-  name: string
-  cnpj?: string
-  idProtheus?: string
-  razaoSocial?: string
-  endereco?: string
-  complemento?: string
-  cidade?: string
-  estado?: string
-  cep?: string
-  logo?: string
-}
-
-export async function createBranch(companyId: string, input: CreateBranchInput) {
-  return prisma.branch.create({ data: { ...input, companyId } })
-}
-
-export async function toggleBranchActive(companyId: string, id: string, active: boolean) {
-  const exists = await prisma.branch.findFirst({ where: { id, companyId }, select: { id: true } })
-  if (!exists) throw new Error('Filial não encontrada')
-  return prisma.branch.update({ where: { id }, data: { active } })
-}
-
 // ─── Users (por empresa) ────────────────────────────────────────────────────
 
 export interface CreateUserInput {
@@ -223,7 +207,7 @@ export async function createUser(companyId: string, input: CreateUserInput) {
 
 export async function toggleUserActive(companyId: string, id: string, active: boolean) {
   const exists = await prisma.user.findFirst({ where: { id, companyId } })
-  if (!exists) throw new Error('Usuário não encontrado')
+  if (!exists) throw notFound('Usuário não encontrado')
   // Ao desativar, invalida todas as sessões ativas
   if (!active) {
     await prisma.refreshToken.deleteMany({ where: { userId: id } })
@@ -233,38 +217,6 @@ export async function toggleUserActive(companyId: string, id: string, active: bo
     data: { active },
     select: { id: true, name: true, email: true, role: true, active: true, createdAt: true },
   })
-}
-
-// ─── Branches (update) ───────────────────────────────────────────────────────
-
-export interface UpdateBranchInput {
-  name?: string
-  cnpj?: string
-  idProtheus?: string
-  razaoSocial?: string
-  endereco?: string
-  complemento?: string
-  cidade?: string
-  estado?: string
-  cep?: string
-  logo?: string | null
-}
-
-export async function updateBranch(companyId: string, id: string, input: UpdateBranchInput) {
-  const exists = await prisma.branch.findFirst({ where: { id, companyId }, select: { id: true } })
-  if (!exists) throw new Error('Filial não encontrada')
-  const data: Record<string, unknown> = {}
-  if (input.name        !== undefined) data.name        = input.name
-  if (input.cnpj        !== undefined) data.cnpj        = input.cnpj        || null
-  if (input.idProtheus  !== undefined) data.idProtheus  = input.idProtheus  || null
-  if (input.razaoSocial !== undefined) data.razaoSocial = input.razaoSocial || null
-  if (input.endereco    !== undefined) data.endereco    = input.endereco    || null
-  if (input.complemento !== undefined) data.complemento = input.complemento || null
-  if (input.cidade      !== undefined) data.cidade      = input.cidade      || null
-  if (input.estado      !== undefined) data.estado      = input.estado      || null
-  if (input.cep         !== undefined) data.cep         = input.cep         || null
-  if (input.logo        !== undefined) data.logo        = input.logo        ?? null
-  return prisma.branch.update({ where: { id }, data })
 }
 
 // ─── Users (update) ──────────────────────────────────────────────────────────
@@ -279,7 +231,7 @@ export interface UpdateUserInput {
 
 export async function updateUser(companyId: string, id: string, input: UpdateUserInput) {
   const exists = await prisma.user.findFirst({ where: { id, companyId } })
-  if (!exists) throw new Error('Usuário não encontrado')
+  if (!exists) throw notFound('Usuário não encontrado')
   const data: Record<string, unknown> = {}
   if (input.name       !== undefined) data.name       = input.name
   if (input.email      !== undefined) data.email      = input.email
@@ -330,10 +282,11 @@ export interface UpdateCustomerInput extends Partial<CreateCustomerInput> {}
 
 export async function updateCustomer(companyId: string, id: string, input: UpdateCustomerInput) {
   const exists = await prisma.customer.findFirst({ where: { id, companyId } })
-  if (!exists) throw new Error('Cliente não encontrado')
+  if (!exists) throw notFound('Cliente não encontrado')
   const data: Record<string, unknown> = {}
+  // 'name' fica fora do loop: é obrigatório e não deve ser convertido para null
   const fields: (keyof CreateCustomerInput)[] = [
-    'name', 'protheusCode', 'loja', 'document', 'email', 'phone', 'address',
+    'protheusCode', 'loja', 'document', 'email', 'phone', 'address',
     'municipio', 'bairro', 'cep', 'uf', 'vendorCode',
     'msblql', 'transpPadrao', 'condPagPadrao', 'tes', 'xcodemp',
   ]
@@ -346,7 +299,7 @@ export async function updateCustomer(companyId: string, id: string, input: Updat
 
 export async function toggleCustomerActive(companyId: string, id: string, active: boolean) {
   const exists = await prisma.customer.findFirst({ where: { id, companyId } })
-  if (!exists) throw new Error('Cliente não encontrado')
+  if (!exists) throw notFound('Cliente não encontrado')
   return prisma.customer.update({ where: { id }, data: { active } })
 }
 
@@ -381,7 +334,7 @@ export interface UpdateProductInput extends Partial<CreateProductInput> {}
 
 export async function updateProduct(companyId: string, id: string, input: UpdateProductInput) {
   const exists = await prisma.product.findFirst({ where: { id, companyId } })
-  if (!exists) throw new Error('Produto não encontrado')
+  if (!exists) throw notFound('Produto não encontrado')
   const data: Record<string, unknown> = {}
   if (input.name         !== undefined) data.name         = input.name
   if (input.protheusCode !== undefined) data.protheusCode = input.protheusCode || null
@@ -395,7 +348,7 @@ export async function updateProduct(companyId: string, id: string, input: Update
 
 export async function toggleProductActive(companyId: string, id: string, active: boolean) {
   const exists = await prisma.product.findFirst({ where: { id, companyId } })
-  if (!exists) throw new Error('Produto não encontrado')
+  if (!exists) throw notFound('Produto não encontrado')
   return prisma.product.update({ where: { id }, data: { active } })
 }
 
@@ -403,7 +356,7 @@ export async function toggleProductActive(companyId: string, id: string, active:
 
 export async function cancelOrder(companyId: string, id: string) {
   const exists = await prisma.order.findFirst({ where: { id, companyId } })
-  if (!exists) throw new Error('Pedido não encontrado')
+  if (!exists) throw notFound('Pedido não encontrado')
   return prisma.order.update({ where: { id }, data: { status: 'CANCELLED' } })
 }
 

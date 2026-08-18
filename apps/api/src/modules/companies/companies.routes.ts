@@ -1,14 +1,10 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify'
-import { z } from 'zod'
 import { authenticate, requireSuperAdmin } from '../../middleware/authenticate'
 import {
   listCompanies,
   getCompanyById,
   createCompany,
   toggleCompanyActive,
-  createBranch,
-  updateBranch,
-  toggleBranchActive,
   createUser,
   updateUser,
   toggleUserActive,
@@ -30,471 +26,256 @@ import {
   updateCompanyFieldConfig,
   listProtheusLogs,
 } from './companies.service'
-import { FIELD_REGISTRY_KEYS, DEFAULT_SYNC_SCHEDULE } from '@addere/types'
+import { createBranch, updateBranch, toggleBranchActive } from '../branches/branches.service'
+import { applySchedule } from '../sync/scheduler'
+import {
+  createCompanySchema,
+  updateCompanySchema,
+  createBranchSchema,
+  updateBranchSchema,
+  createCompanyUserSchema,
+  updateCompanyUserSchema,
+  toggleActiveSchema,
+  createCustomerSchema,
+  updateCustomerSchema,
+  createProductSchema,
+  updateProductSchema,
+  updateProtheusSchema,
+  updateSyncScheduleSchema,
+  updateFieldConfigSchema,
+  listQuerySchema,
+  protheusLogsQuerySchema,
+} from './companies.schema'
+import { DEFAULT_SYNC_SCHEDULE } from '@addere/types'
 
-const createCompanySchema = z.object({
-  name: z.string().min(1),
-  cnpj: z.string().min(1),
-  idProtheus: z.string().optional(),
-})
-
-const createBranchSchema = z.object({
-  name:        z.string().min(1),
-  cnpj:        z.string().optional(),
-  idProtheus:  z.string().optional(),
-  razaoSocial: z.string().optional(),
-  endereco:    z.string().optional(),
-  complemento: z.string().optional(),
-  cidade:      z.string().optional(),
-  estado:      z.string().optional(),
-  cep:         z.string().optional(),
-  logo:        z.string().optional(),
-})
-
-const createUserSchema = z.object({
-  name:       z.string().min(1),
-  email:      z.string().email(),
-  password:   z.string().min(8),
-  role:       z.enum(['ADMIN', 'SALESPERSON']),
-  idVendProt: z.string().optional().nullable(),
-})
-
-const toggleActiveSchema = z.object({
-  active: z.boolean(),
-})
-
-const updateBranchSchema = z.object({
-  name:        z.string().min(1).optional(),
-  cnpj:        z.string().optional(),
-  idProtheus:  z.string().optional(),
-  razaoSocial: z.string().optional(),
-  endereco:    z.string().optional(),
-  complemento: z.string().optional(),
-  cidade:      z.string().optional(),
-  estado:      z.string().optional(),
-  cep:         z.string().optional(),
-  logo:        z.string().optional().nullable(),
-})
-
-const updateUserSchema = z.object({
-  name:       z.string().min(1).optional(),
-  email:      z.string().email().optional(),
-  password:   z.string().min(8).optional(),
-  role:       z.enum(['ADMIN', 'SALESPERSON']).optional(),
-  idVendProt: z.string().optional().nullable(),
-})
-
-const createCustomerSchema = z.object({
-  name:          z.string().min(1),
-  protheusCode:  z.string().optional(),
-  loja:          z.string().optional(),
-  document:      z.string().optional(),
-  email:         z.string().email().optional().or(z.literal('')),
-  phone:         z.string().optional(),
-  address:       z.string().optional(),
-  municipio:     z.string().optional(),
-  bairro:        z.string().optional(),
-  cep:           z.string().optional(),
-  uf:            z.string().optional(),
-  vendorCode:    z.string().optional(),
-  msblql:        z.string().optional(),
-  transpPadrao:  z.string().optional(),
-  condPagPadrao: z.string().optional(),
-  tes:           z.string().optional(),
-  xcodemp:       z.string().optional(),
-})
-
-const updateCustomerSchema = createCustomerSchema.partial()
-
-const createProductSchema = z.object({
-  name:         z.string().min(1),
-  protheusCode: z.string().optional(),
-  description:  z.string().optional(),
-  price:        z.number().min(0),
-  unit:         z.string().optional(),
-  stock:        z.number().min(0).optional(),
-  saldo:        z.number().optional(),
-})
-
-const updateProductSchema = createProductSchema.partial()
-
-const updateProtheusSchema = z.object({
-  apiToken:     z.string().optional(),
-  apiPord:      z.string().optional(),
-  apiCliente:   z.string().optional(),
-  apiPedido:    z.string().optional(),
-  apiConsPed:   z.string().optional(),
-  apiCondPag:   z.string().optional(),
-  apiTransp:    z.string().optional(),
-  apiMetaVend:  z.string().optional(),
-  usrProtheus:  z.string().optional(),
-  passProtheus: z.string().optional(),
-  syncConfig:   z.record(z.unknown()).optional(),
-})
-
+// Erros de validação (ZodError) e de negócio (AppError) são convertidos em
+// resposta pelo error handler global de app.ts — as rotas não têm try/catch.
 export default async function companiesRoutes(app: FastifyInstance) {
+  const superadmin = { preHandler: requireSuperAdmin }
+
+  // ─── Empresa ───────────────────────────────────────────────────────────────
+
   // GET /companies — lista todas as empresas
-  app.get('/', { preHandler: requireSuperAdmin }, async (_request: FastifyRequest, reply: FastifyReply) => {
-    const companies = await listCompanies()
-    return reply.send(companies)
+  app.get('/', superadmin, async (_request: FastifyRequest, reply: FastifyReply) => {
+    return reply.send(await listCompanies())
   })
 
   // POST /companies — cria empresa
-  app.post('/', { preHandler: requireSuperAdmin }, async (request: FastifyRequest, reply: FastifyReply) => {
-    const result = createCompanySchema.safeParse(request.body)
-    if (!result.success) {
-      return reply.status(400).send({ message: 'Dados inválidos', errors: result.error.flatten() })
-    }
-    const company = await createCompany(result.data)
+  app.post('/', superadmin, async (request: FastifyRequest, reply: FastifyReply) => {
+    const company = await createCompany(createCompanySchema.parse(request.body))
     return reply.status(201).send(company)
   })
 
   // GET /companies/:id — detalhe da empresa (filiais + usuários)
-  app.get('/:id', { preHandler: requireSuperAdmin }, async (request: FastifyRequest, reply: FastifyReply) => {
+  app.get('/:id', superadmin, async (request: FastifyRequest, reply: FastifyReply) => {
     const { id } = request.params as { id: string }
-    try {
-      const company = await getCompanyById(id)
-      return reply.send(company)
-    } catch (err) {
-      return reply.status(404).send({ message: (err as Error).message })
-    }
+    return reply.send(await getCompanyById(id))
   })
 
   // PATCH /companies/:id — edita dados básicos da empresa
-  app.patch('/:id', { preHandler: requireSuperAdmin }, async (request: FastifyRequest, reply: FastifyReply) => {
+  app.patch('/:id', superadmin, async (request: FastifyRequest, reply: FastifyReply) => {
     const { id } = request.params as { id: string }
-    const { name, cnpj, idProtheus } = request.body as { name?: string; cnpj?: string; idProtheus?: string }
-    if (!name && !cnpj && idProtheus === undefined) {
-      return reply.status(400).send({ message: 'Nenhum campo para atualizar' })
-    }
-    try {
-      const company = await updateCompany(id, { name, cnpj, idProtheus: idProtheus ?? null })
-      return reply.send(company)
-    } catch (err) {
-      return reply.status(422).send({ message: (err as Error).message })
-    }
+    const input = updateCompanySchema.parse(request.body)
+    return reply.send(await updateCompany(id, { ...input, idProtheus: input.idProtheus ?? null }))
   })
 
-  // PATCH /companies/:id/active — ativa/desativa empresa
-  app.patch('/:id/active', { preHandler: requireSuperAdmin }, async (request: FastifyRequest, reply: FastifyReply) => {
+  // PATCH /companies/:id/active — ativa/desativa empresa (e o auto-sync junto)
+  app.patch('/:id/active', superadmin, async (request: FastifyRequest, reply: FastifyReply) => {
     const { id } = request.params as { id: string }
-    const result = toggleActiveSchema.safeParse(request.body)
-    if (!result.success) {
-      return reply.status(400).send({ message: 'Dados inválidos', errors: result.error.flatten() })
-    }
-    const company = await toggleCompanyActive(id, result.data.active)
-    return reply.send(company)
+    const { active } = toggleActiveSchema.parse(request.body)
+    return reply.send(await toggleCompanyActive(id, active))
   })
 
   // PATCH /companies/:id/protheus — atualiza configuração Protheus da empresa
-  app.patch('/:id/protheus', { preHandler: requireSuperAdmin }, async (request: FastifyRequest, reply: FastifyReply) => {
+  app.patch('/:id/protheus', superadmin, async (request: FastifyRequest, reply: FastifyReply) => {
     const { id } = request.params as { id: string }
-    const result = updateProtheusSchema.safeParse(request.body)
-    if (!result.success) {
-      return reply.status(400).send({ message: 'Dados inválidos', errors: result.error.flatten() })
-    }
-    try {
-      const company = await updateCompanyProtheus(id, result.data)
-      return reply.send(company)
-    } catch (err) {
-      return reply.status(422).send({ message: (err as Error).message })
-    }
+    const company = await updateCompanyProtheus(id, updateProtheusSchema.parse(request.body))
+    return reply.send(company)
   })
 
+  // ─── Filiais ───────────────────────────────────────────────────────────────
+
   // POST /companies/:id/branches — cria filial
-  app.post('/:id/branches', { preHandler: requireSuperAdmin }, async (request: FastifyRequest, reply: FastifyReply) => {
+  app.post('/:id/branches', superadmin, async (request: FastifyRequest, reply: FastifyReply) => {
     const { id } = request.params as { id: string }
-    const result = createBranchSchema.safeParse(request.body)
-    if (!result.success) {
-      return reply.status(400).send({ message: 'Dados inválidos', errors: result.error.flatten() })
-    }
-    const branch = await createBranch(id, result.data)
+    const branch = await createBranch(id, createBranchSchema.parse(request.body))
     return reply.status(201).send(branch)
   })
 
   // PATCH /companies/:id/branches/:branchId — atualiza dados da filial
-  app.patch('/:id/branches/:branchId', { preHandler: requireSuperAdmin }, async (request: FastifyRequest, reply: FastifyReply) => {
+  app.patch('/:id/branches/:branchId', superadmin, async (request: FastifyRequest, reply: FastifyReply) => {
     const { id, branchId } = request.params as { id: string; branchId: string }
-    const result = updateBranchSchema.safeParse(request.body)
-    if (!result.success) {
-      return reply.status(400).send({ message: 'Dados inválidos', errors: result.error.flatten() })
-    }
-    try {
-      const branch = await updateBranch(id, branchId, result.data)
-      return reply.send(branch)
-    } catch (err) {
-      return reply.status(404).send({ message: (err as Error).message })
-    }
+    return reply.send(await updateBranch(id, branchId, updateBranchSchema.parse(request.body)))
   })
 
   // PATCH /companies/:id/branches/:branchId/active — ativa/desativa filial
-  app.patch('/:id/branches/:branchId/active', { preHandler: requireSuperAdmin }, async (request: FastifyRequest, reply: FastifyReply) => {
+  app.patch('/:id/branches/:branchId/active', superadmin, async (request: FastifyRequest, reply: FastifyReply) => {
     const { id, branchId } = request.params as { id: string; branchId: string }
-    const result = toggleActiveSchema.safeParse(request.body)
-    if (!result.success) {
-      return reply.status(400).send({ message: 'Dados inválidos', errors: result.error.flatten() })
-    }
-    try {
-      const branch = await toggleBranchActive(id, branchId, result.data.active)
-      return reply.send(branch)
-    } catch (err) {
-      return reply.status(404).send({ message: (err as Error).message })
-    }
+    const { active } = toggleActiveSchema.parse(request.body)
+    return reply.send(await toggleBranchActive(id, branchId, active))
   })
 
+  // ─── Usuários da empresa ───────────────────────────────────────────────────
+
   // POST /companies/:id/users — cria usuário na empresa
-  app.post('/:id/users', { preHandler: requireSuperAdmin }, async (request: FastifyRequest, reply: FastifyReply) => {
+  app.post('/:id/users', superadmin, async (request: FastifyRequest, reply: FastifyReply) => {
     const { id } = request.params as { id: string }
-    const result = createUserSchema.safeParse(request.body)
-    if (!result.success) {
-      return reply.status(400).send({ message: 'Dados inválidos', errors: result.error.flatten() })
-    }
-    try {
-      const user = await createUser(id, result.data)
-      return reply.status(201).send(user)
-    } catch (err) {
-      return reply.status(422).send({ message: (err as Error).message })
-    }
+    const input = createCompanyUserSchema.parse(request.body)
+    const user = await createUser(id, input)
+    return reply.status(201).send(user)
   })
 
   // PATCH /companies/:id/users/:userId — atualiza dados do usuário
-  app.patch('/:id/users/:userId', { preHandler: requireSuperAdmin }, async (request: FastifyRequest, reply: FastifyReply) => {
+  app.patch('/:id/users/:userId', superadmin, async (request: FastifyRequest, reply: FastifyReply) => {
     const { id, userId } = request.params as { id: string; userId: string }
-    const result = updateUserSchema.safeParse(request.body)
-    if (!result.success) {
-      return reply.status(400).send({ message: 'Dados inválidos', errors: result.error.flatten() })
-    }
-    try {
-      const user = await updateUser(id, userId, result.data)
-      return reply.send(user)
-    } catch (err) {
-      return reply.status(422).send({ message: (err as Error).message })
-    }
+    return reply.send(await updateUser(id, userId, updateCompanyUserSchema.parse(request.body)))
   })
 
   // PATCH /companies/:id/users/:userId/active — ativa/desativa usuário
-  app.patch('/:id/users/:userId/active', { preHandler: requireSuperAdmin }, async (request: FastifyRequest, reply: FastifyReply) => {
+  app.patch('/:id/users/:userId/active', superadmin, async (request: FastifyRequest, reply: FastifyReply) => {
     const { id, userId } = request.params as { id: string; userId: string }
-    const result = toggleActiveSchema.safeParse(request.body)
-    if (!result.success) {
-      return reply.status(400).send({ message: 'Dados inválidos', errors: result.error.flatten() })
-    }
-    try {
-      const user = await toggleUserActive(id, userId, result.data.active)
-      return reply.send(user)
-    } catch (err) {
-      return reply.status(404).send({ message: (err as Error).message })
-    }
+    const { active } = toggleActiveSchema.parse(request.body)
+    return reply.send(await toggleUserActive(id, userId, active))
   })
 
+  // ─── Clientes da empresa ───────────────────────────────────────────────────
+
   // GET /companies/:id/customers — clientes da empresa
-  app.get('/:id/customers', { preHandler: requireSuperAdmin }, async (request: FastifyRequest, reply: FastifyReply) => {
+  app.get('/:id/customers', superadmin, async (request: FastifyRequest, reply: FastifyReply) => {
     const { id } = request.params as { id: string }
-    const { limit, page } = request.query as { limit?: string; page?: string }
-    const customers = await listCompanyCustomers(id, limit ? Number(limit) : undefined, page ? Number(page) : undefined)
-    return reply.send(customers)
+    const { limit, page } = listQuerySchema.parse(request.query)
+    return reply.send(await listCompanyCustomers(id, limit, page))
   })
 
   // POST /companies/:id/customers — cria cliente
-  app.post('/:id/customers', { preHandler: requireSuperAdmin }, async (request: FastifyRequest, reply: FastifyReply) => {
+  app.post('/:id/customers', superadmin, async (request: FastifyRequest, reply: FastifyReply) => {
     const { id } = request.params as { id: string }
-    const result = createCustomerSchema.safeParse(request.body)
-    if (!result.success) {
-      return reply.status(400).send({ message: 'Dados inválidos', errors: result.error.flatten() })
-    }
-    try {
-      const customer = await createCustomer(id, result.data)
-      return reply.status(201).send(customer)
-    } catch (err) {
-      return reply.status(422).send({ message: (err as Error).message })
-    }
+    const customer = await createCustomer(id, createCustomerSchema.parse(request.body))
+    return reply.status(201).send(customer)
   })
 
   // PATCH /companies/:id/customers/:customerId — atualiza cliente
-  app.patch('/:id/customers/:customerId', { preHandler: requireSuperAdmin }, async (request: FastifyRequest, reply: FastifyReply) => {
+  app.patch('/:id/customers/:customerId', superadmin, async (request: FastifyRequest, reply: FastifyReply) => {
     const { id, customerId } = request.params as { id: string; customerId: string }
-    const result = updateCustomerSchema.safeParse(request.body)
-    if (!result.success) {
-      return reply.status(400).send({ message: 'Dados inválidos', errors: result.error.flatten() })
-    }
-    try {
-      const customer = await updateCustomer(id, customerId, result.data)
-      return reply.send(customer)
-    } catch (err) {
-      return reply.status(422).send({ message: (err as Error).message })
-    }
+    return reply.send(await updateCustomer(id, customerId, updateCustomerSchema.parse(request.body)))
   })
 
   // PATCH /companies/:id/customers/:customerId/active — ativa/desativa cliente
-  app.patch('/:id/customers/:customerId/active', { preHandler: requireSuperAdmin }, async (request: FastifyRequest, reply: FastifyReply) => {
+  app.patch('/:id/customers/:customerId/active', superadmin, async (request: FastifyRequest, reply: FastifyReply) => {
     const { id, customerId } = request.params as { id: string; customerId: string }
-    const result = toggleActiveSchema.safeParse(request.body)
-    if (!result.success) {
-      return reply.status(400).send({ message: 'Dados inválidos', errors: result.error.flatten() })
-    }
-    try {
-      const customer = await toggleCustomerActive(id, customerId, result.data.active)
-      return reply.send(customer)
-    } catch (err) {
-      return reply.status(404).send({ message: (err as Error).message })
-    }
+    const { active } = toggleActiveSchema.parse(request.body)
+    return reply.send(await toggleCustomerActive(id, customerId, active))
   })
 
+  // ─── Produtos da empresa ───────────────────────────────────────────────────
+
   // GET /companies/:id/products — produtos da empresa
-  app.get('/:id/products', { preHandler: requireSuperAdmin }, async (request: FastifyRequest, reply: FastifyReply) => {
+  app.get('/:id/products', superadmin, async (request: FastifyRequest, reply: FastifyReply) => {
     const { id } = request.params as { id: string }
-    const { limit, page } = request.query as { limit?: string; page?: string }
-    const products = await listCompanyProducts(id, limit ? Number(limit) : undefined, page ? Number(page) : undefined)
-    return reply.send(products)
+    const { limit, page } = listQuerySchema.parse(request.query)
+    return reply.send(await listCompanyProducts(id, limit, page))
   })
 
   // POST /companies/:id/products — cria produto
-  app.post('/:id/products', { preHandler: requireSuperAdmin }, async (request: FastifyRequest, reply: FastifyReply) => {
+  app.post('/:id/products', superadmin, async (request: FastifyRequest, reply: FastifyReply) => {
     const { id } = request.params as { id: string }
-    const result = createProductSchema.safeParse(request.body)
-    if (!result.success) {
-      return reply.status(400).send({ message: 'Dados inválidos', errors: result.error.flatten() })
-    }
-    try {
-      const product = await createProduct(id, result.data)
-      return reply.status(201).send(product)
-    } catch (err) {
-      return reply.status(422).send({ message: (err as Error).message })
-    }
+    const product = await createProduct(id, createProductSchema.parse(request.body))
+    return reply.status(201).send(product)
   })
 
   // PATCH /companies/:id/products/:productId — atualiza produto
-  app.patch('/:id/products/:productId', { preHandler: requireSuperAdmin }, async (request: FastifyRequest, reply: FastifyReply) => {
+  app.patch('/:id/products/:productId', superadmin, async (request: FastifyRequest, reply: FastifyReply) => {
     const { id, productId } = request.params as { id: string; productId: string }
-    const result = updateProductSchema.safeParse(request.body)
-    if (!result.success) {
-      return reply.status(400).send({ message: 'Dados inválidos', errors: result.error.flatten() })
-    }
-    try {
-      const product = await updateProduct(id, productId, result.data)
-      return reply.send(product)
-    } catch (err) {
-      return reply.status(422).send({ message: (err as Error).message })
-    }
+    return reply.send(await updateProduct(id, productId, updateProductSchema.parse(request.body)))
   })
 
   // PATCH /companies/:id/products/:productId/active — ativa/desativa produto
-  app.patch('/:id/products/:productId/active', { preHandler: requireSuperAdmin }, async (request: FastifyRequest, reply: FastifyReply) => {
+  app.patch('/:id/products/:productId/active', superadmin, async (request: FastifyRequest, reply: FastifyReply) => {
     const { id, productId } = request.params as { id: string; productId: string }
-    const result = toggleActiveSchema.safeParse(request.body)
-    if (!result.success) {
-      return reply.status(400).send({ message: 'Dados inválidos', errors: result.error.flatten() })
-    }
-    try {
-      const product = await toggleProductActive(id, productId, result.data.active)
-      return reply.send(product)
-    } catch (err) {
-      return reply.status(404).send({ message: (err as Error).message })
-    }
+    const { active } = toggleActiveSchema.parse(request.body)
+    return reply.send(await toggleProductActive(id, productId, active))
   })
 
+  // ─── Pedidos da empresa ────────────────────────────────────────────────────
+
   // GET /companies/:id/orders — pedidos da empresa
-  app.get('/:id/orders', { preHandler: requireSuperAdmin }, async (request: FastifyRequest, reply: FastifyReply) => {
+  app.get('/:id/orders', superadmin, async (request: FastifyRequest, reply: FastifyReply) => {
     const { id } = request.params as { id: string }
-    const { limit, page } = request.query as { limit?: string; page?: string }
-    const orders = await listCompanyOrders(id, limit ? Number(limit) : undefined, page ? Number(page) : undefined)
-    return reply.send(orders)
+    const { limit, page } = listQuerySchema.parse(request.query)
+    return reply.send(await listCompanyOrders(id, limit, page))
   })
 
   // PATCH /companies/:id/orders/:orderId/cancel — cancela pedido
-  app.patch('/:id/orders/:orderId/cancel', { preHandler: requireSuperAdmin }, async (request: FastifyRequest, reply: FastifyReply) => {
+  app.patch('/:id/orders/:orderId/cancel', superadmin, async (request: FastifyRequest, reply: FastifyReply) => {
     const { id, orderId } = request.params as { id: string; orderId: string }
-    try {
-      const order = await cancelOrder(id, orderId)
-      return reply.send(order)
-    } catch (err) {
-      return reply.status(422).send({ message: (err as Error).message })
-    }
+    return reply.send(await cancelOrder(id, orderId))
   })
 
+  // ─── Configurações ─────────────────────────────────────────────────────────
+
   // GET /companies/:id/field-config — retorna config de visibilidade de uma empresa (superadmin)
-  app.get('/:id/field-config', { preHandler: requireSuperAdmin }, async (request: FastifyRequest, reply: FastifyReply) => {
+  app.get('/:id/field-config', superadmin, async (request: FastifyRequest, reply: FastifyReply) => {
     const { id } = request.params as { id: string }
-    const config = await getCompanyFieldConfig(id)
-    return reply.send(config)
+    return reply.send(await getCompanyFieldConfig(id))
+  })
+
+  // PATCH /companies/:id/field-config — admin atualiza visibilidade e obrigatoriedade de campos
+  app.patch('/:id/field-config', superadmin, async (request: FastifyRequest, reply: FastifyReply) => {
+    const { id } = request.params as { id: string }
+    const { hidden, required } = updateFieldConfigSchema.parse(request.body)
+    return reply.send(await updateCompanyFieldConfig(id, hidden, required))
   })
 
   // GET /companies/:id/sync-schedule — retorna configuração de agendamento
-  app.get('/:id/sync-schedule', { preHandler: requireSuperAdmin }, async (request: FastifyRequest, reply: FastifyReply) => {
+  app.get('/:id/sync-schedule', superadmin, async (request: FastifyRequest, reply: FastifyReply) => {
     const { id } = request.params as { id: string }
-    const schedule = await getSyncSchedule(id)
-    return reply.send(schedule)
+    return reply.send(await getSyncSchedule(id))
   })
 
   // PATCH /companies/:id/sync-schedule — salva configuração e reinicia timers
-  app.patch('/:id/sync-schedule', { preHandler: requireSuperAdmin }, async (request: FastifyRequest, reply: FastifyReply) => {
+  app.patch('/:id/sync-schedule', superadmin, async (request: FastifyRequest, reply: FastifyReply) => {
     const { id } = request.params as { id: string }
-    const body = request.body as { products?: unknown; customers?: unknown }
-    if (!body.products && !body.customers) {
-      return reply.status(400).send({ message: 'Corpo inválido: products ou customers obrigatório' })
-    }
+    const body = updateSyncScheduleSchema.parse(request.body)
     const current = await getSyncSchedule(id)
     const schedule = {
-      products:  { ...current.products,  ...(body.products  as object ?? {}) },
-      customers: { ...current.customers, ...(body.customers as object ?? {}) },
+      products:  { ...current.products,  ...(body.products  ?? {}) },
+      customers: { ...current.customers, ...(body.customers ?? {}) },
     }
     await updateSyncSchedule(id, schedule)
-    const { applySchedule } = await import('../sync/scheduler')
     applySchedule(id, schedule)
     return reply.send(schedule)
   })
 
-  // GET /companies/me/field-config — retorna config de visibilidade da empresa do usuário logado
+  // ─── Rotas do usuário logado ───────────────────────────────────────────────
+
+  // GET /companies/me/field-config — config de visibilidade da empresa do usuário logado
   app.get('/me/field-config', { preHandler: authenticate }, async (request: FastifyRequest, reply: FastifyReply) => {
     const { companyId } = request.user
     if (!companyId) return reply.send({ hidden: [], required: [] })
-    const config = await getCompanyFieldConfig(companyId)
-    return reply.send(config)
+    return reply.send(await getCompanyFieldConfig(companyId))
   })
 
-  // GET /companies/me/sync-schedule — retorna config de agendamento da empresa do usuário logado
+  // GET /companies/me/sync-schedule — config de agendamento da empresa do usuário logado
   app.get('/me/sync-schedule', { preHandler: authenticate }, async (request: FastifyRequest, reply: FastifyReply) => {
     const { companyId } = request.user
     if (!companyId) return reply.send(DEFAULT_SYNC_SCHEDULE)
-    const schedule = await getSyncSchedule(companyId)
-    return reply.send(schedule)
+    return reply.send(await getSyncSchedule(companyId))
   })
+
+  // ─── Logs Protheus ─────────────────────────────────────────────────────────
 
   // GET /companies/:id/protheus-logs — lista logs de chamadas às APIs Protheus
-  app.get('/:id/protheus-logs', { preHandler: requireSuperAdmin }, async (request: FastifyRequest, reply: FastifyReply) => {
+  app.get('/:id/protheus-logs', superadmin, async (request: FastifyRequest, reply: FastifyReply) => {
     const { id } = request.params as { id: string }
-    const q = request.query as { page?: string; limit?: string; operation?: string; success?: string; from?: string; to?: string }
-
-    const page      = Math.max(1, Number(q.page ?? 1))
-    const limit     = Math.min(100, Math.max(1, Number(q.limit ?? 20)))
-    const operation = q.operation || undefined
-    const success   = q.success === 'true' ? true : q.success === 'false' ? false : undefined
-    const from      = q.from ? new Date(q.from) : undefined
-    const to        = q.to   ? new Date(q.to)   : undefined
-
-    const result = await listProtheusLogs(id, { page, limit, operation, success, from, to })
+    const q = protheusLogsQuerySchema.parse(request.query)
+    const result = await listProtheusLogs(id, {
+      page:      q.page,
+      limit:     q.limit,
+      operation: q.operation || undefined,
+      success:   q.success === 'true' ? true : q.success === 'false' ? false : undefined,
+      from:      q.from ? new Date(q.from) : undefined,
+      to:        q.to   ? new Date(q.to)   : undefined,
+    })
     return reply.send(result)
-  })
-
-  // PATCH /companies/:id/field-config — admin atualiza visibilidade e obrigatoriedade de campos
-  app.patch('/:id/field-config', { preHandler: requireSuperAdmin }, async (request: FastifyRequest, reply: FastifyReply) => {
-    const { id } = request.params as { id: string }
-    const body = request.body as { hidden?: unknown; required?: unknown }
-    if (!Array.isArray(body.hidden)) {
-      return reply.status(400).send({ message: 'Campo "hidden" deve ser um array de strings' })
-    }
-    if (!Array.isArray(body.required)) {
-      return reply.status(400).send({ message: 'Campo "required" deve ser um array de strings' })
-    }
-    const invalidHidden = (body.hidden as string[]).filter((k) => !FIELD_REGISTRY_KEYS.has(k))
-    if (invalidHidden.length > 0) {
-      return reply.status(400).send({ message: `Chaves inválidas em hidden: ${invalidHidden.join(', ')}` })
-    }
-    const invalidRequired = (body.required as string[]).filter((k) => !FIELD_REGISTRY_KEYS.has(k))
-    if (invalidRequired.length > 0) {
-      return reply.status(400).send({ message: `Chaves inválidas em required: ${invalidRequired.join(', ')}` })
-    }
-    const config = await updateCompanyFieldConfig(id, body.hidden as string[], body.required as string[])
-    return reply.send(config)
   })
 }
