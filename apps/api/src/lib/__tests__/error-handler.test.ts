@@ -10,10 +10,18 @@ beforeAll(async () => {
   app = Fastify({ logger: false })
   registerErrorHandling(app)
 
-  app.get('/app-error', async () => { throw notFound('Recurso não encontrado') })
-  app.get('/unprocessable', async () => { throw unprocessable('Regra de negócio violada') })
-  app.get('/zod', async () => { z.object({ x: z.string() }).parse({}) })
-  app.get('/generic', async () => { throw new Error('detalhe interno sensível') })
+  app.get('/app-error', async () => {
+    throw notFound('Recurso não encontrado')
+  })
+  app.get('/unprocessable', async () => {
+    throw unprocessable('Regra de negócio violada')
+  })
+  app.get('/zod', async () => {
+    z.object({ x: z.string() }).parse({})
+  })
+  app.get('/generic', async () => {
+    throw new Error('detalhe interno sensível')
+  })
   app.get('/custom-status', async () => {
     throw Object.assign(new Error('payload muito grande'), { statusCode: 413 })
   })

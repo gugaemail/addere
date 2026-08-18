@@ -6,7 +6,9 @@ export function useCustomers(search?: string) {
   return useQuery({
     queryKey: ['customers', search],
     queryFn: () =>
-      api.get<Customer[]>('/customers', { params: search ? { search } : undefined }).then((r) => r.data),
+      api
+        .get<Customer[]>('/customers', { params: search ? { search } : undefined })
+        .then((r) => r.data),
   })
 }
 

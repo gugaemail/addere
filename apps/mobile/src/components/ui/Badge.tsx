@@ -14,16 +14,16 @@ interface BadgeProps {
 const bg: Record<Variant, string> = {
   success: colors.semantic.success + '1F',
   warning: colors.semantic.warning + '1F',
-  danger:  colors.semantic.danger  + '1F',
-  info:    colors.brand.primary    + '1F',
-  neutral: colors.semantic.muted   + '1F',
+  danger: colors.semantic.danger + '1F',
+  info: colors.brand.primary + '1F',
+  neutral: colors.semantic.muted + '1F',
 }
 
 const fg: Record<Variant, string> = {
   success: colors.semantic.success,
   warning: colors.semantic.warning,
-  danger:  colors.semantic.danger,
-  info:    colors.brand.primary,
+  danger: colors.semantic.danger,
+  info: colors.brand.primary,
   neutral: colors.semantic.muted,
 }
 
@@ -37,14 +37,14 @@ export function Badge({ variant = 'neutral', children, testID }: BadgeProps) {
 
 const styles = StyleSheet.create({
   pill: {
-    alignSelf:         'flex-start',
-    borderRadius:      radius.full,
-    paddingVertical:   spacing.xs,
+    alignSelf: 'flex-start',
+    borderRadius: radius.full,
+    paddingVertical: spacing.xs,
     paddingHorizontal: spacing.sm,
   },
   label: {
-    fontFamily:         typography.fontFamily.bodyBold,
-    fontSize:           typography.size.xs,
+    fontFamily: typography.fontFamily.bodyBold,
+    fontSize: typography.size.xs,
     includeFontPadding: false,
   },
 })

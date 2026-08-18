@@ -17,7 +17,7 @@ export function applyTable<T>(
   filter: (item: T) => boolean,
   sort: SortConfig,
   getField: (item: T, col: string) => string,
-  page: number,
+  page: number
 ): { rows: T[]; total: number; pages: number } {
   let filtered = items.filter(filter)
   if (sort) {
@@ -45,7 +45,10 @@ export function toggleSort(current: SortConfig, col: string): SortConfig {
 // ─── Componentes compartilhados das abas ──────────────────────────────────────
 
 export function TabSection({
-  children, action, search, footer,
+  children,
+  action,
+  search,
+  footer,
 }: {
   children: React.ReactNode
   action?: { label: string; onClick: () => void }
@@ -58,7 +61,13 @@ export function TabSection({
         <div className="flex items-center justify-between mb-3 gap-3">
           <div className="flex-1">{search}</div>
           {action && (
-            <Button variant="ghost" size="sm" leftIcon={Plus} onClick={action.onClick} className="shrink-0">
+            <Button
+              variant="ghost"
+              size="sm"
+              leftIcon={Plus}
+              onClick={action.onClick}
+              className="shrink-0"
+            >
               {action.label}
             </Button>
           )}
@@ -72,12 +81,21 @@ export function TabSection({
   )
 }
 
-export function SearchInput({ value, onChange, placeholder }: {
-  value: string; onChange: (v: string) => void; placeholder?: string
+export function SearchInput({
+  value,
+  onChange,
+  placeholder,
+}: {
+  value: string
+  onChange: (v: string) => void
+  placeholder?: string
 }) {
   return (
     <div className="relative max-w-xs">
-      <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[var(--text-muted)] pointer-events-none" strokeWidth={2} />
+      <Search
+        className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[var(--text-muted)] pointer-events-none"
+        strokeWidth={2}
+      />
       <input
         type="text"
         value={value}
@@ -90,11 +108,22 @@ export function SearchInput({ value, onChange, placeholder }: {
 }
 
 // Header de coluna ordenável — usado dentro de Column.header do ui/Table
-export function SortHeader({ label, col, sort, onSort }: {
-  label: string; col: string; sort: SortConfig; onSort: (col: string) => void
+export function SortHeader({
+  label,
+  col,
+  sort,
+  onSort,
+}: {
+  label: string
+  col: string
+  sort: SortConfig
+  onSort: (col: string) => void
 }) {
   const active = sort?.col === col
-  const iconClass = cn('w-3.5 h-3.5 shrink-0 transition-colors', active ? 'text-brand' : 'text-[var(--text-muted)]')
+  const iconClass = cn(
+    'w-3.5 h-3.5 shrink-0 transition-colors',
+    active ? 'text-brand' : 'text-[var(--text-muted)]'
+  )
   return (
     <button
       type="button"
@@ -109,19 +138,36 @@ export function SortHeader({ label, col, sort, onSort }: {
   )
 }
 
-export function Pagination({ page, total, pages, onPage }: {
-  page: number; total: number; pages: number; onPage: (p: number) => void
+export function Pagination({
+  page,
+  total,
+  pages,
+  onPage,
+}: {
+  page: number
+  total: number
+  pages: number
+  onPage: (p: number) => void
 }) {
   if (pages <= 1 && total <= PAGE_SIZE) return null
   return (
     <div className="flex items-center justify-between px-4 py-3 border-t border-[var(--border)] text-xs text-[var(--text-muted)]">
-      <span>{total} registro{total !== 1 ? 's' : ''}</span>
+      <span>
+        {total} registro{total !== 1 ? 's' : ''}
+      </span>
       <div className="flex items-center gap-2">
         <Button variant="outline" size="xs" onClick={() => onPage(page - 1)} disabled={page <= 1}>
           Anterior
         </Button>
-        <span className="px-1">Página {page} de {pages}</span>
-        <Button variant="outline" size="xs" onClick={() => onPage(page + 1)} disabled={page >= pages}>
+        <span className="px-1">
+          Página {page} de {pages}
+        </span>
+        <Button
+          variant="outline"
+          size="xs"
+          onClick={() => onPage(page + 1)}
+          disabled={page >= pages}
+        >
           Próximo
         </Button>
       </div>
@@ -130,8 +176,14 @@ export function Pagination({ page, total, pages, onPage }: {
 }
 
 // Estado vazio (sem registros) exibido no lugar da tabela
-export function TableEmptyState({ title, description, icon }: {
-  title: string; description: string; icon?: React.ReactNode
+export function TableEmptyState({
+  title,
+  description,
+  icon,
+}: {
+  title: string
+  description: string
+  icon?: React.ReactNode
 }) {
   return (
     <div className="flex flex-col items-center justify-center py-14 px-6 text-center gap-2">

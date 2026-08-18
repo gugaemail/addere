@@ -9,10 +9,16 @@ import { Button } from '@/components/ui/Button'
 
 interface CompanyProtheus {
   id: string
-  apiToken: string | null; apiPord: string | null; apiCliente: string | null
-  apiPedido: string | null; apiConsPed: string | null; apiCondPag: string | null
-  apiTransp: string | null; apiMetaVend: string | null
-  usrProtheus: string | null; passProtheus: string | null
+  apiToken: string | null
+  apiPord: string | null
+  apiCliente: string | null
+  apiPedido: string | null
+  apiConsPed: string | null
+  apiCondPag: string | null
+  apiTransp: string | null
+  apiMetaVend: string | null
+  usrProtheus: string | null
+  passProtheus: string | null
 }
 
 interface Props {
@@ -24,7 +30,9 @@ function ConfigRow({ label, value }: { label: string; value: string | null | und
   return (
     <div className="flex flex-col gap-0.5">
       <span className="text-xs text-[var(--text-muted)]">{label}</span>
-      <span className={`text-sm truncate font-mono ${value ? 'text-[var(--text-secondary)]' : 'text-[var(--text-muted)]'}`}>
+      <span
+        className={`text-sm truncate font-mono ${value ? 'text-[var(--text-secondary)]' : 'text-[var(--text-muted)]'}`}
+      >
         {value ?? '—'}
       </span>
     </div>
@@ -33,13 +41,13 @@ function ConfigRow({ label, value }: { label: string; value: string | null | und
 
 export function ProtheusConfigForm({ company, onSaved }: Props) {
   const [editing, setEditing] = useState(false)
-  const [apiToken,    setApiToken]    = useState(company.apiToken    ?? '')
-  const [apiPord,     setApiPord]     = useState(company.apiPord     ?? '')
-  const [apiCliente,  setApiCliente]  = useState(company.apiCliente  ?? '')
-  const [apiPedido,   setApiPedido]   = useState(company.apiPedido   ?? '')
-  const [apiConsPed,  setApiConsPed]  = useState(company.apiConsPed  ?? '')
-  const [apiCondPag,  setApiCondPag]  = useState(company.apiCondPag  ?? '')
-  const [apiTransp,   setApiTransp]   = useState(company.apiTransp   ?? '')
+  const [apiToken, setApiToken] = useState(company.apiToken ?? '')
+  const [apiPord, setApiPord] = useState(company.apiPord ?? '')
+  const [apiCliente, setApiCliente] = useState(company.apiCliente ?? '')
+  const [apiPedido, setApiPedido] = useState(company.apiPedido ?? '')
+  const [apiConsPed, setApiConsPed] = useState(company.apiConsPed ?? '')
+  const [apiCondPag, setApiCondPag] = useState(company.apiCondPag ?? '')
+  const [apiTransp, setApiTransp] = useState(company.apiTransp ?? '')
   const [apiMetaVend, setApiMetaVend] = useState(company.apiMetaVend ?? '')
   const [usrProtheus, setUsrProtheus] = useState(company.usrProtheus ?? '')
   const [passProtheus, setPassProtheus] = useState('')
@@ -64,8 +72,15 @@ export function ProtheusConfigForm({ company, onSaved }: Props) {
     setLoading(true)
     try {
       const body: Record<string, string> = {
-        apiToken, apiPord, apiCliente, apiPedido,
-        apiConsPed, apiCondPag, apiTransp, apiMetaVend, usrProtheus,
+        apiToken,
+        apiPord,
+        apiCliente,
+        apiPedido,
+        apiConsPed,
+        apiCondPag,
+        apiTransp,
+        apiMetaVend,
+        usrProtheus,
       }
       if (passProtheus) body.passProtheus = passProtheus
       const { data } = await api.patch<CompanyProtheus>(`/companies/${company.id}/protheus`, body)
@@ -73,7 +88,10 @@ export function ProtheusConfigForm({ company, onSaved }: Props) {
       setEditing(false)
       toast.success('Configuração Protheus salva!')
     } catch (err: unknown) {
-      const e = err as { response?: { status?: number; data?: { message?: string } }; message?: string }
+      const e = err as {
+        response?: { status?: number; data?: { message?: string } }
+        message?: string
+      }
       const apiMsg = e.response?.data?.message
       const status = e.response?.status
       if (apiMsg) {
@@ -89,7 +107,9 @@ export function ProtheusConfigForm({ company, onSaved }: Props) {
   return (
     <div className="bg-[var(--bg-surface)] rounded-xl shadow-card border border-[var(--border)] p-6">
       <div className="flex items-center justify-between mb-4">
-        <h2 className="text-sm font-semibold tracking-tight text-[var(--text-primary)]">Configuração das APIs Protheus</h2>
+        <h2 className="text-sm font-semibold tracking-tight text-[var(--text-primary)]">
+          Configuração das APIs Protheus
+        </h2>
         {!editing && (
           <Button variant="secondary" size="sm" leftIcon={Pencil} onClick={handleEdit}>
             Editar configuração
@@ -99,27 +119,87 @@ export function ProtheusConfigForm({ company, onSaved }: Props) {
 
       {editing ? (
         <form onSubmit={handleSubmit} className="space-y-4">
-          <p className="text-xs text-[var(--text-muted)]">Deixe em branco para remover o valor configurado.</p>
+          <p className="text-xs text-[var(--text-muted)]">
+            Deixe em branco para remover o valor configurado.
+          </p>
 
           <div className="grid grid-cols-1 gap-3">
-            <FormField mono label="Token de autenticação (POST)" value={apiToken} onChange={(e) => setApiToken(e.target.value)} placeholder="http://..." />
-            <FormField mono label="Produtos (POST)" value={apiPord} onChange={(e) => setApiPord(e.target.value)} placeholder="http://..." />
-            <FormField mono label="Clientes (POST)" value={apiCliente} onChange={(e) => setApiCliente(e.target.value)} placeholder="http://..." />
-            <FormField mono label="Pedido (POST)" value={apiPedido} onChange={(e) => setApiPedido(e.target.value)} placeholder="http://..." />
-            <FormField mono label="Consulta pedido (GET)" value={apiConsPed} onChange={(e) => setApiConsPed(e.target.value)} placeholder="http://..." />
-            <FormField mono label="Transportadoras (GET)" value={apiTransp} onChange={(e) => setApiTransp(e.target.value)} placeholder="http://..." />
-            <FormField mono label="Cond. pagamento (GET)" value={apiCondPag} onChange={(e) => setApiCondPag(e.target.value)} placeholder="http://..." />
-            <FormField mono label="Meta vendedor (GET)" value={apiMetaVend} onChange={(e) => setApiMetaVend(e.target.value)} placeholder="http://..." />
+            <FormField
+              mono
+              label="Token de autenticação (POST)"
+              value={apiToken}
+              onChange={(e) => setApiToken(e.target.value)}
+              placeholder="http://..."
+            />
+            <FormField
+              mono
+              label="Produtos (POST)"
+              value={apiPord}
+              onChange={(e) => setApiPord(e.target.value)}
+              placeholder="http://..."
+            />
+            <FormField
+              mono
+              label="Clientes (POST)"
+              value={apiCliente}
+              onChange={(e) => setApiCliente(e.target.value)}
+              placeholder="http://..."
+            />
+            <FormField
+              mono
+              label="Pedido (POST)"
+              value={apiPedido}
+              onChange={(e) => setApiPedido(e.target.value)}
+              placeholder="http://..."
+            />
+            <FormField
+              mono
+              label="Consulta pedido (GET)"
+              value={apiConsPed}
+              onChange={(e) => setApiConsPed(e.target.value)}
+              placeholder="http://..."
+            />
+            <FormField
+              mono
+              label="Transportadoras (GET)"
+              value={apiTransp}
+              onChange={(e) => setApiTransp(e.target.value)}
+              placeholder="http://..."
+            />
+            <FormField
+              mono
+              label="Cond. pagamento (GET)"
+              value={apiCondPag}
+              onChange={(e) => setApiCondPag(e.target.value)}
+              placeholder="http://..."
+            />
+            <FormField
+              mono
+              label="Meta vendedor (GET)"
+              value={apiMetaVend}
+              onChange={(e) => setApiMetaVend(e.target.value)}
+              placeholder="http://..."
+            />
           </div>
 
           <div className="border-t border-[var(--border)] pt-4 grid grid-cols-2 gap-3">
-            <FormField mono label="Usuário Protheus" value={usrProtheus} onChange={(e) => setUsrProtheus(e.target.value)} placeholder="usuario" />
+            <FormField
+              mono
+              label="Usuário Protheus"
+              value={usrProtheus}
+              onChange={(e) => setUsrProtheus(e.target.value)}
+              placeholder="usuario"
+            />
             <FormField
               type="password"
               label={
                 <>
                   Senha Protheus
-                  {company.passProtheus && <span className="font-normal text-[var(--text-muted)] ml-1">(em branco = manter)</span>}
+                  {company.passProtheus && (
+                    <span className="font-normal text-[var(--text-muted)] ml-1">
+                      (em branco = manter)
+                    </span>
+                  )}
                 </>
               }
               value={passProtheus}
@@ -129,7 +209,12 @@ export function ProtheusConfigForm({ company, onSaved }: Props) {
           </div>
 
           <div className="flex gap-3 pt-2">
-            <Button type="button" variant="outline" onClick={() => setEditing(false)} className="flex-1">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setEditing(false)}
+              className="flex-1"
+            >
               Cancelar
             </Button>
             <Button type="submit" loading={loading} className="flex-1">
@@ -139,16 +224,16 @@ export function ProtheusConfigForm({ company, onSaved }: Props) {
         </form>
       ) : (
         <div className="grid grid-cols-2 gap-4 text-sm">
-          <ConfigRow label="Token (auth) POST"       value={company.apiToken} />
-          <ConfigRow label="Produtos (POST)"         value={company.apiPord} />
-          <ConfigRow label="Clientes (POST)"          value={company.apiCliente} />
-          <ConfigRow label="Pedido (POST)"           value={company.apiPedido} />
-          <ConfigRow label="Consulta pedido (GET)"   value={company.apiConsPed} />
-          <ConfigRow label="Transportadoras (GET)"   value={company.apiTransp} />
-          <ConfigRow label="Cond. pagamento (GET)"   value={company.apiCondPag} />
-          <ConfigRow label="Meta vendedor (GET)"     value={company.apiMetaVend} />
-          <ConfigRow label="Usuário Protheus"        value={company.usrProtheus} />
-          <ConfigRow label="Senha Protheus"          value={company.passProtheus ? '••••••••' : null} />
+          <ConfigRow label="Token (auth) POST" value={company.apiToken} />
+          <ConfigRow label="Produtos (POST)" value={company.apiPord} />
+          <ConfigRow label="Clientes (POST)" value={company.apiCliente} />
+          <ConfigRow label="Pedido (POST)" value={company.apiPedido} />
+          <ConfigRow label="Consulta pedido (GET)" value={company.apiConsPed} />
+          <ConfigRow label="Transportadoras (GET)" value={company.apiTransp} />
+          <ConfigRow label="Cond. pagamento (GET)" value={company.apiCondPag} />
+          <ConfigRow label="Meta vendedor (GET)" value={company.apiMetaVend} />
+          <ConfigRow label="Usuário Protheus" value={company.usrProtheus} />
+          <ConfigRow label="Senha Protheus" value={company.passProtheus ? '••••••••' : null} />
         </div>
       )}
     </div>

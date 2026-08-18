@@ -10,7 +10,7 @@ import {
 import { colors, spacing, radius, typography } from '../../theme'
 
 type Variant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'ghostDanger'
-type Size    = 'xs' | 'sm' | 'md' | 'lg'
+type Size = 'xs' | 'sm' | 'md' | 'lg'
 
 interface ButtonProps extends TouchableOpacityProps {
   variant?: Variant
@@ -27,27 +27,31 @@ interface ButtonProps extends TouchableOpacityProps {
 }
 
 const containerStyles: Record<Variant, object> = {
-  primary:   { backgroundColor: colors.brand.primary,   borderWidth: 0 },
-  secondary: { backgroundColor: 'transparent',          borderWidth: 1.5, borderColor: colors.brand.primary },
-  ghost:     { backgroundColor: 'transparent',          borderWidth: 0 },
-  danger:    { backgroundColor: colors.semantic.danger, borderWidth: 0 },
+  primary: { backgroundColor: colors.brand.primary, borderWidth: 0 },
+  secondary: {
+    backgroundColor: 'transparent',
+    borderWidth: 1.5,
+    borderColor: colors.brand.primary,
+  },
+  ghost: { backgroundColor: 'transparent', borderWidth: 0 },
+  danger: { backgroundColor: colors.semantic.danger, borderWidth: 0 },
   // Ação destrutiva discreta (ex.: "Cancelar" em rodapés de formulário)
-  ghostDanger: { backgroundColor: 'transparent',        borderWidth: 0 },
+  ghostDanger: { backgroundColor: 'transparent', borderWidth: 0 },
 }
 
 const textStyles: Record<Variant, object> = {
-  primary:     { color: colors.neutral.white },
-  secondary:   { color: colors.brand.primary },
-  ghost:       { color: colors.brand.primary },
-  danger:      { color: colors.neutral.white },
+  primary: { color: colors.neutral.white },
+  secondary: { color: colors.brand.primary },
+  ghost: { color: colors.brand.primary },
+  danger: { color: colors.neutral.white },
   ghostDanger: { color: colors.semantic.danger },
 }
 
 const sizeContainer: Record<Size, object> = {
-  xs: { paddingVertical: spacing.xs,  paddingHorizontal: spacing.sm },
-  sm: { paddingVertical: spacing.xs,  paddingHorizontal: spacing.md },
-  md: { paddingVertical: spacing.sm,  paddingHorizontal: spacing.lg },
-  lg: { paddingVertical: spacing.md,  paddingHorizontal: spacing.xl },
+  xs: { paddingVertical: spacing.xs, paddingHorizontal: spacing.sm },
+  sm: { paddingVertical: spacing.xs, paddingHorizontal: spacing.md },
+  md: { paddingVertical: spacing.sm, paddingHorizontal: spacing.lg },
+  lg: { paddingVertical: spacing.md, paddingHorizontal: spacing.xl },
 }
 
 const sizeText: Record<Size, number> = {
@@ -59,16 +63,16 @@ const sizeText: Record<Size, number> = {
 
 /** Cor de primeiro plano (texto/spinner) por variante — útil para colorir o ícone */
 export const buttonForeground: Record<Variant, string> = {
-  primary:     colors.neutral.white,
-  secondary:   colors.brand.primary,
-  ghost:       colors.brand.primary,
-  danger:      colors.neutral.white,
+  primary: colors.neutral.white,
+  secondary: colors.brand.primary,
+  ghost: colors.brand.primary,
+  danger: colors.neutral.white,
   ghostDanger: colors.semantic.danger,
 }
 
 export function Button({
   variant = 'primary',
-  size    = 'md',
+  size = 'md',
   loading = false,
   icon,
   iconPosition = 'left',
@@ -78,7 +82,7 @@ export function Button({
   ...props
 }: ButtonProps) {
   const isDisabled = disabled || loading
-  const hasLabel   = children != null && children !== '' && children !== false
+  const hasLabel = children != null && children !== '' && children !== false
 
   return (
     <TouchableOpacity
@@ -94,10 +98,7 @@ export function Button({
       {...props}
     >
       {loading ? (
-        <ActivityIndicator
-          size="small"
-          color={buttonForeground[variant]}
-        />
+        <ActivityIndicator size="small" color={buttonForeground[variant]} />
       ) : (
         <>
           {icon && iconPosition === 'left' && (
@@ -126,10 +127,10 @@ export function Button({
 
 const styles = StyleSheet.create({
   base: {
-    borderRadius:    radius.md,
-    alignItems:      'center',
-    justifyContent:  'center',
-    flexDirection:   'row',
+    borderRadius: radius.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
   },
   iconLeft: {
     marginRight: spacing.sm,

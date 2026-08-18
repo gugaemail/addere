@@ -6,11 +6,11 @@ import { getCredentials, toStr } from './utils'
 import { buildOrderPayload } from './order-payload'
 
 const orderSyncInclude = {
-  branch:         true,
-  customer:       true,
-  user:           true,
+  branch: true,
+  customer: true,
+  user: true,
   transportadora: true,
-  condPag:        true,
+  condPag: true,
   items: { include: { product: true } },
 } as const
 
@@ -19,7 +19,7 @@ export async function syncOrderToProtheus(orderId: string, companyId: string) {
   // updateMany retorna count=0 se o pedido não estiver em PENDING, evitando race condition.
   const claimed = await prisma.order.updateMany({
     where: { id: orderId, companyId, status: 'PENDING' },
-    data:  { status: 'SYNCED' },
+    data: { status: 'SYNCED' },
   })
 
   if (claimed.count === 0) {
@@ -36,12 +36,13 @@ export async function syncOrderToProtheus(orderId: string, companyId: string) {
   ])
 
   // Reverte o lock em caso de qualquer falha após o claim
-  const revertToPending = () => prisma.order.update({ where: { id: orderId }, data: { status: 'PENDING' } })
+  const revertToPending = () =>
+    prisma.order.update({ where: { id: orderId }, data: { status: 'PENDING' } })
 
   try {
     if (!company.apiPedido) throw unprocessable('URL apiPedido não configurada')
 
-    const creds   = getCredentials(company)
+    const creds = getCredentials(company)
     const payload = buildOrderPayload(order)
 
     const t0 = Date.now()
@@ -49,7 +50,9 @@ export async function syncOrderToProtheus(orderId: string, companyId: string) {
     const ms = Date.now() - t0
 
     // Protheus retorna array: [{ "Retorno": "100", "Mensagem": "...", "Pedido": "012283" }]
-    const responseArray = Array.isArray(rawResponse) ? rawResponse as Record<string, unknown>[] : [rawResponse as Record<string, unknown>]
+    const responseArray = Array.isArray(rawResponse)
+      ? (rawResponse as Record<string, unknown>[])
+      : [rawResponse as Record<string, unknown>]
     const first = responseArray[0] ?? {}
     const retorno = toStr(first['Retorno'])
 
@@ -58,7 +61,8 @@ export async function syncOrderToProtheus(orderId: string, companyId: string) {
     }
 
     const protheusOrderId = toStr(first['Pedido']) || null
-    if (!protheusOrderId) throw badGateway('Pedido gravado no Protheus mas número do pedido não foi retornado')
+    if (!protheusOrderId)
+      throw badGateway('Pedido gravado no Protheus mas número do pedido não foi retornado')
 
     await prisma.order.update({
       where: { id: orderId },
@@ -67,12 +71,12 @@ export async function syncOrderToProtheus(orderId: string, companyId: string) {
 
     await logProtheusCall({
       companyId,
-      operation:     'syncOrder',
-      endpointKey:   'apiPedido',
-      success:       true,
-      durationMs:    ms,
+      operation: 'syncOrder',
+      endpointKey: 'apiPedido',
+      success: true,
+      durationMs: ms,
       recordsSynced: 1,
-      metadata:      { orderId, protheusOrderId },
+      metadata: { orderId, protheusOrderId },
     })
 
     return { protheusOrderId, mensagem: toStr(first['Mensagem']) }
@@ -80,13 +84,13 @@ export async function syncOrderToProtheus(orderId: string, companyId: string) {
     const e = err as { response?: { status?: number; data?: unknown }; message?: string }
     await logProtheusCall({
       companyId,
-      operation:    'syncOrder',
-      endpointKey:  'apiPedido',
-      success:      false,
-      httpStatus:   e.response?.status,
+      operation: 'syncOrder',
+      endpointKey: 'apiPedido',
+      success: false,
+      httpStatus: e.response?.status,
       errorMessage: e.message,
       // Resposta do ERP fica só no log interno — nunca em stdout nem em resposta HTTP
-      metadata:     { orderId, protheusResponse: e.response?.data ?? null },
+      metadata: { orderId, protheusResponse: e.response?.data ?? null },
     })
     await revertToPending()
     throw err
@@ -103,7 +107,8 @@ export async function consultOrderStatus(orderId: string, companyId: string) {
   ])
 
   if (!order) throw notFound('Pedido não encontrado')
-  if (!order.protheusOrderId) throw unprocessable('Pedido ainda não foi sincronizado com o Protheus (sem número de pedido)')
+  if (!order.protheusOrderId)
+    throw unprocessable('Pedido ainda não foi sincronizado com o Protheus (sem número de pedido)')
   if (!company.apiConsPed) throw unprocessable('URL apiConsPed não configurada')
   if (!order.branch.idProtheus) throw unprocessable('Filial sem código Protheus configurado')
 
@@ -112,7 +117,12 @@ export async function consultOrderStatus(orderId: string, companyId: string) {
   const t0 = Date.now()
 
   try {
-    const rawResponse = await protheusPost(companyId, company.apiConsPed, payload, creds) as Record<string, unknown>
+    const rawResponse = (await protheusPost(
+      companyId,
+      company.apiConsPed,
+      payload,
+      creds
+    )) as Record<string, unknown>
 
     const codigo = toStr(rawResponse['codigo'])
     const status = toStr(rawResponse['status'])
@@ -126,11 +136,11 @@ export async function consultOrderStatus(orderId: string, companyId: string) {
 
     await logProtheusCall({
       companyId,
-      operation:   'consultOrder',
+      operation: 'consultOrder',
       endpointKey: 'apiConsPed',
-      success:     true,
-      durationMs:  Date.now() - t0,
-      metadata:    { orderId, protheusOrderId: order.protheusOrderId },
+      success: true,
+      durationMs: Date.now() - t0,
+      metadata: { orderId, protheusOrderId: order.protheusOrderId },
     })
 
     return { protheusOrderId: order.protheusOrderId, codigo, status }
@@ -138,13 +148,13 @@ export async function consultOrderStatus(orderId: string, companyId: string) {
     const e = err as { response?: { status?: number }; message?: string }
     await logProtheusCall({
       companyId,
-      operation:    'consultOrder',
-      endpointKey:  'apiConsPed',
-      success:      false,
-      httpStatus:   e.response?.status,
-      durationMs:   Date.now() - t0,
+      operation: 'consultOrder',
+      endpointKey: 'apiConsPed',
+      success: false,
+      httpStatus: e.response?.status,
+      durationMs: Date.now() - t0,
       errorMessage: e.message,
-      metadata:     { orderId },
+      metadata: { orderId },
     })
     throw err
   }
@@ -162,7 +172,7 @@ export async function testOrderSync(orderId: string, companyId: string) {
   if (!order) throw notFound('Pedido não encontrado')
   if (!company.apiPedido) throw unprocessable('URL apiPedido não configurada')
 
-  const creds   = getCredentials(company)
+  const creds = getCredentials(company)
   const payload = buildOrderPayload(order)
 
   const t0 = Date.now()
@@ -172,11 +182,11 @@ export async function testOrderSync(orderId: string, companyId: string) {
 
     await logProtheusCall({
       companyId,
-      operation:   'testOrder',
+      operation: 'testOrder',
       endpointKey: 'apiPedido',
-      success:     true,
-      durationMs:  ms,
-      metadata:    { orderId },
+      success: true,
+      durationMs: ms,
+      metadata: { orderId },
     })
 
     return { ok: true, orderStatus: order.status, ms, payload, rawResponse }
@@ -184,13 +194,13 @@ export async function testOrderSync(orderId: string, companyId: string) {
     const e = err as { response?: { status?: number }; message?: string }
     await logProtheusCall({
       companyId,
-      operation:    'testOrder',
-      endpointKey:  'apiPedido',
-      success:      false,
-      httpStatus:   e.response?.status,
-      durationMs:   Date.now() - t0,
+      operation: 'testOrder',
+      endpointKey: 'apiPedido',
+      success: false,
+      httpStatus: e.response?.status,
+      durationMs: Date.now() - t0,
       errorMessage: e.message,
-      metadata:     { orderId },
+      metadata: { orderId },
     })
     throw err
   }

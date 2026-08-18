@@ -12,13 +12,13 @@ interface SkeletonBoxProps {
 
 export function SkeletonBox({ width, height, style }: SkeletonBoxProps) {
   const opacity = useRef(new Animated.Value(1)).current
-  const theme   = useTheme()
+  const theme = useTheme()
 
   useEffect(() => {
     const anim = Animated.loop(
       Animated.sequence([
         Animated.timing(opacity, { toValue: 0.3, duration: 750, useNativeDriver: true }),
-        Animated.timing(opacity, { toValue: 1,   duration: 750, useNativeDriver: true }),
+        Animated.timing(opacity, { toValue: 1, duration: 750, useNativeDriver: true }),
       ])
     )
     anim.start()
@@ -28,7 +28,13 @@ export function SkeletonBox({ width, height, style }: SkeletonBoxProps) {
   return (
     <Animated.View
       style={[
-        { width: width as number, height, borderRadius: radius.sm, backgroundColor: theme.subtle, opacity },
+        {
+          width: width as number,
+          height,
+          borderRadius: radius.sm,
+          backgroundColor: theme.subtle,
+          opacity,
+        },
         style,
       ]}
     />
@@ -50,7 +56,9 @@ export function StatCardSkeleton() {
 export function StatGridSkeleton() {
   return (
     <View style={sk.statsGrid}>
-      {[0, 1, 2, 3].map((i) => <StatCardSkeleton key={i} />)}
+      {[0, 1, 2, 3].map((i) => (
+        <StatCardSkeleton key={i} />
+      ))}
     </View>
   )
 }

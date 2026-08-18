@@ -54,7 +54,9 @@ export default function LoginPage() {
           <div className="flex flex-col items-center gap-3">
             <Logo size={40} />
             <div className="text-center space-y-0.5">
-              <h1 className="text-xl font-bold tracking-tighter text-[var(--text-primary)]">Addere</h1>
+              <h1 className="text-xl font-bold tracking-tighter text-[var(--text-primary)]">
+                Addere
+              </h1>
               <p className="text-sm text-[var(--text-muted)]">Painel Administrativo</p>
             </div>
           </div>

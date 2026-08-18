@@ -32,11 +32,14 @@ export default tseslint.config(
     rules: {
       // O codebase usa APIs tipadas; any explícito é sempre evitável
       '@typescript-eslint/no-explicit-any': 'error',
-      '@typescript-eslint/no-unused-vars': ['error', {
-        argsIgnorePattern: '^_',
-        varsIgnorePattern: '^_',
-        caughtErrors: 'none',
-      }],
+      '@typescript-eslint/no-unused-vars': [
+        'error',
+        {
+          argsIgnorePattern: '^_',
+          varsIgnorePattern: '^_',
+          caughtErrors: 'none',
+        },
+      ],
     },
   },
 
@@ -63,10 +66,14 @@ export default tseslint.config(
     files: ['apps/mobile/{app,src}/**/*.{ts,tsx}'],
     ignores: ['apps/mobile/src/theme/**'],
     rules: {
-      'no-restricted-syntax': ['error', {
-        selector: "Literal[value=/^#(?:[0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/]",
-        message: 'Não use cores hex fora de src/theme — importe os tokens de src/theme/colors.ts (regra de marca do CLAUDE.md).',
-      }],
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: 'Literal[value=/^#(?:[0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/]',
+          message:
+            'Não use cores hex fora de src/theme — importe os tokens de src/theme/colors.ts (regra de marca do CLAUDE.md).',
+        },
+      ],
     },
   },
 
@@ -75,10 +82,14 @@ export default tseslint.config(
     files: ['apps/web/src/**/*.{ts,tsx}'],
     ignores: ['apps/web/src/lib/brand-tokens.ts'],
     rules: {
-      'no-restricted-syntax': ['warn', {
-        selector: "Literal[value=/^#(?:[0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/]",
-        message: 'Prefira os tokens de marca (classes Tailwind brand/accent/... ou var(--*)) a hex hardcoded.',
-      }],
+      'no-restricted-syntax': [
+        'warn',
+        {
+          selector: 'Literal[value=/^#(?:[0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/]',
+          message:
+            'Prefira os tokens de marca (classes Tailwind brand/accent/... ou var(--*)) a hex hardcoded.',
+        },
+      ],
     },
   }
 )

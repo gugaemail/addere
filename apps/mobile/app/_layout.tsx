@@ -37,8 +37,8 @@ function AuthGuard() {
   const router = useRouter()
   const segments = useSegments()
   const { accessToken, hydrated, hydrate } = useAuthStore()
-  const hydrateFieldConfig   = useCompanyStore((s) => s.hydrateFieldConfig)
-  const hydrateSyncSchedule  = useCompanyStore((s) => s.hydrateSyncSchedule)
+  const hydrateFieldConfig = useCompanyStore((s) => s.hydrateFieldConfig)
+  const hydrateSyncSchedule = useCompanyStore((s) => s.hydrateSyncSchedule)
 
   // Biometric gate: checked once per app lifecycle
   const biometricCheckedRef = useRef(false)
@@ -101,7 +101,7 @@ function AuthGuard() {
   useEffect(() => {
     if (!hydrated || !biometricReady) return
 
-    const inAuthGroup  = segments[0] === '(auth)'
+    const inAuthGroup = segments[0] === '(auth)'
     // dev-preview dispensa login apenas fora de produção (a própria rota redireciona em prod)
     const inDevPreview = segments[0] === 'dev-preview' && env.appEnv !== 'production'
 

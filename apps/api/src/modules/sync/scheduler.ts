@@ -36,9 +36,11 @@ export function applySchedule(companyId: string, schedule: SyncSchedule) {
     const ms = schedule.products.scheduleMin * 60_000
     entry.products = setInterval(
       () => runSafe(`products/${companyId}`, () => syncProducts(companyId, 'autoSyncProducts')),
-      ms,
+      ms
     )
-    console.log(`[scheduler] Auto-sync produtos iniciado para ${companyId} (a cada ${schedule.products.scheduleMin} min, INTERV=${schedule.products.interv})`)
+    console.log(
+      `[scheduler] Auto-sync produtos iniciado para ${companyId} (a cada ${schedule.products.scheduleMin} min, INTERV=${schedule.products.interv})`
+    )
   }
 
   // Clientes
@@ -48,9 +50,11 @@ export function applySchedule(companyId: string, schedule: SyncSchedule) {
     const ms = schedule.customers.scheduleMin * 60_000
     entry.customers = setInterval(
       () => runSafe(`customers/${companyId}`, () => syncCustomers(companyId, 'autoSyncCustomers')),
-      ms,
+      ms
     )
-    console.log(`[scheduler] Auto-sync clientes iniciado para ${companyId} (a cada ${schedule.customers.scheduleMin} min, INTERV=${schedule.customers.interv})`)
+    console.log(
+      `[scheduler] Auto-sync clientes iniciado para ${companyId} (a cada ${schedule.customers.scheduleMin} min, INTERV=${schedule.customers.interv})`
+    )
   }
 }
 
@@ -72,11 +76,12 @@ export async function initSchedulers() {
   for (const company of companies) {
     const s = company.syncSchedule as Partial<SyncSchedule> | null
     const schedule: SyncSchedule = {
-      products:  { ...DEFAULT_SYNC_SCHEDULE.products,  ...(s?.products  ?? {}) },
+      products: { ...DEFAULT_SYNC_SCHEDULE.products, ...(s?.products ?? {}) },
       customers: { ...DEFAULT_SYNC_SCHEDULE.customers, ...(s?.customers ?? {}) },
     }
-    const hasAny = (schedule.products.auto && schedule.products.scheduleMin > 0)
-                || (schedule.customers.auto && schedule.customers.scheduleMin > 0)
+    const hasAny =
+      (schedule.products.auto && schedule.products.scheduleMin > 0) ||
+      (schedule.customers.auto && schedule.customers.scheduleMin > 0)
     if (hasAny) {
       applySchedule(company.id, schedule)
       started++

@@ -5,31 +5,31 @@
 
 export const BRAND = {
   primary: '#1B4FA8',
-  accent:  '#29BEFF',
-  navy:    '#0D2045',
-  tint:    '#E8F4FF',
+  accent: '#29BEFF',
+  navy: '#0D2045',
+  tint: '#E8F4FF',
   success: '#22C55E',
   warning: '#F59E0B',
-  danger:  '#EF4444',
-  muted:   '#64748B',
-  border:  '#E2E8F0',
+  danger: '#EF4444',
+  muted: '#64748B',
+  border: '#E2E8F0',
   surface: '#F8FAFC',
 } as const
 
 // Neutros e variações usados apenas no e-mail HTML (sem tema dark, sem CSS vars).
 // Mantidos aqui para que WeeklyPilotReport.tsx não precise de hex inline.
 export const EMAIL_PALETTE = {
-  white:         '#FFFFFF',
-  textPrimary:   BRAND.navy,
+  white: '#FFFFFF',
+  textPrimary: BRAND.navy,
   textSecondary: '#475569',
-  textBody:      '#334155',
-  textMuted:     '#94A3B8',
-  divider:       '#F1F5F9',
-  brandSoft:     '#93C5FD',
-  infoBg:        '#EFF6FF',
-  dangerBg:      '#FEF2F2',
-  dangerBorder:  '#FECACA',
-  dangerText:    '#B91C1C',
+  textBody: '#334155',
+  textMuted: '#94A3B8',
+  divider: '#F1F5F9',
+  brandSoft: '#93C5FD',
+  infoBg: '#EFF6FF',
+  dangerBg: '#FEF2F2',
+  dangerBorder: '#FECACA',
+  dangerText: '#B91C1C',
   dangerTextDim: '#7F1D1D',
 } as const
 

@@ -9,8 +9,16 @@ import { companiesKeys } from '@/hooks/useCompanies'
 import { useToggleCompanyEntity } from '@/hooks/useCompany'
 import { BranchModal, ActionMenu } from '../EntityModals'
 import {
-  TabSection, SearchInput, SortHeader, Pagination, TableEmptyState, NoResultsState,
-  applyTable, toggleSort, type ModalState, type SortConfig,
+  TabSection,
+  SearchInput,
+  SortHeader,
+  Pagination,
+  TableEmptyState,
+  NoResultsState,
+  applyTable,
+  toggleSort,
+  type ModalState,
+  type SortConfig,
 } from './shared'
 
 export function BranchesTab({ company }: { company: CompanyDetail }) {
@@ -25,13 +33,20 @@ export function BranchesTab({ company }: { company: CompanyDetail }) {
   const q = search.toLowerCase()
   const table = applyTable(
     company.branches,
-    (b) => !q || b.name.toLowerCase().includes(q) || (b.cnpj ?? '').toLowerCase().includes(q) || (b.idProtheus ?? '').toLowerCase().includes(q),
+    (b) =>
+      !q ||
+      b.name.toLowerCase().includes(q) ||
+      (b.cnpj ?? '').toLowerCase().includes(q) ||
+      (b.idProtheus ?? '').toLowerCase().includes(q),
     sort,
-    (b, col) => col === 'name' ? b.name : (b.idProtheus ?? ''),
-    page,
+    (b, col) => (col === 'name' ? b.name : (b.idProtheus ?? '')),
+    page
   )
 
-  const onSort = (c: string) => { setSort(toggleSort(sort, c)); setPage(1) }
+  const onSort = (c: string) => {
+    setSort(toggleSort(sort, c))
+    setPage(1)
+  }
 
   const columns: Column<Branch>[] = [
     {
@@ -39,7 +54,11 @@ export function BranchesTab({ company }: { company: CompanyDetail }) {
       header: <SortHeader label="Nome" col="name" sort={sort} onSort={onSort} />,
       render: (b) => <span className="font-medium text-[var(--text-primary)]">{b.name}</span>,
     },
-    { key: 'cnpj', header: 'CNPJ', render: (b) => <span className="text-[var(--text-muted)]">{b.cnpj ?? '—'}</span> },
+    {
+      key: 'cnpj',
+      header: 'CNPJ',
+      render: (b) => <span className="text-[var(--text-muted)]">{b.cnpj ?? '—'}</span>,
+    },
     {
       key: 'code',
       header: <SortHeader label="Protheus" col="code" sort={sort} onSort={onSort} />,
@@ -56,7 +75,9 @@ export function BranchesTab({ company }: { company: CompanyDetail }) {
           active={b.active}
           onEdit={() => setModal({ mode: 'edit', item: b })}
           onCopy={() => setModal({ mode: 'copy', item: b })}
-          onToggle={() => toggleEntity.mutate({ entity: 'branches', entityId: b.id, active: !b.active })}
+          onToggle={() =>
+            toggleEntity.mutate({ entity: 'branches', entityId: b.id, active: !b.active })
+          }
         />
       ),
     },
@@ -66,16 +87,33 @@ export function BranchesTab({ company }: { company: CompanyDetail }) {
     <>
       <TabSection
         action={{ label: 'Nova filial', onClick: () => setModal({ mode: 'create' }) }}
-        search={<SearchInput value={search} onChange={(v) => { setSearch(v); setPage(1) }} placeholder="Pesquisar filiais…" />}
+        search={
+          <SearchInput
+            value={search}
+            onChange={(v) => {
+              setSearch(v)
+              setPage(1)
+            }}
+            placeholder="Pesquisar filiais…"
+          />
+        }
         footer={<Pagination page={page} total={table.total} pages={table.pages} onPage={setPage} />}
       >
         <div className="overflow-auto max-h-[520px]">
           {company.branches.length === 0 ? (
-            <TableEmptyState title="Nenhuma filial" description="Adicione a primeira filial desta empresa." />
+            <TableEmptyState
+              title="Nenhuma filial"
+              description="Adicione a primeira filial desta empresa."
+            />
           ) : table.total === 0 && search ? (
             <NoResultsState />
           ) : (
-            <Table columns={columns} data={table.rows} rowKey={(b) => b.id} className="rounded-none" />
+            <Table
+              columns={columns}
+              data={table.rows}
+              rowKey={(b) => b.id}
+              className="rounded-none"
+            />
           )}
         </div>
       </TabSection>

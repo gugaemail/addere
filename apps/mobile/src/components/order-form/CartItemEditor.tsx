@@ -25,21 +25,21 @@ export function CartItemEditor({
   onRemove: () => void
   errors?: CartItemErrors
 }) {
-  const showUnitPrice    = useFieldVisible('orderItem.unitPrice')
-  const showLargura      = useFieldVisible('orderItem.largura')
-  const showEspessura    = useFieldVisible('orderItem.espessura')
+  const showUnitPrice = useFieldVisible('orderItem.unitPrice')
+  const showLargura = useFieldVisible('orderItem.largura')
+  const showEspessura = useFieldVisible('orderItem.espessura')
   const showEncolhimento = useFieldVisible('orderItem.encolhimento')
-  const showXcrav        = useFieldVisible('orderItem.xcrav')
-  const showTara         = useFieldVisible('orderItem.tara')
-  const showDescricao    = useFieldVisible('orderItem.descricao')
+  const showXcrav = useFieldVisible('orderItem.xcrav')
+  const showTara = useFieldVisible('orderItem.tara')
+  const showDescricao = useFieldVisible('orderItem.descricao')
 
-  const reqUnitPrice    = useFieldRequired('orderItem.unitPrice')
-  const reqLargura      = useFieldRequired('orderItem.largura')
-  const reqEspessura    = useFieldRequired('orderItem.espessura')
+  const reqUnitPrice = useFieldRequired('orderItem.unitPrice')
+  const reqLargura = useFieldRequired('orderItem.largura')
+  const reqEspessura = useFieldRequired('orderItem.espessura')
   const reqEncolhimento = useFieldRequired('orderItem.encolhimento')
-  const reqXcrav        = useFieldRequired('orderItem.xcrav')
-  const reqTara         = useFieldRequired('orderItem.tara')
-  const reqDescricao    = useFieldRequired('orderItem.descricao')
+  const reqXcrav = useFieldRequired('orderItem.xcrav')
+  const reqTara = useFieldRequired('orderItem.tara')
+  const reqDescricao = useFieldRequired('orderItem.descricao')
 
   function updateQty(qty: number) {
     if (qty <= 0) {
@@ -85,7 +85,14 @@ export function CartItemEditor({
     <View style={s.itemRow}>
       {showDescricao ? (
         <View style={s.itemExtraFull}>
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.xs }}>
+          <View
+            style={{
+              flexDirection: 'row',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginBottom: spacing.xs,
+            }}
+          >
             <Text style={s.controlLabel}>Descrição{reqDescricao ? ' *' : ''}</Text>
             {removeButton}
           </View>
@@ -100,7 +107,9 @@ export function CartItemEditor({
         </View>
       ) : (
         <View style={s.itemHeader}>
-          <Text style={s.itemName} numberOfLines={2}>{item.productName}</Text>
+          <Text style={s.itemName} numberOfLines={2}>
+            {item.productName}
+          </Text>
           {removeButton}
         </View>
       )}
@@ -127,7 +136,10 @@ export function CartItemEditor({
               containerStyle={s.compactField}
               style={s.compactInput}
               keyboardType="decimal-pad"
-              defaultValue={item.unitPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              defaultValue={item.unitPrice.toLocaleString('pt-BR', {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+              })}
               onEndEditing={(e) => updatePrice(e.nativeEvent.text)}
               error={errors?.unitPrice}
             />

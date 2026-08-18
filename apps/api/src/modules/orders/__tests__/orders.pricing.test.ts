@@ -31,13 +31,13 @@ describe('computeItemTotalCents', () => {
 })
 
 describe('priceOrderItems', () => {
-  const defaultPrices = new Map([['p1', 25.5], ['p2', 10]])
+  const defaultPrices = new Map([
+    ['p1', 25.5],
+    ['p2', 10],
+  ])
 
   it('usa o preço de tabela quando o item não informa unitPrice', () => {
-    const { items, orderTotal } = priceOrderItems(
-      [{ productId: 'p1', quantity: 2 }],
-      defaultPrices
-    )
+    const { items, orderTotal } = priceOrderItems([{ productId: 'p1', quantity: 2 }], defaultPrices)
     expect(items[0].unitPrice).toBe(25.5)
     expect(items[0].total).toBe(51)
     expect(orderTotal).toBe(51)

@@ -3,7 +3,15 @@ import { authenticate, requirePermission } from '../../middleware/authenticate'
 import { requireCompany } from '../../middleware/require-company'
 import { unprocessable, AppError } from '../../lib/errors'
 import { createOrderSchema, updateOrderSchema } from './orders.schema'
-import { listOrders, getOrderStats, getOrder, createOrder, updateOrder, cancelOrder, resetOrderToPending } from './orders.service'
+import {
+  listOrders,
+  getOrderStats,
+  getOrder,
+  createOrder,
+  updateOrder,
+  cancelOrder,
+  resetOrderToPending,
+} from './orders.service'
 import { getEffectivePermissions } from '../permissions/permissions.service'
 import { syncOrderToProtheus, consultOrderStatus } from '../sync/sync.service'
 import { notFound } from '../../lib/errors'
@@ -43,19 +51,29 @@ export default async function ordersRoutes(app: FastifyInstance) {
   })
 
   // POST /orders
-  app.post('/', { ...auth, config: { rateLimit: { max: 60, timeWindow: '1 minute' } } }, async (request: FastifyRequest, reply: FastifyReply) => {
-    const input = createOrderSchema.parse(request.body)
-    const permissions = await getEffectivePermissions(request.user.sub, request.user.role)
-    const order = await createOrder(request.user.sub, request.user.companyId!, input, permissions)
-    return reply.status(201).send(order)
-  })
+  app.post(
+    '/',
+    { ...auth, config: { rateLimit: { max: 60, timeWindow: '1 minute' } } },
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const input = createOrderSchema.parse(request.body)
+      const permissions = await getEffectivePermissions(request.user.sub, request.user.role)
+      const order = await createOrder(request.user.sub, request.user.companyId!, input, permissions)
+      return reply.status(201).send(order)
+    }
+  )
 
   // PUT /orders/:id — atualiza pedido PENDING
   app.put('/:id', auth, async (request: FastifyRequest, reply: FastifyReply) => {
     const { id } = request.params as { id: string }
     const input = updateOrderSchema.parse(request.body)
     const permissions = await getEffectivePermissions(request.user.sub, request.user.role)
-    const order = await updateOrder(request.user.sub, request.user.companyId!, id, input, permissions)
+    const order = await updateOrder(
+      request.user.sub,
+      request.user.companyId!,
+      id,
+      input,
+      permissions
+    )
     return reply.send(order)
   })
 
@@ -71,22 +89,30 @@ export default async function ordersRoutes(app: FastifyInstance) {
   })
 
   // POST /orders/:id/sync — envia pedido PENDING ao Protheus
-  app.post('/:id/sync', { ...auth, config: { rateLimit: { max: 10, timeWindow: '1 minute' } } }, async (request: FastifyRequest, reply: FastifyReply) => {
-    const { id } = request.params as { id: string }
-    try {
-      const result = await syncOrderToProtheus(id, request.user.companyId!)
-      return reply.send(result)
-    } catch (err) {
-      toUnprocessable(err)
+  app.post(
+    '/:id/sync',
+    { ...auth, config: { rateLimit: { max: 10, timeWindow: '1 minute' } } },
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const { id } = request.params as { id: string }
+      try {
+        const result = await syncOrderToProtheus(id, request.user.companyId!)
+        return reply.send(result)
+      } catch (err) {
+        toUnprocessable(err)
+      }
     }
-  })
+  )
 
   // PATCH /orders/:id/reset-pending — reverte pedido SYNCED para PENDING (requer permissão orders.reset_pending)
-  app.patch('/:id/reset-pending', { preHandler: [requirePermission('orders.reset_pending'), requireCompany] }, async (request: FastifyRequest, reply: FastifyReply) => {
-    const { id } = request.params as { id: string }
-    const order = await resetOrderToPending(request.user.companyId!, id)
-    return reply.send(order)
-  })
+  app.patch(
+    '/:id/reset-pending',
+    { preHandler: [requirePermission('orders.reset_pending'), requireCompany] },
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const { id } = request.params as { id: string }
+      const order = await resetOrderToPending(request.user.companyId!, id)
+      return reply.send(order)
+    }
+  )
 
   // PATCH /orders/:id/cancel — cancela pedido PENDING (dono do pedido ou admin)
   app.patch('/:id/cancel', auth, async (request: FastifyRequest, reply: FastifyReply) => {

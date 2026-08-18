@@ -10,10 +10,19 @@ import { useCompanyProtheusLogs } from '@/hooks/useCompany'
 import { TabSection, Pagination, TableEmptyState } from './shared'
 
 const OPERATIONS = [
-  'syncProducts', 'syncCustomers', 'syncTransportadoras', 'syncCondPags',
-  'syncOrder', 'consultOrder', 'fetchMeta',
-  'testToken', 'testProducts', 'testCustomers', 'testOrder',
-  'autoSyncProducts', 'autoSyncCustomers',
+  'syncProducts',
+  'syncCustomers',
+  'syncTransportadoras',
+  'syncCondPags',
+  'syncOrder',
+  'consultOrder',
+  'fetchMeta',
+  'testToken',
+  'testProducts',
+  'testCustomers',
+  'testOrder',
+  'autoSyncProducts',
+  'autoSyncCustomers',
 ]
 
 const selectClass =
@@ -25,7 +34,11 @@ export function LogsTab({ companyId }: { companyId: string }) {
   const [success, setSuccess] = useState<'' | 'true' | 'false'>('')
 
   // O React Query refaz a busca quando página/filtros mudam — sem useEffect duplicado
-  const { data, isFetching, refetch } = useCompanyProtheusLogs(companyId, { page, operation, success })
+  const { data, isFetching, refetch } = useCompanyProtheusLogs(companyId, {
+    page,
+    operation,
+    success,
+  })
 
   const logs = data?.data ?? []
   const total = data?.total ?? 0
@@ -35,10 +48,26 @@ export function LogsTab({ companyId }: { companyId: string }) {
     {
       key: 'createdAt',
       header: 'Data/hora',
-      render: (l) => <span className="text-[var(--text-muted)] whitespace-nowrap text-xs">{new Date(l.createdAt).toLocaleString('pt-BR')}</span>,
+      render: (l) => (
+        <span className="text-[var(--text-muted)] whitespace-nowrap text-xs">
+          {new Date(l.createdAt).toLocaleString('pt-BR')}
+        </span>
+      ),
     },
-    { key: 'operation', header: 'Operação', render: (l) => <code className="text-xs font-mono text-[var(--text-primary)]">{l.operation}</code> },
-    { key: 'endpointKey', header: 'Endpoint', render: (l) => <code className="text-xs font-mono text-[var(--text-muted)]">{l.endpointKey}</code> },
+    {
+      key: 'operation',
+      header: 'Operação',
+      render: (l) => (
+        <code className="text-xs font-mono text-[var(--text-primary)]">{l.operation}</code>
+      ),
+    },
+    {
+      key: 'endpointKey',
+      header: 'Endpoint',
+      render: (l) => (
+        <code className="text-xs font-mono text-[var(--text-muted)]">{l.endpointKey}</code>
+      ),
+    },
     {
       key: 'success',
       header: 'Status',
@@ -46,11 +75,21 @@ export function LogsTab({ companyId }: { companyId: string }) {
         <Badge variant={l.success ? 'success' : 'danger'}>{l.success ? 'Sucesso' : 'Falha'}</Badge>
       ),
     },
-    { key: 'httpStatus', header: 'HTTP', render: (l) => <span className="text-[var(--text-muted)] text-xs">{l.httpStatus ?? '—'}</span> },
+    {
+      key: 'httpStatus',
+      header: 'HTTP',
+      render: (l) => (
+        <span className="text-[var(--text-muted)] text-xs">{l.httpStatus ?? '—'}</span>
+      ),
+    },
     {
       key: 'durationMs',
       header: 'Duração',
-      render: (l) => <span className="text-[var(--text-muted)] text-xs whitespace-nowrap">{l.durationMs != null ? `${l.durationMs} ms` : '—'}</span>,
+      render: (l) => (
+        <span className="text-[var(--text-muted)] text-xs whitespace-nowrap">
+          {l.durationMs != null ? `${l.durationMs} ms` : '—'}
+        </span>
+      ),
     },
     {
       key: 'records',
@@ -65,34 +104,52 @@ export function LogsTab({ companyId }: { companyId: string }) {
       key: 'error',
       header: 'Erro',
       className: 'max-w-[200px]',
-      render: (l) => l.errorMessage ? (
-        <span title={l.errorMessage} className="cursor-help text-xs text-danger">
-          {l.errorMessage.length > 60 ? l.errorMessage.slice(0, 60) + '…' : l.errorMessage}
-        </span>
-      ) : <span className="text-xs text-[var(--text-muted)]">—</span>,
+      render: (l) =>
+        l.errorMessage ? (
+          <span title={l.errorMessage} className="cursor-help text-xs text-danger">
+            {l.errorMessage.length > 60 ? l.errorMessage.slice(0, 60) + '…' : l.errorMessage}
+          </span>
+        ) : (
+          <span className="text-xs text-[var(--text-muted)]">—</span>
+        ),
     },
   ]
 
   return (
     <div className="space-y-4">
       <div>
-        <h2 className="text-base font-semibold text-[var(--text-primary)]">Log de chamadas às APIs Protheus</h2>
-        <p className="text-sm text-[var(--text-muted)] mt-1">Histórico de todas as comunicações com o ERP Protheus — sincronizações, testes e consultas.</p>
+        <h2 className="text-base font-semibold text-[var(--text-primary)]">
+          Log de chamadas às APIs Protheus
+        </h2>
+        <p className="text-sm text-[var(--text-muted)] mt-1">
+          Histórico de todas as comunicações com o ERP Protheus — sincronizações, testes e
+          consultas.
+        </p>
       </div>
 
       {/* Filtros */}
       <div className="flex items-center gap-3 flex-wrap">
         <select
           value={operation}
-          onChange={(e) => { setOperation(e.target.value); setPage(1) }}
+          onChange={(e) => {
+            setOperation(e.target.value)
+            setPage(1)
+          }}
           className={selectClass}
         >
           <option value="">Todas as operações</option>
-          {OPERATIONS.map((op) => <option key={op} value={op}>{op}</option>)}
+          {OPERATIONS.map((op) => (
+            <option key={op} value={op}>
+              {op}
+            </option>
+          ))}
         </select>
         <select
           value={success}
-          onChange={(e) => { setSuccess(e.target.value as '' | 'true' | 'false'); setPage(1) }}
+          onChange={(e) => {
+            setSuccess(e.target.value as '' | 'true' | 'false')
+            setPage(1)
+          }}
           className={selectClass}
         >
           <option value="">Todos os resultados</option>

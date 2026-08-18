@@ -47,10 +47,11 @@ const NAV_ITEMS: NavItem[] = [
 ]
 
 // Classe base dos itens da sidebar (fundo navy fixo nos dois temas)
-const SIDEBAR_ITEM = 'w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-colors'
+const SIDEBAR_ITEM =
+  'w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-colors'
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
-  const router   = useRouter()
+  const router = useRouter()
   const pathname = usePathname()
   const { theme, toggle } = useTheme()
   const { isAdmin, isSuperAdmin } = useAuth()
@@ -79,7 +80,16 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         {/* Logo */}
         <div className="px-5 py-4 border-b border-white/5 flex items-center gap-2">
           <Logo size={28} />
-          <span style={{ fontFamily: 'var(--font-heading), sans-serif', fontSize: 16, letterSpacing: '-0.02em' }} className="font-bold text-white">addere</span>
+          <span
+            style={{
+              fontFamily: 'var(--font-heading), sans-serif',
+              fontSize: 16,
+              letterSpacing: '-0.02em',
+            }}
+            className="font-bold text-white"
+          >
+            addere
+          </span>
         </div>
 
         {/* Nav */}

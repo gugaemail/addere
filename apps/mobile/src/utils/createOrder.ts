@@ -19,7 +19,7 @@ export function startOrderSession() {
 
 export async function submitOrder(
   payload: CreateOrderInput,
-  meta?: { itemCount: number; totalValue: number },
+  meta?: { itemCount: number; totalValue: number }
 ): Promise<SubmitOrderResult> {
   const { networkAvailable, enqueue } = useSyncStore.getState()
 

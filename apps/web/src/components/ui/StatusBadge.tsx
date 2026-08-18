@@ -9,10 +9,12 @@ interface StatusBadgeProps {
 
 // Badge de status ativo/inativo usado nas tabelas do painel admin.
 // Unifica as cópias que existiam em dashboard/page.tsx e empresas/[id]/page.tsx.
-export function StatusBadge({ active, activeLabel = 'Ativo', inactiveLabel = 'Inativo' }: StatusBadgeProps) {
+export function StatusBadge({
+  active,
+  activeLabel = 'Ativo',
+  inactiveLabel = 'Inativo',
+}: StatusBadgeProps) {
   return (
-    <Badge variant={active ? 'success' : 'neutral'}>
-      {active ? activeLabel : inactiveLabel}
-    </Badge>
+    <Badge variant={active ? 'success' : 'neutral'}>{active ? activeLabel : inactiveLabel}</Badge>
   )
 }

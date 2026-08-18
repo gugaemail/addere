@@ -29,25 +29,48 @@ export default function DashboardPage() {
     e.stopPropagation()
     toggleActive.mutate(
       { id: company.id, active: !company.active },
-      { onError: (err) => toast.error(getApiErrorMessage(err, 'Erro ao alterar status da empresa.')) },
+      {
+        onError: (err) =>
+          toast.error(getApiErrorMessage(err, 'Erro ao alterar status da empresa.')),
+      }
     )
   }
 
   const columns: Column<CompanyListItem>[] = [
-    { key: 'name', header: 'Empresa', render: (c) => <span className="font-medium text-[var(--text-primary)]">{c.name}</span> },
+    {
+      key: 'name',
+      header: 'Empresa',
+      render: (c) => <span className="font-medium text-[var(--text-primary)]">{c.name}</span>,
+    },
     { key: 'cnpj', header: 'CNPJ', render: (c) => c.cnpj },
-    { key: 'protheus', header: 'Protheus', render: (c) => <span className="text-[var(--text-muted)]">{c.idProtheus ?? '—'}</span> },
-    { key: 'branches', header: 'Filiais', className: 'text-center', render: (c) => c._count.branches },
+    {
+      key: 'protheus',
+      header: 'Protheus',
+      render: (c) => <span className="text-[var(--text-muted)]">{c.idProtheus ?? '—'}</span>,
+    },
+    {
+      key: 'branches',
+      header: 'Filiais',
+      className: 'text-center',
+      render: (c) => c._count.branches,
+    },
     { key: 'users', header: 'Usuários', className: 'text-center', render: (c) => c._count.users },
     { key: 'orders', header: 'Pedidos', className: 'text-center', render: (c) => c._count.orders },
     {
-      key: 'status', header: 'Status', className: 'text-center',
+      key: 'status',
+      header: 'Status',
+      className: 'text-center',
       render: (c) => <StatusBadge active={c.active} activeLabel="Ativa" inactiveLabel="Inativa" />,
     },
     {
-      key: 'actions', header: 'Ações', className: 'text-center',
+      key: 'actions',
+      header: 'Ações',
+      className: 'text-center',
       render: (c) => (
-        <div className="flex items-center justify-center gap-1" onClick={(e) => e.stopPropagation()}>
+        <div
+          className="flex items-center justify-center gap-1"
+          onClick={(e) => e.stopPropagation()}
+        >
           {/* Editar */}
           <Button
             variant="ghost"
@@ -56,7 +79,10 @@ export default function DashboardPage() {
             aria-label="Editar empresa"
             leftIcon={Pencil}
             className="text-[var(--text-muted)] hover:text-brand"
-            onClick={(e) => { e.stopPropagation(); setEditingCompany(c) }}
+            onClick={(e) => {
+              e.stopPropagation()
+              setEditingCompany(c)
+            }}
           />
           {/* Bloquear / Ativar */}
           <Button
@@ -66,9 +92,11 @@ export default function DashboardPage() {
             aria-label={c.active ? 'Bloquear empresa' : 'Ativar empresa'}
             leftIcon={c.active ? Lock : Unlock}
             disabled={toggleActive.isPending && toggleActive.variables?.id === c.id}
-            className={c.active
-              ? 'text-[var(--text-muted)] hover:text-danger hover:bg-danger/10'
-              : 'text-[var(--text-muted)] hover:text-success hover:bg-success/10'}
+            className={
+              c.active
+                ? 'text-[var(--text-muted)] hover:text-danger hover:bg-danger/10'
+                : 'text-[var(--text-muted)] hover:text-success hover:bg-success/10'
+            }
             onClick={(e) => handleToggleActive(e, c)}
           />
         </div>
@@ -88,13 +116,23 @@ export default function DashboardPage() {
       {/* Cards resumo */}
       {isLoading ? (
         <div className="grid grid-cols-3 gap-4">
-          {[0, 1, 2].map((i) => <StatCardSkeleton key={i} />)}
+          {[0, 1, 2].map((i) => (
+            <StatCardSkeleton key={i} />
+          ))}
         </div>
       ) : (
         <div className="grid grid-cols-3 gap-4">
           <StatCard label="Total de empresas" value={companies.length} accent="brand" />
-          <StatCard label="Ativas" value={companies.filter((c) => c.active).length} accent="success" />
-          <StatCard label="Inativas" value={companies.filter((c) => !c.active).length} accent="neutral" />
+          <StatCard
+            label="Ativas"
+            value={companies.filter((c) => c.active).length}
+            accent="success"
+          />
+          <StatCard
+            label="Inativas"
+            value={companies.filter((c) => !c.active).length}
+            accent="neutral"
+          />
         </div>
       )}
 
@@ -154,13 +192,24 @@ function TableSkeleton({ cols, rows }: { cols: number; rows: number }) {
     <div className="w-full">
       <div className="bg-[var(--bg-subtle)] border-b border-[var(--border)] px-4 py-3 flex gap-4">
         {Array.from({ length: cols }).map((_, i) => (
-          <div key={i} className="h-3 bg-[var(--border)] rounded animate-skeleton-pulse" style={{ width: `${60 + (i * 17) % 60}px` }} />
+          <div
+            key={i}
+            className="h-3 bg-[var(--border)] rounded animate-skeleton-pulse"
+            style={{ width: `${60 + ((i * 17) % 60)}px` }}
+          />
         ))}
       </div>
       {Array.from({ length: rows }).map((_, r) => (
-        <div key={r} className="px-4 py-3.5 flex gap-4 border-b border-[var(--border)] last:border-0">
+        <div
+          key={r}
+          className="px-4 py-3.5 flex gap-4 border-b border-[var(--border)] last:border-0"
+        >
           {Array.from({ length: cols }).map((_, i) => (
-            <div key={i} className="h-3 bg-[var(--bg-subtle)] rounded animate-skeleton-pulse" style={{ width: `${50 + ((r + i) * 23) % 80}px` }} />
+            <div
+              key={i}
+              className="h-3 bg-[var(--bg-subtle)] rounded animate-skeleton-pulse"
+              style={{ width: `${50 + (((r + i) * 23) % 80)}px` }}
+            />
           ))}
         </div>
       ))}
@@ -169,7 +218,10 @@ function TableSkeleton({ cols, rows }: { cols: number; rows: number }) {
 }
 
 function EmptyState({
-  icon, title, description, action,
+  icon,
+  title,
+  description,
+  action,
 }: {
   icon: React.ReactNode
   title: string
@@ -192,7 +244,11 @@ function EmptyState({
   )
 }
 
-function EditCompanyModal({ company, onClose, onSaved }: {
+function EditCompanyModal({
+  company,
+  onClose,
+  onSaved,
+}: {
   company: CompanyListItem
   onClose: () => void
   onSaved: () => void
@@ -205,7 +261,12 @@ function EditCompanyModal({ company, onClose, onSaved }: {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     try {
-      await updateCompany.mutateAsync({ id: company.id, name, cnpj, idProtheus: idProtheus || null })
+      await updateCompany.mutateAsync({
+        id: company.id,
+        name,
+        cnpj,
+        idProtheus: idProtheus || null,
+      })
       onSaved()
     } catch (err: unknown) {
       toast.error(getApiErrorMessage(err, 'Erro ao salvar empresa.'))
@@ -217,7 +278,12 @@ function EditCompanyModal({ company, onClose, onSaved }: {
       <form onSubmit={handleSubmit} className="space-y-4">
         <FormField label="Nome" required value={name} onChange={(e) => setName(e.target.value)} />
         <FormField label="CNPJ" required value={cnpj} onChange={(e) => setCnpj(e.target.value)} />
-        <FormField label="Código Protheus" value={idProtheus} onChange={(e) => setIdProtheus(e.target.value)} placeholder="Opcional" />
+        <FormField
+          label="Código Protheus"
+          value={idProtheus}
+          onChange={(e) => setIdProtheus(e.target.value)}
+          placeholder="Opcional"
+        />
 
         <div className="flex gap-3 pt-1">
           <Button type="button" variant="secondary" onClick={onClose} className="flex-1">

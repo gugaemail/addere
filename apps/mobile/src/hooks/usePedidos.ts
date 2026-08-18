@@ -87,7 +87,9 @@ export function useMetaVendedor() {
   return useQuery({
     queryKey: ['meta-vendedor'],
     queryFn: async () => {
-      const { data } = await api.get<{ periodo: string; vendido: string; meta: string }>('/sync/metas')
+      const { data } = await api.get<{ periodo: string; vendido: string; meta: string }>(
+        '/sync/metas'
+      )
       return data
     },
     // Consulta cara ao Protheus — 15 min evita refetch a cada mount
@@ -112,7 +114,9 @@ export function useCancelarPedido() {
 export function useConsultarStatusPedido() {
   return useMutation({
     mutationFn: async (orderId: string) => {
-      const { data } = await api.get<{ protheusOrderId: string; codigo: string; status: string }>(`/orders/${orderId}/status`)
+      const { data } = await api.get<{ protheusOrderId: string; codigo: string; status: string }>(
+        `/orders/${orderId}/status`
+      )
       return data
     },
   })

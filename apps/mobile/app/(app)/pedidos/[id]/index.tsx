@@ -2,7 +2,12 @@ import React from 'react'
 import { View, Text, ScrollView, StyleSheet, Alert, type ViewProps } from 'react-native'
 import { useLocalSearchParams, Stack, useRouter } from 'expo-router'
 import { RefreshCw, SearchCheck, Pencil } from 'lucide-react-native'
-import { usePedido, useSincronizarPedido, useConsultarStatusPedido, useCancelarPedido } from '../../../../src/hooks/usePedidos'
+import {
+  usePedido,
+  useSincronizarPedido,
+  useConsultarStatusPedido,
+  useCancelarPedido,
+} from '../../../../src/hooks/usePedidos'
 import { Badge } from '../../../../src/components/ui/Badge'
 import { Button, buttonForeground } from '../../../../src/components/ui/Button'
 import { Card } from '../../../../src/components/ui/Card'
@@ -38,23 +43,23 @@ export default function PedidoDetailScreen() {
   const router = useRouter()
   const queryClient = useQueryClient()
   const { data: order, isLoading, error } = usePedido(id)
-  const { mutate: sincronizar, isPending: isSyncing }       = useSincronizarPedido()
-  const { mutate: consultarStatus, isPending: isChecking }  = useConsultarStatusPedido()
-  const { mutate: cancelar }                               = useCancelarPedido()
+  const { mutate: sincronizar, isPending: isSyncing } = useSincronizarPedido()
+  const { mutate: consultarStatus, isPending: isChecking } = useConsultarStatusPedido()
+  const { mutate: cancelar } = useCancelarPedido()
 
-  const showTransportadora  = useFieldVisible('order.transportadora')
-  const showCondPag         = useFieldVisible('order.condPag')
-  const showEmissao         = useFieldVisible('order.emissao')
-  const showMennota         = useFieldVisible('order.mennota')
-  const showNotes           = useFieldVisible('order.notes')
-  const showProtheusStatus  = useFieldVisible('order.protheusStatus')
-  const showDiscount        = useFieldVisible('orderItem.discount')
-  const showDescricao       = useFieldVisible('orderItem.descricao')
-  const showLargura         = useFieldVisible('orderItem.largura')
-  const showEspessura       = useFieldVisible('orderItem.espessura')
-  const showEncolhimento    = useFieldVisible('orderItem.encolhimento')
-  const showXcrav           = useFieldVisible('orderItem.xcrav')
-  const showTara            = useFieldVisible('orderItem.tara')
+  const showTransportadora = useFieldVisible('order.transportadora')
+  const showCondPag = useFieldVisible('order.condPag')
+  const showEmissao = useFieldVisible('order.emissao')
+  const showMennota = useFieldVisible('order.mennota')
+  const showNotes = useFieldVisible('order.notes')
+  const showProtheusStatus = useFieldVisible('order.protheusStatus')
+  const showDiscount = useFieldVisible('orderItem.discount')
+  const showDescricao = useFieldVisible('orderItem.descricao')
+  const showLargura = useFieldVisible('orderItem.largura')
+  const showEspessura = useFieldVisible('orderItem.espessura')
+  const showEncolhimento = useFieldVisible('orderItem.encolhimento')
+  const showXcrav = useFieldVisible('orderItem.xcrav')
+  const showTara = useFieldVisible('orderItem.tara')
 
   function handleSync() {
     sincronizar(id, {
@@ -74,12 +79,14 @@ export default function PedidoDetailScreen() {
         {
           text: 'Cancelar pedido',
           style: 'destructive',
-          onPress: () => cancelar(id, {
-            onSuccess: () => Alert.alert('Pedido cancelado', 'O pedido foi cancelado com sucesso.'),
-            onError: (err: unknown) => {
-              Alert.alert('Erro', getApiErrorMessage(err, 'Não foi possível cancelar o pedido.'))
-            },
-          }),
+          onPress: () =>
+            cancelar(id, {
+              onSuccess: () =>
+                Alert.alert('Pedido cancelado', 'O pedido foi cancelado com sucesso.'),
+              onError: (err: unknown) => {
+                Alert.alert('Erro', getApiErrorMessage(err, 'Não foi possível cancelar o pedido.'))
+              },
+            }),
         },
       ]
     )
@@ -89,12 +96,16 @@ export default function PedidoDetailScreen() {
     consultarStatus(id, {
       onSuccess: (result) => {
         queryClient.invalidateQueries({ queryKey: ['orders', 'detail', id] })
-        const naoEncontrado = result.status?.toLowerCase().includes('nao encontrado')
-          || result.status?.toLowerCase().includes('não encontrado')
+        const naoEncontrado =
+          result.status?.toLowerCase().includes('nao encontrado') ||
+          result.status?.toLowerCase().includes('não encontrado')
         if (naoEncontrado) {
           handleCancelar()
         } else {
-          Alert.alert(`Pedido ${result.protheusOrderId}`, `Status: ${result.status}\nCódigo: ${result.codigo}`)
+          Alert.alert(
+            `Pedido ${result.protheusOrderId}`,
+            `Status: ${result.status}\nCódigo: ${result.codigo}`
+          )
         }
       },
       onError: (err: unknown) => {
@@ -118,28 +129,27 @@ export default function PedidoDetailScreen() {
   const variant = STATUS_BADGE[order.status] ?? 'neutral'
 
   return (
-    <ScrollView style={s.container} contentContainerStyle={{ padding: spacing.md, paddingBottom: spacing.xl }}>
+    <ScrollView
+      style={s.container}
+      contentContainerStyle={{ padding: spacing.md, paddingBottom: spacing.xl }}
+    >
       <Stack.Screen options={{ title: order.customer.name }} />
 
       <Section title="Informações">
         <View style={s.statusRow}>
           <Badge variant={variant}>{STATUS_LABEL[order.status]}</Badge>
         </View>
-        <InfoRow label="Cliente"         value={order.customer.name} />
-        <InfoRow label="CNPJ/CPF"        value={formatDocument(order.customer.document)} />
-        <InfoRow label="Filial"          value={order.branch?.name ?? null} />
-        {showTransportadora && <InfoRow label="Transportadora"  value={order.transportadora?.nome ?? null} />}
-        {showCondPag        && <InfoRow label="Cond. Pagamento" value={order.condPag?.nome ?? null} />}
+        <InfoRow label="Cliente" value={order.customer.name} />
+        <InfoRow label="CNPJ/CPF" value={formatDocument(order.customer.document)} />
+        <InfoRow label="Filial" value={order.branch?.name ?? null} />
+        {showTransportadora && (
+          <InfoRow label="Transportadora" value={order.transportadora?.nome ?? null} />
+        )}
+        {showCondPag && <InfoRow label="Cond. Pagamento" value={order.condPag?.nome ?? null} />}
         <InfoRow label="Data" value={fmtData(order.createdAt)} />
-        {showEmissao && order.emissao && (
-          <InfoRow label="Emissão" value={fmtData(order.emissao)} />
-        )}
-        {order.protheusOrderId && (
-          <InfoRow label="Pedido Protheus" value={order.protheusOrderId} />
-        )}
-        {order.syncedAt && (
-          <InfoRow label="Sincronizado em" value={fmtData(order.syncedAt)} />
-        )}
+        {showEmissao && order.emissao && <InfoRow label="Emissão" value={fmtData(order.emissao)} />}
+        {order.protheusOrderId && <InfoRow label="Pedido Protheus" value={order.protheusOrderId} />}
+        {order.syncedAt && <InfoRow label="Sincronizado em" value={fmtData(order.syncedAt)} />}
         {showProtheusStatus && order.protheusStatus && (
           <InfoRow label="Status Protheus" value={order.protheusStatus} />
         )}
@@ -150,20 +160,28 @@ export default function PedidoDetailScreen() {
           <View key={item.id} style={[s.itemRow, idx < order.items.length - 1 && s.itemBorder]}>
             <View style={{ flex: 1 }}>
               <Text style={s.itemName}>{item.product.name}</Text>
-              {showDescricao && item.descricao ? <Text style={s.itemDesc}>{item.descricao}</Text> : null}
+              {showDescricao && item.descricao ? (
+                <Text style={s.itemDesc}>{item.descricao}</Text>
+              ) : null}
               <Text style={s.itemDetail}>
                 {fmtQtd(item.quantity)} {item.product.unit} × R$ {fmtMoeda(item.unitPrice)}
-                {showDiscount && Number(item.discount) > 0 ? `  (${fmtQtd(item.discount)}% desc.)` : ''}
+                {showDiscount && Number(item.discount) > 0
+                  ? `  (${fmtQtd(item.discount)}% desc.)`
+                  : ''}
               </Text>
               {(showLargura || showEspessura || showTara) && (
                 <Text style={s.itemDetail}>
-                  {showLargura    && item.largura   ? `Larg: ${fmtQtd(item.largura)}  ` : ''}
-                  {showEspessura  && item.espessura ? `Esp: ${fmtQtd(item.espessura)}  ` : ''}
-                  {showTara       && item.tara      ? `Tara: ${fmtQtd(item.tara)}` : ''}
+                  {showLargura && item.largura ? `Larg: ${fmtQtd(item.largura)}  ` : ''}
+                  {showEspessura && item.espessura ? `Esp: ${fmtQtd(item.espessura)}  ` : ''}
+                  {showTara && item.tara ? `Tara: ${fmtQtd(item.tara)}` : ''}
                 </Text>
               )}
-              {showEncolhimento && item.encolhimento ? <Text style={s.itemDesc}>Encolh: {item.encolhimento}</Text> : null}
-              {showXcrav && item.xcrav ? <Text style={s.itemDesc}>Larg. Crav: {item.xcrav === '1' ? 'Sim' : 'Não'}</Text> : null}
+              {showEncolhimento && item.encolhimento ? (
+                <Text style={s.itemDesc}>Encolh: {item.encolhimento}</Text>
+              ) : null}
+              {showXcrav && item.xcrav ? (
+                <Text style={s.itemDesc}>Larg. Crav: {item.xcrav === '1' ? 'Sim' : 'Não'}</Text>
+              ) : null}
             </View>
             <Text style={s.itemTotal}>R$ {fmtMoeda(item.total)}</Text>
           </View>
@@ -249,7 +267,13 @@ const s = StyleSheet.create({
     borderBottomColor: colors.neutral.subtle,
   },
   infoLabel: { fontFamily: 'Inter_400Regular', fontSize: 13, color: colors.neutral.textSub },
-  infoValue: { fontFamily: 'Inter_400Regular', fontSize: 13, color: colors.brand.dark, maxWidth: '60%', textAlign: 'right' },
+  infoValue: {
+    fontFamily: 'Inter_400Regular',
+    fontSize: 13,
+    color: colors.brand.dark,
+    maxWidth: '60%',
+    textAlign: 'right',
+  },
   itemRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
@@ -260,11 +284,26 @@ const s = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.neutral.subtle,
   },
-  itemName:   { fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: 14, color: colors.brand.dark },
-  itemDesc:   { fontFamily: 'Inter_400Regular', fontSize: 12, color: colors.neutral.textSub, marginTop: spacing.xs },
-  itemDetail: { fontFamily: 'Inter_400Regular', fontSize: 12, color: colors.neutral.textSub, marginTop: spacing.xs },
-  itemTotal:  { fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: 14, color: colors.brand.dark },
-  notes: { fontFamily: 'Inter_400Regular', fontSize: 13, color: colors.neutral.text, lineHeight: 20 },
+  itemName: { fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: 14, color: colors.brand.dark },
+  itemDesc: {
+    fontFamily: 'Inter_400Regular',
+    fontSize: 12,
+    color: colors.neutral.textSub,
+    marginTop: spacing.xs,
+  },
+  itemDetail: {
+    fontFamily: 'Inter_400Regular',
+    fontSize: 12,
+    color: colors.neutral.textSub,
+    marginTop: spacing.xs,
+  },
+  itemTotal: { fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: 14, color: colors.brand.dark },
+  notes: {
+    fontFamily: 'Inter_400Regular',
+    fontSize: 13,
+    color: colors.neutral.text,
+    lineHeight: 20,
+  },
   totalCard: {
     flexDirection: 'row',
     justifyContent: 'space-between',

@@ -24,7 +24,9 @@ describe('isPilotRequestAuthorized', () => {
 
   it('valida Bearer de usuário na API e exige SUPERADMIN ativo', async () => {
     const fetchMock = vi.spyOn(globalThis, 'fetch')
-    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({ role: 'SUPERADMIN', active: true })))
+    fetchMock.mockResolvedValueOnce(
+      new Response(JSON.stringify({ role: 'SUPERADMIN', active: true }))
+    )
     expect(await isPilotRequestAuthorized(req({ authorization: 'Bearer jwt' }))).toBe(true)
 
     fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({ role: 'ADMIN', active: true })))

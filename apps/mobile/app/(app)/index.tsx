@@ -18,13 +18,20 @@ const STAT_ACCENT = [
   colors.brand.accent,
 ]
 
-function MetaProgress({ vendido, meta, periodo }: { vendido: number; meta: number; periodo: string }) {
-  const pct      = meta > 0 ? Math.min((vendido / meta) * 100, 100) : 0
-  const pctStr   = pct.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-  const barColor = pct >= 80 ? colors.semantic.success : pct >= 50 ? colors.semantic.warning : colors.brand.primary
-  const mes      = periodo.length === 6
-    ? `${periodo.slice(4)}/${periodo.slice(0, 4)}`
-    : '—'
+function MetaProgress({
+  vendido,
+  meta,
+  periodo,
+}: {
+  vendido: number
+  meta: number
+  periodo: string
+}) {
+  const pct = meta > 0 ? Math.min((vendido / meta) * 100, 100) : 0
+  const pctStr = pct.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  const barColor =
+    pct >= 80 ? colors.semantic.success : pct >= 50 ? colors.semantic.warning : colors.brand.primary
+  const mes = periodo.length === 6 ? `${periodo.slice(4)}/${periodo.slice(0, 4)}` : '—'
 
   return (
     <Card style={[s.metaCard, { borderTopColor: barColor }]}>
@@ -34,17 +41,17 @@ function MetaProgress({ vendido, meta, periodo }: { vendido: number; meta: numbe
       </View>
 
       <View style={s.barTrack}>
-        <View style={[s.barFill, { width: `${pct}%` as `${number}%`, backgroundColor: barColor }]} />
+        <View
+          style={[s.barFill, { width: `${pct}%` as `${number}%`, backgroundColor: barColor }]}
+        />
       </View>
 
       <View style={s.metaFooter}>
         <Text style={s.metaFooterText}>
-          Vendido{' '}
-          <Text style={s.metaFooterBold}>R$ {fmtMoeda(vendido)}</Text>
+          Vendido <Text style={s.metaFooterBold}>R$ {fmtMoeda(vendido)}</Text>
         </Text>
         <Text style={s.metaFooterText}>
-          Meta{' '}
-          <Text style={s.metaFooterBold}>R$ {fmtMoeda(meta)}</Text>
+          Meta <Text style={s.metaFooterBold}>R$ {fmtMoeda(meta)}</Text>
         </Text>
       </View>
     </Card>
@@ -55,18 +62,18 @@ export default function DashboardScreen() {
   const user = useAuthStore((s) => s.user)
   // O PersistQueryClientProvider restaura estas queries do AsyncStorage,
   // então o dado cacheado aparece imediatamente mesmo offline
-  const { data: stats, isLoading: loadingStats }         = useDashboardStats()
+  const { data: stats, isLoading: loadingStats } = useDashboardStats()
   const { data: recentOrders, isLoading: loadingOrders } = usePedidos(5)
-  const { data: metaData }                               = useMetaVendedor()
+  const { data: metaData } = useMetaVendedor()
   const { mutate: logout } = useLogout()
 
   const totalRevenue = Number(stats?.totalRevenue ?? 0)
 
   const statItems = [
-    { label: 'Total de pedidos', value: String(stats?.totalOrders  ?? 0) },
-    { label: 'Pendentes',        value: String(stats?.pendingOrders ?? 0) },
-    { label: 'Sincronizados',    value: String(stats?.syncedOrders  ?? 0) },
-    { label: 'Receita total',    value: `R$ ${fmtMoeda(totalRevenue)}` },
+    { label: 'Total de pedidos', value: String(stats?.totalOrders ?? 0) },
+    { label: 'Pendentes', value: String(stats?.pendingOrders ?? 0) },
+    { label: 'Sincronizados', value: String(stats?.syncedOrders ?? 0) },
+    { label: 'Receita total', value: `R$ ${fmtMoeda(totalRevenue)}` },
   ]
 
   return (
@@ -75,10 +82,12 @@ export default function DashboardScreen() {
       <View style={s.header}>
         <Text style={s.greeting}>Olá, {user?.name?.split(' ')[0]}</Text>
         <TouchableOpacity
-          onPress={() => Alert.alert('Conta', 'Deseja encerrar a sessão?', [
-            { text: 'Cancelar', style: 'cancel' },
-            { text: 'Sair', style: 'destructive', onPress: () => logout() },
-          ])}
+          onPress={() =>
+            Alert.alert('Conta', 'Deseja encerrar a sessão?', [
+              { text: 'Cancelar', style: 'cancel' },
+              { text: 'Sair', style: 'destructive', onPress: () => logout() },
+            ])
+          }
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
         >
           <LogOut size={20} color={colors.semantic.muted} strokeWidth={1.5} />
@@ -111,7 +120,9 @@ export default function DashboardScreen() {
 
       {loadingOrders ? (
         <View>
-          {[0, 1, 2].map((i) => <OrderRowSkeleton key={i} />)}
+          {[0, 1, 2].map((i) => (
+            <OrderRowSkeleton key={i} />
+          ))}
         </View>
       ) : (
         <FlatList
@@ -150,8 +161,8 @@ function OrderRow({ order }: { order: Order }) {
 }
 
 const s = StyleSheet.create({
-  scroll:   { flex: 1, backgroundColor: colors.neutral.bg },
-  content:  { padding: spacing.md },
+  scroll: { flex: 1, backgroundColor: colors.neutral.bg },
+  content: { padding: spacing.md },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',

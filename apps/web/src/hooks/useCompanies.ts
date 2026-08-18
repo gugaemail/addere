@@ -29,8 +29,15 @@ export function useCreateCompany() {
 export function useUpdateCompany() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: ({ id, ...data }: { id: string; name: string; cnpj: string; idProtheus: string | null }) =>
-      api.patch(`/companies/${id}`, data).then((r) => r.data),
+    mutationFn: ({
+      id,
+      ...data
+    }: {
+      id: string
+      name: string
+      cnpj: string
+      idProtheus: string | null
+    }) => api.patch(`/companies/${id}`, data).then((r) => r.data),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: companiesKeys.all }),
   })
 }

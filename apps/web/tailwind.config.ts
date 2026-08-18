@@ -13,7 +13,7 @@ const config: Config = {
       colors: {
         brand: {
           DEFAULT: '#1B4FA8',
-          50:  '#EEF4FF',
+          50: '#EEF4FF',
           100: '#E8F4FF',
           200: '#C3D9F7',
           300: '#90BAF0',
@@ -27,43 +27,43 @@ const config: Config = {
         // Tokens de marca iguais nos dois temas — hex (via brand-tokens) para
         // que modificadores de opacidade (bg-success/10, border-danger/30) funcionem.
         // Cores baseadas em var(--*) não suportam /alpha no Tailwind v3.
-        accent:  BRAND.accent,
-        navy:    BRAND.navy,
-        tint:    BRAND.tint,
+        accent: BRAND.accent,
+        navy: BRAND.navy,
+        tint: BRAND.tint,
         success: BRAND.success,
         warning: BRAND.warning,
-        danger:  BRAND.danger,
-        muted:   BRAND.muted,
+        danger: BRAND.danger,
+        muted: BRAND.muted,
         // Neutros dependentes de tema (sem uso de opacidade)
         border2: 'var(--color-border)',
         surface: 'var(--color-surface)',
       },
       letterSpacing: {
-        tight:   '-0.02em',
+        tight: '-0.02em',
         tighter: '-0.04em',
       },
       boxShadow: {
-        card:  '0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04)',
+        card: '0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04)',
         modal: '0 20px 60px rgba(0,0,0,0.18), 0 0 0 1px rgba(0,0,0,0.06)',
-        fab:   '0 4px 14px rgba(27,79,168,0.35)',
+        fab: '0 4px 14px rgba(27,79,168,0.35)',
       },
       keyframes: {
         'modal-in': {
-          '0%':   { opacity: '0', transform: 'scale(0.95) translateY(4px)' },
+          '0%': { opacity: '0', transform: 'scale(0.95) translateY(4px)' },
           '100%': { opacity: '1', transform: 'scale(1)   translateY(0)' },
         },
         'backdrop-in': {
-          '0%':   { opacity: '0' },
+          '0%': { opacity: '0' },
           '100%': { opacity: '1' },
         },
         'skeleton-pulse': {
           '0%, 100%': { opacity: '1' },
-          '50%':      { opacity: '0.4' },
+          '50%': { opacity: '0.4' },
         },
       },
       animation: {
-        'modal-in':       'modal-in 0.15s ease-out',
-        'backdrop-in':    'backdrop-in 0.15s ease-out',
+        'modal-in': 'modal-in 0.15s ease-out',
+        'backdrop-in': 'backdrop-in 0.15s ease-out',
         'skeleton-pulse': 'skeleton-pulse 1.5s ease-in-out infinite',
       },
     },

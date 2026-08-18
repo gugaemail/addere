@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest'
-import { maskDocument, maskCEP, formatDocumentDisplay, formatCEPDisplay, formatCurrency } from '../utils'
+import {
+  maskDocument,
+  maskCEP,
+  formatDocumentDisplay,
+  formatCEPDisplay,
+  formatCurrency,
+} from '../utils'
 
 describe('maskDocument', () => {
   it('formata CPF progressivamente', () => {

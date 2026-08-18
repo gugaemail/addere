@@ -10,7 +10,10 @@ export interface OrderCompletionStats {
   totalOrders: number
 }
 
-export async function orderCompletionStats(pilotId: string, since: Date): Promise<OrderCompletionStats> {
+export async function orderCompletionStats(
+  pilotId: string,
+  since: Date
+): Promise<OrderCompletionStats> {
   const events = await prisma.pilotEvent.findMany({
     where: { pilotId, eventType: 'ORDER_COMPLETED', occurredAt: { gte: since } },
     select: { metadata: true },
@@ -25,7 +28,7 @@ export async function orderCompletionStats(pilotId: string, since: Date): Promis
 
   const total = events.length
   const offline = events.filter(
-    (e) => (e.metadata as Record<string, unknown>)?.wasOffline === true,
+    (e) => (e.metadata as Record<string, unknown>)?.wasOffline === true
   ).length
   const offlineOrderRate = total > 0 ? Math.round((offline / total) * 100) : null
 
@@ -34,8 +37,12 @@ export async function orderCompletionStats(pilotId: string, since: Date): Promis
 
 export async function syncSuccessRate(pilotId: string, since: Date): Promise<number | null> {
   const [synced, failed] = await Promise.all([
-    prisma.pilotEvent.count({ where: { pilotId, eventType: 'ORDER_SYNCED', occurredAt: { gte: since } } }),
-    prisma.pilotEvent.count({ where: { pilotId, eventType: 'ORDER_SYNC_FAILED', occurredAt: { gte: since } } }),
+    prisma.pilotEvent.count({
+      where: { pilotId, eventType: 'ORDER_SYNCED', occurredAt: { gte: since } },
+    }),
+    prisma.pilotEvent.count({
+      where: { pilotId, eventType: 'ORDER_SYNC_FAILED', occurredAt: { gte: since } },
+    }),
   ])
   const total = synced + failed
   return total > 0 ? Math.round((synced / total) * 100) : null
@@ -61,7 +68,15 @@ function deltaPercent(current: number | null, previous: number | null): number |
 export async function getFullDashboardMetrics(pilotId: string): Promise<PilotDashboardMetrics> {
   const pilot = await prisma.pilot.findUniqueOrThrow({
     where: { id: pilotId },
-    select: { id: true, clientName: true, startDate: true, endDate: true, status: true, companyId: true, createdAt: true },
+    select: {
+      id: true,
+      clientName: true,
+      startDate: true,
+      endDate: true,
+      status: true,
+      companyId: true,
+      createdAt: true,
+    },
   })
 
   const now = new Date()
@@ -70,25 +85,22 @@ export async function getFullDashboardMetrics(pilotId: string): Promise<PilotDas
   const prevWeekStart = new Date(now)
   prevWeekStart.setDate(now.getDate() - 14)
 
-  const [
-    curStats, prevStats,
-    curSyncRate, prevSyncRate,
-    curQueueDuration, prevQueueDuration,
-  ] = await Promise.all([
-    orderCompletionStats(pilotId, weekStart),
-    orderCompletionStats(pilotId, prevWeekStart),
-    syncSuccessRate(pilotId, weekStart),
-    syncSuccessRate(pilotId, prevWeekStart),
-    avgQueueDuration(pilotId, weekStart),
-    avgQueueDuration(pilotId, prevWeekStart),
-  ])
+  const [curStats, prevStats, curSyncRate, prevSyncRate, curQueueDuration, prevQueueDuration] =
+    await Promise.all([
+      orderCompletionStats(pilotId, weekStart),
+      orderCompletionStats(pilotId, prevWeekStart),
+      syncSuccessRate(pilotId, weekStart),
+      syncSuccessRate(pilotId, prevWeekStart),
+      avgQueueDuration(pilotId, weekStart),
+      avgQueueDuration(pilotId, prevWeekStart),
+    ])
 
-  const curAvgDuration  = curStats.avgOrderDurationMs
+  const curAvgDuration = curStats.avgOrderDurationMs
   const prevAvgDuration = prevStats.avgOrderDurationMs
-  const curOfflineRate  = curStats.offlineOrderRate
+  const curOfflineRate = curStats.offlineOrderRate
   const prevOfflineRate = prevStats.offlineOrderRate
-  const curTotal        = curStats.totalOrders
-  const prevTotal       = prevStats.totalOrders
+  const curTotal = curStats.totalOrders
+  const prevTotal = prevStats.totalOrders
 
   // Pedidos por dia nos últimos 14 dias
   const dailyEvents = await prisma.pilotEvent.findMany({
@@ -127,7 +139,12 @@ export async function getFullDashboardMetrics(pilotId: string): Promise<PilotDas
     reps.map(async (rep) => {
       const [ordersToday, ordersTotal, lastEvent, synced, failed] = await Promise.all([
         prisma.pilotEvent.count({
-          where: { pilotId, repId: rep.id, eventType: 'ORDER_COMPLETED', occurredAt: { gte: todayStart } },
+          where: {
+            pilotId,
+            repId: rep.id,
+            eventType: 'ORDER_COMPLETED',
+            occurredAt: { gte: todayStart },
+          },
         }),
         prisma.pilotEvent.count({
           where: { pilotId, repId: rep.id, eventType: 'ORDER_COMPLETED' },
@@ -138,10 +155,20 @@ export async function getFullDashboardMetrics(pilotId: string): Promise<PilotDas
           select: { occurredAt: true },
         }),
         prisma.pilotEvent.count({
-          where: { pilotId, repId: rep.id, eventType: 'ORDER_SYNCED', occurredAt: { gte: weekStart } },
+          where: {
+            pilotId,
+            repId: rep.id,
+            eventType: 'ORDER_SYNCED',
+            occurredAt: { gte: weekStart },
+          },
         }),
         prisma.pilotEvent.count({
-          where: { pilotId, repId: rep.id, eventType: 'ORDER_SYNC_FAILED', occurredAt: { gte: weekStart } },
+          where: {
+            pilotId,
+            repId: rep.id,
+            eventType: 'ORDER_SYNC_FAILED',
+            occurredAt: { gte: weekStart },
+          },
         }),
       ])
       const total = synced + failed
@@ -153,7 +180,7 @@ export async function getFullDashboardMetrics(pilotId: string): Promise<PilotDas
         lastActiveAt: lastEvent?.occurredAt.toISOString() ?? null,
         syncRate: total > 0 ? Math.round((synced / total) * 100) : null,
       }
-    }),
+    })
   )
 
   // Feedbacks negativos recentes
@@ -177,11 +204,31 @@ export async function getFullDashboardMetrics(pilotId: string): Promise<PilotDas
   return {
     pilot: pilotOut,
     since: weekStart.toISOString(),
-    avgOrderDuration: { current: curAvgDuration, previous: prevAvgDuration, deltaPercent: deltaPercent(curAvgDuration, prevAvgDuration) },
-    syncSuccessRate: { current: curSyncRate, previous: prevSyncRate, deltaPercent: deltaPercent(curSyncRate, prevSyncRate) },
-    offlineOrderRate: { current: curOfflineRate, previous: prevOfflineRate, deltaPercent: deltaPercent(curOfflineRate, prevOfflineRate) },
-    avgQueueDuration: { current: curQueueDuration, previous: prevQueueDuration, deltaPercent: deltaPercent(curQueueDuration, prevQueueDuration) },
-    totalOrders: { current: curTotal, previous: prevTotal, deltaPercent: deltaPercent(curTotal, prevTotal) },
+    avgOrderDuration: {
+      current: curAvgDuration,
+      previous: prevAvgDuration,
+      deltaPercent: deltaPercent(curAvgDuration, prevAvgDuration),
+    },
+    syncSuccessRate: {
+      current: curSyncRate,
+      previous: prevSyncRate,
+      deltaPercent: deltaPercent(curSyncRate, prevSyncRate),
+    },
+    offlineOrderRate: {
+      current: curOfflineRate,
+      previous: prevOfflineRate,
+      deltaPercent: deltaPercent(curOfflineRate, prevOfflineRate),
+    },
+    avgQueueDuration: {
+      current: curQueueDuration,
+      previous: prevQueueDuration,
+      deltaPercent: deltaPercent(curQueueDuration, prevQueueDuration),
+    },
+    totalOrders: {
+      current: curTotal,
+      previous: prevTotal,
+      deltaPercent: deltaPercent(curTotal, prevTotal),
+    },
     dailyOrders,
     repActivity,
     recentNegativeFeedbacks: negativeFeedbacks.map((f) => ({

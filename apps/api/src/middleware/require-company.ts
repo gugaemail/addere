@@ -4,7 +4,9 @@ import { FastifyRequest, FastifyReply } from 'fastify'
 // Compor após authenticate/requirePermission — request.user já validado.
 export async function requireCompany(request: FastifyRequest, reply: FastifyReply): Promise<void> {
   if (!request.user.companyId) {
-    return reply.status(403).send({ message: 'Rota disponível apenas para usuários de uma empresa' })
+    return reply
+      .status(403)
+      .send({ message: 'Rota disponível apenas para usuários de uma empresa' })
   }
 }
 

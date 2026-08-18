@@ -7,7 +7,8 @@ module.exports = {
     'ios.debug': {
       type: 'ios.app',
       binaryPath: 'ios/build/Build/Products/Debug-iphonesimulator/Addere.app',
-      build: 'xcodebuild -workspace ios/Addere.xcworkspace -scheme Addere -configuration Debug -sdk iphonesimulator -derivedDataPath ios/build',
+      build:
+        'xcodebuild -workspace ios/Addere.xcworkspace -scheme Addere -configuration Debug -sdk iphonesimulator -derivedDataPath ios/build',
     },
     'android.debug': {
       type: 'android.apk',

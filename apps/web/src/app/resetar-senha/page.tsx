@@ -17,8 +17,14 @@ function ResetarSenhaForm() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setErrorMsg('')
-    if (password.length < 8) { setErrorMsg('A senha deve ter pelo menos 8 caracteres.'); return }
-    if (password !== confirm) { setErrorMsg('As senhas não coincidem.'); return }
+    if (password.length < 8) {
+      setErrorMsg('A senha deve ter pelo menos 8 caracteres.')
+      return
+    }
+    if (password !== confirm) {
+      setErrorMsg('As senhas não coincidem.')
+      return
+    }
 
     setStatus('loading')
     try {
@@ -55,9 +61,7 @@ function ResetarSenhaForm() {
           <Check size={24} strokeWidth={1.5} aria-hidden />
         </div>
         <h2 className="text-xl font-semibold text-[var(--text-primary)] mb-2">Senha alterada!</h2>
-        <p className="text-sm text-muted">
-          Abra o app Addere e entre com sua nova senha.
-        </p>
+        <p className="text-sm text-muted">Abra o app Addere e entre com sua nova senha.</p>
       </div>
     )
   }

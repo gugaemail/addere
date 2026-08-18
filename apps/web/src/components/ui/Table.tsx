@@ -49,7 +49,10 @@ export function Table<T>({
         <tbody className="divide-y divide-[var(--border)]">
           {data.length === 0 ? (
             <tr>
-              <td colSpan={columns.length} className="px-4 py-8 text-center text-[var(--text-muted)]">
+              <td
+                colSpan={columns.length}
+                className="px-4 py-8 text-center text-[var(--text-muted)]"
+              >
                 {emptyMessage}
               </td>
             </tr>
@@ -64,11 +67,14 @@ export function Table<T>({
                     className={cn(
                       'bg-[var(--bg-surface)] transition-colors hover:bg-[var(--bg-subtle)]',
                       onRowClick && 'cursor-pointer',
-                      rowClassName?.(row),
+                      rowClassName?.(row)
                     )}
                   >
                     {columns.map((col) => (
-                      <td key={col.key} className={cn('px-4 py-3 text-[var(--text-secondary)]', col.className)}>
+                      <td
+                        key={col.key}
+                        className={cn('px-4 py-3 text-[var(--text-secondary)]', col.className)}
+                      >
                         {col.render(row)}
                       </td>
                     ))}

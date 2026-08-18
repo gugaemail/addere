@@ -19,30 +19,35 @@ export async function fetchMetaVendedor(userId: string, companyId: string) {
   const t0 = Date.now()
 
   try {
-    const rawResponse = await protheusPost(companyId, company.apiMetaVend, { CODVEND: user.idVendProt, ANOMES: anomes }, creds) as Record<string, unknown>
+    const rawResponse = (await protheusPost(
+      companyId,
+      company.apiMetaVend,
+      { CODVEND: user.idVendProt, ANOMES: anomes },
+      creds
+    )) as Record<string, unknown>
 
     await logProtheusCall({
       companyId,
-      operation:   'fetchMeta',
+      operation: 'fetchMeta',
       endpointKey: 'apiMetaVend',
-      success:     true,
-      durationMs:  Date.now() - t0,
+      success: true,
+      durationMs: Date.now() - t0,
     })
 
     return {
       periodo: toStr(rawResponse['periodo']),
       vendido: toStr(rawResponse['vendido']),
-      meta:    toStr(rawResponse['meta']),
+      meta: toStr(rawResponse['meta']),
     }
   } catch (err: unknown) {
     const e = err as { response?: { status?: number }; message?: string }
     await logProtheusCall({
       companyId,
-      operation:    'fetchMeta',
-      endpointKey:  'apiMetaVend',
-      success:      false,
-      httpStatus:   e.response?.status,
-      durationMs:   Date.now() - t0,
+      operation: 'fetchMeta',
+      endpointKey: 'apiMetaVend',
+      success: false,
+      httpStatus: e.response?.status,
+      durationMs: Date.now() - t0,
       errorMessage: e.message,
     })
     throw err

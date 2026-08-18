@@ -24,21 +24,26 @@ function handlePhonePress(phone: string) {
   const dialable = toDialable(phone)
   const waUrl = `https://wa.me/${dialable.replace('+', '')}`
 
-  Alert.alert('Telefone', phone, [
-    {
-      text: 'Ligar',
-      onPress: () => Linking.openURL(`tel:${dialable}`),
-    },
-    {
-      text: 'WhatsApp',
-      onPress: () => Linking.openURL(waUrl),
-    },
-    {
-      text: 'Copiar número',
-      onPress: () => Clipboard.setStringAsync(phone),
-    },
-    { text: 'Cancelar', style: 'cancel' },
-  ], { cancelable: true })
+  Alert.alert(
+    'Telefone',
+    phone,
+    [
+      {
+        text: 'Ligar',
+        onPress: () => Linking.openURL(`tel:${dialable}`),
+      },
+      {
+        text: 'WhatsApp',
+        onPress: () => Linking.openURL(waUrl),
+      },
+      {
+        text: 'Copiar número',
+        onPress: () => Clipboard.setStringAsync(phone),
+      },
+      { text: 'Cancelar', style: 'cancel' },
+    ],
+    { cancelable: true }
+  )
 }
 
 function PhoneRow({ phone }: { phone: string | null | undefined }) {
@@ -93,7 +98,12 @@ function OrderCard({ order, onPress }: { order: Order; onPress: () => void }) {
         <Text style={styles.orderTotal}>R$ {fmtMoeda(order.total)}</Text>
         <Text style={styles.orderItems}>{order.items.length} item(s)</Text>
       </View>
-      <ChevronRight size={16} color={colors.neutral.placeholder} strokeWidth={1.5} style={{ marginLeft: spacing.sm }} />
+      <ChevronRight
+        size={16}
+        color={colors.neutral.placeholder}
+        strokeWidth={1.5}
+        style={{ marginLeft: spacing.sm }}
+      />
     </Card>
   )
 }
@@ -102,24 +112,25 @@ export default function ClienteDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>()
   const router = useRouter()
   const { data: customer, isLoading, error } = useCliente(id)
-  const showDocument  = useFieldVisible('customer.document')
-  const showEmail     = useFieldVisible('customer.email')
-  const showPhone     = useFieldVisible('customer.phone')
-  const showAddress   = useFieldVisible('customer.address')
+  const showDocument = useFieldVisible('customer.document')
+  const showEmail = useFieldVisible('customer.email')
+  const showPhone = useFieldVisible('customer.phone')
+  const showAddress = useFieldVisible('customer.address')
   const showMunicipio = useFieldVisible('customer.municipio')
-  const showUf           = useFieldVisible('customer.uf')
-  const showUltcom       = useFieldVisible('customer.ultcom')
+  const showUf = useFieldVisible('customer.uf')
+  const showUltcom = useFieldVisible('customer.ultcom')
   const showTranspPadrao = useFieldVisible('customer.transpPadrao')
-  const showCondPagPadrao= useFieldVisible('customer.condPagPadrao')
-  const showTes          = useFieldVisible('customer.tes')
-  const showXcodemp      = useFieldVisible('customer.xcodemp')
+  const showCondPagPadrao = useFieldVisible('customer.condPagPadrao')
+  const showTes = useFieldVisible('customer.tes')
+  const showXcodemp = useFieldVisible('customer.xcodemp')
 
   if (isLoading) return <LoadingState style={styles.container} />
-  if (error || !customer) return (
-    <View style={[styles.container, styles.center]}>
-      <Text style={styles.errorText}>Cliente não encontrado.</Text>
-    </View>
-  )
+  if (error || !customer)
+    return (
+      <View style={[styles.container, styles.center]}>
+        <Text style={styles.errorText}>Cliente não encontrado.</Text>
+      </View>
+    )
 
   const orders = customer.orders ?? []
 
@@ -130,17 +141,21 @@ export default function ClienteDetailScreen() {
       <Card style={styles.section}>
         <Text style={styles.sectionTitle}>Dados do cliente</Text>
         <InfoRow label="Nome" value={customer.name} />
-        {showDocument  && <InfoRow label="Documento"     value={formatDocument(customer.document)} />}
-        {showEmail     && <InfoRow label="Email"          value={customer.email} />}
-        {showPhone     && <PhoneRow phone={customer.phone} />}
-        {showAddress   && <InfoRow label="Endereço"       value={customer.address} />}
-        {showMunicipio && <InfoRow label="Cidade"         value={customer.municipio} />}
-        {showUf        && <InfoRow label="Estado"         value={customer.uf} />}
-        {showUltcom        && <InfoRow label="Última compra"        value={formatUltcom(customer.ultcom)} />}
-        {showTranspPadrao  && <InfoRow label="Transportadora padrão" value={customer.transpPadrao} />}
-        {showCondPagPadrao && <InfoRow label="Cond. Pagamento padrão" value={customer.condPagPadrao} />}
-        {showTes           && <InfoRow label="Código TES"            value={customer.tes} />}
-        {showXcodemp       && <InfoRow label="Filial de faturamento"  value={customer.xcodemp} />}
+        {showDocument && <InfoRow label="Documento" value={formatDocument(customer.document)} />}
+        {showEmail && <InfoRow label="Email" value={customer.email} />}
+        {showPhone && <PhoneRow phone={customer.phone} />}
+        {showAddress && <InfoRow label="Endereço" value={customer.address} />}
+        {showMunicipio && <InfoRow label="Cidade" value={customer.municipio} />}
+        {showUf && <InfoRow label="Estado" value={customer.uf} />}
+        {showUltcom && <InfoRow label="Última compra" value={formatUltcom(customer.ultcom)} />}
+        {showTranspPadrao && (
+          <InfoRow label="Transportadora padrão" value={customer.transpPadrao} />
+        )}
+        {showCondPagPadrao && (
+          <InfoRow label="Cond. Pagamento padrão" value={customer.condPagPadrao} />
+        )}
+        {showTes && <InfoRow label="Código TES" value={customer.tes} />}
+        {showXcodemp && <InfoRow label="Filial de faturamento" value={customer.xcodemp} />}
         {customer.protheusCode && <InfoRow label="Cód. Protheus" value={customer.protheusCode} />}
       </Card>
 
@@ -153,7 +168,11 @@ export default function ClienteDetailScreen() {
         />
       ) : (
         orders.map((o) => (
-          <OrderCard key={o.id} order={o} onPress={() => router.push(`/(app)/clientes/pedido/${o.id}`)} />
+          <OrderCard
+            key={o.id}
+            order={o}
+            onPress={() => router.push(`/(app)/clientes/pedido/${o.id}`)}
+          />
         ))
       )}
     </ScrollView>

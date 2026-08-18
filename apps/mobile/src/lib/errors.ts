@@ -3,6 +3,6 @@
 export function getApiErrorMessage(err: unknown, fallback?: string): string {
   return (
     (err as { response?: { data?: { message?: string } } })?.response?.data?.message ??
-    (err instanceof Error ? err.message : fallback ?? 'Erro desconhecido')
+    (err instanceof Error ? err.message : (fallback ?? 'Erro desconhecido'))
   )
 }

@@ -2,10 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { isPilotRequestAuthorized } from '@/lib/pilot-auth'
 import { getFullDashboardMetrics } from '@/lib/metrics/pilot'
 
-export async function GET(
-  _req: NextRequest,
-  { params }: { params: Promise<{ pilotId: string }> },
-) {
+export async function GET(_req: NextRequest, { params }: { params: Promise<{ pilotId: string }> }) {
   if (!(await isPilotRequestAuthorized(_req))) {
     return NextResponse.json({ message: 'Não autorizado' }, { status: 401 })
   }

@@ -91,8 +91,7 @@ export async function processSyncQueue(): Promise<void> {
 
   const items = state.queue.filter(
     (item) =>
-      item.status === 'pending' ||
-      (item.status === 'error' && item.attempts < item.maxAttempts),
+      item.status === 'pending' || (item.status === 'error' && item.attempts < item.maxAttempts)
   )
 
   if (items.length === 0) return

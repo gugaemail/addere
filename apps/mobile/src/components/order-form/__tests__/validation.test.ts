@@ -14,28 +14,39 @@ jest.mock('../../../hooks/useFieldConfig', () => ({
 }))
 
 const messages = {
-  emptyCart:      'Adicione pelo menos um produto.',
+  emptyCart: 'Adicione pelo menos um produto.',
   transportadora: 'Selecione uma transportadora.',
-  condPag:        'Selecione uma condição de pagamento.',
+  condPag: 'Selecione uma condição de pagamento.',
 }
 
 function item(overrides: Partial<CartItem> = {}): CartItem {
   return {
-    productId: 'p1', productName: 'Produto 1', productUnit: 'UN',
-    quantity: 1, unitPrice: 10, discount: 0, descricao: 'Produto 1',
+    productId: 'p1',
+    productName: 'Produto 1',
+    productUnit: 'UN',
+    quantity: 1,
+    unitPrice: 10,
+    discount: 0,
+    descricao: 'Produto 1',
     ...overrides,
   }
 }
 
 const transportadora = { id: 't1', nome: 'Transp', protheusCode: null }
-const condPag        = { id: 'c1', nome: 'À vista', protheusCode: null }
+const condPag = { id: 'c1', nome: 'À vista', protheusCode: null }
 
 beforeEach(() => mockRequired.clear())
 
 describe('useOrderValidation', () => {
   it('aprova pedido válido sem campos obrigatórios configurados', () => {
     const validate = useOrderValidation(messages)
-    const result = validate({ cart: [item()], transportadora: null, condPag: null, mennota: '', notes: '' })
+    const result = validate({
+      cart: [item()],
+      transportadora: null,
+      condPag: null,
+      mennota: '',
+      notes: '',
+    })
     expect(result.ok).toBe(true)
     expect(hasOrderFormErrors(result.errors)).toBe(false)
   })
@@ -48,9 +59,19 @@ describe('useOrderValidation', () => {
   })
 
   it('exige transportadora, condPag e observações quando obrigatórios', () => {
-    mockRequired.add('order.transportadora').add('order.condPag').add('order.mennota').add('order.notes')
+    mockRequired
+      .add('order.transportadora')
+      .add('order.condPag')
+      .add('order.mennota')
+      .add('order.notes')
     const validate = useOrderValidation(messages)
-    const result = validate({ cart: [item()], transportadora: null, condPag: null, mennota: '  ', notes: '' })
+    const result = validate({
+      cart: [item()],
+      transportadora: null,
+      condPag: null,
+      mennota: '  ',
+      notes: '',
+    })
     expect(result.ok).toBe(false)
     expect(result.errors.transportadora).toBe(messages.transportadora)
     expect(result.errors.condPag).toBe(messages.condPag)
@@ -67,13 +88,16 @@ describe('useOrderValidation', () => {
         item({ productId: 'a', unitPrice: 0, largura: undefined, encolhimento: '' }),
         item({ productId: 'b', unitPrice: 5, largura: 1.5, encolhimento: 'x' }),
       ],
-      transportadora, condPag, mennota: '', notes: '',
+      transportadora,
+      condPag,
+      mennota: '',
+      notes: '',
     })
     expect(result.ok).toBe(false)
     expect(Object.keys(result.errors.items)).toEqual(['a'])
     expect(result.errors.items.a).toEqual({
-      unitPrice:    expect.any(String),
-      largura:      expect.any(String),
+      unitPrice: expect.any(String),
+      largura: expect.any(String),
       encolhimento: expect.any(String),
     })
     // espessura/tara/descricao não são obrigatórios → sem erro mesmo vazios
@@ -89,7 +113,7 @@ describe('useOrderValidation', () => {
 describe('changedItemFields', () => {
   it('lista apenas os campos validáveis que mudaram', () => {
     const before = item({ unitPrice: 10, largura: 2 })
-    const after  = item({ unitPrice: 12, largura: 2, quantity: 3 })
+    const after = item({ unitPrice: 12, largura: 2, quantity: 3 })
     expect(changedItemFields(before, after)).toEqual(['unitPrice'])
   })
 

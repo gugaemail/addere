@@ -1,7 +1,13 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import {
-  View, Text, StyleSheet, Modal, TouchableOpacity,
-  KeyboardAvoidingView, Platform, Animated,
+  View,
+  Text,
+  StyleSheet,
+  Modal,
+  TouchableOpacity,
+  KeyboardAvoidingView,
+  Platform,
+  Animated,
 } from 'react-native'
 import { ThumbsUp, ThumbsDown, X } from 'lucide-react-native'
 import { useSyncStore } from '../store/syncStore'
@@ -69,7 +75,10 @@ export function FeedbackPrompt() {
   const handleSubmitComment = useCallback(async () => {
     setSubmitting(true)
     try {
-      await api.post('/pilot/feedback', { rating: 'negative', comment: comment.trim() || undefined })
+      await api.post('/pilot/feedback', {
+        rating: 'negative',
+        comment: comment.trim() || undefined,
+      })
     } catch {
       // silencioso
     } finally {
@@ -120,7 +129,9 @@ export function FeedbackPrompt() {
                   activeOpacity={0.75}
                 >
                   <ThumbsUp size={28} color={colors.semantic.success} strokeWidth={1.5} />
-                  <Text style={[styles.ratingLabel, { color: colors.semantic.success }]}>Ótimo</Text>
+                  <Text style={[styles.ratingLabel, { color: colors.semantic.success }]}>
+                    Ótimo
+                  </Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[styles.ratingBtn, styles.negativeBtn]}
@@ -128,7 +139,9 @@ export function FeedbackPrompt() {
                   activeOpacity={0.75}
                 >
                   <ThumbsDown size={28} color={colors.semantic.danger} strokeWidth={1.5} />
-                  <Text style={[styles.ratingLabel, { color: colors.semantic.danger }]}>Tive um problema</Text>
+                  <Text style={[styles.ratingLabel, { color: colors.semantic.danger }]}>
+                    Tive um problema
+                  </Text>
                 </TouchableOpacity>
               </View>
             </>

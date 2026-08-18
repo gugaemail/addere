@@ -26,7 +26,11 @@ export function toNum(value: unknown, fallback = 0): number {
 /** Tenta parsear um campo que pode ser string JSON ou já um objeto */
 export function parseJsonField(value: unknown): Record<string, unknown> {
   if (typeof value === 'string') {
-    try { return JSON.parse(value) as Record<string, unknown> } catch { return {} }
+    try {
+      return JSON.parse(value) as Record<string, unknown>
+    } catch {
+      return {}
+    }
   }
   if (typeof value === 'object' && value !== null) return value as Record<string, unknown>
   return {}
@@ -36,16 +40,16 @@ export function parseJsonField(value: unknown): Record<string, unknown> {
 export function parseProtheusDate(value: unknown): Date | null {
   const s = toStr(value)
   if (!s || s.length !== 8) return null
-  const year  = parseInt(s.slice(0, 4), 10)
+  const year = parseInt(s.slice(0, 4), 10)
   const month = parseInt(s.slice(4, 6), 10) - 1
-  const day   = parseInt(s.slice(6, 8), 10)
+  const day = parseInt(s.slice(6, 8), 10)
   const d = new Date(year, month, day)
   return isNaN(d.getTime()) ? null : d
 }
 
 export function formatDateDDMMYYYY(date: Date): string {
-  const dd   = String(date.getDate()).padStart(2, '0')
-  const mm   = String(date.getMonth() + 1).padStart(2, '0')
+  const dd = String(date.getDate()).padStart(2, '0')
+  const mm = String(date.getMonth() + 1).padStart(2, '0')
   const yyyy = date.getFullYear()
   return `${dd}/${mm}/${yyyy}`
 }
@@ -58,20 +62,20 @@ export function buildPhone(ddd: string, tel: string): string | null {
 }
 
 export function getCredentials(company: {
-  apiToken:     string | null
-  usrProtheus:  string | null
+  apiToken: string | null
+  usrProtheus: string | null
   passProtheus: string | null
-  syncConfig:   unknown
+  syncConfig: unknown
 }): CompanyCredentials {
-  if (!company.apiToken)     throw unprocessable('URL apiToken não configurada')
-  if (!company.usrProtheus)  throw unprocessable('Usuário Protheus não configurado')
+  if (!company.apiToken) throw unprocessable('URL apiToken não configurada')
+  if (!company.usrProtheus) throw unprocessable('Usuário Protheus não configurado')
   if (!company.passProtheus) throw unprocessable('Senha Protheus não configurada')
 
   return {
-    apiToken:     company.apiToken,
-    usrProtheus:  company.usrProtheus,
+    apiToken: company.apiToken,
+    usrProtheus: company.usrProtheus,
     // Descriptografa a senha antes de usar na chamada HTTP
     passProtheus: decryptCredential(company.passProtheus),
-    syncConfig:   company.syncConfig as Record<string, unknown> | null,
+    syncConfig: company.syncConfig as Record<string, unknown> | null,
   }
 }

@@ -1,5 +1,12 @@
 import { describe, it, expect } from 'vitest'
-import { toStr, toNum, parseJsonField, parseProtheusDate, formatDateDDMMYYYY, buildPhone } from '../utils'
+import {
+  toStr,
+  toNum,
+  parseJsonField,
+  parseProtheusDate,
+  formatDateDDMMYYYY,
+  buildPhone,
+} from '../utils'
 
 describe('toStr', () => {
   it('converte primitivos e apara espaços', () => {

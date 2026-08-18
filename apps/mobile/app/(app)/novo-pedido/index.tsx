@@ -1,12 +1,5 @@
 import { useState, useCallback, useEffect } from 'react'
-import {
-  View,
-  Text,
-  FlatList,
-  StyleSheet,
-  Alert,
-  ScrollView,
-} from 'react-native'
+import { View, Text, FlatList, StyleSheet, Alert, ScrollView } from 'react-native'
 import { useRouter, Stack } from 'expo-router'
 import { ArrowLeft, ArrowRight, Minus, Plus, Search } from 'lucide-react-native'
 import { useFocusEffect } from '@react-navigation/native'
@@ -34,9 +27,20 @@ import {
   changedItemFields,
 } from '../../../src/components/order-form/validation'
 import { orderFormStyles } from '../../../src/components/order-form/styles'
-import { cartItemFromProduct, cartTotal, cartToOrderItems } from '../../../src/components/order-form/types'
+import {
+  cartItemFromProduct,
+  cartTotal,
+  cartToOrderItems,
+} from '../../../src/components/order-form/types'
 import type { CartItem } from '../../../src/components/order-form/types'
-import type { Branch, Customer, Product, Transportadora, CondPag, CreateOrderItemInput } from '@addere/types'
+import type {
+  Branch,
+  Customer,
+  Product,
+  Transportadora,
+  CondPag,
+  CreateOrderItemInput,
+} from '@addere/types'
 import { fmtMoeda, formatDocument } from '../../../src/utils/format'
 import { getApiErrorMessage } from '../../../src/lib/errors'
 
@@ -56,11 +60,7 @@ function StepIndicator({ current }: { current: Step }) {
 
 // ─── Step 1: Seleção de cliente e filial ─────────────────────────────────
 
-function Step1({
-  onComplete,
-}: {
-  onComplete: (customer: Customer, branch: Branch) => void
-}) {
+function Step1({ onComplete }: { onComplete: (customer: Customer, branch: Branch) => void }) {
   const [search, setSearch] = useState('')
   const debouncedSearch = useDebouncedValue(search)
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null)
@@ -131,7 +131,9 @@ function Step1({
               onPress={() => setSelectedCustomer(item)}
             >
               <Text style={styles.listItemTitle}>{item.name}</Text>
-              {item.document && <Text style={styles.listItemSub}>{formatDocument(item.document)}</Text>}
+              {item.document && (
+                <Text style={styles.listItemSub}>{formatDocument(item.document)}</Text>
+              )}
             </Card>
           )}
           ListEmptyComponent={
@@ -165,7 +167,9 @@ function Step2({
   function addToCart(product: Product) {
     const existing = cart.find((i) => i.productId === product.id)
     if (existing) {
-      onCartChange(cart.map((i) => i.productId === product.id ? { ...i, quantity: i.quantity + 1 } : i))
+      onCartChange(
+        cart.map((i) => (i.productId === product.id ? { ...i, quantity: i.quantity + 1 } : i))
+      )
     } else {
       onCartChange([...cart, cartItemFromProduct(product)])
     }
@@ -176,8 +180,11 @@ function Step2({
   }
 
   function updateQty(productId: string, qty: number) {
-    if (qty <= 0) { removeFromCart(productId); return }
-    onCartChange(cart.map((i) => i.productId === productId ? { ...i, quantity: qty } : i))
+    if (qty <= 0) {
+      removeFromCart(productId)
+      return
+    }
+    onCartChange(cart.map((i) => (i.productId === productId ? { ...i, quantity: qty } : i)))
   }
 
   return (
@@ -186,7 +193,9 @@ function Step2({
         <Text style={styles.stepTitle}>Adicionar produtos</Text>
         {isFromCache && (
           <View style={styles.cacheBadge}>
-            <Badge testID="cache-badge" variant="warning">cache</Badge>
+            <Badge testID="cache-badge" variant="warning">
+              cache
+            </Badge>
           </View>
         )}
       </View>
@@ -204,7 +213,9 @@ function Step2({
           <Text style={styles.cartTitle}>Carrinho ({cart.length})</Text>
           {cart.map((item) => (
             <View key={item.productId} style={styles.cartRow}>
-              <Text style={styles.cartName} numberOfLines={1}>{item.productName}</Text>
+              <Text style={styles.cartName} numberOfLines={1}>
+                {item.productName}
+              </Text>
               <View style={styles.qtyRow}>
                 <Button
                   variant="ghost"
@@ -241,7 +252,9 @@ function Step2({
               onPress={() => addToCart(item)}
             >
               <Text style={styles.listItemTitle}>{item.name}</Text>
-              <Text style={styles.listItemSub}>R$ {fmtMoeda(item.price)} / {item.unit}</Text>
+              <Text style={styles.listItemSub}>
+                R$ {fmtMoeda(item.price)} / {item.unit}
+              </Text>
             </Card>
           )}
           ListEmptyComponent={
@@ -309,35 +322,37 @@ function Step3({
   const canChangeCarrier = permissions.includes('orders.change_carrier')
   const canChangePaymentTerms = permissions.includes('orders.change_payment_terms')
   const showTransportadora = useFieldVisible('order.transportadora')
-  const showCondPag        = useFieldVisible('order.condPag')
-  const showMennota        = useFieldVisible('order.mennota')
-  const showNotes          = useFieldVisible('order.notes')
+  const showCondPag = useFieldVisible('order.condPag')
+  const showMennota = useFieldVisible('order.mennota')
+  const showNotes = useFieldVisible('order.notes')
 
   const reqTransportadora = useFieldRequired('order.transportadora')
-  const reqCondPag        = useFieldRequired('order.condPag')
-  const reqMennota        = useFieldRequired('order.mennota')
-  const reqNotes          = useFieldRequired('order.notes')
+  const reqCondPag = useFieldRequired('order.condPag')
+  const reqMennota = useFieldRequired('order.mennota')
+  const reqNotes = useFieldRequired('order.notes')
 
   const validate = useOrderValidation({
-    emptyCart:      'Adicione pelo menos um produto antes de confirmar.',
+    emptyCart: 'Adicione pelo menos um produto antes de confirmar.',
     transportadora: 'Selecione uma transportadora antes de confirmar.',
-    condPag:        'Selecione uma condição de pagamento antes de confirmar.',
+    condPag: 'Selecione uma condição de pagamento antes de confirmar.',
   })
 
   // Erros de validação exibidos inline (limpos campo a campo conforme o usuário edita)
-  const { errors, setErrors, clearError, clearItemErrors, hasErrors: showErrorSummary } = useOrderFormErrors()
+  const {
+    errors,
+    setErrors,
+    clearError,
+    clearItemErrors,
+    hasErrors: showErrorSummary,
+  } = useOrderFormErrors()
 
   const total = cartTotal(cart)
 
   function handleCancel() {
-    Alert.alert(
-      'Cancelar pedido',
-      'Tem certeza que deseja cancelar? Os dados serão perdidos.',
-      [
-        { text: 'Não', style: 'cancel' },
-        { text: 'Sim, cancelar', style: 'destructive', onPress: onCancel },
-      ]
-    )
+    Alert.alert('Cancelar pedido', 'Tem certeza que deseja cancelar? Os dados serão perdidos.', [
+      { text: 'Não', style: 'cancel' },
+      { text: 'Sim, cancelar', style: 'destructive', onPress: onCancel },
+    ])
   }
 
   function handleConfirmWithValidation() {
@@ -373,7 +388,7 @@ function Step3({
             errors={errors.items[item.productId]}
             onChange={(updated) => {
               clearItemErrors(item.productId, changedItemFields(item, updated))
-              onCartChange(cart.map((i) => i.productId === item.productId ? updated : i))
+              onCartChange(cart.map((i) => (i.productId === item.productId ? updated : i)))
             }}
             onRemove={() => {
               clearItemErrors(item.productId)
@@ -421,7 +436,10 @@ function Step3({
             style={orderFormStyles.notesInput}
             placeholder="Mensagem para a nota fiscal (opcional)..."
             value={mennota}
-            onChangeText={(text) => { clearError('mennota'); onMennotaChange(text) }}
+            onChangeText={(text) => {
+              clearError('mennota')
+              onMennotaChange(text)
+            }}
             multiline
             numberOfLines={3}
             textAlignVertical="top"
@@ -438,7 +456,10 @@ function Step3({
             style={orderFormStyles.notesInput}
             placeholder="Observação interna (não sai na nota)..."
             value={notes}
-            onChangeText={(text) => { clearError('notes'); onNotesChange(text) }}
+            onChangeText={(text) => {
+              clearError('notes')
+              onNotesChange(text)
+            }}
             multiline
             numberOfLines={3}
             textAlignVertical="top"
@@ -479,7 +500,12 @@ function Step3({
         Voltar
       </Button>
 
-      <Button variant="ghostDanger" style={styles.cancelBtn} onPress={handleCancel} disabled={isLoading}>
+      <Button
+        variant="ghostDanger"
+        style={styles.cancelBtn}
+        onPress={handleCancel}
+        disabled={isLoading}
+      >
         Cancelar
       </Button>
     </ScrollView>
@@ -501,7 +527,7 @@ export default function NovoPedidoScreen() {
 
   const [isPending, setIsPending] = useState(false)
   const { data: transportadoras = [] } = useTransportadoras()
-  const { data: condPags = [] }        = useCondPags()
+  const { data: condPags = [] } = useCondPags()
 
   // Reseta o formulário toda vez que a tela ganha foco.
   // Necessário porque o Tab Navigator mantém a tela montada em memória
@@ -526,10 +552,10 @@ export default function NovoPedidoScreen() {
   useEffect(() => {
     if (!customer) return
     const t = customer.transpPadrao
-      ? transportadoras.find((x) => x.protheusCode === customer.transpPadrao) ?? null
+      ? (transportadoras.find((x) => x.protheusCode === customer.transpPadrao) ?? null)
       : null
     const c = customer.condPagPadrao
-      ? condPags.find((x) => x.protheusCode === customer.condPagPadrao) ?? null
+      ? (condPags.find((x) => x.protheusCode === customer.condPagPadrao) ?? null)
       : null
     setTransportadora(t)
     setCondPag(c)
@@ -550,13 +576,13 @@ export default function NovoPedidoScreen() {
 
     try {
       const result = await submitOrder({
-        customerId:  customer.id,
-        branchId:    branch.id,
+        customerId: customer.id,
+        branchId: branch.id,
         items,
-        mennota:     mennota      || undefined,
-        notes:       notes        || undefined,
+        mennota: mennota || undefined,
+        notes: notes || undefined,
         transportId: transportadora?.id,
-        condId:      condPag?.id,
+        condId: condPag?.id,
       })
 
       setIsPending(false)
@@ -569,12 +595,15 @@ export default function NovoPedidoScreen() {
         Alert.alert(
           'Pedido salvo offline',
           'Sem conexão. O pedido foi salvo e será enviado automaticamente ao reconectar.',
-          [{ text: 'OK', onPress: () => router.replace('/(app)/pedidos') }],
+          [{ text: 'OK', onPress: () => router.replace('/(app)/pedidos') }]
         )
       }
     } catch (err: unknown) {
       setIsPending(false)
-      Alert.alert('Erro ao criar pedido', getApiErrorMessage(err, 'Verifique os dados e tente novamente.'))
+      Alert.alert(
+        'Erro ao criar pedido',
+        getApiErrorMessage(err, 'Verifique os dados e tente novamente.')
+      )
     }
   }
 
@@ -629,35 +658,122 @@ export default function NovoPedidoScreen() {
 }
 
 const styles = StyleSheet.create({
-  steps: { flexDirection: 'row', justifyContent: 'center', gap: spacing.md, padding: spacing.md, backgroundColor: colors.neutral.white, borderBottomWidth: 1, borderBottomColor: colors.neutral.border },
-  step: { width: 32, height: 32, borderRadius: radius.full, backgroundColor: colors.neutral.border, justifyContent: 'center', alignItems: 'center' },
+  steps: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: spacing.md,
+    padding: spacing.md,
+    backgroundColor: colors.neutral.white,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.neutral.border,
+  },
+  step: {
+    width: 32,
+    height: 32,
+    borderRadius: radius.full,
+    backgroundColor: colors.neutral.border,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   stepActive: { backgroundColor: colors.brand.primary },
   stepText: { fontFamily: 'Inter_700Bold', color: colors.neutral.textSub },
   stepTextActive: { color: colors.neutral.white },
-  stepTitle: { fontFamily: 'PlusJakartaSans_700Bold', fontSize: 16, color: colors.brand.dark, marginBottom: spacing.md },
+  stepTitle: {
+    fontFamily: 'PlusJakartaSans_700Bold',
+    fontSize: 16,
+    color: colors.brand.dark,
+    marginBottom: spacing.md,
+  },
   cacheBadge: { marginBottom: spacing.md },
   input: { marginBottom: spacing.sm },
   listItem: { marginBottom: spacing.sm },
-  listItemTitle: { fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: 14, color: colors.brand.dark },
-  listItemSub: { fontFamily: 'Inter_400Regular', fontSize: 12, color: colors.neutral.textSub, marginTop: spacing.xs },
-  cartBox: { backgroundColor: colors.brand.tint, borderRadius: radius.md, padding: spacing.md, marginBottom: spacing.sm },
-  cartTitle: { fontFamily: 'PlusJakartaSans_700Bold', fontSize: 13, color: colors.brand.primary, marginBottom: spacing.sm },
-  cartRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: spacing.xs },
+  listItemTitle: {
+    fontFamily: 'PlusJakartaSans_600SemiBold',
+    fontSize: 14,
+    color: colors.brand.dark,
+  },
+  listItemSub: {
+    fontFamily: 'Inter_400Regular',
+    fontSize: 12,
+    color: colors.neutral.textSub,
+    marginTop: spacing.xs,
+  },
+  cartBox: {
+    backgroundColor: colors.brand.tint,
+    borderRadius: radius.md,
+    padding: spacing.md,
+    marginBottom: spacing.sm,
+  },
+  cartTitle: {
+    fontFamily: 'PlusJakartaSans_700Bold',
+    fontSize: 13,
+    color: colors.brand.primary,
+    marginBottom: spacing.sm,
+  },
+  cartRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: spacing.xs,
+  },
   cartName: { flex: 1, fontFamily: 'Inter_400Regular', fontSize: 13, color: colors.brand.dark },
   qtyRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
-  qtyNum: { fontFamily: 'PlusJakartaSans_700Bold', fontSize: 14, minWidth: 20, textAlign: 'center', color: colors.brand.dark },
-  empty: { fontFamily: 'Inter_400Regular', color: colors.neutral.textSub, textAlign: 'center', marginTop: spacing.sm, marginBottom: spacing.xs },
+  qtyNum: {
+    fontFamily: 'PlusJakartaSans_700Bold',
+    fontSize: 14,
+    minWidth: 20,
+    textAlign: 'center',
+    color: colors.brand.dark,
+  },
+  empty: {
+    fontFamily: 'Inter_400Regular',
+    color: colors.neutral.textSub,
+    textAlign: 'center',
+    marginTop: spacing.sm,
+    marginBottom: spacing.xs,
+  },
   summaryBox: { borderRadius: radius.md, marginBottom: spacing.sm },
-  summaryLabel: { fontFamily: 'Inter_400Regular', fontSize: 12, color: colors.neutral.textSub, marginBottom: spacing.sm },
-  summaryValue: { fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: 15, color: colors.brand.dark },
+  summaryLabel: {
+    fontFamily: 'Inter_400Regular',
+    fontSize: 12,
+    color: colors.neutral.textSub,
+    marginBottom: spacing.sm,
+  },
+  summaryValue: {
+    fontFamily: 'PlusJakartaSans_600SemiBold',
+    fontSize: 15,
+    color: colors.brand.dark,
+  },
   totalLabel: { fontFamily: 'PlusJakartaSans_700Bold', fontSize: 16, color: colors.brand.dark },
   totalValue: { fontFamily: 'PlusJakartaSans_700Bold', fontSize: 20, color: colors.brand.primary },
   confirmBtn: { marginTop: spacing.md },
   backBtn: { marginTop: spacing.sm, backgroundColor: colors.neutral.white },
   cancelBtn: { marginTop: spacing.xs, marginBottom: spacing.lg },
-  selectedCard: { backgroundColor: colors.brand.tint, borderColor: colors.brand.tint, borderRadius: radius.md },
-  selectedCardLabel: { fontFamily: 'Inter_400Regular', fontSize: 11, color: colors.neutral.textSub, marginBottom: spacing.xs },
-  selectedCardValue: { fontFamily: 'PlusJakartaSans_700Bold', fontSize: 15, color: colors.brand.dark },
-  selectedCardChange: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, marginTop: spacing.xs },
-  selectedCardChangeText: { fontFamily: 'Inter_400Regular', fontSize: 12, color: colors.brand.primary },
+  selectedCard: {
+    backgroundColor: colors.brand.tint,
+    borderColor: colors.brand.tint,
+    borderRadius: radius.md,
+  },
+  selectedCardLabel: {
+    fontFamily: 'Inter_400Regular',
+    fontSize: 11,
+    color: colors.neutral.textSub,
+    marginBottom: spacing.xs,
+  },
+  selectedCardValue: {
+    fontFamily: 'PlusJakartaSans_700Bold',
+    fontSize: 15,
+    color: colors.brand.dark,
+  },
+  selectedCardChange: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    marginTop: spacing.xs,
+  },
+  selectedCardChangeText: {
+    fontFamily: 'Inter_400Regular',
+    fontSize: 12,
+    color: colors.brand.primary,
+  },
 })

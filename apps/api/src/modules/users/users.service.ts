@@ -57,8 +57,7 @@ export async function createUser(input: CreateUserInput, requester: JwtPayload) 
 }
 
 export async function toggleUserActive(id: string, requester: JwtPayload) {
-  const where =
-    requester.role === 'SUPERADMIN' ? { id } : { id, companyId: requester.companyId }
+  const where = requester.role === 'SUPERADMIN' ? { id } : { id, companyId: requester.companyId }
   const user = await prisma.user.findFirst({ where })
   if (!user) throw new Error('Usuário não encontrado')
 

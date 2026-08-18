@@ -47,7 +47,10 @@ export async function copyUserPermissions(fromUserId: string, toUserId: string):
 }
 
 // Retorna o conjunto de permissões efetivas do usuário. SUPERADMIN recebe o catálogo completo.
-export async function getEffectivePermissions(userId: string, role: UserRole): Promise<Set<string>> {
+export async function getEffectivePermissions(
+  userId: string,
+  role: UserRole
+): Promise<Set<string>> {
   if (role === 'SUPERADMIN') {
     const catalog = await listPermissionCatalog()
     return new Set(catalog.map((permission) => permission.key))

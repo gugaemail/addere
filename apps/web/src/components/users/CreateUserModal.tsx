@@ -43,7 +43,7 @@ export function CreateUserModal({ isOpen, onClose, companyId }: CreateUserModalP
               ...data,
               userTypeId: data.userTypeId || undefined,
               copyPermissionsFromUserId: data.copyPermissionsFromUserId || undefined,
-            },
+            }
       )
       reset()
       onClose()
@@ -73,7 +73,9 @@ export function CreateUserModal({ isOpen, onClose, companyId }: CreateUserModalP
             <FormSelect label="Tipo de usuário" {...register('userTypeId')}>
               <option value="">Sem tipo</option>
               {(userTypes ?? []).map((type) => (
-                <option key={type.id} value={type.id}>{type.name}</option>
+                <option key={type.id} value={type.id}>
+                  {type.name}
+                </option>
               ))}
             </FormSelect>
 
@@ -81,11 +83,14 @@ export function CreateUserModal({ isOpen, onClose, companyId }: CreateUserModalP
               <FormSelect label="Copiar permissões de" {...register('copyPermissionsFromUserId')}>
                 <option value="">Nenhuma (nasce sem permissões)</option>
                 {(users ?? []).map((u) => (
-                  <option key={u.id} value={u.id}>{u.name}</option>
+                  <option key={u.id} value={u.id}>
+                    {u.name}
+                  </option>
                 ))}
               </FormSelect>
               <p className="mt-1 text-xs text-[var(--text-muted)]">
-                Se não informado, o novo usuário nasce sem nenhuma permissão — o superadmin deverá marcá-las depois.
+                Se não informado, o novo usuário nasce sem nenhuma permissão — o superadmin deverá
+                marcá-las depois.
               </p>
             </div>
           </>

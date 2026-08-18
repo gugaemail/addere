@@ -1,6 +1,16 @@
 import {
-  Html, Head, Body, Container, Section, Heading, Text,
-  Row, Column, Hr, Link, Preview,
+  Html,
+  Head,
+  Body,
+  Container,
+  Section,
+  Heading,
+  Text,
+  Row,
+  Column,
+  Hr,
+  Link,
+  Preview,
 } from '@react-email/components'
 import { BRAND, EMAIL_PALETTE as P } from '@/lib/brand-tokens'
 
@@ -85,10 +95,22 @@ export function WeeklyPilotReport({ report }: { report: WeeklyReportData }) {
     <Html>
       <Head />
       <Preview>{`Relatório semanal — ${report.clientName} — Semana ${report.weekNumber}`}</Preview>
-      <Body style={{ backgroundColor: BRAND.surface, fontFamily: 'Inter, Helvetica, Arial, sans-serif' }}>
+      <Body
+        style={{
+          backgroundColor: BRAND.surface,
+          fontFamily: 'Inter, Helvetica, Arial, sans-serif',
+        }}
+      >
         <Container style={{ maxWidth: 580, margin: '0 auto', padding: '32px 16px' }}>
           {/* Header */}
-          <Section style={{ backgroundColor: BRAND.navy, borderRadius: 12, padding: '24px 28px', marginBottom: 24 }}>
+          <Section
+            style={{
+              backgroundColor: BRAND.navy,
+              borderRadius: 12,
+              padding: '24px 28px',
+              marginBottom: 24,
+            }}
+          >
             <Heading style={{ margin: 0, color: P.white, fontSize: 22, fontWeight: 700 }}>
               addere
             </Heading>
@@ -102,8 +124,18 @@ export function WeeklyPilotReport({ report }: { report: WeeklyReportData }) {
           </Section>
 
           {/* Destaque principal */}
-          <Section style={{ backgroundColor: BRAND.primary, borderRadius: 12, padding: '20px 28px', marginBottom: 24, textAlign: 'center' }}>
-            <Text style={{ margin: 0, color: BRAND.tint, fontSize: 13 }}>Total de pedidos na semana</Text>
+          <Section
+            style={{
+              backgroundColor: BRAND.primary,
+              borderRadius: 12,
+              padding: '20px 28px',
+              marginBottom: 24,
+              textAlign: 'center',
+            }}
+          >
+            <Text style={{ margin: 0, color: BRAND.tint, fontSize: 13 }}>
+              Total de pedidos na semana
+            </Text>
             <Text style={{ margin: '4px 0 0', color: P.white, fontSize: 42, fontWeight: 700 }}>
               {m.totalOrders.current ?? 0}
             </Text>
@@ -115,8 +147,18 @@ export function WeeklyPilotReport({ report }: { report: WeeklyReportData }) {
           </Section>
 
           {/* Métricas */}
-          <Section style={{ backgroundColor: P.white, borderRadius: 12, padding: '20px 28px', marginBottom: 24 }}>
-            <Heading as="h2" style={{ margin: '0 0 16px', fontSize: 15, color: BRAND.navy, fontWeight: 600 }}>
+          <Section
+            style={{
+              backgroundColor: P.white,
+              borderRadius: 12,
+              padding: '20px 28px',
+              marginBottom: 24,
+            }}
+          >
+            <Heading
+              as="h2"
+              style={{ margin: '0 0 16px', fontSize: 15, color: BRAND.navy, fontWeight: 600 }}
+            >
               Métricas da semana
             </Heading>
             <MetricRow
@@ -154,12 +196,25 @@ export function WeeklyPilotReport({ report }: { report: WeeklyReportData }) {
 
           {/* Destaques */}
           {report.highlights.length > 0 && (
-            <Section style={{ backgroundColor: P.infoBg, borderRadius: 12, padding: '20px 28px', marginBottom: 24 }}>
-              <Heading as="h2" style={{ margin: '0 0 12px', fontSize: 15, color: BRAND.navy, fontWeight: 600 }}>
+            <Section
+              style={{
+                backgroundColor: P.infoBg,
+                borderRadius: 12,
+                padding: '20px 28px',
+                marginBottom: 24,
+              }}
+            >
+              <Heading
+                as="h2"
+                style={{ margin: '0 0 12px', fontSize: 15, color: BRAND.navy, fontWeight: 600 }}
+              >
                 Destaques da semana
               </Heading>
               {report.highlights.map((h, i) => (
-                <Text key={i} style={{ margin: '0 0 8px', fontSize: 13, color: P.textBody, lineHeight: '1.5' }}>
+                <Text
+                  key={i}
+                  style={{ margin: '0 0 8px', fontSize: 13, color: P.textBody, lineHeight: '1.5' }}
+                >
                   • {h}
                 </Text>
               ))}
@@ -168,15 +223,34 @@ export function WeeklyPilotReport({ report }: { report: WeeklyReportData }) {
 
           {/* Feedbacks negativos */}
           {report.feedbacks.negative > 0 && (
-            <Section style={{ backgroundColor: P.dangerBg, border: `1px solid ${P.dangerBorder}`, borderRadius: 12, padding: '20px 28px', marginBottom: 24 }}>
-              <Heading as="h2" style={{ margin: '0 0 8px', fontSize: 15, color: P.dangerText, fontWeight: 600 }}>
+            <Section
+              style={{
+                backgroundColor: P.dangerBg,
+                border: `1px solid ${P.dangerBorder}`,
+                borderRadius: 12,
+                padding: '20px 28px',
+                marginBottom: 24,
+              }}
+            >
+              <Heading
+                as="h2"
+                style={{ margin: '0 0 8px', fontSize: 15, color: P.dangerText, fontWeight: 600 }}
+              >
                 Feedbacks negativos ({report.feedbacks.negative})
               </Heading>
               <Text style={{ margin: '0 0 12px', fontSize: 12, color: P.textMuted }}>
                 Feedbacks positivos: {report.feedbacks.positive}
               </Text>
               {report.feedbacks.comments.filter(Boolean).map((c, i) => (
-                <Text key={i} style={{ margin: '0 0 8px', fontSize: 13, color: P.dangerTextDim, fontStyle: 'italic' }}>
+                <Text
+                  key={i}
+                  style={{
+                    margin: '0 0 8px',
+                    fontSize: 13,
+                    color: P.dangerTextDim,
+                    fontStyle: 'italic',
+                  }}
+                >
                   &ldquo;{c}&rdquo;
                 </Text>
               ))}

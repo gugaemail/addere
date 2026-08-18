@@ -16,15 +16,17 @@ interface Company {
   active: boolean
 }
 
-const schema = z.object({
-  clientName: z.string().min(1, 'Nome obrigatório').max(200),
-  companyId: z.string().uuid('Selecione uma empresa'),
-  startDate: z.string().min(1, 'Data de início obrigatória'),
-  endDate: z.string().min(1, 'Data de fim obrigatória'),
-}).refine((d) => new Date(d.endDate) > new Date(d.startDate), {
-  message: 'Data de fim deve ser posterior ao início',
-  path: ['endDate'],
-})
+const schema = z
+  .object({
+    clientName: z.string().min(1, 'Nome obrigatório').max(200),
+    companyId: z.string().uuid('Selecione uma empresa'),
+    startDate: z.string().min(1, 'Data de início obrigatória'),
+    endDate: z.string().min(1, 'Data de fim obrigatória'),
+  })
+  .refine((d) => new Date(d.endDate) > new Date(d.startDate), {
+    message: 'Data de fim deve ser posterior ao início',
+    path: ['endDate'],
+  })
 
 type FormData = z.infer<typeof schema>
 
@@ -38,7 +40,11 @@ export function CreatePilotModal({ onClose, onCreated }: Props) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const { register, handleSubmit, formState: { errors } } = useForm<FormData>({
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<FormData>({
     resolver: zodResolver(schema),
     defaultValues: {
       startDate: new Date().toISOString().slice(0, 10),
@@ -81,7 +87,11 @@ export function CreatePilotModal({ onClose, onCreated }: Props) {
           {...register('clientName')}
         />
 
-        <FormSelect label="Empresa (tenant)" error={errors.companyId?.message} {...register('companyId')}>
+        <FormSelect
+          label="Empresa (tenant)"
+          error={errors.companyId?.message}
+          {...register('companyId')}
+        >
           <option value="">Selecione a empresa...</option>
           {companies.map((c) => (
             <option key={c.id} value={c.id}>
@@ -91,8 +101,18 @@ export function CreatePilotModal({ onClose, onCreated }: Props) {
         </FormSelect>
 
         <div className="grid grid-cols-2 gap-3">
-          <FormField type="date" label="Início" error={errors.startDate?.message} {...register('startDate')} />
-          <FormField type="date" label="Fim (30 dias)" error={errors.endDate?.message} {...register('endDate')} />
+          <FormField
+            type="date"
+            label="Início"
+            error={errors.startDate?.message}
+            {...register('startDate')}
+          />
+          <FormField
+            type="date"
+            label="Fim (30 dias)"
+            error={errors.endDate?.message}
+            {...register('endDate')}
+          />
         </div>
 
         {error && (

@@ -47,7 +47,12 @@ export interface ValidationResult {
 export type OrderFormField = keyof Omit<OrderFormErrors, 'items'>
 
 const ITEM_ERROR_FIELDS: (keyof CartItemErrors)[] = [
-  'unitPrice', 'descricao', 'largura', 'espessura', 'encolhimento', 'tara',
+  'unitPrice',
+  'descricao',
+  'largura',
+  'espessura',
+  'encolhimento',
+  'tara',
 ]
 
 export const EMPTY_ORDER_FORM_ERRORS: Readonly<OrderFormErrors> = Object.freeze({ items: {} })
@@ -59,7 +64,7 @@ export function hasOrderFormErrors(errors: OrderFormErrors): boolean {
     errors.condPag ||
     errors.mennota ||
     errors.notes ||
-    Object.keys(errors.items).length > 0,
+    Object.keys(errors.items).length > 0
   )
 }
 
@@ -68,17 +73,23 @@ export function hasOrderFormErrors(errors: OrderFormErrors): boolean {
 // (prop `error` do Input/PickerField e `errors` do CartItemEditor).
 export function useOrderValidation(messages: ValidationMessages) {
   const reqTransportadora = useFieldRequired('order.transportadora')
-  const reqCondPag        = useFieldRequired('order.condPag')
-  const reqMennota        = useFieldRequired('order.mennota')
-  const reqNotes          = useFieldRequired('order.notes')
-  const reqUnitPrice      = useFieldRequired('orderItem.unitPrice')
-  const reqLargura        = useFieldRequired('orderItem.largura')
-  const reqEspessura      = useFieldRequired('orderItem.espessura')
-  const reqEncolhimento   = useFieldRequired('orderItem.encolhimento')
-  const reqTara           = useFieldRequired('orderItem.tara')
-  const reqDescricao      = useFieldRequired('orderItem.descricao')
+  const reqCondPag = useFieldRequired('order.condPag')
+  const reqMennota = useFieldRequired('order.mennota')
+  const reqNotes = useFieldRequired('order.notes')
+  const reqUnitPrice = useFieldRequired('orderItem.unitPrice')
+  const reqLargura = useFieldRequired('orderItem.largura')
+  const reqEspessura = useFieldRequired('orderItem.espessura')
+  const reqEncolhimento = useFieldRequired('orderItem.encolhimento')
+  const reqTara = useFieldRequired('orderItem.tara')
+  const reqDescricao = useFieldRequired('orderItem.descricao')
 
-  return function validate({ cart, transportadora, condPag, mennota, notes }: ValidationInput): ValidationResult {
+  return function validate({
+    cart,
+    transportadora,
+    condPag,
+    mennota,
+    notes,
+  }: ValidationInput): ValidationResult {
     const errors: OrderFormErrors = { items: {} }
 
     if (cart.length === 0) {
@@ -153,7 +164,10 @@ export function useOrderFormErrors() {
         const next = { ...current }
         let changed = false
         for (const f of fields) {
-          if (next[f]) { delete next[f]; changed = true }
+          if (next[f]) {
+            delete next[f]
+            changed = true
+          }
         }
         if (!changed) return prev
         if (Object.keys(next).length > 0) items[productId] = next

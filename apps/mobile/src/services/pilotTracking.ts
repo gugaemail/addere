@@ -4,24 +4,36 @@ import type { PilotEventInput } from '@addere/types'
 
 type TrackableEvent =
   | { type: 'ORDER_STARTED' }
-  | { type: 'ORDER_COMPLETED'; metadata: {
-      durationMs: number
-      itemCount: number
-      totalValue: number
-      wasOffline: boolean
-    }}
-  | { type: 'ORDER_SYNCED'; metadata: {
-      queuedDurationMs: number
-    }}
-  | { type: 'ORDER_SYNC_FAILED'; metadata: {
-      attempts: number
-      lastError: string
-    }}
+  | {
+      type: 'ORDER_COMPLETED'
+      metadata: {
+        durationMs: number
+        itemCount: number
+        totalValue: number
+        wasOffline: boolean
+      }
+    }
+  | {
+      type: 'ORDER_SYNCED'
+      metadata: {
+        queuedDurationMs: number
+      }
+    }
+  | {
+      type: 'ORDER_SYNC_FAILED'
+      metadata: {
+        attempts: number
+        lastError: string
+      }
+    }
   | { type: 'SESSION_STARTED' }
-  | { type: 'CATALOG_LOADED'; metadata: {
-      fromCache: boolean
-      itemCount: number
-    }}
+  | {
+      type: 'CATALOG_LOADED'
+      metadata: {
+        fromCache: boolean
+        itemCount: number
+      }
+    }
 
 class PilotTracker {
   private queue: PilotEventInput[] = []

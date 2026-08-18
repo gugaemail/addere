@@ -2,7 +2,11 @@ import React from 'react'
 import { View, Text, FlatList, TouchableOpacity, StyleSheet, Alert } from 'react-native'
 import { useRouter } from 'expo-router'
 import { Plus, RefreshCw, SearchCheck } from 'lucide-react-native'
-import { usePedidos, useSincronizarPedido, useConsultarStatusPedido } from '../../../src/hooks/usePedidos'
+import {
+  usePedidos,
+  useSincronizarPedido,
+  useConsultarStatusPedido,
+} from '../../../src/hooks/usePedidos'
 import { OrderRowSkeleton } from '../../../src/components/Skeleton'
 import { Badge } from '../../../src/components/ui/Badge'
 import { Button, buttonForeground } from '../../../src/components/ui/Button'
@@ -17,7 +21,14 @@ import { fmtMoeda, fmtData } from '../../../src/utils/format'
 import { STATUS_BADGE, STATUS_LABEL } from '../../../src/utils/orderStatus'
 import { getApiErrorMessage } from '../../../src/lib/errors'
 
-function OrderCard({ order, syncingId, checkingId, onSync, onCheckStatus, onPress }: {
+function OrderCard({
+  order,
+  syncingId,
+  checkingId,
+  onSync,
+  onCheckStatus,
+  onPress,
+}: {
   order: Order
   syncingId: string | null
   checkingId: string | null
@@ -124,7 +135,9 @@ export default function PedidosScreen() {
       <SyncStatusBar />
       {isLoading ? (
         <View style={{ padding: spacing.md }}>
-          {[0, 1, 2, 3].map((i) => <OrderRowSkeleton key={i} />)}
+          {[0, 1, 2, 3].map((i) => (
+            <OrderRowSkeleton key={i} />
+          ))}
         </View>
       ) : (
         <FlatList
@@ -164,11 +177,7 @@ export default function PedidosScreen() {
         <Plus size={28} color={colors.neutral.white} strokeWidth={1.5} />
       </TouchableOpacity>
 
-      <PdfPreviewModal
-        visible={showPdfModal}
-        order={pdfOrder}
-        onClose={handleClosePdf}
-      />
+      <PdfPreviewModal visible={showPdfModal} order={pdfOrder} onClose={handleClosePdf} />
     </View>
   )
 }

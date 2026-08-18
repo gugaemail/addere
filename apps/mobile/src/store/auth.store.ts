@@ -5,8 +5,8 @@ import type { UserPublic } from '@addere/types'
 import { setSentryUser, clearSentryUser } from '../services/sentryContext'
 import { env } from '../config/env'
 
-const TOKEN_KEY   = 'addere_access_token'
-const USER_KEY    = 'addere_user'
+const TOKEN_KEY = 'addere_access_token'
+const USER_KEY = 'addere_user'
 export const REFRESH_TOKEN_KEY = 'addere_refresh_token'
 
 interface AuthState {
@@ -73,11 +73,10 @@ export const useAuthStore = create<AuthState>((set) => ({
     const storedRefreshToken = await SecureStore.getItemAsync(REFRESH_TOKEN_KEY)
 
     const tryRefresh = async (body: Record<string, string> = {}) => {
-      const { data } = await axios.post(
-        `${env.apiUrl}/auth/refresh`,
-        body,
-        { withCredentials: true, timeout: 8000 }
-      )
+      const { data } = await axios.post(`${env.apiUrl}/auth/refresh`, body, {
+        withCredentials: true,
+        timeout: 8000,
+      })
       return data as { accessToken: string; refreshToken: string }
     }
 

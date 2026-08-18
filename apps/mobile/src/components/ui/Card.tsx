@@ -47,14 +47,14 @@ export function Card({ padding = 'md', onPress, disabled, style, children, testI
 const styles = StyleSheet.create({
   card: {
     backgroundColor: colors.neutral.white,
-    borderWidth:     1,
-    borderColor:     colors.neutral.border,
-    borderRadius:    radius.lg,
+    borderWidth: 1,
+    borderColor: colors.neutral.border,
+    borderRadius: radius.lg,
     // elevation-1: sombra sutil para Android e iOS
     elevation: 1,
-    shadowColor:   colors.brand.dark,
-    shadowOffset:  { width: 0, height: 1 },
+    shadowColor: colors.brand.dark,
+    shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.06,
-    shadowRadius:  3,
+    shadowRadius: 3,
   },
 })

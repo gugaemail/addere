@@ -23,14 +23,16 @@ interface FormFieldProps extends React.InputHTMLAttributes<HTMLInputElement> {
 // forwardRef para funcionar com {...register(...)} do react-hook-form.
 export const FormField = forwardRef<HTMLInputElement, FormFieldProps>(function FormField(
   { label, error, hint, mono, className, id: providedId, ...props },
-  ref,
+  ref
 ) {
   const generatedId = useId()
   const id = providedId ?? generatedId
 
   return (
     <div>
-      <label htmlFor={id} className={labelClass}>{label}</label>
+      <label htmlFor={id} className={labelClass}>
+        {label}
+      </label>
       <input
         ref={ref}
         id={id}
@@ -38,7 +40,7 @@ export const FormField = forwardRef<HTMLInputElement, FormFieldProps>(function F
           formControlClass,
           mono && 'font-mono py-2',
           error && 'border-danger focus:ring-danger/30',
-          className,
+          className
         )}
         {...props}
       />
@@ -57,14 +59,16 @@ interface FormSelectProps extends React.SelectHTMLAttributes<HTMLSelectElement> 
 // Variante select com o mesmo visual do FormField.
 export const FormSelect = forwardRef<HTMLSelectElement, FormSelectProps>(function FormSelect(
   { label, error, className, children, id: providedId, ...props },
-  ref,
+  ref
 ) {
   const generatedId = useId()
   const id = providedId ?? generatedId
 
   return (
     <div>
-      <label htmlFor={id} className={labelClass}>{label}</label>
+      <label htmlFor={id} className={labelClass}>
+        {label}
+      </label>
       <select
         ref={ref}
         id={id}

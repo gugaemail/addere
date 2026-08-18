@@ -27,7 +27,15 @@ export default function OrdersPage() {
     {
       key: 'status',
       header: 'Status',
-      render: (row) => <Badge variant={row.status === 'SYNCED' ? 'success' : row.status === 'CANCELLED' ? 'danger' : 'warning'}>{row.status}</Badge>,
+      render: (row) => (
+        <Badge
+          variant={
+            row.status === 'SYNCED' ? 'success' : row.status === 'CANCELLED' ? 'danger' : 'warning'
+          }
+        >
+          {row.status}
+        </Badge>
+      ),
     },
     {
       key: 'protheusId',
@@ -49,7 +57,9 @@ export default function OrdersPage() {
       />
 
       {isLoading ? (
-        <div className="flex justify-center py-12"><Spinner size="lg" /></div>
+        <div className="flex justify-center py-12">
+          <Spinner size="lg" />
+        </div>
       ) : (
         <Table columns={columns} data={orders ?? []} emptyMessage="Nenhum pedido encontrado." />
       )}

@@ -9,9 +9,7 @@ export async function GET(req: NextRequest) {
   const manualSecret = req.headers.get('x-cron-secret')
   const expected = process.env.CRON_SECRET
 
-  const authorized =
-    (authHeader === `Bearer ${expected}`) ||
-    (manualSecret === expected)
+  const authorized = authHeader === `Bearer ${expected}` || manualSecret === expected
 
   if (!authorized) {
     return NextResponse.json({ message: 'Não autorizado' }, { status: 401 })

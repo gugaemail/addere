@@ -2,7 +2,7 @@ import { getSyncDelay, processSyncQueue, startSyncListener } from '../syncEngine
 import { useSyncStore } from '../../store/syncStore'
 
 jest.mock('@react-native-async-storage/async-storage', () =>
-  require('@react-native-async-storage/async-storage/jest/async-storage-mock'),
+  require('@react-native-async-storage/async-storage/jest/async-storage-mock')
 )
 jest.mock('../../lib/api', () => ({
   api: { post: jest.fn() },
@@ -15,7 +15,11 @@ jest.mock('@react-native-community/netinfo', () => ({
   addEventListener: (...args: unknown[]) => mockNetInfoAddEventListener(...args),
 }))
 jest.mock('../pilotTracking', () => ({
-  pilotTracker: { track: jest.fn(), getOrderDuration: jest.fn().mockReturnValue(0), startOrderTimer: jest.fn() },
+  pilotTracker: {
+    track: jest.fn(),
+    getOrderDuration: jest.fn().mockReturnValue(0),
+    startOrderTimer: jest.fn(),
+  },
 }))
 
 import { AppState } from 'react-native'
@@ -131,7 +135,9 @@ describe('processSyncQueue', () => {
     const id = useSyncStore.getState().enqueue('order', validPayload)
     // força estado de erro sem incrementar attempts (para manter delay=0)
     useSyncStore.setState((s) => ({
-      queue: s.queue.map((i) => i.id === id ? { ...i, status: 'error' as const, attempts: 0 } : i),
+      queue: s.queue.map((i) =>
+        i.id === id ? { ...i, status: 'error' as const, attempts: 0 } : i
+      ),
     }))
     await processSyncQueue()
     const item = useSyncStore.getState().queue.find((i) => i.id === id)
@@ -146,7 +152,9 @@ describe('startSyncListener', () => {
   beforeEach(() => {
     mockNetInfoAddEventListener.mockReset()
     mockNetInfoAddEventListener.mockReturnValue(jest.fn())
-    appStateSpy = jest.spyOn(AppState, 'addEventListener').mockReturnValue({ remove: jest.fn() } as ReturnType<typeof AppState.addEventListener>)
+    appStateSpy = jest
+      .spyOn(AppState, 'addEventListener')
+      .mockReturnValue({ remove: jest.fn() } as ReturnType<typeof AppState.addEventListener>)
   })
 
   afterEach(() => {
@@ -168,10 +176,12 @@ describe('startSyncListener', () => {
   it('chama processSyncQueue quando network fica disponível', async () => {
     jest.useRealTimers()
     let netInfoCallback: ((state: { isConnected: boolean }) => void) | null = null
-    mockNetInfoAddEventListener.mockImplementation((cb: (state: { isConnected: boolean }) => void) => {
-      netInfoCallback = cb
-      return jest.fn()
-    })
+    mockNetInfoAddEventListener.mockImplementation(
+      (cb: (state: { isConnected: boolean }) => void) => {
+        netInfoCallback = cb
+        return jest.fn()
+      }
+    )
     mockPost.mockResolvedValue({ data: {} })
     useSyncStore.getState().enqueue('order', validPayload)
 

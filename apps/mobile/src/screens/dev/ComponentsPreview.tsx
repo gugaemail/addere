@@ -68,20 +68,38 @@ export function ComponentsPreview() {
 
       {/* ── Button — variants ────────────────────────────────────────────── */}
       <Section title="Button — variants">
-        <Button variant="primary"   style={s.btn}>Primary</Button>
-        <Button variant="secondary" style={s.btn}>Secondary</Button>
-        <Button variant="ghost"     style={s.btn}>Ghost</Button>
-        <Button variant="danger"    style={s.btn}>Danger</Button>
-        <Button variant="primary"   style={s.btn} disabled>Disabled</Button>
-        <Button variant="primary"   style={s.btn} loading>Loading</Button>
+        <Button variant="primary" style={s.btn}>
+          Primary
+        </Button>
+        <Button variant="secondary" style={s.btn}>
+          Secondary
+        </Button>
+        <Button variant="ghost" style={s.btn}>
+          Ghost
+        </Button>
+        <Button variant="danger" style={s.btn}>
+          Danger
+        </Button>
+        <Button variant="primary" style={s.btn} disabled>
+          Disabled
+        </Button>
+        <Button variant="primary" style={s.btn} loading>
+          Loading
+        </Button>
       </Section>
 
       {/* ── Button — sizes ───────────────────────────────────────────────── */}
       <Section title="Button — sizes">
         <Row>
-          <Button size="sm" style={s.btnInline}>Small</Button>
-          <Button size="md" style={s.btnInline}>Medium</Button>
-          <Button size="lg" style={s.btnInline}>Large</Button>
+          <Button size="sm" style={s.btnInline}>
+            Small
+          </Button>
+          <Button size="md" style={s.btnInline}>
+            Medium
+          </Button>
+          <Button size="lg" style={s.btnInline}>
+            Large
+          </Button>
         </Row>
       </Section>
 
@@ -103,8 +121,12 @@ export function ComponentsPreview() {
           Continuar
         </Button>
         <Row>
-          <Button size="xs" style={s.btnInline}>Extra small</Button>
-          <Button variant="ghostDanger" size="sm" style={s.btnInline}>Ghost danger</Button>
+          <Button size="xs" style={s.btnInline}>
+            Extra small
+          </Button>
+          <Button variant="ghostDanger" size="sm" style={s.btnInline}>
+            Ghost danger
+          </Button>
         </Row>
       </Section>
 
@@ -117,11 +139,7 @@ export function ComponentsPreview() {
           onChangeText={setInputValue}
         />
 
-        <Input
-          label="With value"
-          value="vendedor@addere.dev"
-          onChangeText={() => {}}
-        />
+        <Input label="With value" value="vendedor@addere.dev" onChangeText={() => {}} />
 
         <Input
           label="Error state"
@@ -138,11 +156,7 @@ export function ComponentsPreview() {
           onChangeText={() => {}}
         />
 
-        <Input
-          placeholder="No label, hint-like placeholder"
-          value=""
-          onChangeText={() => {}}
-        />
+        <Input placeholder="No label, hint-like placeholder" value="" onChangeText={() => {}} />
 
         <Input
           label="Search (leftElement + onClear)"
@@ -177,7 +191,9 @@ export function ComponentsPreview() {
       <Section title="Card — padding variants">
         {(['xs', 'sm', 'md', 'lg', 'xl'] as const).map((p) => (
           <Card key={p} padding={p} style={s.cardItem}>
-            <Text style={s.cardText}>padding="{p}" — {spacing[p]}px</Text>
+            <Text style={s.cardText}>
+              padding="{p}" — {spacing[p]}px
+            </Text>
           </Card>
         ))}
       </Section>

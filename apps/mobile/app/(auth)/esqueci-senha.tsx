@@ -1,7 +1,12 @@
 import { useState } from 'react'
 import {
-  View, Text, StyleSheet,
-  KeyboardAvoidingView, Platform, ScrollView, Alert,
+  View,
+  Text,
+  StyleSheet,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  Alert,
 } from 'react-native'
 import { useRouter } from 'expo-router'
 import { Input } from '../../src/components/ui/Input'
@@ -53,8 +58,8 @@ export default function EsqueciSenhaScreen() {
             <View style={s.successBox}>
               <Text style={s.successTitle}>E-mail enviado!</Text>
               <Text style={s.successText}>
-                Verifique sua caixa de entrada e clique no link para redefinir sua senha.
-                O link expira em 1 hora.
+                Verifique sua caixa de entrada e clique no link para redefinir sua senha. O link
+                expira em 1 hora.
               </Text>
               <Button variant="ghost" size="sm" onPress={() => router.back()} style={s.backBtn}>
                 Voltar para o login
@@ -70,7 +75,10 @@ export default function EsqueciSenhaScreen() {
                 <Input
                   label="E-mail"
                   value={email}
-                  onChangeText={(t) => { setEmail(t); if (emailError) setEmailError(undefined) }}
+                  onChangeText={(t) => {
+                    setEmail(t)
+                    if (emailError) setEmailError(undefined)
+                  }}
                   autoCapitalize="none"
                   keyboardType="email-address"
                   autoComplete="email"
@@ -94,17 +102,52 @@ export default function EsqueciSenhaScreen() {
 }
 
 const s = StyleSheet.create({
-  container:   { flex: 1, backgroundColor: colors.neutral.bg },
-  scroll:      { flexGrow: 1, justifyContent: 'center', padding: spacing.lg },
-  card:        { backgroundColor: colors.neutral.white, borderRadius: radius.lg, padding: spacing.xl, shadowColor: colors.neutral.black, shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.08, shadowRadius: 4, elevation: 2 },
-  logoGroup:   { alignItems: 'center', marginBottom: spacing.lg },
-  appName:     { fontFamily: typography.fontFamily.sansBold, fontSize: 28, color: colors.brand.dark, marginTop: spacing.md },
-  title:       { fontFamily: typography.fontFamily.body, fontSize: 14, color: colors.neutral.textSub, marginTop: spacing.xs },
-  description: { fontFamily: typography.fontFamily.body, fontSize: 14, color: colors.neutral.textSub, lineHeight: 20, marginBottom: spacing.lg },
-  fields:      { gap: spacing.md },
-  button:      { marginTop: spacing.sm },
-  successBox:  { alignItems: 'center', gap: spacing.md },
-  successTitle: { fontFamily: typography.fontFamily.sansBold, fontSize: 18, color: colors.semantic.success },
-  successText: { fontFamily: typography.fontFamily.body, fontSize: 14, color: colors.neutral.textSub, textAlign: 'center', lineHeight: 20 },
-  backBtn:     { marginTop: spacing.sm },
+  container: { flex: 1, backgroundColor: colors.neutral.bg },
+  scroll: { flexGrow: 1, justifyContent: 'center', padding: spacing.lg },
+  card: {
+    backgroundColor: colors.neutral.white,
+    borderRadius: radius.lg,
+    padding: spacing.xl,
+    shadowColor: colors.neutral.black,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  logoGroup: { alignItems: 'center', marginBottom: spacing.lg },
+  appName: {
+    fontFamily: typography.fontFamily.sansBold,
+    fontSize: 28,
+    color: colors.brand.dark,
+    marginTop: spacing.md,
+  },
+  title: {
+    fontFamily: typography.fontFamily.body,
+    fontSize: 14,
+    color: colors.neutral.textSub,
+    marginTop: spacing.xs,
+  },
+  description: {
+    fontFamily: typography.fontFamily.body,
+    fontSize: 14,
+    color: colors.neutral.textSub,
+    lineHeight: 20,
+    marginBottom: spacing.lg,
+  },
+  fields: { gap: spacing.md },
+  button: { marginTop: spacing.sm },
+  successBox: { alignItems: 'center', gap: spacing.md },
+  successTitle: {
+    fontFamily: typography.fontFamily.sansBold,
+    fontSize: 18,
+    color: colors.semantic.success,
+  },
+  successText: {
+    fontFamily: typography.fontFamily.body,
+    fontSize: 14,
+    color: colors.neutral.textSub,
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+  backBtn: { marginTop: spacing.sm },
 })

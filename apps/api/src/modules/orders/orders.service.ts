@@ -4,10 +4,10 @@ import { priceOrderItems } from './orders.pricing'
 import type { CreateOrderInput, UpdateOrderInput } from './orders.schema'
 
 const orderInclude = {
-  customer:       { select: { id: true, name: true, document: true } },
-  branch:         { select: { id: true, name: true, idProtheus: true } },
+  customer: { select: { id: true, name: true, document: true } },
+  branch: { select: { id: true, name: true, idProtheus: true } },
   transportadora: { select: { id: true, nome: true } },
-  condPag:        { select: { id: true, nome: true } },
+  condPag: { select: { id: true, nome: true } },
   items: {
     include: { product: { select: { id: true, name: true, unit: true } } },
   },
@@ -28,7 +28,9 @@ export async function assertCarrierAndPaymentTermsAllowed(
 
   if (input.transportId !== undefined && !permissions.has('orders.change_carrier')) {
     const defaultTransp = customer.transpPadrao
-      ? await prisma.transportadora.findFirst({ where: { companyId, protheusCode: customer.transpPadrao } })
+      ? await prisma.transportadora.findFirst({
+          where: { companyId, protheusCode: customer.transpPadrao },
+        })
       : null
     if (input.transportId !== (defaultTransp?.id ?? '')) {
       throw forbidden('Você não tem permissão para alterar a transportadora do pedido')
@@ -37,14 +39,15 @@ export async function assertCarrierAndPaymentTermsAllowed(
 
   if (input.condId !== undefined && !permissions.has('orders.change_payment_terms')) {
     const defaultCond = customer.condPagPadrao
-      ? await prisma.condPag.findFirst({ where: { companyId, protheusCode: customer.condPagPadrao } })
+      ? await prisma.condPag.findFirst({
+          where: { companyId, protheusCode: customer.condPagPadrao },
+        })
       : null
     if (input.condId !== (defaultCond?.id ?? '')) {
       throw forbidden('Você não tem permissão para alterar a condição de pagamento do pedido')
     }
   }
 }
-
 
 // Garante que filial, transportadora e condição de pagamento referenciadas
 // pertencem à empresa do usuário — ids de outra empresa eram aceitos sem checagem
@@ -54,10 +57,16 @@ async function assertOrderRefsBelongToCompany(
 ): Promise<void> {
   const [branch, transp, cond] = await Promise.all([
     refs.branchId
-      ? prisma.branch.findFirst({ where: { id: refs.branchId, companyId, active: true }, select: { id: true } })
+      ? prisma.branch.findFirst({
+          where: { id: refs.branchId, companyId, active: true },
+          select: { id: true },
+        })
       : Promise.resolve(null),
     refs.transportId
-      ? prisma.transportadora.findFirst({ where: { id: refs.transportId, companyId }, select: { id: true } })
+      ? prisma.transportadora.findFirst({
+          where: { id: refs.transportId, companyId },
+          select: { id: true },
+        })
       : Promise.resolve(null),
     refs.condId
       ? prisma.condPag.findFirst({ where: { id: refs.condId, companyId }, select: { id: true } })
@@ -103,7 +112,8 @@ export async function getOrderStats(userId: string, companyId: string) {
 export async function resetOrderToPending(companyId: string, orderId: string) {
   const order = await prisma.order.findFirst({ where: { id: orderId, companyId } })
   if (!order) throw notFound('Pedido não encontrado')
-  if (order.status !== 'SYNCED') throw unprocessable('Apenas pedidos com status SYNCED podem ser revertidos para PENDING')
+  if (order.status !== 'SYNCED')
+    throw unprocessable('Apenas pedidos com status SYNCED podem ser revertidos para PENDING')
   return prisma.order.update({
     where: { id: orderId },
     data: { status: 'PENDING', protheusOrderId: null, syncedAt: null },
@@ -115,11 +125,22 @@ export async function cancelOrder(userId: string, companyId: string, orderId: st
   const order = await prisma.order.findFirst({ where: { id: orderId, userId, companyId } })
   if (!order) throw notFound('Pedido não encontrado')
   if (order.status === 'CANCELLED') throw unprocessable('Pedido já está cancelado')
-  if (order.status !== 'PENDING' && order.status !== 'SYNCED') throw unprocessable('Apenas pedidos pendentes ou sincronizados podem ser cancelados')
-  return prisma.order.update({ where: { id: orderId }, data: { status: 'CANCELLED' }, include: orderInclude })
+  if (order.status !== 'PENDING' && order.status !== 'SYNCED')
+    throw unprocessable('Apenas pedidos pendentes ou sincronizados podem ser cancelados')
+  return prisma.order.update({
+    where: { id: orderId },
+    data: { status: 'CANCELLED' },
+    include: orderInclude,
+  })
 }
 
-export async function updateOrder(userId: string, companyId: string, orderId: string, input: UpdateOrderInput, permissions: Set<string>) {
+export async function updateOrder(
+  userId: string,
+  companyId: string,
+  orderId: string,
+  input: UpdateOrderInput,
+  permissions: Set<string>
+) {
   const order = await prisma.order.findFirst({ where: { id: orderId, userId, companyId } })
   if (!order) throw notFound('Pedido não encontrado')
   if (order.status !== 'PENDING') throw unprocessable('Apenas pedidos pendentes podem ser editados')
@@ -145,19 +166,24 @@ export async function updateOrder(userId: string, companyId: string, orderId: st
       where: { id: orderId },
       data: {
         transportId: input.transportId ?? null,
-        condId:      input.condId ?? null,
-        emissao:     input.emissao ? new Date(input.emissao) : null,
-        mennota:     input.mennota,
-        notes:       input.notes,
-        total:       orderTotal,
-        items:       { create: itemsWithTotals },
+        condId: input.condId ?? null,
+        emissao: input.emissao ? new Date(input.emissao) : null,
+        mennota: input.mennota,
+        notes: input.notes,
+        total: orderTotal,
+        items: { create: itemsWithTotals },
       },
       include: orderInclude,
     })
   })
 }
 
-export async function createOrder(userId: string, companyId: string, input: CreateOrderInput, permissions: Set<string>) {
+export async function createOrder(
+  userId: string,
+  companyId: string,
+  input: CreateOrderInput,
+  permissions: Set<string>
+) {
   await assertCarrierAndPaymentTermsAllowed(companyId, input.customerId, input, permissions)
   await assertOrderRefsBelongToCompany(companyId, input)
 
@@ -178,15 +204,15 @@ export async function createOrder(userId: string, companyId: string, input: Crea
     data: {
       userId,
       companyId,
-      customerId:  input.customerId,
-      branchId:    input.branchId,
+      customerId: input.customerId,
+      branchId: input.branchId,
       transportId: input.transportId,
-      condId:      input.condId,
-      emissao:     input.emissao ? new Date(input.emissao) : undefined,
-      mennota:     input.mennota,
-      notes:       input.notes,
-      total:       orderTotal,
-      items:       { create: itemsWithTotals },
+      condId: input.condId,
+      emissao: input.emissao ? new Date(input.emissao) : undefined,
+      mennota: input.mennota,
+      notes: input.notes,
+      total: orderTotal,
+      items: { create: itemsWithTotals },
     },
     include: orderInclude,
   })

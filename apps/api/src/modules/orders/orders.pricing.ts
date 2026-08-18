@@ -3,33 +3,37 @@
 // coberto por testes unitários.
 
 export interface PricingItemInput {
-  productId:     string
-  quantity:      number
-  unitPrice?:    number
-  discount?:     number
-  descricao?:    string
-  largura?:      number
-  espessura?:    number
+  productId: string
+  quantity: number
+  unitPrice?: number
+  discount?: number
+  descricao?: string
+  largura?: number
+  espessura?: number
   encolhimento?: string
-  xcrav?:        '1' | '2'
-  tara?:         number
+  xcrav?: '1' | '2'
+  tara?: number
 }
 
 export interface PricedItem extends Omit<PricingItemInput, 'unitPrice' | 'discount'> {
   unitPrice: number
-  discount:  number
-  total:     number
+  discount: number
+  total: number
 }
 
 /**
  * Calcula o total de um item em centavos usando apenas inteiros:
  * preço em centavos × quantidade em milésimos × desconto em basis points.
  */
-export function computeItemTotalCents(unitPrice: number, quantity: number, discount: number): number {
+export function computeItemTotalCents(
+  unitPrice: number,
+  quantity: number,
+  discount: number
+): number {
   const priceCents = Math.round(unitPrice * 100)
-  const qty1000    = Math.round(quantity * 1000)
+  const qty1000 = Math.round(quantity * 1000)
   const discountBP = Math.round(discount * 100) // basis points 0-10000
-  return Math.round(priceCents * qty1000 / 1000 * (10000 - discountBP) / 10000)
+  return Math.round((((priceCents * qty1000) / 1000) * (10000 - discountBP)) / 10000)
 }
 
 /**
@@ -42,22 +46,23 @@ export function priceOrderItems(
   defaultPrices: Map<string, number>
 ): { items: PricedItem[]; orderTotal: number } {
   const priced = items.map((item) => {
-    const unitPrice = item.unitPrice !== undefined ? item.unitPrice : defaultPrices.get(item.productId) ?? 0
-    const discount  = item.discount ?? 0
+    const unitPrice =
+      item.unitPrice !== undefined ? item.unitPrice : (defaultPrices.get(item.productId) ?? 0)
+    const discount = item.discount ?? 0
     const totalCents = computeItemTotalCents(unitPrice, item.quantity, discount)
 
     return {
-      productId:    item.productId,
-      quantity:     item.quantity,
+      productId: item.productId,
+      quantity: item.quantity,
       unitPrice,
       discount,
-      total:        totalCents / 100,
-      descricao:    item.descricao,
-      largura:      item.largura,
-      espessura:    item.espessura,
+      total: totalCents / 100,
+      descricao: item.descricao,
+      largura: item.largura,
+      espessura: item.espessura,
       encolhimento: item.encolhimento,
-      xcrav:        item.xcrav,
-      tara:         item.tara,
+      xcrav: item.xcrav,
+      tara: item.tara,
     }
   })
 

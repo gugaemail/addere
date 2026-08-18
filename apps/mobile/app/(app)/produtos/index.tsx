@@ -14,9 +14,9 @@ import type { Product } from '@addere/types'
 import { fmtMoeda, fmtQtd } from '../../../src/utils/format'
 
 function ProductCard({ product }: { product: Product }) {
-  const stockNum         = Number(product.stock)
-  const showStock        = useFieldVisible('product.stock')
-  const showDescription  = useFieldVisible('product.description')
+  const stockNum = Number(product.stock)
+  const showStock = useFieldVisible('product.stock')
+  const showDescription = useFieldVisible('product.description')
   const showProtheusCode = useFieldVisible('product.protheusCode')
   return (
     <Card style={s.card}>
@@ -26,7 +26,9 @@ function ProductCard({ product }: { product: Product }) {
           <Text style={s.sub}>Cód: {product.protheusCode}</Text>
         )}
         {showDescription && product.description && (
-          <Text style={s.desc} numberOfLines={2}>{product.description}</Text>
+          <Text style={s.desc} numberOfLines={2}>
+            {product.description}
+          </Text>
         )}
       </View>
       <View style={s.right}>
@@ -69,10 +71,7 @@ export default function ProdutosScreen() {
           onRefresh={refetch}
           refreshing={isLoading}
           ListEmptyComponent={
-            <EmptyState
-              illustration="products"
-              title="Nenhum produto encontrado."
-            />
+            <EmptyState illustration="products" title="Nenhum produto encontrado." />
           }
           contentContainerStyle={{ padding: spacing.md, gap: spacing.sm }}
         />

@@ -16,14 +16,22 @@ export default function CustomersPage() {
   const { data: customers, isLoading } = useCustomers(search || undefined)
 
   const columns: Column<Customer>[] = [
-    { key: 'name', header: 'Nome', render: (row) => <span className="font-medium text-[var(--text-primary)]">{row.name}</span> },
+    {
+      key: 'name',
+      header: 'Nome',
+      render: (row) => <span className="font-medium text-[var(--text-primary)]">{row.name}</span>,
+    },
     { key: 'document', header: 'CPF/CNPJ', render: (row) => row.document ?? '—' },
     { key: 'email', header: 'Email', render: (row) => row.email ?? '—' },
     { key: 'phone', header: 'Telefone', render: (row) => row.phone ?? '—' },
     {
       key: 'active',
       header: 'Status',
-      render: (row) => <Badge variant={row.active ? 'success' : 'danger'}>{row.active ? 'Ativo' : 'Inativo'}</Badge>,
+      render: (row) => (
+        <Badge variant={row.active ? 'success' : 'danger'}>
+          {row.active ? 'Ativo' : 'Inativo'}
+        </Badge>
+      ),
     },
   ]
 
@@ -40,13 +48,11 @@ export default function CustomersPage() {
       </div>
 
       {isLoading ? (
-        <div className="flex justify-center py-12"><Spinner size="lg" /></div>
+        <div className="flex justify-center py-12">
+          <Spinner size="lg" />
+        </div>
       ) : (
-        <Table
-          columns={columns}
-          data={customers ?? []}
-          emptyMessage="Nenhum cliente encontrado."
-        />
+        <Table columns={columns} data={customers ?? []} emptyMessage="Nenhum cliente encontrado." />
       )}
     </div>
   )

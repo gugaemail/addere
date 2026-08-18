@@ -1,8 +1,5 @@
 import { useState, useCallback } from 'react'
-import {
-  View, Text, StyleSheet, Modal,
-  Dimensions,
-} from 'react-native'
+import { View, Text, StyleSheet, Modal, Dimensions } from 'react-native'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import Svg, { Circle, Rect, Path, Line } from 'react-native-svg'
 import { colors, spacing, radius, typography } from '../../theme'
@@ -23,9 +20,24 @@ function RepIllustration() {
       <Circle cx="80" cy="60" r="20" fill={colors.brand.tint} />
       <Circle cx="74" cy="57" r="3" fill={colors.brand.dark} />
       <Circle cx="86" cy="57" r="3" fill={colors.brand.dark} />
-      <Path d="M74 67 Q80 73 86 67" stroke={colors.brand.dark} strokeWidth="2" fill="none" strokeLinecap="round" />
+      <Path
+        d="M74 67 Q80 73 86 67"
+        stroke={colors.brand.dark}
+        strokeWidth="2"
+        fill="none"
+        strokeLinecap="round"
+      />
       {/* Tablet */}
-      <Rect x="88" y="96" width="28" height="36" rx="4" fill={colors.neutral.white} stroke={colors.brand.accent} strokeWidth="2" />
+      <Rect
+        x="88"
+        y="96"
+        width="28"
+        height="36"
+        rx="4"
+        fill={colors.neutral.white}
+        stroke={colors.brand.accent}
+        strokeWidth="2"
+      />
       <Rect x="92" y="102" width="20" height="12" rx="2" fill={colors.brand.tint} />
       <Line x1="92" y1="120" x2="112" y2="120" stroke={colors.brand.accent} strokeWidth="1.5" />
       <Line x1="92" y1="125" x2="108" y2="125" stroke={colors.brand.accent} strokeWidth="1.5" />
@@ -47,14 +59,36 @@ function OrderFlowIllustration({ step }: { step: number }) {
       {/* ícone cliente */}
       <Circle cx="50" cy="50" r="24" fill={stepColor(1)} />
       <Circle cx="50" cy="44" r="8" fill={colors.neutral.white} opacity="0.9" />
-      <Path d="M34 66 Q50 56 66 66" stroke={colors.neutral.white} strokeWidth="2" fill="none" opacity="0.9" />
+      <Path
+        d="M34 66 Q50 56 66 66"
+        stroke={colors.neutral.white}
+        strokeWidth="2"
+        fill="none"
+        opacity="0.9"
+      />
       {/* ícone produto */}
       <Circle cx="130" cy="50" r="24" fill={stepColor(2)} />
-      <Rect x="120" y="41" width="20" height="18" rx="3" fill={colors.neutral.white} opacity="0.9" />
+      <Rect
+        x="120"
+        y="41"
+        width="20"
+        height="18"
+        rx="3"
+        fill={colors.neutral.white}
+        opacity="0.9"
+      />
       <Path d="M124 45 L136 45M124 50 L133 50" stroke={stepColor(2)} strokeWidth="1.5" />
       {/* ícone confirmar */}
       <Circle cx="210" cy="50" r="24" fill={stepColor(3)} />
-      <Path d="M200 50 L207 57 L220 44" stroke={colors.neutral.white} strokeWidth="2.5" fill="none" strokeLinecap="round" strokeLinejoin="round" opacity="0.9" />
+      <Path
+        d="M200 50 L207 57 L220 44"
+        stroke={colors.neutral.white}
+        strokeWidth="2.5"
+        fill="none"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        opacity="0.9"
+      />
     </Svg>
   )
 }
@@ -66,14 +100,45 @@ function OfflineIllustration() {
       <Circle cx="60" cy="60" r="52" fill={colors.brand.tint} />
       {/* Ícone wifi com X */}
       <Path d="M60 82 L60 82" stroke={colors.brand.primary} strokeWidth="4" strokeLinecap="round" />
-      <Path d="M47 70 Q60 64 73 70" stroke={colors.brand.primary} strokeWidth="3" fill="none" strokeLinecap="round" opacity="0.5" />
-      <Path d="M36 60 Q60 48 84 60" stroke={colors.brand.primary} strokeWidth="3" fill="none" strokeLinecap="round" opacity="0.3" />
+      <Path
+        d="M47 70 Q60 64 73 70"
+        stroke={colors.brand.primary}
+        strokeWidth="3"
+        fill="none"
+        strokeLinecap="round"
+        opacity="0.5"
+      />
+      <Path
+        d="M36 60 Q60 48 84 60"
+        stroke={colors.brand.primary}
+        strokeWidth="3"
+        fill="none"
+        strokeLinecap="round"
+        opacity="0.3"
+      />
       {/* Nuvem com seta para baixo (offline salvo) */}
-      <Path d="M38 46 Q38 36 48 36 Q50 28 62 30 Q72 24 76 34 Q86 34 84 46 Z" fill={colors.brand.primary} />
-      <Path d="M60 42 L60 54 M54 50 L60 56 L66 50" stroke={colors.neutral.white} strokeWidth="2.5" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+      <Path
+        d="M38 46 Q38 36 48 36 Q50 28 62 30 Q72 24 76 34 Q86 34 84 46 Z"
+        fill={colors.brand.primary}
+      />
+      <Path
+        d="M60 42 L60 54 M54 50 L60 56 L66 50"
+        stroke={colors.neutral.white}
+        strokeWidth="2.5"
+        fill="none"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
       {/* Check verde */}
       <Circle cx="82" cy="76" r="14" fill={colors.semantic.success} />
-      <Path d="M76 76 L80 80 L88 70" stroke={colors.neutral.white} strokeWidth="2.5" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+      <Path
+        d="M76 76 L80 80 L88 70"
+        stroke={colors.neutral.white}
+        strokeWidth="2.5"
+        fill="none"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </Svg>
   )
 }
@@ -100,7 +165,8 @@ const screens = [
     key: 'offline',
     renderIllustration: () => <OfflineIllustration />,
     title: 'Sem sinal? Sem problema.',
-    subtitle: 'O pedido fica salvo no celular e é enviado automaticamente quando a conexão voltar. Acompanhe pela barra de status no topo.',
+    subtitle:
+      'O pedido fica salvo no celular e é enviado automaticamente quando a conexão voltar. Acompanhe pela barra de status no topo.',
     buttonLabel: 'Vamos lá',
   },
 ]
@@ -132,25 +198,18 @@ export function OnboardingFlow({ visible, onComplete }: Props) {
         {/* Indicadores de progresso */}
         <View style={styles.dots}>
           {screens.map((_, i) => (
-            <View
-              key={i}
-              style={[styles.dot, i === index && styles.dotActive]}
-            />
+            <View key={i} style={[styles.dot, i === index && styles.dotActive]} />
           ))}
         </View>
 
         {/* Ilustração */}
-        <View style={styles.illustration}>
-          {screen.renderIllustration()}
-        </View>
+        <View style={styles.illustration}>{screen.renderIllustration()}</View>
 
         {/* Conteúdo */}
         <View style={styles.content}>
           <Text style={styles.title}>{screen.title}</Text>
 
-          {screen.subtitle && (
-            <Text style={styles.subtitle}>{screen.subtitle}</Text>
-          )}
+          {screen.subtitle && <Text style={styles.subtitle}>{screen.subtitle}</Text>}
 
           {'steps' in screen && screen.steps && (
             <View style={styles.steps}>

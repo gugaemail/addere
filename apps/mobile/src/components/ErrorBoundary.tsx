@@ -23,9 +23,7 @@ function FallbackUI({ resetError }: { resetError: () => void }) {
 
 export function AppErrorBoundary({ children }: { children: React.ReactNode }) {
   return (
-    <Sentry.ErrorBoundary
-      fallback={({ resetError }) => <FallbackUI resetError={resetError} />}
-    >
+    <Sentry.ErrorBoundary fallback={({ resetError }) => <FallbackUI resetError={resetError} />}>
       {children}
     </Sentry.ErrorBoundary>
   )

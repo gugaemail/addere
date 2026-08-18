@@ -36,7 +36,11 @@ export default function UsersPage() {
   const userTypeName = (id: string | null) => userTypes?.find((t) => t.id === id)?.name ?? '—'
 
   const columns: Column<UserPublic>[] = [
-    { key: 'name', header: 'Nome', render: (row) => <span className="font-medium text-[var(--text-primary)]">{row.name}</span> },
+    {
+      key: 'name',
+      header: 'Nome',
+      render: (row) => <span className="font-medium text-[var(--text-primary)]">{row.name}</span>,
+    },
     { key: 'email', header: 'Email', render: (row) => row.email },
     {
       key: 'role',
@@ -50,12 +54,18 @@ export default function UsersPage() {
     {
       key: 'userTypeId',
       header: 'Tipo',
-      render: (row) => <span className="text-xs text-[var(--text-muted)]">{userTypeName(row.userTypeId)}</span>,
+      render: (row) => (
+        <span className="text-xs text-[var(--text-muted)]">{userTypeName(row.userTypeId)}</span>
+      ),
     },
     {
       key: 'active',
       header: 'Status',
-      render: (row) => <Badge variant={row.active ? 'success' : 'danger'}>{row.active ? 'Ativo' : 'Inativo'}</Badge>,
+      render: (row) => (
+        <Badge variant={row.active ? 'success' : 'danger'}>
+          {row.active ? 'Ativo' : 'Inativo'}
+        </Badge>
+      ),
     },
     { key: 'createdAt', header: 'Criado em', render: (row) => formatDate(row.createdAt) },
     {
@@ -87,12 +97,16 @@ export default function UsersPage() {
         title="Usuários"
         subtitle="Gerencie vendedores e administradores"
         action={
-          <Button onClick={() => setModalOpen(true)} leftIcon={Plus}>Novo Usuário</Button>
+          <Button onClick={() => setModalOpen(true)} leftIcon={Plus}>
+            Novo Usuário
+          </Button>
         }
       />
 
       {isLoading ? (
-        <div className="flex justify-center py-12"><Spinner size="lg" /></div>
+        <div className="flex justify-center py-12">
+          <Spinner size="lg" />
+        </div>
       ) : (
         <Table columns={columns} data={users ?? []} emptyMessage="Nenhum usuário cadastrado." />
       )}

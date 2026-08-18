@@ -16,7 +16,8 @@ import { ProtheusTab } from './tabs/ProtheusTab'
 import { FieldsTab } from './tabs/FieldsTab'
 import { LogsTab } from './tabs/LogsTab'
 
-type Tab = 'filiais' | 'usuarios' | 'clientes' | 'produtos' | 'pedidos' | 'protheus' | 'campos' | 'logs'
+type Tab =
+  'filiais' | 'usuarios' | 'clientes' | 'produtos' | 'pedidos' | 'protheus' | 'campos' | 'logs'
 
 function PageSkeleton() {
   return (
@@ -25,7 +26,10 @@ function PageSkeleton() {
       <div className="h-8 w-64 bg-[var(--bg-subtle)] rounded" />
       <div className="grid grid-cols-4 gap-4">
         {[0, 1, 2, 3].map((i) => (
-          <div key={i} className="bg-[var(--bg-surface)] border border-[var(--border)] rounded-xl px-5 py-4 space-y-2">
+          <div
+            key={i}
+            className="bg-[var(--bg-surface)] border border-[var(--border)] rounded-xl px-5 py-4 space-y-2"
+          >
             <div className="h-3 w-16 bg-[var(--bg-subtle)] rounded" />
             <div className="h-7 w-10 bg-[var(--bg-subtle)] rounded" />
           </div>
@@ -45,31 +49,35 @@ export default function EmpresaPage() {
 
   if (isLoading) return <PageSkeleton />
 
-  if (error) return (
-    <div className="flex flex-col items-center justify-center py-20 text-center gap-3">
-      <p className="font-semibold text-danger">Erro ao carregar empresa</p>
-      <p className="text-sm text-[var(--text-muted)]">{getApiErrorMessage(error, 'Erro ao carregar empresa')}</p>
-      <Button onClick={() => refetch()} className="mt-2">
-        Tentar novamente
-      </Button>
-    </div>
-  )
+  if (error)
+    return (
+      <div className="flex flex-col items-center justify-center py-20 text-center gap-3">
+        <p className="font-semibold text-danger">Erro ao carregar empresa</p>
+        <p className="text-sm text-[var(--text-muted)]">
+          {getApiErrorMessage(error, 'Erro ao carregar empresa')}
+        </p>
+        <Button onClick={() => refetch()} className="mt-2">
+          Tentar novamente
+        </Button>
+      </div>
+    )
 
-  if (!company) return (
-    <div className="flex flex-col items-center justify-center py-20 text-center gap-3">
-      <p className="font-semibold text-[var(--text-primary)]">Empresa não encontrada</p>
-    </div>
-  )
+  if (!company)
+    return (
+      <div className="flex flex-col items-center justify-center py-20 text-center gap-3">
+        <p className="font-semibold text-[var(--text-primary)]">Empresa não encontrada</p>
+      </div>
+    )
 
   const tabs: { key: Tab; label: string }[] = [
-    { key: 'filiais',  label: `Filiais (${company.branches.length})` },
+    { key: 'filiais', label: `Filiais (${company.branches.length})` },
     { key: 'usuarios', label: `Usuários (${company.users.length})` },
     { key: 'clientes', label: 'Clientes' },
     { key: 'produtos', label: 'Produtos' },
-    { key: 'pedidos',  label: 'Pedidos' },
+    { key: 'pedidos', label: 'Pedidos' },
     { key: 'protheus', label: 'Protheus' },
-    { key: 'campos',   label: 'Campos' },
-    { key: 'logs',     label: 'Logs API' },
+    { key: 'campos', label: 'Campos' },
+    { key: 'logs', label: 'Logs API' },
   ]
 
   return (
@@ -86,7 +94,9 @@ export default function EmpresaPage() {
           >
             Voltar
           </Button>
-          <h1 className="text-2xl font-bold tracking-tight text-[var(--text-primary)]">{company.name}</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-[var(--text-primary)]">
+            {company.name}
+          </h1>
           <p className="text-[var(--text-muted)] text-sm mt-1">
             {company.cnpj}
             {company.idProtheus && <span className="ml-3">Protheus: {company.idProtheus}</span>}
@@ -103,10 +113,10 @@ export default function EmpresaPage() {
 
       {/* Stats */}
       <div className="grid grid-cols-4 gap-4">
-        <StatCard label="Filiais"  value={company.branches.length} />
+        <StatCard label="Filiais" value={company.branches.length} />
         <StatCard label="Usuários" value={company.users.length} />
-        <StatCard label="Pedidos"  value={company._count.orders} />
-        <StatCard label="Status"   value={company.active ? 'Ativa' : 'Inativa'} text />
+        <StatCard label="Pedidos" value={company._count.orders} />
+        <StatCard label="Status" value={company.active ? 'Ativa' : 'Inativa'} text />
       </div>
 
       {/* Tabs */}
@@ -129,14 +139,14 @@ export default function EmpresaPage() {
       </div>
 
       {/* Conteúdo da aba ativa */}
-      {tab === 'filiais'  && <BranchesTab company={company} />}
+      {tab === 'filiais' && <BranchesTab company={company} />}
       {tab === 'usuarios' && <UsersTab company={company} />}
       {tab === 'clientes' && <CustomersTab companyId={company.id} />}
       {tab === 'produtos' && <ProductsTab companyId={company.id} />}
-      {tab === 'pedidos'  && <OrdersTab companyId={company.id} />}
+      {tab === 'pedidos' && <OrdersTab companyId={company.id} />}
       {tab === 'protheus' && <ProtheusTab company={company} />}
-      {tab === 'campos'   && <FieldsTab companyId={company.id} />}
-      {tab === 'logs'     && <LogsTab companyId={company.id} />}
+      {tab === 'campos' && <FieldsTab companyId={company.id} />}
+      {tab === 'logs' && <LogsTab companyId={company.id} />}
     </div>
   )
 }

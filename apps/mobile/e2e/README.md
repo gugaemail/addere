@@ -21,15 +21,15 @@ Requer uma API acessível em `EXPO_PUBLIC_API_URL` com os usuários de teste
 
 ## testIDs esperados pelos fluxos
 
-| testID | Onde |
-|---|---|
-| `input-email`, `input-password`, `btn-login`, `error-login` | LoginScreen |
-| `screen-home` | dashboard `(app)/index.tsx` |
-| `btn-novo-pedido` | FAB em `(app)/pedidos/index.tsx` |
-| `input-busca-cliente`, `resultado-cliente-{i}` | wizard passo 1 |
-| `btn-proximo-step`, `btn-adicionar-produto-{i}` | wizard passos 2/3 |
-| `btn-confirmar-pedido` | wizard passo 3 |
-| `sync-status-*` | `SyncStatusBar` (montado em pedidos) |
-| `empty-queue-message`, `retry-item-*` | `(app)/pedidos/pendentes.tsx` |
+| testID                                                      | Onde                                 |
+| ----------------------------------------------------------- | ------------------------------------ |
+| `input-email`, `input-password`, `btn-login`, `error-login` | LoginScreen                          |
+| `screen-home`                                               | dashboard `(app)/index.tsx`          |
+| `btn-novo-pedido`                                           | FAB em `(app)/pedidos/index.tsx`     |
+| `input-busca-cliente`, `resultado-cliente-{i}`              | wizard passo 1                       |
+| `btn-proximo-step`, `btn-adicionar-produto-{i}`             | wizard passos 2/3                    |
+| `btn-confirmar-pedido`                                      | wizard passo 3                       |
+| `sync-status-*`                                             | `SyncStatusBar` (montado em pedidos) |
+| `empty-queue-message`, `retry-item-*`                       | `(app)/pedidos/pendentes.tsx`        |
 
 Os testes unitários (`npm run test:unit`) não dependem do Detox e rodam no CI.

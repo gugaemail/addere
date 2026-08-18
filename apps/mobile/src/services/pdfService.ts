@@ -18,7 +18,10 @@ function buildHtml(order: Order): string {
   const emissao = order.emissao ?? order.createdAt
   const dateFormatted = fmtData(emissao)
   const generatedAt = fmtData(new Date().toISOString())
-  const generatedTime = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+  const generatedTime = new Date().toLocaleTimeString('pt-BR', {
+    hour: '2-digit',
+    minute: '2-digit',
+  })
   const statusLabel = STATUS_LABEL[order.status] ?? order.status
 
   const itemRows = order.items
@@ -37,9 +40,7 @@ function buildHtml(order: Order): string {
     )
     .join('')
 
-  const branchBlock = order.branch
-    ? `<p>Filial: <strong>${order.branch.name}</strong></p>`
-    : ''
+  const branchBlock = order.branch ? `<p>Filial: <strong>${order.branch.name}</strong></p>` : ''
   const transportBlock = order.transportadora
     ? `<p>Transportadora: <strong>${order.transportadora.nome}</strong></p>`
     : ''
@@ -49,9 +50,7 @@ function buildHtml(order: Order): string {
   const protheusBlock = order.protheusOrderId
     ? `<p>Cód. Protheus: <strong>${order.protheusOrderId}</strong></p>`
     : ''
-  const documentBlock = order.customer.document
-    ? `<p>${order.customer.document}</p>`
-    : ''
+  const documentBlock = order.customer.document ? `<p>${order.customer.document}</p>` : ''
   const observacoesBlock =
     order.notes || order.mennota
       ? `

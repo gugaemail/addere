@@ -3,13 +3,22 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { useMemo, useState, Suspense } from 'react'
-import {
-  LineChart, Line, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer,
-} from 'recharts'
+import { LineChart, Line, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer } from 'recharts'
 import axios from 'axios'
 import {
-  ArrowLeft, BarChart2, CheckCircle, Clock, Download, Package, Plus, Smartphone, Timer,
-  Wifi, XCircle, Zap, type LucideIcon,
+  ArrowLeft,
+  BarChart2,
+  CheckCircle,
+  Clock,
+  Download,
+  Package,
+  Plus,
+  Smartphone,
+  Timer,
+  Wifi,
+  XCircle,
+  Zap,
+  type LucideIcon,
 } from 'lucide-react'
 import { api, getAccessToken } from '@/lib/api'
 import { BRAND } from '@/lib/brand-tokens'
@@ -69,7 +78,9 @@ function PilotList() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-[var(--text-primary)]">Pilotos comerciais</h1>
-          <p className="text-sm text-[var(--text-muted)] mt-1">Gerencie os pilotos de 30 dias com clientes</p>
+          <p className="text-sm text-[var(--text-muted)] mt-1">
+            Gerencie os pilotos de 30 dias com clientes
+          </p>
         </div>
         <Button onClick={() => setShowCreate(true)} leftIcon={Plus}>
           Novo piloto
@@ -80,9 +91,15 @@ function PilotList() {
         <div className="text-center py-16 text-[var(--text-muted)]">Carregando pilotos...</div>
       ) : pilots?.length === 0 ? (
         <div className="text-center py-16 border-2 border-dashed border-[var(--border)] rounded-xl">
-          <BarChart2 size={40} strokeWidth={1.25} className="mx-auto mb-3 text-[var(--text-muted)]" />
+          <BarChart2
+            size={40}
+            strokeWidth={1.25}
+            className="mx-auto mb-3 text-[var(--text-muted)]"
+          />
           <p className="text-[var(--text-secondary)]">Nenhum piloto cadastrado</p>
-          <p className="text-sm text-[var(--text-muted)] mt-1">Crie o primeiro piloto para começar o rastreamento</p>
+          <p className="text-sm text-[var(--text-muted)] mt-1">
+            Crie o primeiro piloto para começar o rastreamento
+          </p>
         </div>
       ) : (
         <div className="grid gap-4">
@@ -94,13 +111,16 @@ function PilotList() {
                     <h3 className="font-semibold text-[var(--text-primary)]">{pilot.clientName}</h3>
                     <PilotStatusBadge status={pilot.status} />
                   </div>
-                  <p className="text-sm text-[var(--text-secondary)]">{pilot.company.name} · {pilot.company.cnpj}</p>
+                  <p className="text-sm text-[var(--text-secondary)]">
+                    {pilot.company.name} · {pilot.company.cnpj}
+                  </p>
                   <div className="flex items-center gap-4 mt-3 text-xs text-[var(--text-muted)]">
                     <span className="flex items-center gap-1">
                       <Clock size={12} strokeWidth={1.5} />
                       {new Date(pilot.startDate).toLocaleDateString('pt-BR')} →{' '}
                       {new Date(pilot.endDate).toLocaleDateString('pt-BR')}
-                      {pilot.status === 'ACTIVE' && ` (${daysRemaining(pilot.endDate)} dias restantes)`}
+                      {pilot.status === 'ACTIVE' &&
+                        ` (${daysRemaining(pilot.endDate)} dias restantes)`}
                     </span>
                     <span>{pilot._count.events.toLocaleString()} eventos</span>
                     <span>{pilot._count.feedbacks} feedbacks</span>
@@ -198,24 +218,40 @@ interface MetricCardProps {
   icon: LucideIcon
   value: string
   goal: string
-  goalMet: boolean | null   // null = sem dados
-  near: boolean             // dentro de 10% da meta
+  goalMet: boolean | null // null = sem dados
+  near: boolean // dentro de 10% da meta
   delta: number | null
-  deltaInvert?: boolean     // para "tempo" onde menor é melhor
+  deltaInvert?: boolean // para "tempo" onde menor é melhor
 }
 
-function MetricCard({ label, icon: Icon, value, goal, goalMet, near, delta, deltaInvert }: MetricCardProps) {
+function MetricCard({
+  label,
+  icon: Icon,
+  value,
+  goal,
+  goalMet,
+  near,
+  delta,
+  deltaInvert,
+}: MetricCardProps) {
   // Semáforo da meta em tokens de marca (success/warning/danger)
   const borderColor =
-    goalMet === null ? 'border-[var(--border)]' :
-    goalMet ? 'border-success' :
-    near ? 'border-warning' : 'border-danger'
+    goalMet === null
+      ? 'border-[var(--border)]'
+      : goalMet
+        ? 'border-success'
+        : near
+          ? 'border-warning'
+          : 'border-danger'
 
   const badge =
-    goalMet === null ? null :
-    goalMet ? <Badge variant="success">Meta atingida</Badge> :
-    near ? <Badge variant="warning">Próximo da meta</Badge> :
-    <Badge variant="danger">Abaixo da meta</Badge>
+    goalMet === null ? null : goalMet ? (
+      <Badge variant="success">Meta atingida</Badge>
+    ) : near ? (
+      <Badge variant="warning">Próximo da meta</Badge>
+    ) : (
+      <Badge variant="danger">Abaixo da meta</Badge>
+    )
 
   const deltaSign = delta !== null ? (deltaInvert ? delta < 0 : delta > 0) : null
   const deltaStr = delta !== null ? `${delta > 0 ? '+' : ''}${delta}% vs sem. ant.` : null
@@ -232,9 +268,7 @@ function MetricCard({ label, icon: Icon, value, goal, goalMet, near, delta, delt
       <div className="text-3xl font-bold text-[var(--text-primary)]">{value}</div>
       <div className="flex items-center justify-between text-xs text-[var(--text-muted)]">
         <span>Meta: {goal}</span>
-        {deltaStr && (
-          <span className={deltaSign ? 'text-success' : 'text-danger'}>{deltaStr}</span>
-        )}
+        {deltaStr && <span className={deltaSign ? 'text-success' : 'text-danger'}>{deltaStr}</span>}
       </div>
     </Card>
   )
@@ -274,7 +308,6 @@ function PilotDetail({ pilotId }: { pilotId: string }) {
     return d
   }, [])
 
-
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64 text-[var(--text-muted)]">
@@ -291,8 +324,17 @@ function PilotDetail({ pilotId }: { pilotId: string }) {
     )
   }
 
-  const { pilot, avgOrderDuration, syncSuccessRate, offlineOrderRate, avgQueueDuration, totalOrders,
-          dailyOrders, repActivity, recentNegativeFeedbacks } = data
+  const {
+    pilot,
+    avgOrderDuration,
+    syncSuccessRate,
+    offlineOrderRate,
+    avgQueueDuration,
+    totalOrders,
+    dailyOrders,
+    repActivity,
+    recentNegativeFeedbacks,
+  } = data
 
   // metas
   const goalAvg = avgOrderDuration.current !== null ? avgOrderDuration.current <= 5 * 60_000 : null
@@ -323,18 +365,33 @@ function PilotDetail({ pilotId }: { pilotId: string }) {
     {
       key: 'lastActive',
       header: 'Último acesso',
-      render: (rep) => rep.lastActiveAt
-        ? new Date(rep.lastActiveAt).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })
-        : '—',
+      render: (rep) =>
+        rep.lastActiveAt
+          ? new Date(rep.lastActiveAt).toLocaleString('pt-BR', {
+              dateStyle: 'short',
+              timeStyle: 'short',
+            })
+          : '—',
     },
     {
       key: 'syncRate',
       header: 'Taxa sync',
-      render: (rep) => rep.syncRate !== null ? (
-        <span className={rep.syncRate >= 98 ? 'text-success' : rep.syncRate >= 90 ? 'text-warning' : 'text-danger'}>
-          {rep.syncRate}%
-        </span>
-      ) : '—',
+      render: (rep) =>
+        rep.syncRate !== null ? (
+          <span
+            className={
+              rep.syncRate >= 98
+                ? 'text-success'
+                : rep.syncRate >= 90
+                  ? 'text-warning'
+                  : 'text-danger'
+            }
+          >
+            {rep.syncRate}%
+          </span>
+        ) : (
+          '—'
+        ),
     },
   ]
 
@@ -448,14 +505,28 @@ function PilotDetail({ pilotId }: { pilotId: string }) {
             />
             <YAxis tick={{ fontSize: 11, fill: BRAND.muted }} allowDecimals={false} />
             <Tooltip
-              formatter={(value: number, name: string) =>
-                [value, name === 'total' ? 'Total' : 'Offline']
-              }
+              formatter={(value: number, name: string) => [
+                value,
+                name === 'total' ? 'Total' : 'Offline',
+              ]}
               labelFormatter={(label) => new Date(label).toLocaleDateString('pt-BR')}
             />
             <Legend formatter={(v) => (v === 'total' ? 'Total' : 'Offline')} />
-            <Line type="monotone" dataKey="total" stroke={BRAND.primary} strokeWidth={2} dot={false} />
-            <Line type="monotone" dataKey="offline" stroke={BRAND.accent} strokeWidth={2} dot={false} strokeDasharray="4 2" />
+            <Line
+              type="monotone"
+              dataKey="total"
+              stroke={BRAND.primary}
+              strokeWidth={2}
+              dot={false}
+            />
+            <Line
+              type="monotone"
+              dataKey="offline"
+              stroke={BRAND.accent}
+              strokeWidth={2}
+              dot={false}
+              strokeDasharray="4 2"
+            />
           </LineChart>
         </ResponsiveContainer>
       </Card>
@@ -481,21 +552,26 @@ function PilotDetail({ pilotId }: { pilotId: string }) {
       {recentNegativeFeedbacks.length > 0 && (
         <Card className="p-0 overflow-hidden border-danger/30">
           <div className="px-6 py-4 border-b border-danger/20 bg-danger/10">
-            <h2 className="text-sm font-semibold text-danger">
-              Feedbacks negativos recentes
-            </h2>
+            <h2 className="text-sm font-semibold text-danger">Feedbacks negativos recentes</h2>
           </div>
           <ul className="divide-y divide-[var(--border)]">
             {recentNegativeFeedbacks.map((f) => (
               <li key={f.id} className="px-6 py-4">
                 <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium text-[var(--text-primary)]">{f.repName}</span>
+                  <span className="text-sm font-medium text-[var(--text-primary)]">
+                    {f.repName}
+                  </span>
                   <span className="text-xs text-[var(--text-muted)]">
-                    {new Date(f.createdAt).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}
+                    {new Date(f.createdAt).toLocaleString('pt-BR', {
+                      dateStyle: 'short',
+                      timeStyle: 'short',
+                    })}
                   </span>
                 </div>
                 {f.comment && (
-                  <p className="mt-1 text-sm text-[var(--text-secondary)] italic">&ldquo;{f.comment}&rdquo;</p>
+                  <p className="mt-1 text-sm text-[var(--text-secondary)] italic">
+                    &ldquo;{f.comment}&rdquo;
+                  </p>
                 )}
               </li>
             ))}

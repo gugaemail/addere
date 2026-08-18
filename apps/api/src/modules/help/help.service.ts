@@ -50,7 +50,7 @@ export async function listUserReports(userId: string, limit: number, status?: st
   ])
 
   return {
-    reports: reports.map(r => ({
+    reports: reports.map((r) => ({
       ticket_id: r.ticketId,
       type: r.type,
       description: r.description.length > 120 ? r.description.slice(0, 120) + '...' : r.description,

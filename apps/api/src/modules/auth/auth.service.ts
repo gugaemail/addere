@@ -55,7 +55,9 @@ export async function rotateRefreshToken(oldToken: string) {
 
   await prisma.$transaction([
     prisma.refreshToken.delete({ where: { token: oldToken } }),
-    prisma.refreshToken.create({ data: { token: newTokenValue, userId: existing.userId, expiresAt } }),
+    prisma.refreshToken.create({
+      data: { token: newTokenValue, userId: existing.userId, expiresAt },
+    }),
   ])
 
   const newToken = newTokenValue

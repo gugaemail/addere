@@ -15,13 +15,15 @@ import { formatDocument } from '../../../src/utils/format'
 
 function ClienteItem({ customer, onPress }: { customer: Customer; onPress: () => void }) {
   const showDocument = useFieldVisible('customer.document')
-  const showPhone    = useFieldVisible('customer.phone')
+  const showPhone = useFieldVisible('customer.phone')
   return (
     <Card onPress={onPress} style={s.card}>
       <View style={{ flex: 1 }}>
         <Text style={s.name}>{customer.name}</Text>
-        {showDocument && customer.document && <Text style={s.sub}>{formatDocument(customer.document)}</Text>}
-        {showPhone    && customer.phone    && <Text style={s.sub}>{customer.phone}</Text>}
+        {showDocument && customer.document && (
+          <Text style={s.sub}>{formatDocument(customer.document)}</Text>
+        )}
+        {showPhone && customer.phone && <Text style={s.sub}>{customer.phone}</Text>}
       </View>
       <ChevronRight size={18} color={colors.neutral.placeholder} strokeWidth={1.5} />
     </Card>
@@ -50,7 +52,9 @@ export default function ClientesScreen() {
 
       {isLoading ? (
         <View style={{ padding: spacing.md }}>
-          {[0, 1, 2, 3, 4].map((i) => <ClienteItemSkeleton key={i} />)}
+          {[0, 1, 2, 3, 4].map((i) => (
+            <ClienteItemSkeleton key={i} />
+          ))}
         </View>
       ) : (
         <FlatList
@@ -68,7 +72,11 @@ export default function ClientesScreen() {
             <EmptyState
               illustration="clients"
               title={search ? 'Nenhum resultado' : 'Nenhum cliente ainda'}
-              subtitle={search ? `Não encontramos clientes para "${search}".` : 'Sincronize os clientes pelo painel web.'}
+              subtitle={
+                search
+                  ? `Não encontramos clientes para "${search}".`
+                  : 'Sincronize os clientes pelo painel web.'
+              }
             />
           }
           contentContainerStyle={{ padding: spacing.md, gap: spacing.sm }}

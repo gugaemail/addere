@@ -1,12 +1,5 @@
 import React from 'react'
-import {
-  View,
-  Text,
-  FlatList,
-  StyleSheet,
-  ActivityIndicator,
-  Alert,
-} from 'react-native'
+import { View, Text, FlatList, StyleSheet, ActivityIndicator, Alert } from 'react-native'
 import { RefreshCw, AlertCircle, Clock, CheckCircle } from 'lucide-react-native'
 import { useSyncQueue } from '../../../src/hooks/useSyncQueue'
 import { Button, buttonForeground } from '../../../src/components/ui/Button'
@@ -18,17 +11,17 @@ import type { SyncQueueItem } from '../../../src/types/sync'
 import type { CreateOrderInput } from '@addere/types'
 
 const STATUS_COLOR = {
-  pending:  colors.semantic.muted,
-  syncing:  colors.brand.primary,
-  error:    colors.semantic.danger,
-  synced:   colors.semantic.success,
+  pending: colors.semantic.muted,
+  syncing: colors.brand.primary,
+  error: colors.semantic.danger,
+  synced: colors.semantic.success,
 } as const
 
 const STATUS_LABEL = {
-  pending:  'Pendente',
-  syncing:  'Enviando...',
-  error:    'Erro',
-  synced:   'Sincronizado',
+  pending: 'Pendente',
+  syncing: 'Enviando...',
+  error: 'Erro',
+  synced: 'Sincronizado',
 } as const
 
 function getCustomerName(payload: unknown): string {
@@ -40,13 +33,7 @@ function getCustomerName(payload: unknown): string {
   }
 }
 
-function QueueItemCard({
-  item,
-  onRetry,
-}: {
-  item: SyncQueueItem
-  onRetry: (id: string) => void
-}) {
+function QueueItemCard({ item, onRetry }: { item: SyncQueueItem; onRetry: (id: string) => void }) {
   const color = STATUS_COLOR[item.status]
   const label = STATUS_LABEL[item.status]
 
@@ -95,33 +82,22 @@ function QueueItemCard({
 }
 
 export default function PendentesScreen() {
-  const {
-    pendingItems,
-    queue,
-    isSyncing,
-    errorItems,
-    syncNow,
-    retryItem,
-    dismissSynced,
-  } = useSyncQueue()
+  const { pendingItems, queue, isSyncing, errorItems, syncNow, retryItem, dismissSynced } =
+    useSyncQueue()
 
   const syncedItems = queue.filter((item) => item.status === 'synced')
   const activeItems = pendingItems
 
   function handleRetryAll() {
-    Alert.alert(
-      'Reenviar todos',
-      'Deseja tentar reenviar todos os pedidos com erro?',
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Reenviar',
-          onPress: () => {
-            errorItems.forEach((item) => retryItem(item.id))
-          },
+    Alert.alert('Reenviar todos', 'Deseja tentar reenviar todos os pedidos com erro?', [
+      { text: 'Cancelar', style: 'cancel' },
+      {
+        text: 'Reenviar',
+        onPress: () => {
+          errorItems.forEach((item) => retryItem(item.id))
         },
-      ],
-    )
+      },
+    ])
   }
 
   const totalActive = activeItems.length
@@ -130,7 +106,9 @@ export default function PendentesScreen() {
     <View style={s.container}>
       {totalActive > 0 && (
         <View style={s.countBadgeRow}>
-          <Text testID="queue-count-badge" style={s.countBadge}>{String(totalActive)}</Text>
+          <Text testID="queue-count-badge" style={s.countBadge}>
+            {String(totalActive)}
+          </Text>
           <Text style={s.countLabel}> pedido{totalActive !== 1 ? 's' : ''} na fila</Text>
         </View>
       )}
@@ -178,7 +156,13 @@ export default function PendentesScreen() {
 
 const s = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.neutral.bg },
-  countBadgeRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: spacing.md, paddingTop: spacing.sm, paddingBottom: spacing.xs },
+  countBadgeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.xs,
+  },
   countBadge: { fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: 20, color: colors.brand.dark },
   countLabel: { fontFamily: 'Inter_400Regular', fontSize: 14, color: colors.neutral.textSub },
   retryAllBtn: {

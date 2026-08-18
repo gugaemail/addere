@@ -66,7 +66,9 @@ export function useCompanyProtheusLogs(id: string, filters: ProtheusLogFilters) 
       const params = new URLSearchParams({ page: String(filters.page), limit: '20' })
       if (filters.operation) params.set('operation', filters.operation)
       if (filters.success) params.set('success', filters.success)
-      return api.get<ProtheusLogPage>(`/companies/${id}/protheus-logs?${params}`).then((r) => r.data)
+      return api
+        .get<ProtheusLogPage>(`/companies/${id}/protheus-logs?${params}`)
+        .then((r) => r.data)
     },
     enabled: !!id,
   })
@@ -105,8 +107,15 @@ type ToggleEntity = 'branches' | 'users' | 'customers' | 'products'
 export function useToggleCompanyEntity(companyId: string) {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: ({ entity, entityId, active }: { entity: ToggleEntity; entityId: string; active: boolean }) =>
-      api.patch(`/companies/${companyId}/${entity}/${entityId}/active`, { active }),
+    mutationFn: ({
+      entity,
+      entityId,
+      active,
+    }: {
+      entity: ToggleEntity
+      entityId: string
+      active: boolean
+    }) => api.patch(`/companies/${companyId}/${entity}/${entityId}/active`, { active }),
     onSuccess: (_data, { entity }) => {
       // Filiais e usuários vêm embutidos no detalhe da empresa
       if (entity === 'branches' || entity === 'users') {
@@ -123,7 +132,8 @@ export function useCancelOrder(companyId: string) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (orderId: string) => api.patch(`/companies/${companyId}/orders/${orderId}/cancel`),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: companiesKeys.entity(companyId, 'orders') }),
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: companiesKeys.entity(companyId, 'orders') }),
     onError: (err) => toast.error(getApiErrorMessage(err, 'Erro ao cancelar pedido.')),
   })
 }
@@ -137,7 +147,8 @@ export function useSaveFieldConfig(companyId: string) {
       queryClient.invalidateQueries({ queryKey: companiesKeys.entity(companyId, 'field-config') })
       toast.success('Configuração de campos salva!')
     },
-    onError: (err) => toast.error(getApiErrorMessage(err, 'Erro ao salvar configuração de campos.')),
+    onError: (err) =>
+      toast.error(getApiErrorMessage(err, 'Erro ao salvar configuração de campos.')),
   })
 }
 
@@ -150,7 +161,8 @@ export function useSaveSyncSchedule(companyId: string) {
       queryClient.invalidateQueries({ queryKey: companiesKeys.entity(companyId, 'sync-schedule') })
       toast.success('Configuração de auto-sync salva!')
     },
-    onError: (err) => toast.error(getApiErrorMessage(err, 'Erro ao salvar configuração de auto-sync.')),
+    onError: (err) =>
+      toast.error(getApiErrorMessage(err, 'Erro ao salvar configuração de auto-sync.')),
   })
 }
 

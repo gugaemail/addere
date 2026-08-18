@@ -7,11 +7,11 @@ services:
       POSTGRES_PASSWORD: addere_dev_password
       POSTGRES_DB: addere_dev
     ports:
-      - "5432:5432"
+      - '5432:5432'
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U addere_dev_user -d addere_dev"]
+      test: ['CMD-SHELL', 'pg_isready -U addere_dev_user -d addere_dev']
       interval: 5s
       timeout: 5s
       retries: 5

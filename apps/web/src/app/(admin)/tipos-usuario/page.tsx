@@ -81,7 +81,11 @@ export default function UserTypesPage() {
             <Button size="sm" variant="secondary" onClick={() => setEditingId(null)}>
               Cancelar
             </Button>
-            <Button size="sm" loading={updateUserType.isPending} onClick={() => handleRename(row.id)}>
+            <Button
+              size="sm"
+              loading={updateUserType.isPending}
+              onClick={() => handleRename(row.id)}
+            >
               Salvar
             </Button>
           </div>
@@ -111,15 +115,25 @@ export default function UserTypesPage() {
             onChange={(e) => setNewName(e.target.value)}
           />
         </div>
-        <Button type="submit" loading={createUserType.isPending} disabled={newName.trim().length < 2}>
+        <Button
+          type="submit"
+          loading={createUserType.isPending}
+          disabled={newName.trim().length < 2}
+        >
           Adicionar
         </Button>
       </form>
 
       {isLoading ? (
-        <div className="flex justify-center py-12"><Spinner size="lg" /></div>
+        <div className="flex justify-center py-12">
+          <Spinner size="lg" />
+        </div>
       ) : (
-        <Table columns={columns} data={userTypes ?? []} emptyMessage="Nenhum tipo de usuário cadastrado." />
+        <Table
+          columns={columns}
+          data={userTypes ?? []}
+          emptyMessage="Nenhum tipo de usuário cadastrado."
+        />
       )}
     </div>
   )

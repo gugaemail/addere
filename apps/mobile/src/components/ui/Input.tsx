@@ -48,7 +48,7 @@ export function Input({
         style={[
           styles.field,
           focused && styles.fieldFocused,
-          error   && styles.fieldError,
+          error && styles.fieldError,
           containerStyle,
         ]}
       >
@@ -57,8 +57,14 @@ export function Input({
           style={[styles.input, style]}
           value={value}
           placeholderTextColor={colors.neutral.placeholder}
-          onFocus={(e) => { setFocused(true);  onFocus?.(e) }}
-          onBlur={(e)  => { setFocused(false); onBlur?.(e)  }}
+          onFocus={(e) => {
+            setFocused(true)
+            onFocus?.(e)
+          }}
+          onBlur={(e) => {
+            setFocused(false)
+            onBlur?.(e)
+          }}
           {...props}
         />
         {showClear && (
@@ -85,16 +91,16 @@ const styles = StyleSheet.create({
   },
   label: {
     fontFamily: typography.fontFamily.sansMedium,
-    fontSize:   typography.size.sm,
-    color:      colors.neutral.text,
+    fontSize: typography.size.sm,
+    color: colors.neutral.text,
   },
   field: {
-    flexDirection:     'row',
-    alignItems:        'center',
-    borderWidth:       1,
-    borderColor:       colors.neutral.border,
-    borderRadius:      radius.sm,
-    backgroundColor:   colors.neutral.white,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: colors.neutral.border,
+    borderRadius: radius.sm,
+    backgroundColor: colors.neutral.white,
     paddingHorizontal: spacing.md,
   },
   fieldFocused: {
@@ -107,16 +113,16 @@ const styles = StyleSheet.create({
     marginHorizontal: spacing.xs,
   },
   input: {
-    flex:            1,
-    fontFamily:      typography.fontFamily.body,
-    fontSize:        typography.size.md,
-    color:           colors.neutral.text,
+    flex: 1,
+    fontFamily: typography.fontFamily.body,
+    fontSize: typography.size.md,
+    color: colors.neutral.text,
     paddingVertical: spacing.sm,
     paddingHorizontal: 0,
   },
   error: {
     fontFamily: typography.fontFamily.body,
-    fontSize:   typography.size.xs,
-    color:      colors.semantic.danger,
+    fontSize: typography.size.xs,
+    color: colors.semantic.danger,
   },
 })

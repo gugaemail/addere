@@ -68,11 +68,16 @@ export const orderFormStyles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  itemControls:  { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.md },
-  itemQty:       { minWidth: 80 },
-  itemPrice:     { flex: 1 },
-  itemSubtotal:  { alignItems: 'flex-end' },
-  controlLabel:  { fontFamily: fontFamily.body, fontSize: typography.size.xs, color: colors.neutral.textSub, marginBottom: spacing.xs },
+  itemControls: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.md },
+  itemQty: { minWidth: 80 },
+  itemPrice: { flex: 1 },
+  itemSubtotal: { alignItems: 'flex-end' },
+  controlLabel: {
+    fontFamily: fontFamily.body,
+    fontSize: typography.size.xs,
+    color: colors.neutral.textSub,
+    marginBottom: spacing.xs,
+  },
   // Campo compacto do editor de item (aplicado via containerStyle/style do Input)
   compactField: {
     backgroundColor: colors.neutral.bg,
@@ -84,11 +89,16 @@ export const orderFormStyles = StyleSheet.create({
     paddingVertical: spacing.xs,
     color: colors.brand.dark,
   },
-  subtotalValue: { fontFamily: fontFamily.sansBold, fontSize: 13, color: colors.brand.dark, paddingVertical: spacing.xs },
-  itemExtraRow:   { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.sm, flexWrap: 'wrap' },
+  subtotalValue: {
+    fontFamily: fontFamily.sansBold,
+    fontSize: 13,
+    color: colors.brand.dark,
+    paddingVertical: spacing.xs,
+  },
+  itemExtraRow: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.sm, flexWrap: 'wrap' },
   itemExtraField: { flex: 1, minWidth: 80 },
-  itemExtraFull:  { marginTop: spacing.sm },
-  xcravBtn:       { alignSelf: 'flex-start' },
+  itemExtraFull: { marginTop: spacing.sm },
+  xcravBtn: { alignSelf: 'flex-start' },
 
   // ── PickerField ─────────────────────────────────────────────
   pickerBtn: {
@@ -102,10 +112,14 @@ export const orderFormStyles = StyleSheet.create({
     paddingVertical: spacing.sm,
     backgroundColor: colors.neutral.bg,
   },
-  pickerBtnError:       { borderColor: colors.semantic.danger },
-  pickerBtnDisabled:    { opacity: 0.6 },
-  pickerBtnText:        { fontFamily: fontFamily.body, fontSize: 14, color: colors.brand.dark },
-  pickerBtnPlaceholder: { fontFamily: fontFamily.body, fontSize: 14, color: colors.neutral.textSub },
+  pickerBtnError: { borderColor: colors.semantic.danger },
+  pickerBtnDisabled: { opacity: 0.6 },
+  pickerBtnText: { fontFamily: fontFamily.body, fontSize: 14, color: colors.brand.dark },
+  pickerBtnPlaceholder: {
+    fontFamily: fontFamily.body,
+    fontSize: 14,
+    color: colors.neutral.textSub,
+  },
   pickerList: {
     marginTop: spacing.xs,
     borderWidth: 1,
@@ -114,8 +128,13 @@ export const orderFormStyles = StyleSheet.create({
     backgroundColor: colors.neutral.white,
     overflow: 'hidden',
   },
-  pickerItem:         { paddingVertical: spacing.md, paddingHorizontal: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.neutral.bg },
-  pickerItemText:     { fontFamily: fontFamily.body, fontSize: 14, color: colors.neutral.text },
+  pickerItem: {
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.neutral.bg,
+  },
+  pickerItemText: { fontFamily: fontFamily.body, fontSize: 14, color: colors.neutral.text },
   pickerItemSelected: { fontFamily: fontFamily.sansSemibold, color: colors.brand.primary },
 
   // ── Observações (Input multiline) ───────────────────────────

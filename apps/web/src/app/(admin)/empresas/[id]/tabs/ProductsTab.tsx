@@ -9,8 +9,16 @@ import { companiesKeys } from '@/hooks/useCompanies'
 import { useCompanyProducts, useToggleCompanyEntity } from '@/hooks/useCompany'
 import { ProductModal, ActionMenu } from '../EntityModals'
 import {
-  TabSection, SearchInput, SortHeader, Pagination, TableEmptyState, NoResultsState,
-  applyTable, toggleSort, type ModalState, type SortConfig,
+  TabSection,
+  SearchInput,
+  SortHeader,
+  Pagination,
+  TableEmptyState,
+  NoResultsState,
+  applyTable,
+  toggleSort,
+  type ModalState,
+  type SortConfig,
 } from './shared'
 
 export function ProductsTab({ companyId }: { companyId: string }) {
@@ -26,13 +34,17 @@ export function ProductsTab({ companyId }: { companyId: string }) {
   const q = search.toLowerCase()
   const table = applyTable(
     products,
-    (p) => !q || p.name.toLowerCase().includes(q) || (p.protheusCode ?? '').toLowerCase().includes(q),
+    (p) =>
+      !q || p.name.toLowerCase().includes(q) || (p.protheusCode ?? '').toLowerCase().includes(q),
     sort,
-    (p, col) => col === 'name' ? p.name : (p.protheusCode ?? ''),
-    page,
+    (p, col) => (col === 'name' ? p.name : (p.protheusCode ?? '')),
+    page
   )
 
-  const onSort = (c: string) => { setSort(toggleSort(sort, c)); setPage(1) }
+  const onSort = (c: string) => {
+    setSort(toggleSort(sort, c))
+    setPage(1)
+  }
 
   const columns: Column<Product>[] = [
     {
@@ -45,9 +57,17 @@ export function ProductsTab({ companyId }: { companyId: string }) {
       header: <SortHeader label="Protheus" col="code" sort={sort} onSort={onSort} />,
       render: (p) => <span className="text-[var(--text-muted)]">{p.protheusCode ?? '—'}</span>,
     },
-    { key: 'unit', header: 'Unidade', render: (p) => <span className="text-[var(--text-muted)]">{p.unit}</span> },
+    {
+      key: 'unit',
+      header: 'Unidade',
+      render: (p) => <span className="text-[var(--text-muted)]">{p.unit}</span>,
+    },
     { key: 'price', header: 'Preço', render: (p) => <>R$ {Number(p.price).toFixed(2)}</> },
-    { key: 'stock', header: 'Estoque', render: (p) => <span className="text-[var(--text-muted)]">{Number(p.stock).toFixed(3)}</span> },
+    {
+      key: 'stock',
+      header: 'Estoque',
+      render: (p) => <span className="text-[var(--text-muted)]">{Number(p.stock).toFixed(3)}</span>,
+    },
     { key: 'status', header: 'Status', render: (p) => <StatusBadge active={p.active} /> },
     {
       key: 'actions',
@@ -60,7 +80,9 @@ export function ProductsTab({ companyId }: { companyId: string }) {
           onView={() => setModal({ mode: 'view', item: p })}
           onEdit={() => setModal({ mode: 'edit', item: p })}
           onCopy={() => setModal({ mode: 'copy', item: p })}
-          onToggle={() => toggleEntity.mutate({ entity: 'products', entityId: p.id, active: !p.active })}
+          onToggle={() =>
+            toggleEntity.mutate({ entity: 'products', entityId: p.id, active: !p.active })
+          }
         />
       ),
     },
@@ -70,16 +92,33 @@ export function ProductsTab({ companyId }: { companyId: string }) {
     <>
       <TabSection
         action={{ label: 'Novo produto', onClick: () => setModal({ mode: 'create' }) }}
-        search={<SearchInput value={search} onChange={(v) => { setSearch(v); setPage(1) }} placeholder="Pesquisar produtos…" />}
+        search={
+          <SearchInput
+            value={search}
+            onChange={(v) => {
+              setSearch(v)
+              setPage(1)
+            }}
+            placeholder="Pesquisar produtos…"
+          />
+        }
         footer={<Pagination page={page} total={table.total} pages={table.pages} onPage={setPage} />}
       >
         <div className="overflow-auto max-h-[520px]">
           {products.length === 0 ? (
-            <TableEmptyState title="Nenhum produto" description="Adicione manualmente ou sincronize via Protheus." />
+            <TableEmptyState
+              title="Nenhum produto"
+              description="Adicione manualmente ou sincronize via Protheus."
+            />
           ) : table.total === 0 && search ? (
             <NoResultsState />
           ) : (
-            <Table columns={columns} data={table.rows} rowKey={(p) => p.id} className="rounded-none" />
+            <Table
+              columns={columns}
+              data={table.rows}
+              rowKey={(p) => p.id}
+              className="rounded-none"
+            />
           )}
         </div>
       </TabSection>

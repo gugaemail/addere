@@ -33,8 +33,19 @@ export function CreateCompanyModal({ onClose, onCreated }: Props) {
     <Modal isOpen onClose={onClose} title="Nova Empresa">
       <form onSubmit={handleSubmit} className="space-y-4">
         <FormField label="Nome" required value={name} onChange={(e) => setName(e.target.value)} />
-        <FormField label="CNPJ" required value={cnpj} onChange={(e) => setCnpj(e.target.value)} placeholder="00.000.000/0001-00" />
-        <FormField label="Código Protheus" value={idProtheus} onChange={(e) => setIdProtheus(e.target.value)} placeholder="Opcional" />
+        <FormField
+          label="CNPJ"
+          required
+          value={cnpj}
+          onChange={(e) => setCnpj(e.target.value)}
+          placeholder="00.000.000/0001-00"
+        />
+        <FormField
+          label="Código Protheus"
+          value={idProtheus}
+          onChange={(e) => setIdProtheus(e.target.value)}
+          placeholder="Opcional"
+        />
 
         <div className="flex gap-3 pt-2">
           <Button type="button" variant="secondary" onClick={onClose} className="flex-1">

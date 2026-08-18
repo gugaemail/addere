@@ -28,18 +28,18 @@ export async function syncProducts(companyId: string, operationLabel = 'syncProd
   if (!branch) throw unprocessable('Nenhuma filial ativa encontrada para a empresa')
   if (!branch.idProtheus) throw unprocessable('Filial sem código Protheus configurado')
 
-  const filial   = branch.idProtheus
-  const creds    = getCredentials(company)
+  const filial = branch.idProtheus
+  const creds = getCredentials(company)
   const schedule = (company.syncSchedule as SyncSchedule | null) ?? DEFAULT_SYNC_SCHEDULE
-  const INTERV   = schedule.products.interv ?? 0
+  const INTERV = schedule.products.interv ?? 0
   const t0 = Date.now()
 
   try {
     const { records, totalRecords, totalFetched } = await fetchPaginated<ProductData>({
       companyId,
-      url:       company.apiPord,
+      url: company.apiPord,
       creds,
-      listKey:   'produtos',
+      listKey: 'produtos',
       bodyExtra: { B2_FILIAL: filial, DA1_FILIAL: filial, INTERV },
       mapRecord: (raw) => {
         const protheusCode = toStr(raw['id'])
@@ -50,9 +50,9 @@ export async function syncProducts(companyId: string, operationLabel = 'syncProd
 
         return {
           protheusCode,
-          name:  toStr(raw['nome'], protheusCode),
+          name: toStr(raw['nome'], protheusCode),
           price: Number.isFinite(price) ? price : 0,
-          unit:  'UN',
+          unit: 'UN',
           stock: Number.isFinite(stock) ? stock : 0,
           saldo: Number.isFinite(stock) ? stock : 0,
         }
@@ -61,22 +61,38 @@ export async function syncProducts(companyId: string, operationLabel = 'syncProd
 
     const { synced, errors } = await upsertChunked(
       records,
-      (p) => prisma.product.upsert({
-        where: { companyId_protheusCode: { companyId, protheusCode: p.protheusCode } },
-        update: { name: p.name, price: p.price, unit: p.unit, stock: p.stock, saldo: p.saldo, active: true },
-        create: { companyId, protheusCode: p.protheusCode, name: p.name, price: p.price, unit: p.unit, stock: p.stock, saldo: p.saldo },
-      }),
+      (p) =>
+        prisma.product.upsert({
+          where: { companyId_protheusCode: { companyId, protheusCode: p.protheusCode } },
+          update: {
+            name: p.name,
+            price: p.price,
+            unit: p.unit,
+            stock: p.stock,
+            saldo: p.saldo,
+            active: true,
+          },
+          create: {
+            companyId,
+            protheusCode: p.protheusCode,
+            name: p.name,
+            price: p.price,
+            unit: p.unit,
+            stock: p.stock,
+            saldo: p.saldo,
+          },
+        }),
       (p) => p.protheusCode
     )
 
     await logProtheusCall({
       companyId,
-      operation:     operationLabel,
-      endpointKey:   'apiPord',
-      success:       true,
-      durationMs:    Date.now() - t0,
+      operation: operationLabel,
+      endpointKey: 'apiPord',
+      success: true,
+      durationMs: Date.now() - t0,
       recordsSynced: synced,
-      totalRecords:  totalRecords || totalFetched,
+      totalRecords: totalRecords || totalFetched,
     })
 
     return { synced, total: totalRecords || records.length, errors }
@@ -84,11 +100,11 @@ export async function syncProducts(companyId: string, operationLabel = 'syncProd
     const e = err as { response?: { status?: number }; message?: string }
     await logProtheusCall({
       companyId,
-      operation:    operationLabel,
-      endpointKey:  'apiPord',
-      success:      false,
-      httpStatus:   e.response?.status,
-      durationMs:   Date.now() - t0,
+      operation: operationLabel,
+      endpointKey: 'apiPord',
+      success: false,
+      httpStatus: e.response?.status,
+      durationMs: Date.now() - t0,
       errorMessage: e.message,
     })
     throw err

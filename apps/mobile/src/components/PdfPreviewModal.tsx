@@ -119,7 +119,9 @@ export function PdfPreviewModal({ visible, order, onClose }: Props) {
                 variant="primary"
                 size="lg"
                 style={s.whatsappBtn}
-                icon={<MessageCircle size={20} color={buttonForeground.primary} strokeWidth={1.5} />}
+                icon={
+                  <MessageCircle size={20} color={buttonForeground.primary} strokeWidth={1.5} />
+                }
                 onPress={handleWhatsApp}
                 disabled={loading}
               >

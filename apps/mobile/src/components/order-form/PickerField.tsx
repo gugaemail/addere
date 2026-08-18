@@ -55,20 +55,39 @@ export function PickerField({
         accessibilityState={{ expanded: open }}
       >
         <Text style={selected ? s.pickerBtnText : s.pickerBtnPlaceholder}>
-          {loading ? 'Carregando...' : selected ? selected.nome : `Selecionar ${label.toLowerCase().replace(' *', '')}...`}
+          {loading
+            ? 'Carregando...'
+            : selected
+              ? selected.nome
+              : `Selecionar ${label.toLowerCase().replace(' *', '')}...`}
         </Text>
-        {open
-          ? <ChevronUp   size={16} color={colors.neutral.textSub} strokeWidth={1.5} />
-          : <ChevronDown size={16} color={colors.neutral.textSub} strokeWidth={1.5} />}
+        {open ? (
+          <ChevronUp size={16} color={colors.neutral.textSub} strokeWidth={1.5} />
+        ) : (
+          <ChevronDown size={16} color={colors.neutral.textSub} strokeWidth={1.5} />
+        )}
       </TouchableOpacity>
       {error && <Text style={s.fieldError}>{error}</Text>}
       {open && (
         <View style={s.pickerList}>
-          <TouchableOpacity style={s.pickerItem} onPress={() => { onSelect(null); setOpen(false) }}>
+          <TouchableOpacity
+            style={s.pickerItem}
+            onPress={() => {
+              onSelect(null)
+              setOpen(false)
+            }}
+          >
             <Text style={s.pickerItemText}>— Nenhum —</Text>
           </TouchableOpacity>
           {items.map((item) => (
-            <TouchableOpacity key={item.id} style={s.pickerItem} onPress={() => { onSelect(item); setOpen(false) }}>
+            <TouchableOpacity
+              key={item.id}
+              style={s.pickerItem}
+              onPress={() => {
+                onSelect(item)
+                setOpen(false)
+              }}
+            >
               <Text style={[s.pickerItemText, selected?.id === item.id && s.pickerItemSelected]}>
                 {item.nome}
               </Text>

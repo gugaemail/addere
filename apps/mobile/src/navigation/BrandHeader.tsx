@@ -10,14 +10,10 @@ export function BrandHeader() {
   const { mutate: logout } = useLogout()
 
   function handleUserPress() {
-    Alert.alert(
-      'Conta',
-      'Deseja encerrar a sessão?',
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        { text: 'Sair', style: 'destructive', onPress: () => logout() },
-      ],
-    )
+    Alert.alert('Conta', 'Deseja encerrar a sessão?', [
+      { text: 'Cancelar', style: 'cancel' },
+      { text: 'Sair', style: 'destructive', onPress: () => logout() },
+    ])
   }
 
   return (

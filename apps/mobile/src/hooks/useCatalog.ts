@@ -25,16 +25,14 @@ export function useCatalog(search?: string) {
       return data
     },
     staleTime,
-    gcTime:      1000 * 60 * 60 * 24 * 7,
+    gcTime: 1000 * 60 * 60 * 24 * 7,
     networkMode: 'offlineFirst',
   })
 
   const isFromCache =
-    query.dataUpdatedAt > 0 &&
-    (!networkAvailable || Date.now() - query.dataUpdatedAt > staleTime)
+    query.dataUpdatedAt > 0 && (!networkAvailable || Date.now() - query.dataUpdatedAt > staleTime)
 
-  const lastUpdated =
-    query.dataUpdatedAt > 0 ? new Date(query.dataUpdatedAt) : null
+  const lastUpdated = query.dataUpdatedAt > 0 ? new Date(query.dataUpdatedAt) : null
 
   useEffect(() => {
     if (query.isSuccess && !trackedRef.current) {

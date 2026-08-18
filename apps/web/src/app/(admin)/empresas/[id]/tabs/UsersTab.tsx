@@ -10,8 +10,16 @@ import { companiesKeys } from '@/hooks/useCompanies'
 import { useToggleCompanyEntity } from '@/hooks/useCompany'
 import { UserModal, ActionMenu } from '../EntityModals'
 import {
-  TabSection, SearchInput, SortHeader, Pagination, TableEmptyState, NoResultsState,
-  applyTable, toggleSort, type ModalState, type SortConfig,
+  TabSection,
+  SearchInput,
+  SortHeader,
+  Pagination,
+  TableEmptyState,
+  NoResultsState,
+  applyTable,
+  toggleSort,
+  type ModalState,
+  type SortConfig,
 } from './shared'
 
 export function UsersTab({ company }: { company: CompanyDetail }) {
@@ -29,11 +37,14 @@ export function UsersTab({ company }: { company: CompanyDetail }) {
     company.users,
     (u) => !q || u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q),
     sort,
-    (u, col) => col === 'name' ? u.name : u.email,
-    page,
+    (u, col) => (col === 'name' ? u.name : u.email),
+    page
   )
 
-  const onSort = (c: string) => { setSort(toggleSort(sort, c)); setPage(1) }
+  const onSort = (c: string) => {
+    setSort(toggleSort(sort, c))
+    setPage(1)
+  }
 
   const columns: Column<UserPublic>[] = [
     {
@@ -49,7 +60,11 @@ export function UsersTab({ company }: { company: CompanyDetail }) {
     {
       key: 'role',
       header: 'Perfil',
-      render: (u) => <span className="text-[var(--text-muted)]">{u.role === 'ADMIN' ? 'Administrador' : 'Vendedor'}</span>,
+      render: (u) => (
+        <span className="text-[var(--text-muted)]">
+          {u.role === 'ADMIN' ? 'Administrador' : 'Vendedor'}
+        </span>
+      ),
     },
     { key: 'status', header: 'Status', render: (u) => <StatusBadge active={u.active} /> },
     {
@@ -62,7 +77,9 @@ export function UsersTab({ company }: { company: CompanyDetail }) {
           active={u.active}
           onEdit={() => setModal({ mode: 'edit', item: u })}
           onCopy={() => setModal({ mode: 'copy', item: u })}
-          onToggle={() => toggleEntity.mutate({ entity: 'users', entityId: u.id, active: !u.active })}
+          onToggle={() =>
+            toggleEntity.mutate({ entity: 'users', entityId: u.id, active: !u.active })
+          }
         />
       ),
     },
@@ -72,26 +89,39 @@ export function UsersTab({ company }: { company: CompanyDetail }) {
     <>
       <TabSection
         action={{ label: 'Novo usuário', onClick: () => setShowCreateModal(true) }}
-        search={<SearchInput value={search} onChange={(v) => { setSearch(v); setPage(1) }} placeholder="Pesquisar usuários…" />}
+        search={
+          <SearchInput
+            value={search}
+            onChange={(v) => {
+              setSearch(v)
+              setPage(1)
+            }}
+            placeholder="Pesquisar usuários…"
+          />
+        }
         footer={<Pagination page={page} total={table.total} pages={table.pages} onPage={setPage} />}
       >
         <div className="overflow-auto max-h-[520px]">
           {company.users.length === 0 ? (
-            <TableEmptyState title="Nenhum usuário" description="Adicione o primeiro usuário desta empresa." />
+            <TableEmptyState
+              title="Nenhum usuário"
+              description="Adicione o primeiro usuário desta empresa."
+            />
           ) : table.total === 0 && search ? (
             <NoResultsState />
           ) : (
-            <Table columns={columns} data={table.rows} rowKey={(u) => u.id} className="rounded-none" />
+            <Table
+              columns={columns}
+              data={table.rows}
+              rowKey={(u) => u.id}
+              className="rounded-none"
+            />
           )}
         </div>
       </TabSection>
 
       {showCreateModal && (
-        <CreateUserModal
-          isOpen
-          onClose={() => setShowCreateModal(false)}
-          companyId={company.id}
-        />
+        <CreateUserModal isOpen onClose={() => setShowCreateModal(false)} companyId={company.id} />
       )}
 
       {modal && (

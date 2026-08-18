@@ -6,7 +6,10 @@ import { useCompanyFieldConfig, useSaveFieldConfig } from '@/hooks/useCompany'
 import { Button } from '@/components/ui/Button'
 
 const ENTITY_LABELS: Record<string, string> = {
-  customer: 'Cliente', order: 'Pedido', orderItem: 'Item do Pedido', product: 'Produto',
+  customer: 'Cliente',
+  order: 'Pedido',
+  orderItem: 'Item do Pedido',
+  product: 'Produto',
 }
 
 export function FieldsTab({ companyId }: { companyId: string }) {
@@ -27,7 +30,9 @@ export function FieldsTab({ companyId }: { companyId: string }) {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-base font-semibold text-[var(--text-primary)]">Visibilidade e obrigatoriedade de campos</h2>
+        <h2 className="text-base font-semibold text-[var(--text-primary)]">
+          Visibilidade e obrigatoriedade de campos
+        </h2>
         <p className="text-sm text-[var(--text-muted)] mt-1">
           Controle quais campos aparecem no app e quais são obrigatórios nos formulários.
         </p>
@@ -38,23 +43,36 @@ export function FieldsTab({ companyId }: { companyId: string }) {
         return (
           <div key={entity} className="rounded-xl border border-[var(--border)] overflow-hidden">
             <div className="px-4 py-3 bg-[var(--bg-subtle)] border-b border-[var(--border)] flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-[var(--text-primary)]">{ENTITY_LABELS[entity]}</h3>
+              <h3 className="text-sm font-semibold text-[var(--text-primary)]">
+                {ENTITY_LABELS[entity]}
+              </h3>
               <div className="flex gap-6 pr-1">
-                <span className="text-xs font-medium text-[var(--text-muted)] w-14 text-center">Visível</span>
-                <span className="text-xs font-medium text-[var(--text-muted)] w-14 text-center">Obrigatório</span>
+                <span className="text-xs font-medium text-[var(--text-muted)] w-14 text-center">
+                  Visível
+                </span>
+                <span className="text-xs font-medium text-[var(--text-muted)] w-14 text-center">
+                  Obrigatório
+                </span>
               </div>
             </div>
             <div className="divide-y divide-[var(--border)]">
               {fields.map((field) => {
-                const isHidden   = hiddenFields.includes(field.key)
+                const isHidden = hiddenFields.includes(field.key)
                 const isRequired = requiredFields.includes(field.key)
                 const canBeRequired = field.affectsInput && !isHidden
                 return (
-                  <div key={field.key} className="flex items-center justify-between gap-4 px-4 py-3 hover:bg-[var(--bg-subtle)] transition-colors">
+                  <div
+                    key={field.key}
+                    className="flex items-center justify-between gap-4 px-4 py-3 hover:bg-[var(--bg-subtle)] transition-colors"
+                  >
                     <div>
-                      <p className="text-sm font-medium text-[var(--text-primary)]">{field.label}</p>
+                      <p className="text-sm font-medium text-[var(--text-primary)]">
+                        {field.label}
+                      </p>
                       <p className="text-xs text-[var(--text-muted)]">
-                        {field.affectsInput ? 'Oculta exibição e formulário' : 'Oculta apenas exibição'}
+                        {field.affectsInput
+                          ? 'Oculta exibição e formulário'
+                          : 'Oculta apenas exibição'}
                       </p>
                     </div>
                     <div className="flex gap-6 pr-1">

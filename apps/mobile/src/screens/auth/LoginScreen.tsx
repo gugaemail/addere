@@ -39,7 +39,7 @@ export function LoginScreen() {
 
   const { mutate: login, isPending, error } = useLogin()
   const setAuth = useAuthStore((s) => s.setAuth)
-  const setFieldConfig  = useCompanyStore((s) => s.setFieldConfig)
+  const setFieldConfig = useCompanyStore((s) => s.setFieldConfig)
   const setSyncSchedule = useCompanyStore((s) => s.setSyncSchedule)
 
   useEffect(() => {
@@ -47,7 +47,7 @@ export function LoginScreen() {
       const enabled = await AsyncStorage.getItem(BIOMETRIC_KEY)
       if (enabled !== 'true') return
       const hasHardware = await LocalAuthentication.hasHardwareAsync()
-      const isEnrolled  = await LocalAuthentication.isEnrolledAsync()
+      const isEnrolled = await LocalAuthentication.isEnrolledAsync()
       if (hasHardware && isEnrolled) setShowBiometric(true)
     }
     checkBiometric()
@@ -61,7 +61,10 @@ export function LoginScreen() {
         cancelLabel: 'Usar e-mail e senha',
         disableDeviceFallback: false,
       })
-      if (!result.success) { setBiometricLoading(false); return }
+      if (!result.success) {
+        setBiometricLoading(false)
+        return
+      }
 
       // refreshSession (auth.store) centraliza cookie + fallback SecureStore
       // e já persiste os tokens rotacionados e popula o store
@@ -72,11 +75,15 @@ export function LoginScreen() {
       try {
         const { data: cfg } = await api.get<CompanyFieldConfig>('/companies/me/field-config')
         await setFieldConfig(cfg)
-      } catch { /* ignora */ }
+      } catch {
+        /* ignora */
+      }
       try {
         const { data: s } = await api.get<SyncSchedule>('/companies/me/sync-schedule')
         await setSyncSchedule(s)
-      } catch { /* ignora */ }
+      } catch {
+        /* ignora */
+      }
       // AuthGuard navega para /(app) automaticamente ao detectar accessToken
     } catch {
       Alert.alert(
@@ -110,10 +117,7 @@ export function LoginScreen() {
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
-      <ScrollView
-        contentContainerStyle={styles.scroll}
-        keyboardShouldPersistTaps="handled"
-      >
+      <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
         <View style={styles.card}>
           {/* Logo group */}
           <View style={styles.logoGroup}>
@@ -141,16 +145,9 @@ export function LoginScreen() {
               error={fieldErrors.password}
             />
 
-            {apiErrorMessage && (
-              <Text style={styles.error}>{apiErrorMessage}</Text>
-            )}
+            {apiErrorMessage && <Text style={styles.error}>{apiErrorMessage}</Text>}
 
-            <Button
-              onPress={handleLogin}
-              loading={isPending}
-              size="lg"
-              style={styles.button}
-            >
+            <Button onPress={handleLogin} loading={isPending} size="lg" style={styles.button}>
               Entrar
             </Button>
 
@@ -159,7 +156,9 @@ export function LoginScreen() {
                 variant="secondary"
                 onPress={handleBiometricLogin}
                 loading={biometricLoading}
-                icon={<Fingerprint size={18} strokeWidth={1.5} color={buttonForeground.secondary} />}
+                icon={
+                  <Fingerprint size={18} strokeWidth={1.5} color={buttonForeground.secondary} />
+                }
               >
                 Entrar com biometria
               </Button>

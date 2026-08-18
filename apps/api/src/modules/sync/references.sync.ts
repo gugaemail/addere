@@ -8,12 +8,15 @@ import { getCredentials, toStr } from './utils'
 type RefData = { protheusCode: string; nome: string }
 
 interface RefSyncConfig {
-  operation:   string
+  operation: string
   endpointKey: 'apiTransp' | 'apiCondPag'
-  listKey:     string
-  codeField:   string
-  nameField:   string
-  upsert: (companyId: string, r: RefData) => ReturnType<typeof prisma.transportadora.upsert> | ReturnType<typeof prisma.condPag.upsert>
+  listKey: string
+  codeField: string
+  nameField: string
+  upsert: (
+    companyId: string,
+    r: RefData
+  ) => ReturnType<typeof prisma.transportadora.upsert> | ReturnType<typeof prisma.condPag.upsert>
 }
 
 // Transportadoras e condições de pagamento seguem exatamente o mesmo fluxo —
@@ -48,12 +51,12 @@ async function syncReference(companyId: string, cfg: RefSyncConfig) {
 
     await logProtheusCall({
       companyId,
-      operation:     cfg.operation,
-      endpointKey:   cfg.endpointKey,
-      success:       true,
-      durationMs:    Date.now() - t0,
+      operation: cfg.operation,
+      endpointKey: cfg.endpointKey,
+      success: true,
+      durationMs: Date.now() - t0,
       recordsSynced: synced,
-      totalRecords:  totalRecords || totalFetched,
+      totalRecords: totalRecords || totalFetched,
     })
 
     return { synced, total: totalRecords || totalFetched, errors }
@@ -61,11 +64,11 @@ async function syncReference(companyId: string, cfg: RefSyncConfig) {
     const e = err as { response?: { status?: number }; message?: string }
     await logProtheusCall({
       companyId,
-      operation:    cfg.operation,
-      endpointKey:  cfg.endpointKey,
-      success:      false,
-      httpStatus:   e.response?.status,
-      durationMs:   Date.now() - t0,
+      operation: cfg.operation,
+      endpointKey: cfg.endpointKey,
+      success: false,
+      httpStatus: e.response?.status,
+      durationMs: Date.now() - t0,
       errorMessage: e.message,
     })
     throw err
@@ -74,30 +77,32 @@ async function syncReference(companyId: string, cfg: RefSyncConfig) {
 
 export function syncTransportadoras(companyId: string) {
   return syncReference(companyId, {
-    operation:   'syncTransportadoras',
+    operation: 'syncTransportadoras',
     endpointKey: 'apiTransp',
-    listKey:     'Transportadoras',
-    codeField:   'A4_COD',
-    nameField:   'A4_NOME',
-    upsert: (cid, r) => prisma.transportadora.upsert({
-      where: { companyId_protheusCode: { companyId: cid, protheusCode: r.protheusCode } },
-      update: { nome: r.nome },
-      create: { companyId: cid, protheusCode: r.protheusCode, nome: r.nome },
-    }),
+    listKey: 'Transportadoras',
+    codeField: 'A4_COD',
+    nameField: 'A4_NOME',
+    upsert: (cid, r) =>
+      prisma.transportadora.upsert({
+        where: { companyId_protheusCode: { companyId: cid, protheusCode: r.protheusCode } },
+        update: { nome: r.nome },
+        create: { companyId: cid, protheusCode: r.protheusCode, nome: r.nome },
+      }),
   })
 }
 
 export function syncCondPags(companyId: string) {
   return syncReference(companyId, {
-    operation:   'syncCondPags',
+    operation: 'syncCondPags',
     endpointKey: 'apiCondPag',
-    listKey:     'condpag',
-    codeField:   'E4_CODIGO',
-    nameField:   'E4_DESCRI',
-    upsert: (cid, r) => prisma.condPag.upsert({
-      where: { companyId_protheusCode: { companyId: cid, protheusCode: r.protheusCode } },
-      update: { nome: r.nome },
-      create: { companyId: cid, protheusCode: r.protheusCode, nome: r.nome },
-    }),
+    listKey: 'condpag',
+    codeField: 'E4_CODIGO',
+    nameField: 'E4_DESCRI',
+    upsert: (cid, r) =>
+      prisma.condPag.upsert({
+        where: { companyId_protheusCode: { companyId: cid, protheusCode: r.protheusCode } },
+        update: { nome: r.nome },
+        create: { companyId: cid, protheusCode: r.protheusCode, nome: r.nome },
+      }),
   })
 }

@@ -12,7 +12,7 @@ interface StatCardProps {
 }
 
 const accentClasses: Record<Accent, string> = {
-  brand:   'border-l-2 border-l-brand',
+  brand: 'border-l-2 border-l-brand',
   success: 'border-l-2 border-l-success',
   neutral: 'border-l-2 border-l-[var(--border)]',
 }
@@ -24,11 +24,18 @@ export function StatCard({ label, value, accent, text }: StatCardProps) {
     <div
       className={cn(
         'bg-[var(--bg-surface)] rounded-xl shadow-card border border-[var(--border)] px-5 py-4',
-        accent && accentClasses[accent],
+        accent && accentClasses[accent]
       )}
     >
-      <p className="text-xs font-medium text-[var(--text-muted)] uppercase tracking-wide">{label}</p>
-      <p className={cn('mt-1 font-bold text-[var(--text-primary)]', text ? 'text-lg' : 'text-3xl tracking-tighter')}>
+      <p className="text-xs font-medium text-[var(--text-muted)] uppercase tracking-wide">
+        {label}
+      </p>
+      <p
+        className={cn(
+          'mt-1 font-bold text-[var(--text-primary)]',
+          text ? 'text-lg' : 'text-3xl tracking-tighter'
+        )}
+      >
         {value}
       </p>
     </div>

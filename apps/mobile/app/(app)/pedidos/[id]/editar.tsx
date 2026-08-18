@@ -1,12 +1,5 @@
 import { useState, useEffect } from 'react'
-import {
-  View,
-  Text,
-  ScrollView,
-  StyleSheet,
-  Alert,
-  FlatList,
-} from 'react-native'
+import { View, Text, ScrollView, StyleSheet, Alert, FlatList } from 'react-native'
 import { useLocalSearchParams, Stack, useRouter } from 'expo-router'
 import { Plus, Minus, Search } from 'lucide-react-native'
 import { usePedido, useAtualizarPedido } from '../../../../src/hooks/usePedidos'
@@ -32,7 +25,12 @@ import {
   changedItemFields,
 } from '../../../../src/components/order-form/validation'
 import { orderFormStyles } from '../../../../src/components/order-form/styles'
-import { cartItemFromOrderItem, cartItemFromProduct, cartTotal, cartToOrderItems } from '../../../../src/components/order-form/types'
+import {
+  cartItemFromOrderItem,
+  cartItemFromProduct,
+  cartTotal,
+  cartToOrderItems,
+} from '../../../../src/components/order-form/types'
 import type { CartItem } from '../../../../src/components/order-form/types'
 import type { Product, Transportadora, CondPag } from '@addere/types'
 
@@ -54,31 +52,39 @@ export default function EditarPedidoScreen() {
   const debouncedSearch = useDebouncedValue(search)
 
   const { data: transportadoras = [], isLoading: loadingTransp } = useTransportadoras()
-  const { data: condPags = [], isLoading: loadingCond }          = useCondPags()
-  const { data: products = [], isLoading: loadingProducts }      = useCatalog(debouncedSearch || undefined)
+  const { data: condPags = [], isLoading: loadingCond } = useCondPags()
+  const { data: products = [], isLoading: loadingProducts } = useCatalog(
+    debouncedSearch || undefined
+  )
 
   const permissions = useAuthStore((s) => s.permissions)
   const canChangeCarrier = permissions.includes('orders.change_carrier')
   const canChangePaymentTerms = permissions.includes('orders.change_payment_terms')
 
   const showTransportadora = useFieldVisible('order.transportadora')
-  const showCondPag        = useFieldVisible('order.condPag')
-  const showMennota        = useFieldVisible('order.mennota')
-  const showNotes          = useFieldVisible('order.notes')
+  const showCondPag = useFieldVisible('order.condPag')
+  const showMennota = useFieldVisible('order.mennota')
+  const showNotes = useFieldVisible('order.notes')
 
-  const reqTransportadora  = useFieldRequired('order.transportadora')
-  const reqCondPag         = useFieldRequired('order.condPag')
-  const reqMennota         = useFieldRequired('order.mennota')
-  const reqNotes           = useFieldRequired('order.notes')
+  const reqTransportadora = useFieldRequired('order.transportadora')
+  const reqCondPag = useFieldRequired('order.condPag')
+  const reqMennota = useFieldRequired('order.mennota')
+  const reqNotes = useFieldRequired('order.notes')
 
   const validate = useOrderValidation({
-    emptyCart:      'Adicione pelo menos um produto antes de salvar.',
+    emptyCart: 'Adicione pelo menos um produto antes de salvar.',
     transportadora: 'Selecione uma transportadora.',
-    condPag:        'Selecione uma condição de pagamento.',
+    condPag: 'Selecione uma condição de pagamento.',
   })
 
   // Erros de validação exibidos inline (limpos campo a campo conforme o usuário edita)
-  const { errors, setErrors, clearError, clearItemErrors, hasErrors: showErrorSummary } = useOrderFormErrors()
+  const {
+    errors,
+    setErrors,
+    clearError,
+    clearItemErrors,
+    hasErrors: showErrorSummary,
+  } = useOrderFormErrors()
 
   useEffect(() => {
     if (!order || initialized) return
@@ -86,7 +92,11 @@ export default function EditarPedidoScreen() {
     setMennota(order.mennota ?? '')
     setNotes(order.notes ?? '')
     if (order.transportadora) {
-      setTransportadora({ id: order.transportadora.id, nome: order.transportadora.nome, protheusCode: null })
+      setTransportadora({
+        id: order.transportadora.id,
+        nome: order.transportadora.nome,
+        protheusCode: null,
+      })
     }
     if (order.condPag) {
       setCondPag({ id: order.condPag.id, nome: order.condPag.nome, protheusCode: null })
@@ -100,7 +110,9 @@ export default function EditarPedidoScreen() {
     clearError('form')
     const existing = cart.find((i) => i.productId === product.id)
     if (existing) {
-      setCart((prev) => prev.map((i) => i.productId === product.id ? { ...i, quantity: i.quantity + 1 } : i))
+      setCart((prev) =>
+        prev.map((i) => (i.productId === product.id ? { ...i, quantity: i.quantity + 1 } : i))
+      )
     } else {
       setCart((prev) => [...prev, cartItemFromProduct(product)])
     }
@@ -117,10 +129,10 @@ export default function EditarPedidoScreen() {
         id,
         input: {
           transportId: transportadora?.id,
-          condId:      condPag?.id,
-          mennota:     mennota || undefined,
-          notes:       notes   || undefined,
-          items:       cartToOrderItems(cart),
+          condId: condPag?.id,
+          mennota: mennota || undefined,
+          notes: notes || undefined,
+          items: cartToOrderItems(cart),
         },
       },
       {
@@ -149,7 +161,10 @@ export default function EditarPedidoScreen() {
   }
 
   return (
-    <ScrollView style={s.container} contentContainerStyle={{ padding: spacing.md, paddingBottom: spacing.xl }}>
+    <ScrollView
+      style={s.container}
+      contentContainerStyle={{ padding: spacing.md, paddingBottom: spacing.xl }}
+    >
       <Stack.Screen options={{ title: 'Editar pedido' }} />
 
       {/* Itens */}
@@ -167,7 +182,7 @@ export default function EditarPedidoScreen() {
             errors={errors.items[item.productId]}
             onChange={(updated) => {
               clearItemErrors(item.productId, changedItemFields(item, updated))
-              setCart((prev) => prev.map((i) => i.productId === item.productId ? updated : i))
+              setCart((prev) => prev.map((i) => (i.productId === item.productId ? updated : i)))
             }}
             onRemove={() => {
               clearItemErrors(item.productId)
@@ -182,9 +197,13 @@ export default function EditarPedidoScreen() {
         variant="secondary"
         style={s.addProductBtn}
         onPress={() => setShowSearch((v) => !v)}
-        icon={showSearch
-          ? <Minus size={16} color={colors.brand.primary} strokeWidth={1.5} />
-          : <Plus  size={16} color={colors.brand.primary} strokeWidth={1.5} />}
+        icon={
+          showSearch ? (
+            <Minus size={16} color={colors.brand.primary} strokeWidth={1.5} />
+          ) : (
+            <Plus size={16} color={colors.brand.primary} strokeWidth={1.5} />
+          )
+        }
       >
         {showSearch ? 'Fechar busca' : 'Adicionar produto'}
       </Button>
@@ -210,7 +229,9 @@ export default function EditarPedidoScreen() {
               renderItem={({ item }) => (
                 <Card padding="sm" style={s.productItem} onPress={() => addProduct(item)}>
                   <Text style={s.productItemName}>{item.name}</Text>
-                  <Text style={s.productItemSub}>R$ {fmtMoeda(item.price)} / {item.unit}</Text>
+                  <Text style={s.productItemSub}>
+                    R$ {fmtMoeda(item.price)} / {item.unit}
+                  </Text>
                 </Card>
               )}
               ListEmptyComponent={
@@ -268,7 +289,10 @@ export default function EditarPedidoScreen() {
             style={orderFormStyles.notesInput}
             placeholder="Mensagem para a nota fiscal (opcional)..."
             value={mennota}
-            onChangeText={(text) => { clearError('mennota'); setMennota(text) }}
+            onChangeText={(text) => {
+              clearError('mennota')
+              setMennota(text)
+            }}
             multiline
             numberOfLines={3}
             textAlignVertical="top"
@@ -286,7 +310,10 @@ export default function EditarPedidoScreen() {
             style={orderFormStyles.notesInput}
             placeholder="Observação interna (não sai na nota)..."
             value={notes}
-            onChangeText={(text) => { clearError('notes'); setNotes(text) }}
+            onChangeText={(text) => {
+              clearError('notes')
+              setNotes(text)
+            }}
             multiline
             numberOfLines={3}
             textAlignVertical="top"
@@ -318,7 +345,12 @@ export default function EditarPedidoScreen() {
         Salvar alterações
       </Button>
 
-      <Button variant="ghostDanger" style={s.cancelBtn} onPress={() => router.back()} disabled={isSaving}>
+      <Button
+        variant="ghostDanger"
+        style={s.cancelBtn}
+        onPress={() => router.back()}
+        disabled={isSaving}
+      >
         Cancelar
       </Button>
     </ScrollView>
@@ -326,10 +358,16 @@ export default function EditarPedidoScreen() {
 }
 
 const s = StyleSheet.create({
-  container:  { flex: 1, backgroundColor: colors.neutral.bg },
-  center:     { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  errorText:  { color: colors.semantic.danger, fontFamily: 'Inter_400Regular' },
-  emptyText:  { color: colors.neutral.textSub, fontFamily: 'Inter_400Regular', fontSize: 13, textAlign: 'center', paddingVertical: spacing.sm },
+  container: { flex: 1, backgroundColor: colors.neutral.bg },
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  errorText: { color: colors.semantic.danger, fontFamily: 'Inter_400Regular' },
+  emptyText: {
+    color: colors.neutral.textSub,
+    fontFamily: 'Inter_400Regular',
+    fontSize: 13,
+    textAlign: 'center',
+    paddingVertical: spacing.sm,
+  },
 
   addProductBtn: {
     marginBottom: spacing.sm,
@@ -346,8 +384,17 @@ const s = StyleSheet.create({
   productItem: {
     marginBottom: spacing.sm,
   },
-  productItemName: { fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: 14, color: colors.brand.dark },
-  productItemSub:  { fontFamily: 'Inter_400Regular', fontSize: 12, color: colors.neutral.textSub, marginTop: spacing.xs },
+  productItemName: {
+    fontFamily: 'PlusJakartaSans_600SemiBold',
+    fontSize: 14,
+    color: colors.brand.dark,
+  },
+  productItemSub: {
+    fontFamily: 'Inter_400Regular',
+    fontSize: 12,
+    color: colors.neutral.textSub,
+    marginTop: spacing.xs,
+  },
 
   totalCard: {
     borderRadius: radius.md,
