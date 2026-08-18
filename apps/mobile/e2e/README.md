@@ -21,15 +21,27 @@ Requer uma API acessível em `EXPO_PUBLIC_API_URL` com os usuários de teste
 
 ## testIDs esperados pelos fluxos
 
-| testID                                                      | Onde                                 |
-| ----------------------------------------------------------- | ------------------------------------ |
-| `input-email`, `input-password`, `btn-login`, `error-login` | LoginScreen                          |
-| `screen-home`                                               | dashboard `(app)/index.tsx`          |
-| `btn-novo-pedido`                                           | FAB em `(app)/pedidos/index.tsx`     |
-| `input-busca-cliente`, `resultado-cliente-{i}`              | wizard passo 1                       |
-| `btn-proximo-step`, `btn-adicionar-produto-{i}`             | wizard passos 2/3                    |
-| `btn-confirmar-pedido`                                      | wizard passo 3                       |
-| `sync-status-*`                                             | `SyncStatusBar` (montado em pedidos) |
-| `empty-queue-message`, `retry-item-*`                       | `(app)/pedidos/pendentes.tsx`        |
+Todos os testIDs abaixo existem no código (confira com `grep -rn testID app src`).
+
+| testID                                                                          | Onde                                                         |
+| ------------------------------------------------------------------------------- | ------------------------------------------------------------ |
+| `input-email`, `input-password`, `btn-login`, `error-login`                     | `src/screens/auth/LoginScreen.tsx`                           |
+| `screen-home`                                                                   | dashboard `(app)/index.tsx` (ScrollView raiz)                |
+| `tab-dashboard`, `tab-clientes`, `tab-produtos`, `tab-pedidos`                  | abas do `Tabs` em `(app)/_layout.tsx` (`tabBarButtonTestID`) |
+| `btn-novo-pedido`                                                               | FAB em `(app)/pedidos/index.tsx`                             |
+| `input-busca-cliente`, `resultado-cliente-{i}`, `btn-adicionar-produto-{i}`     | wizard passo 1 — busca, cliente e filial (`novo-pedido`)     |
+| `produto-lista`, `produto-{i}`, `cache-badge`, `btn-proximo-step`               | wizard passo 2 — produtos                                    |
+| `btn-confirmar-pedido`                                                          | wizard passo 3 — confirmação                                 |
+| `sync-status-offline/syncing/error/pending/ok`                                  | `SyncStatusBar` (montado em `(app)/pedidos/index.tsx`)       |
+| `queue-count-badge`, `queue-item-{i}`, `retry-item-{id}`, `empty-queue-message` | `(app)/pedidos/pendentes.tsx`                                |
+
+Observações:
+
+- A tela após o login é a Dashboard; o FAB `btn-novo-pedido` fica na aba **Pedidos** —
+  use o helper `goToPedidos()` de `e2e/helpers/navigation.ts` (toca `tab-pedidos` e aguarda o FAB).
+- `btn-adicionar-produto-{i}` é o card de **filial** do passo 1 (nome mantido por
+  compatibilidade com os fluxos existentes).
+- O sucesso do pedido é um `Alert` nativo: título `Pedido criado` (online) ou
+  `Pedido salvo offline`, com botão `OK` — use `by.label(...)`.
 
 Os testes unitários (`npm run test:unit`) não dependem do Detox e rodam no CI.

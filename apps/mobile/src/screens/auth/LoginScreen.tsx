@@ -129,6 +129,7 @@ export function LoginScreen() {
           {/* Inputs */}
           <View style={styles.fields}>
             <Input
+              testID="input-email"
               label="E-mail"
               value={email}
               onChangeText={setEmail}
@@ -138,6 +139,7 @@ export function LoginScreen() {
               error={fieldErrors.email}
             />
             <Input
+              testID="input-password"
               label="Senha"
               value={password}
               onChangeText={setPassword}
@@ -145,9 +147,19 @@ export function LoginScreen() {
               error={fieldErrors.password}
             />
 
-            {apiErrorMessage && <Text style={styles.error}>{apiErrorMessage}</Text>}
+            {apiErrorMessage && (
+              <Text testID="error-login" style={styles.error}>
+                {apiErrorMessage}
+              </Text>
+            )}
 
-            <Button onPress={handleLogin} loading={isPending} size="lg" style={styles.button}>
+            <Button
+              testID="btn-login"
+              onPress={handleLogin}
+              loading={isPending}
+              size="lg"
+              style={styles.button}
+            >
               Entrar
             </Button>
 

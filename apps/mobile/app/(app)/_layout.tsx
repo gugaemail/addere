@@ -42,6 +42,7 @@ export default function AppLayout() {
         <Tabs.Screen
           name="index"
           options={{
+            tabBarButtonTestID: 'tab-dashboard',
             title: 'Dashboard',
             tabBarIcon: ({ color }) => (
               <LayoutDashboard size={22} color={color} strokeWidth={1.5} />
@@ -51,6 +52,7 @@ export default function AppLayout() {
         <Tabs.Screen
           name="clientes"
           options={{
+            tabBarButtonTestID: 'tab-clientes',
             title: 'Clientes',
             headerShown: false,
             tabBarIcon: ({ color }) => <Users size={22} color={color} strokeWidth={1.5} />,
@@ -59,6 +61,7 @@ export default function AppLayout() {
         <Tabs.Screen
           name="produtos"
           options={{
+            tabBarButtonTestID: 'tab-produtos',
             title: 'Produtos',
             headerShown: false,
             tabBarIcon: ({ color }) => <Package size={22} color={color} strokeWidth={1.5} />,
@@ -67,6 +70,7 @@ export default function AppLayout() {
         <Tabs.Screen
           name="pedidos"
           options={{
+            tabBarButtonTestID: 'tab-pedidos',
             title: 'Pedidos',
             headerShown: false,
             tabBarIcon: ({ color }) => <ClipboardList size={22} color={color} strokeWidth={1.5} />,

@@ -1,4 +1,5 @@
 import { loginAs } from '../helpers/auth'
+import { goToPedidos } from '../helpers/navigation'
 import { goOffline, goOnline } from '../helpers/network'
 
 describe('Reenvio manual de pedido com erro', () => {
@@ -10,6 +11,8 @@ describe('Reenvio manual de pedido com erro', () => {
   it('exibe botão de reenvio e permite retry manual após falha de sync', async () => {
     // Criar pedido offline
     await goOffline()
+
+    await goToPedidos()
 
     await element(by.id('btn-novo-pedido')).tap()
     await element(by.id('input-busca-cliente')).typeText('Cliente Teste')

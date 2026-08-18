@@ -77,7 +77,7 @@ export default function DashboardScreen() {
   ]
 
   return (
-    <ScrollView style={s.scroll} contentContainerStyle={s.content}>
+    <ScrollView testID="screen-home" style={s.scroll} contentContainerStyle={s.content}>
       {/* Header */}
       <View style={s.header}>
         <Text style={s.greeting}>Olá, {user?.name?.split(' ')[0]}</Text>

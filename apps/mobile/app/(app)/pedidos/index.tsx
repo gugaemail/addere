@@ -170,6 +170,7 @@ export default function PedidosScreen() {
 
       {/* FAB — Novo Pedido */}
       <TouchableOpacity
+        testID="btn-novo-pedido"
         style={s.fab}
         onPress={() => router.push('/(app)/novo-pedido')}
         activeOpacity={0.85}
