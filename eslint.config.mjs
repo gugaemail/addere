@@ -61,7 +61,7 @@ export default tseslint.config(
     },
   },
 
-  // Regras de marca do mobile: cores só via src/theme (CLAUDE.md)
+  // Regras de marca do mobile: cores e fontes só via src/theme (CLAUDE.md)
   {
     files: ['apps/mobile/{app,src}/**/*.{ts,tsx}'],
     ignores: ['apps/mobile/src/theme/**'],
@@ -72,6 +72,11 @@ export default tseslint.config(
           selector: 'Literal[value=/^#(?:[0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/]',
           message:
             'Não use cores hex fora de src/theme — importe os tokens de src/theme/colors.ts (regra de marca do CLAUDE.md).',
+        },
+        {
+          selector: 'Property[key.name="fontFamily"] > :matches(Literal, TemplateLiteral)',
+          message:
+            'Não use fontFamily literal — use typography.fontFamily.* de src/theme/typography.ts (Plus Jakarta Sans para títulos, Inter para corpo).',
         },
       ],
     },

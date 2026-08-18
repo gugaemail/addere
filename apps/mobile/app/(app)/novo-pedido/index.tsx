@@ -12,7 +12,7 @@ import { useTransportadoras } from '../../../src/hooks/useTransportadoras'
 import { useCondPags } from '../../../src/hooks/useCondPags'
 import { useFieldVisible, useFieldRequired } from '../../../src/hooks/useFieldConfig'
 import { useAuthStore } from '../../../src/store/auth.store'
-import { colors, spacing, radius } from '../../../src/theme'
+import { colors, spacing, radius, typography } from '../../../src/theme'
 import { Badge } from '../../../src/components/ui/Badge'
 import { Button, buttonForeground } from '../../../src/components/ui/Button'
 import { Card } from '../../../src/components/ui/Card'
@@ -676,10 +676,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   stepActive: { backgroundColor: colors.brand.primary },
-  stepText: { fontFamily: 'Inter_700Bold', color: colors.neutral.textSub },
+  stepText: { fontFamily: typography.fontFamily.bodyBold, color: colors.neutral.textSub },
   stepTextActive: { color: colors.neutral.white },
   stepTitle: {
-    fontFamily: 'PlusJakartaSans_700Bold',
+    fontFamily: typography.fontFamily.sansBold,
     fontSize: 16,
     color: colors.brand.dark,
     marginBottom: spacing.md,
@@ -688,12 +688,12 @@ const styles = StyleSheet.create({
   input: { marginBottom: spacing.sm },
   listItem: { marginBottom: spacing.sm },
   listItemTitle: {
-    fontFamily: 'PlusJakartaSans_600SemiBold',
+    fontFamily: typography.fontFamily.sansSemibold,
     fontSize: 14,
     color: colors.brand.dark,
   },
   listItemSub: {
-    fontFamily: 'Inter_400Regular',
+    fontFamily: typography.fontFamily.body,
     fontSize: 12,
     color: colors.neutral.textSub,
     marginTop: spacing.xs,
@@ -705,7 +705,7 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
   },
   cartTitle: {
-    fontFamily: 'PlusJakartaSans_700Bold',
+    fontFamily: typography.fontFamily.sansBold,
     fontSize: 13,
     color: colors.brand.primary,
     marginBottom: spacing.sm,
@@ -716,17 +716,22 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: spacing.xs,
   },
-  cartName: { flex: 1, fontFamily: 'Inter_400Regular', fontSize: 13, color: colors.brand.dark },
+  cartName: {
+    flex: 1,
+    fontFamily: typography.fontFamily.body,
+    fontSize: 13,
+    color: colors.brand.dark,
+  },
   qtyRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
   qtyNum: {
-    fontFamily: 'PlusJakartaSans_700Bold',
+    fontFamily: typography.fontFamily.sansBold,
     fontSize: 14,
     minWidth: 20,
     textAlign: 'center',
     color: colors.brand.dark,
   },
   empty: {
-    fontFamily: 'Inter_400Regular',
+    fontFamily: typography.fontFamily.body,
     color: colors.neutral.textSub,
     textAlign: 'center',
     marginTop: spacing.sm,
@@ -734,18 +739,26 @@ const styles = StyleSheet.create({
   },
   summaryBox: { borderRadius: radius.md, marginBottom: spacing.sm },
   summaryLabel: {
-    fontFamily: 'Inter_400Regular',
+    fontFamily: typography.fontFamily.body,
     fontSize: 12,
     color: colors.neutral.textSub,
     marginBottom: spacing.sm,
   },
   summaryValue: {
-    fontFamily: 'PlusJakartaSans_600SemiBold',
+    fontFamily: typography.fontFamily.sansSemibold,
     fontSize: 15,
     color: colors.brand.dark,
   },
-  totalLabel: { fontFamily: 'PlusJakartaSans_700Bold', fontSize: 16, color: colors.brand.dark },
-  totalValue: { fontFamily: 'PlusJakartaSans_700Bold', fontSize: 20, color: colors.brand.primary },
+  totalLabel: {
+    fontFamily: typography.fontFamily.sansBold,
+    fontSize: 16,
+    color: colors.brand.dark,
+  },
+  totalValue: {
+    fontFamily: typography.fontFamily.sansBold,
+    fontSize: 20,
+    color: colors.brand.primary,
+  },
   confirmBtn: { marginTop: spacing.md },
   backBtn: { marginTop: spacing.sm, backgroundColor: colors.neutral.white },
   cancelBtn: { marginTop: spacing.xs, marginBottom: spacing.lg },
@@ -755,13 +768,13 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
   },
   selectedCardLabel: {
-    fontFamily: 'Inter_400Regular',
+    fontFamily: typography.fontFamily.body,
     fontSize: 11,
     color: colors.neutral.textSub,
     marginBottom: spacing.xs,
   },
   selectedCardValue: {
-    fontFamily: 'PlusJakartaSans_700Bold',
+    fontFamily: typography.fontFamily.sansBold,
     fontSize: 15,
     color: colors.brand.dark,
   },
@@ -772,7 +785,7 @@ const styles = StyleSheet.create({
     marginTop: spacing.xs,
   },
   selectedCardChangeText: {
-    fontFamily: 'Inter_400Regular',
+    fontFamily: typography.fontFamily.body,
     fontSize: 12,
     color: colors.brand.primary,
   },

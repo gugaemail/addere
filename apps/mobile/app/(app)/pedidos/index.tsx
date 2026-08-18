@@ -12,7 +12,7 @@ import { Badge } from '../../../src/components/ui/Badge'
 import { Button, buttonForeground } from '../../../src/components/ui/Button'
 import { Card } from '../../../src/components/ui/Card'
 import { EmptyState } from '../../../src/components/ui/EmptyState'
-import { colors, spacing, radius } from '../../../src/theme'
+import { colors, spacing, radius, typography } from '../../../src/theme'
 import { OrderSwipeActions } from '../../../src/components/OrderSwipeActions'
 import { PdfPreviewModal } from '../../../src/components/PdfPreviewModal'
 import { SyncStatusBar } from '../../../src/components/SyncStatusBar'
@@ -191,23 +191,23 @@ const s = StyleSheet.create({
     flexDirection: 'row',
   },
   customer: {
-    fontFamily: 'PlusJakartaSans_600SemiBold',
+    fontFamily: typography.fontFamily.sansSemibold,
     fontSize: 15,
     color: colors.brand.dark,
   },
   sub: {
-    fontFamily: 'Inter_400Regular',
+    fontFamily: typography.fontFamily.body,
     fontSize: 13,
     color: colors.neutral.textSub,
     marginTop: spacing.xs,
   },
   total: {
-    fontFamily: 'PlusJakartaSans_600SemiBold',
+    fontFamily: typography.fontFamily.sansSemibold,
     fontSize: 16,
     color: colors.brand.dark,
   },
   protheusId: {
-    fontFamily: 'Inter_400Regular',
+    fontFamily: typography.fontFamily.body,
     fontSize: 12,
     color: colors.brand.primary,
     marginTop: spacing.xs,

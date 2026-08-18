@@ -6,7 +6,7 @@ import { StatGridSkeleton, OrderRowSkeleton } from '../../src/components/Skeleto
 import { Card } from '../../src/components/ui/Card'
 import { EmptyState } from '../../src/components/ui/EmptyState'
 import { LogOut } from 'lucide-react-native'
-import { colors, spacing, radius } from '../../src/theme'
+import { colors, spacing, radius, typography } from '../../src/theme'
 import { STATUS_LABEL, STATUS_COLOR } from '../../src/utils/orderStatus'
 import { fmtMoeda, fmtData } from '../../src/utils/format'
 import type { Order } from '@addere/types'
@@ -170,7 +170,7 @@ const s = StyleSheet.create({
     marginBottom: spacing.md,
   },
   greeting: {
-    fontFamily: 'PlusJakartaSans_700Bold',
+    fontFamily: typography.fontFamily.sansBold,
     fontSize: 20,
     color: colors.brand.dark,
   },
@@ -186,12 +186,12 @@ const s = StyleSheet.create({
     borderTopWidth: 3,
   },
   statValue: {
-    fontFamily: 'PlusJakartaSans_700Bold',
+    fontFamily: typography.fontFamily.sansBold,
     fontSize: 20,
     color: colors.brand.dark,
   },
   statLabel: {
-    fontFamily: 'Inter_400Regular',
+    fontFamily: typography.fontFamily.body,
     fontSize: 12,
     marginTop: spacing.xs,
     color: colors.neutral.textSub,
@@ -209,12 +209,12 @@ const s = StyleSheet.create({
     marginBottom: spacing.sm,
   },
   metaTitulo: {
-    fontFamily: 'Inter_400Regular',
+    fontFamily: typography.fontFamily.body,
     fontSize: 12,
     color: colors.neutral.textSub,
   },
   metaPct: {
-    fontFamily: 'PlusJakartaSans_700Bold',
+    fontFamily: typography.fontFamily.sansBold,
     fontSize: 22,
   },
   barTrack: {
@@ -233,18 +233,18 @@ const s = StyleSheet.create({
     justifyContent: 'space-between',
   },
   metaFooterText: {
-    fontFamily: 'Inter_400Regular',
+    fontFamily: typography.fontFamily.body,
     fontSize: 11,
     color: colors.neutral.textSub,
   },
   metaFooterBold: {
-    fontFamily: 'Inter_600SemiBold',
+    fontFamily: typography.fontFamily.bodySemibold,
     fontSize: 11,
     color: colors.brand.dark,
   },
   // ── Últimos pedidos ─────────────────────────────────────────
   sectionTitle: {
-    fontFamily: 'PlusJakartaSans_600SemiBold',
+    fontFamily: typography.fontFamily.sansSemibold,
     fontSize: 15,
     marginBottom: spacing.sm,
     color: colors.brand.dark,
@@ -254,23 +254,23 @@ const s = StyleSheet.create({
     marginBottom: spacing.sm,
   },
   orderCustomer: {
-    fontFamily: 'PlusJakartaSans_600SemiBold',
+    fontFamily: typography.fontFamily.sansSemibold,
     fontSize: 14,
     color: colors.brand.dark,
   },
   orderDate: {
-    fontFamily: 'Inter_400Regular',
+    fontFamily: typography.fontFamily.body,
     fontSize: 12,
     marginTop: spacing.xs,
     color: colors.neutral.textSub,
   },
   orderTotal: {
-    fontFamily: 'PlusJakartaSans_700Bold',
+    fontFamily: typography.fontFamily.sansBold,
     fontSize: 14,
     color: colors.brand.dark,
   },
   orderStatus: {
-    fontFamily: 'Inter_600SemiBold',
+    fontFamily: typography.fontFamily.bodySemibold,
     fontSize: 12,
     marginTop: spacing.xs,
   },

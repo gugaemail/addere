@@ -11,7 +11,7 @@ import { useFieldVisible, useFieldRequired } from '../../../../src/hooks/useFiel
 import { useAuthStore } from '../../../../src/store/auth.store'
 import { fmtMoeda } from '../../../../src/utils/format'
 import { getApiErrorMessage } from '../../../../src/lib/errors'
-import { colors, spacing, radius } from '../../../../src/theme'
+import { colors, spacing, radius, typography } from '../../../../src/theme'
 import { Button } from '../../../../src/components/ui/Button'
 import { Card } from '../../../../src/components/ui/Card'
 import { EmptyState } from '../../../../src/components/ui/EmptyState'
@@ -360,10 +360,10 @@ export default function EditarPedidoScreen() {
 const s = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.neutral.bg },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  errorText: { color: colors.semantic.danger, fontFamily: 'Inter_400Regular' },
+  errorText: { color: colors.semantic.danger, fontFamily: typography.fontFamily.body },
   emptyText: {
     color: colors.neutral.textSub,
-    fontFamily: 'Inter_400Regular',
+    fontFamily: typography.fontFamily.body,
     fontSize: 13,
     textAlign: 'center',
     paddingVertical: spacing.sm,
@@ -385,12 +385,12 @@ const s = StyleSheet.create({
     marginBottom: spacing.sm,
   },
   productItemName: {
-    fontFamily: 'PlusJakartaSans_600SemiBold',
+    fontFamily: typography.fontFamily.sansSemibold,
     fontSize: 14,
     color: colors.brand.dark,
   },
   productItemSub: {
-    fontFamily: 'Inter_400Regular',
+    fontFamily: typography.fontFamily.body,
     fontSize: 12,
     color: colors.neutral.textSub,
     marginTop: spacing.xs,
@@ -403,8 +403,16 @@ const s = StyleSheet.create({
     alignItems: 'center',
     marginBottom: spacing.sm,
   },
-  totalLabel: { fontFamily: 'Inter_400Regular', fontSize: 14, color: colors.neutral.textSub },
-  totalValue: { fontFamily: 'PlusJakartaSans_700Bold', fontSize: 22, color: colors.brand.dark },
+  totalLabel: {
+    fontFamily: typography.fontFamily.body,
+    fontSize: 14,
+    color: colors.neutral.textSub,
+  },
+  totalValue: {
+    fontFamily: typography.fontFamily.sansBold,
+    fontSize: 22,
+    color: colors.brand.dark,
+  },
 
   saveBtn: {
     marginBottom: spacing.sm,

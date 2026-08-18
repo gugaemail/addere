@@ -12,7 +12,7 @@ import { Badge } from '../../../../src/components/ui/Badge'
 import { Button, buttonForeground } from '../../../../src/components/ui/Button'
 import { Card } from '../../../../src/components/ui/Card'
 import { LoadingState } from '../../../../src/components/Skeleton'
-import { colors, spacing } from '../../../../src/theme'
+import { colors, spacing, typography } from '../../../../src/theme'
 import { useFieldVisible } from '../../../../src/hooks/useFieldConfig'
 import { useQueryClient } from '@tanstack/react-query'
 import { fmtMoeda, fmtQtd, fmtData, formatDocument } from '../../../../src/utils/format'
@@ -248,12 +248,12 @@ export default function PedidoDetailScreen() {
 const s = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.neutral.bg },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  errorText: { color: colors.semantic.danger, fontFamily: 'Inter_400Regular' },
+  errorText: { color: colors.semantic.danger, fontFamily: typography.fontFamily.body },
   section: {
     marginBottom: spacing.sm,
   },
   sectionTitle: {
-    fontFamily: 'PlusJakartaSans_600SemiBold',
+    fontFamily: typography.fontFamily.sansSemibold,
     fontSize: 14,
     color: colors.brand.dark,
     marginBottom: spacing.sm,
@@ -266,9 +266,13 @@ const s = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.neutral.subtle,
   },
-  infoLabel: { fontFamily: 'Inter_400Regular', fontSize: 13, color: colors.neutral.textSub },
+  infoLabel: {
+    fontFamily: typography.fontFamily.body,
+    fontSize: 13,
+    color: colors.neutral.textSub,
+  },
   infoValue: {
-    fontFamily: 'Inter_400Regular',
+    fontFamily: typography.fontFamily.body,
     fontSize: 13,
     color: colors.brand.dark,
     maxWidth: '60%',
@@ -284,22 +288,30 @@ const s = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.neutral.subtle,
   },
-  itemName: { fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: 14, color: colors.brand.dark },
+  itemName: {
+    fontFamily: typography.fontFamily.sansSemibold,
+    fontSize: 14,
+    color: colors.brand.dark,
+  },
   itemDesc: {
-    fontFamily: 'Inter_400Regular',
+    fontFamily: typography.fontFamily.body,
     fontSize: 12,
     color: colors.neutral.textSub,
     marginTop: spacing.xs,
   },
   itemDetail: {
-    fontFamily: 'Inter_400Regular',
+    fontFamily: typography.fontFamily.body,
     fontSize: 12,
     color: colors.neutral.textSub,
     marginTop: spacing.xs,
   },
-  itemTotal: { fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: 14, color: colors.brand.dark },
+  itemTotal: {
+    fontFamily: typography.fontFamily.sansSemibold,
+    fontSize: 14,
+    color: colors.brand.dark,
+  },
   notes: {
-    fontFamily: 'Inter_400Regular',
+    fontFamily: typography.fontFamily.body,
     fontSize: 13,
     color: colors.neutral.text,
     lineHeight: 20,
@@ -310,8 +322,16 @@ const s = StyleSheet.create({
     alignItems: 'center',
     marginBottom: spacing.sm,
   },
-  totalLabel: { fontFamily: 'Inter_400Regular', fontSize: 14, color: colors.neutral.textSub },
-  totalValue: { fontFamily: 'PlusJakartaSans_700Bold', fontSize: 22, color: colors.brand.dark },
+  totalLabel: {
+    fontFamily: typography.fontFamily.body,
+    fontSize: 14,
+    color: colors.neutral.textSub,
+  },
+  totalValue: {
+    fontFamily: typography.fontFamily.sansBold,
+    fontSize: 22,
+    color: colors.brand.dark,
+  },
   actionBtn: {
     marginBottom: spacing.sm,
   },

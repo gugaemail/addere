@@ -5,7 +5,7 @@ import { useSyncQueue } from '../../../src/hooks/useSyncQueue'
 import { Button, buttonForeground } from '../../../src/components/ui/Button'
 import { Card } from '../../../src/components/ui/Card'
 import { EmptyState } from '../../../src/components/ui/EmptyState'
-import { colors, spacing } from '../../../src/theme'
+import { colors, spacing, typography } from '../../../src/theme'
 import { fmtDataHora } from '../../../src/utils/format'
 import type { SyncQueueItem } from '../../../src/types/sync'
 import type { CreateOrderInput } from '@addere/types'
@@ -163,8 +163,16 @@ const s = StyleSheet.create({
     paddingTop: spacing.sm,
     paddingBottom: spacing.xs,
   },
-  countBadge: { fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: 20, color: colors.brand.dark },
-  countLabel: { fontFamily: 'Inter_400Regular', fontSize: 14, color: colors.neutral.textSub },
+  countBadge: {
+    fontFamily: typography.fontFamily.sansSemibold,
+    fontSize: 20,
+    color: colors.brand.dark,
+  },
+  countLabel: {
+    fontFamily: typography.fontFamily.body,
+    fontSize: 14,
+    color: colors.neutral.textSub,
+  },
   retryAllBtn: {
     margin: spacing.md,
     marginBottom: 0,
@@ -176,21 +184,21 @@ const s = StyleSheet.create({
     marginBottom: spacing.sm,
   },
   statusRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  statusText: { fontFamily: 'Inter_400Regular', fontSize: 12 },
-  date: { fontFamily: 'Inter_400Regular', fontSize: 11, color: colors.neutral.textSub },
+  statusText: { fontFamily: typography.fontFamily.body, fontSize: 12 },
+  date: { fontFamily: typography.fontFamily.body, fontSize: 11, color: colors.neutral.textSub },
   customer: {
-    fontFamily: 'PlusJakartaSans_600SemiBold',
+    fontFamily: typography.fontFamily.sansSemibold,
     fontSize: 14,
     color: colors.brand.dark,
   },
   error: {
-    fontFamily: 'Inter_400Regular',
+    fontFamily: typography.fontFamily.body,
     fontSize: 12,
     color: colors.semantic.danger,
     marginTop: spacing.xs,
   },
   attempts: {
-    fontFamily: 'Inter_400Regular',
+    fontFamily: typography.fontFamily.body,
     fontSize: 11,
     color: colors.neutral.textSub,
     marginTop: spacing.xs,
