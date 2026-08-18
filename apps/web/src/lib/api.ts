@@ -87,3 +87,14 @@ api.interceptors.response.use(
     }
   }
 )
+
+// ─── Extração de mensagem de erro da API ─────────────────────────────────────
+// Centraliza o cast que antes era repetido inline em todos os catch de requisição.
+
+export function getApiErrorMessage(err: unknown, fallback = 'Erro inesperado'): string {
+  if (err && typeof err === 'object' && 'response' in err) {
+    const message = (err as { response?: { data?: { message?: string } } }).response?.data?.message
+    if (message) return message
+  }
+  return fallback
+}

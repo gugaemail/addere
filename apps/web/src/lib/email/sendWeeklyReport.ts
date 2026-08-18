@@ -1,9 +1,6 @@
 import { Resend } from 'resend'
 import { prisma } from '@addere/db'
-import {
-  avgOrderDuration, syncSuccessRate, offlineOrderRate,
-  avgQueueDuration, totalOrders,
-} from '../metrics/pilot'
+import { orderCompletionStats, syncSuccessRate, avgQueueDuration } from '../metrics/pilot'
 import { WeeklyPilotReport } from '../../emails/WeeklyPilotReport'
 
 function weekNumber(date: Date): number {
@@ -57,23 +54,24 @@ export async function sendWeeklyReport(pilotId: string, to: string[]): Promise<v
   prevWeekStart.setDate(now.getDate() - 14)
 
   const [
-    curAvg, prevAvg,
+    curStats, prevStats,
     curSync, prevSync,
-    curOffline, prevOffline,
     curQueue, prevQueue,
-    curTotal, prevTotal,
   ] = await Promise.all([
-    avgOrderDuration(pilotId, weekStart),
-    avgOrderDuration(pilotId, prevWeekStart),
+    orderCompletionStats(pilotId, weekStart),
+    orderCompletionStats(pilotId, prevWeekStart),
     syncSuccessRate(pilotId, weekStart),
     syncSuccessRate(pilotId, prevWeekStart),
-    offlineOrderRate(pilotId, weekStart),
-    offlineOrderRate(pilotId, prevWeekStart),
     avgQueueDuration(pilotId, weekStart),
     avgQueueDuration(pilotId, prevWeekStart),
-    totalOrders(pilotId, weekStart),
-    totalOrders(pilotId, prevWeekStart),
   ])
+
+  const curAvg      = curStats.avgOrderDurationMs
+  const prevAvg     = prevStats.avgOrderDurationMs
+  const curOffline  = curStats.offlineOrderRate
+  const prevOffline = prevStats.offlineOrderRate
+  const curTotal    = curStats.totalOrders
+  const prevTotal   = prevStats.totalOrders
 
   const feedbackRows = await prisma.pilotFeedback.findMany({
     where: { pilotId, createdAt: { gte: weekStart } },

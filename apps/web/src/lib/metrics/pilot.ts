@@ -1,16 +1,35 @@
 import { prisma } from '@addere/db'
 import type { PilotDashboardMetrics, Pilot } from '@addere/types'
 
-export async function avgOrderDuration(pilotId: string, since: Date): Promise<number | null> {
+// Estatísticas derivadas dos eventos ORDER_COMPLETED. Uma única query cobre
+// duração média, taxa de pedidos offline e total — antes eram três queries
+// idênticas (avgOrderDuration, offlineOrderRate e totalOrders).
+export interface OrderCompletionStats {
+  avgOrderDurationMs: number | null
+  offlineOrderRate: number | null
+  totalOrders: number
+}
+
+export async function orderCompletionStats(pilotId: string, since: Date): Promise<OrderCompletionStats> {
   const events = await prisma.pilotEvent.findMany({
     where: { pilotId, eventType: 'ORDER_COMPLETED', occurredAt: { gte: since } },
+    select: { metadata: true },
   })
+
   const durations = events
     .map((e) => (e.metadata as Record<string, unknown>)?.durationMs as number | undefined)
     .filter((v): v is number => typeof v === 'number' && v > 0)
-  return durations.length
+  const avgOrderDurationMs = durations.length
     ? Math.round(durations.reduce((a, b) => a + b, 0) / durations.length)
     : null
+
+  const total = events.length
+  const offline = events.filter(
+    (e) => (e.metadata as Record<string, unknown>)?.wasOffline === true,
+  ).length
+  const offlineOrderRate = total > 0 ? Math.round((offline / total) * 100) : null
+
+  return { avgOrderDurationMs, offlineOrderRate, totalOrders: total }
 }
 
 export async function syncSuccessRate(pilotId: string, since: Date): Promise<number | null> {
@@ -20,17 +39,6 @@ export async function syncSuccessRate(pilotId: string, since: Date): Promise<num
   ])
   const total = synced + failed
   return total > 0 ? Math.round((synced / total) * 100) : null
-}
-
-export async function offlineOrderRate(pilotId: string, since: Date): Promise<number | null> {
-  const events = await prisma.pilotEvent.findMany({
-    where: { pilotId, eventType: 'ORDER_COMPLETED', occurredAt: { gte: since } },
-  })
-  const total = events.length
-  const offline = events.filter(
-    (e) => (e.metadata as Record<string, unknown>)?.wasOffline === true,
-  ).length
-  return total > 0 ? Math.round((offline / total) * 100) : null
 }
 
 export async function avgQueueDuration(pilotId: string, since: Date): Promise<number | null> {
@@ -43,12 +51,6 @@ export async function avgQueueDuration(pilotId: string, since: Date): Promise<nu
   return durations.length
     ? Math.round(durations.reduce((a, b) => a + b, 0) / durations.length)
     : null
-}
-
-export async function totalOrders(pilotId: string, since: Date): Promise<number> {
-  return prisma.pilotEvent.count({
-    where: { pilotId, eventType: 'ORDER_COMPLETED', occurredAt: { gte: since } },
-  })
 }
 
 function deltaPercent(current: number | null, previous: number | null): number | null {
@@ -69,23 +71,24 @@ export async function getFullDashboardMetrics(pilotId: string): Promise<PilotDas
   prevWeekStart.setDate(now.getDate() - 14)
 
   const [
-    curAvgDuration, prevAvgDuration,
+    curStats, prevStats,
     curSyncRate, prevSyncRate,
-    curOfflineRate, prevOfflineRate,
     curQueueDuration, prevQueueDuration,
-    curTotal, prevTotal,
   ] = await Promise.all([
-    avgOrderDuration(pilotId, weekStart),
-    avgOrderDuration(pilotId, prevWeekStart),
+    orderCompletionStats(pilotId, weekStart),
+    orderCompletionStats(pilotId, prevWeekStart),
     syncSuccessRate(pilotId, weekStart),
     syncSuccessRate(pilotId, prevWeekStart),
-    offlineOrderRate(pilotId, weekStart),
-    offlineOrderRate(pilotId, prevWeekStart),
     avgQueueDuration(pilotId, weekStart),
     avgQueueDuration(pilotId, prevWeekStart),
-    totalOrders(pilotId, weekStart),
-    totalOrders(pilotId, prevWeekStart),
   ])
+
+  const curAvgDuration  = curStats.avgOrderDurationMs
+  const prevAvgDuration = prevStats.avgOrderDurationMs
+  const curOfflineRate  = curStats.offlineOrderRate
+  const prevOfflineRate = prevStats.offlineOrderRate
+  const curTotal        = curStats.totalOrders
+  const prevTotal       = prevStats.totalOrders
 
   // Pedidos por dia nos últimos 14 dias
   const dailyEvents = await prisma.pilotEvent.findMany({

@@ -4,6 +4,8 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 import { Logo } from '@/components/Logo'
+import { getApiErrorMessage } from '@/lib/api'
+import { loginSchema } from '@/lib/schemas'
 
 export default function LoginPage() {
   const router = useRouter()
@@ -16,10 +18,17 @@ export default function LoginPage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError(null)
-    setLoading(true)
 
+    // Valida com o loginSchema antes de chamar a API
+    const parsed = loginSchema.safeParse({ email, password })
+    if (!parsed.success) {
+      setError(parsed.error.issues[0]?.message ?? 'Dados inválidos.')
+      return
+    }
+
+    setLoading(true)
     try {
-      const user = await login(email, password)
+      const user = await login(parsed.data.email, parsed.data.password)
 
       if (user.role !== 'SUPERADMIN') {
         setError('Acesso restrito ao administrador da plataforma.')
@@ -28,11 +37,7 @@ export default function LoginPage() {
 
       router.push('/dashboard')
     } catch (err: unknown) {
-      const message =
-        err && typeof err === 'object' && 'response' in err
-          ? (err as { response?: { data?: { message?: string } } }).response?.data?.message
-          : null
-      setError(message ?? 'Erro ao conectar. Tente novamente.')
+      setError(getApiErrorMessage(err, 'Erro ao conectar. Tente novamente.'))
     } finally {
       setLoading(false)
     }

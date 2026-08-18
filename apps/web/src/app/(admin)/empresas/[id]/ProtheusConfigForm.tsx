@@ -1,7 +1,9 @@
 'use client'
 
 import { useState } from 'react'
+import { toast } from 'sonner'
 import { api } from '@/lib/api'
+import { FormField } from '@/components/ui/FormField'
 
 interface CompanyProtheus {
   id: string
@@ -14,25 +16,6 @@ interface CompanyProtheus {
 interface Props {
   company: CompanyProtheus
   onSaved: (updated: CompanyProtheus) => void
-}
-
-function InputField({
-  label, value, onChange, placeholder, type = 'text',
-}: {
-  label: string; value: string; onChange: (v: string) => void; placeholder?: string; type?: string
-}) {
-  return (
-    <div>
-      <label className="block text-xs font-medium text-[var(--text-muted)] uppercase tracking-wide mb-1.5">{label}</label>
-      <input
-        type={type}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
-        className="w-full bg-[var(--bg-subtle)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition-shadow font-mono"
-      />
-    </div>
-  )
 }
 
 function ConfigRow({ label, value }: { label: string; value: string | null | undefined }) {
@@ -59,7 +42,6 @@ export function ProtheusConfigForm({ company, onSaved }: Props) {
   const [usrProtheus, setUsrProtheus] = useState(company.usrProtheus ?? '')
   const [passProtheus, setPassProtheus] = useState('')
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
 
   function handleEdit() {
     setApiToken(company.apiToken ?? '')
@@ -72,18 +54,11 @@ export function ProtheusConfigForm({ company, onSaved }: Props) {
     setApiMetaVend(company.apiMetaVend ?? '')
     setUsrProtheus(company.usrProtheus ?? '')
     setPassProtheus('')
-    setError(null)
     setEditing(true)
-  }
-
-  function handleCancel() {
-    setError(null)
-    setEditing(false)
   }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    setError(null)
     setLoading(true)
     try {
       const body: Record<string, string> = {
@@ -94,14 +69,15 @@ export function ProtheusConfigForm({ company, onSaved }: Props) {
       const { data } = await api.patch<CompanyProtheus>(`/companies/${company.id}/protheus`, body)
       onSaved(data)
       setEditing(false)
+      toast.success('Configuração Protheus salva!')
     } catch (err: unknown) {
       const e = err as { response?: { status?: number; data?: { message?: string } }; message?: string }
       const apiMsg = e.response?.data?.message
       const status = e.response?.status
       if (apiMsg) {
-        setError(status ? `[${status}] ${apiMsg}` : apiMsg)
+        toast.error(status ? `[${status}] ${apiMsg}` : apiMsg)
       } else {
-        setError(e.message ?? 'Erro ao salvar. Verifique a conexão com a API.')
+        toast.error(e.message ?? 'Erro ao salvar. Verifique a conexão com a API.')
       }
     } finally {
       setLoading(false)
@@ -127,46 +103,36 @@ export function ProtheusConfigForm({ company, onSaved }: Props) {
           <p className="text-xs text-[var(--text-muted)]">Deixe em branco para remover o valor configurado.</p>
 
           <div className="grid grid-cols-1 gap-3">
-            <InputField label="Token de autenticação (POST)" value={apiToken} onChange={setApiToken} placeholder="http://..." />
-            <InputField label="Produtos (POST)" value={apiPord} onChange={setApiPord} placeholder="http://..." />
-            <InputField label="Clientes (POST)" value={apiCliente} onChange={setApiCliente} placeholder="http://..." />
-            <InputField label="Pedido (POST)" value={apiPedido} onChange={setApiPedido} placeholder="http://..." />
-            <InputField label="Consulta pedido (GET)" value={apiConsPed} onChange={setApiConsPed} placeholder="http://..." />
-            <InputField label="Transportadoras (GET)" value={apiTransp} onChange={setApiTransp} placeholder="http://..." />
-            <InputField label="Cond. pagamento (GET)" value={apiCondPag} onChange={setApiCondPag} placeholder="http://..." />
-            <InputField label="Meta vendedor (GET)" value={apiMetaVend} onChange={setApiMetaVend} placeholder="http://..." />
+            <FormField mono label="Token de autenticação (POST)" value={apiToken} onChange={(e) => setApiToken(e.target.value)} placeholder="http://..." />
+            <FormField mono label="Produtos (POST)" value={apiPord} onChange={(e) => setApiPord(e.target.value)} placeholder="http://..." />
+            <FormField mono label="Clientes (POST)" value={apiCliente} onChange={(e) => setApiCliente(e.target.value)} placeholder="http://..." />
+            <FormField mono label="Pedido (POST)" value={apiPedido} onChange={(e) => setApiPedido(e.target.value)} placeholder="http://..." />
+            <FormField mono label="Consulta pedido (GET)" value={apiConsPed} onChange={(e) => setApiConsPed(e.target.value)} placeholder="http://..." />
+            <FormField mono label="Transportadoras (GET)" value={apiTransp} onChange={(e) => setApiTransp(e.target.value)} placeholder="http://..." />
+            <FormField mono label="Cond. pagamento (GET)" value={apiCondPag} onChange={(e) => setApiCondPag(e.target.value)} placeholder="http://..." />
+            <FormField mono label="Meta vendedor (GET)" value={apiMetaVend} onChange={(e) => setApiMetaVend(e.target.value)} placeholder="http://..." />
           </div>
 
           <div className="border-t border-[var(--border)] pt-4 grid grid-cols-2 gap-3">
-            <InputField label="Usuário Protheus" value={usrProtheus} onChange={setUsrProtheus} placeholder="usuario" />
-            <div>
-              <label className="block text-xs font-medium text-[var(--text-muted)] uppercase tracking-wide mb-1.5">
-                Senha Protheus
-                {company.passProtheus && <span className="normal-case font-normal ml-1">(em branco = manter)</span>}
-              </label>
-              <input
-                type="password"
-                value={passProtheus}
-                onChange={(e) => setPassProtheus(e.target.value)}
-                placeholder={company.passProtheus ? '••••••••' : 'Nova senha'}
-                className="w-full bg-[var(--bg-subtle)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition-shadow"
-              />
-            </div>
+            <FormField mono label="Usuário Protheus" value={usrProtheus} onChange={(e) => setUsrProtheus(e.target.value)} placeholder="usuario" />
+            <FormField
+              type="password"
+              label={
+                <>
+                  Senha Protheus
+                  {company.passProtheus && <span className="font-normal text-[var(--text-muted)] ml-1">(em branco = manter)</span>}
+                </>
+              }
+              value={passProtheus}
+              onChange={(e) => setPassProtheus(e.target.value)}
+              placeholder={company.passProtheus ? '••••••••' : 'Nova senha'}
+            />
           </div>
-
-          {error && (
-            <div className="flex items-start gap-2 p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-sm text-red-500">
-              <svg className="w-4 h-4 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z" />
-              </svg>
-              {error}
-            </div>
-          )}
 
           <div className="flex gap-3 pt-2">
             <button
               type="button"
-              onClick={handleCancel}
+              onClick={() => setEditing(false)}
               className="flex-1 border border-[var(--border)] text-[var(--text-secondary)] text-sm font-medium rounded-lg py-2.5 hover:bg-[var(--bg-subtle)] transition-colors"
             >
               Cancelar

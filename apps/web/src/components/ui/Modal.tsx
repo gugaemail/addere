@@ -6,7 +6,8 @@ import { cn } from '@/lib/utils'
 interface ModalProps {
   isOpen: boolean
   onClose: () => void
-  title: string
+  // ReactNode para permitir títulos com ícone/badge (ex.: modal de diagnóstico)
+  title: React.ReactNode
   children: React.ReactNode
   className?: string
 }

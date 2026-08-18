@@ -75,6 +75,62 @@ export interface Company {
   createdAt:    string
 }
 
+// ─── Company (painel admin) ────────────────────────────────────────────────
+
+export interface CompanyListItem {
+  id: string
+  name: string
+  cnpj: string
+  idProtheus: string | null
+  active: boolean
+  createdAt: string
+  _count: { users: number; branches: number; orders: number }
+}
+
+export interface CompanyDetail {
+  id: string
+  name: string
+  cnpj: string
+  idProtheus: string | null
+  active: boolean
+  branches: Branch[]
+  users: UserPublic[]
+  _count: { orders: number }
+  apiToken: string | null
+  apiPord: string | null
+  apiCliente: string | null
+  apiMetaVend: string | null
+  apiPedido: string | null
+  apiConsPed: string | null
+  apiCondPag: string | null
+  apiTransp: string | null
+  usrProtheus: string | null
+  passProtheus: string | null
+}
+
+// ─── Protheus Log ──────────────────────────────────────────────────────────
+
+export interface ProtheusLog {
+  id: string
+  operation: string
+  endpointKey: string
+  success: boolean
+  httpStatus: number | null
+  durationMs: number | null
+  recordsSynced: number | null
+  totalRecords: number | null
+  errorMessage: string | null
+  metadata: unknown
+  createdAt: string
+}
+
+export interface ProtheusLogPage {
+  data: ProtheusLog[]
+  total: number
+  page: number
+  pages: number
+}
+
 // ─── Branch ────────────────────────────────────────────────────────────────
 
 export interface Branch {
@@ -123,6 +179,7 @@ export interface Customer {
   bairro: string | null
   cep: string | null
   uf: string | null
+  vendorCode?: string | null
   ultcom: string | null
   msblql: string | null
   transpPadrao: string | null
@@ -187,6 +244,11 @@ export interface Order {
   transportadora: { id: string; nome: string } | null
   condPag: { id: string; nome: string } | null
   items: OrderItemDetail[]
+}
+
+// Pedido retornado nas rotas admin da empresa (inclui o vendedor que criou)
+export interface CompanyOrder extends Order {
+  user: { id: string; name: string }
 }
 
 export interface CreateOrderItemInput {

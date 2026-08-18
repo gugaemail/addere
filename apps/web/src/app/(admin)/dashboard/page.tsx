@@ -2,50 +2,35 @@
 
 export const dynamic = 'force-dynamic'
 
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { api } from '@/lib/api'
+import { Building2, Lock, Pencil, Unlock } from 'lucide-react'
+import { toast } from 'sonner'
+import type { CompanyListItem } from '@addere/types'
+import { StatCard } from '@/components/ui/StatCard'
+import { StatusBadge } from '@/components/ui/StatusBadge'
+import { Modal } from '@/components/ui/Modal'
+import { Button } from '@/components/ui/Button'
+import { FormField } from '@/components/ui/FormField'
+import { getApiErrorMessage } from '@/lib/api'
+import { useCompanies, useToggleCompanyActive, useUpdateCompany } from '@/hooks/useCompanies'
 import { CreateCompanyModal } from './CreateCompanyModal'
-
-interface CompanyItem {
-  id: string
-  name: string
-  cnpj: string
-  idProtheus: string | null
-  active: boolean
-  createdAt: string
-  _count: { users: number; branches: number; orders: number }
-}
 
 export default function DashboardPage() {
   const router = useRouter()
-  const [companies, setCompanies] = useState<CompanyItem[]>([])
-  const [loading, setLoading] = useState(true)
+  const { data: companies = [], isLoading } = useCompanies()
+  const toggleActive = useToggleCompanyActive()
+
   const [showModal, setShowModal] = useState(false)
-  const [editingCompany, setEditingCompany] = useState<CompanyItem | null>(null)
-  const [togglingId, setTogglingId] = useState<string | null>(null)
+  const [editingCompany, setEditingCompany] = useState<CompanyListItem | null>(null)
 
-  async function fetchCompanies() {
-    try {
-      const { data } = await api.get<CompanyItem[]>('/companies')
-      setCompanies(data)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  async function handleToggleActive(e: React.MouseEvent, company: CompanyItem) {
+  function handleToggleActive(e: React.MouseEvent, company: CompanyListItem) {
     e.stopPropagation()
-    setTogglingId(company.id)
-    try {
-      await api.patch(`/companies/${company.id}/active`, { active: !company.active })
-      await fetchCompanies()
-    } finally {
-      setTogglingId(null)
-    }
+    toggleActive.mutate(
+      { id: company.id, active: !company.active },
+      { onError: (err) => toast.error(getApiErrorMessage(err, 'Erro ao alterar status da empresa.')) },
+    )
   }
-
-  useEffect(() => { fetchCompanies() }, [])
 
   return (
     <div className="space-y-6">
@@ -60,29 +45,25 @@ export default function DashboardPage() {
       </div>
 
       {/* Cards resumo */}
-      {loading ? (
+      {isLoading ? (
         <div className="grid grid-cols-3 gap-4">
           {[0, 1, 2].map((i) => <StatCardSkeleton key={i} />)}
         </div>
       ) : (
         <div className="grid grid-cols-3 gap-4">
           <StatCard label="Total de empresas" value={companies.length} accent="brand" />
-          <StatCard label="Ativas" value={companies.filter((c) => c.active).length} accent="green" />
-          <StatCard label="Inativas" value={companies.filter((c) => !c.active).length} accent="gray" />
+          <StatCard label="Ativas" value={companies.filter((c) => c.active).length} accent="success" />
+          <StatCard label="Inativas" value={companies.filter((c) => !c.active).length} accent="neutral" />
         </div>
       )}
 
       {/* Tabela */}
       <div className="bg-[var(--bg-surface)] rounded-xl shadow-card border border-[var(--border)] overflow-hidden">
-        {loading ? (
+        {isLoading ? (
           <TableSkeleton cols={7} rows={4} />
         ) : companies.length === 0 ? (
           <EmptyState
-            icon={
-              <svg className="w-10 h-10" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.25}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 21h16.5M4.5 3h15M5.25 3v18m13.5-18v18M9 6.75h1.5m-1.5 3h1.5m-1.5 3h1.5m3-6H15m-1.5 3H15m-1.5 3H15M9 21v-3.375c0-.621.504-1.125 1.125-1.125h3.75c.621 0 1.125.504 1.125 1.125V21" />
-              </svg>
-            }
+            icon={<Building2 className="w-10 h-10" strokeWidth={1.25} />}
             title="Nenhuma empresa cadastrada"
             description="Cadastre a primeira empresa para começar a gerenciar vendedores e pedidos."
             action={{ label: '+ Nova empresa', onClick: () => setShowModal(true) }}
@@ -115,7 +96,7 @@ export default function DashboardPage() {
                   <td className="px-4 py-3 text-center text-[var(--text-secondary)]">{company._count.users}</td>
                   <td className="px-4 py-3 text-center text-[var(--text-secondary)]">{company._count.orders}</td>
                   <td className="px-4 py-3 text-center">
-                    <StatusBadge active={company.active} />
+                    <StatusBadge active={company.active} activeLabel="Ativa" inactiveLabel="Inativa" />
                   </td>
                   <td className="px-4 py-3 text-center" onClick={(e) => e.stopPropagation()}>
                     <div className="flex items-center justify-center gap-1">
@@ -125,14 +106,12 @@ export default function DashboardPage() {
                         title="Editar empresa"
                         className="p-1.5 rounded-lg text-[var(--text-muted)] hover:text-brand-500 hover:bg-brand-500/10 transition-colors"
                       >
-                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125" />
-                        </svg>
+                        <Pencil className="w-4 h-4" strokeWidth={2} />
                       </button>
                       {/* Bloquear / Ativar */}
                       <button
                         onClick={(e) => handleToggleActive(e, company)}
-                        disabled={togglingId === company.id}
+                        disabled={toggleActive.isPending && toggleActive.variables?.id === company.id}
                         title={company.active ? 'Bloquear empresa' : 'Ativar empresa'}
                         className={`p-1.5 rounded-lg transition-colors disabled:opacity-50 ${
                           company.active
@@ -140,15 +119,9 @@ export default function DashboardPage() {
                             : 'text-[var(--text-muted)] hover:text-green-500 hover:bg-green-500/10'
                         }`}
                       >
-                        {company.active ? (
-                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z" />
-                          </svg>
-                        ) : (
-                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 10.5V6.75a4.5 4.5 0 1 1 9 0v3.75M3.75 21.75h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H3.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z" />
-                          </svg>
-                        )}
+                        {company.active
+                          ? <Lock className="w-4 h-4" strokeWidth={2} />
+                          : <Unlock className="w-4 h-4" strokeWidth={2} />}
                       </button>
                     </div>
                   </td>
@@ -162,7 +135,7 @@ export default function DashboardPage() {
       {showModal && (
         <CreateCompanyModal
           onClose={() => setShowModal(false)}
-          onCreated={() => { setShowModal(false); fetchCompanies() }}
+          onCreated={() => setShowModal(false)}
         />
       )}
 
@@ -170,7 +143,7 @@ export default function DashboardPage() {
         <EditCompanyModal
           company={editingCompany}
           onClose={() => setEditingCompany(null)}
-          onSaved={() => { setEditingCompany(null); fetchCompanies() }}
+          onSaved={() => setEditingCompany(null)}
         />
       )}
     </div>
@@ -178,21 +151,6 @@ export default function DashboardPage() {
 }
 
 // ─── Componentes ──────────────────────────────────────────────────────────────
-
-function StatCard({ label, value, accent }: { label: string; value: number; accent: 'brand' | 'green' | 'gray' }) {
-  const accentClass = {
-    brand: 'border-brand-500',
-    green: 'border-green-500',
-    gray:  'border-[var(--border)]',
-  }[accent]
-
-  return (
-    <div className={`bg-[var(--bg-surface)] rounded-xl shadow-card border border-[var(--border)] border-l-2 ${accentClass} px-5 py-4`}>
-      <p className="text-xs font-medium text-[var(--text-muted)] uppercase tracking-wide">{label}</p>
-      <p className="text-3xl font-bold tracking-tighter text-[var(--text-primary)] mt-1">{value}</p>
-    </div>
-  )
-}
 
 function StatCardSkeleton() {
   return (
@@ -250,93 +208,41 @@ function EmptyState({
 }
 
 function EditCompanyModal({ company, onClose, onSaved }: {
-  company: CompanyItem
+  company: CompanyListItem
   onClose: () => void
   onSaved: () => void
 }) {
+  const updateCompany = useUpdateCompany()
   const [name, setName] = useState(company.name)
   const [cnpj, setCnpj] = useState(company.cnpj)
   const [idProtheus, setIdProtheus] = useState(company.idProtheus ?? '')
-  const [error, setError] = useState<string | null>(null)
-  const [loading, setLoading] = useState(false)
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    setError(null)
-    setLoading(true)
     try {
-      await api.patch(`/companies/${company.id}`, {
-        name,
-        cnpj,
-        idProtheus: idProtheus || null,
-      })
+      await updateCompany.mutateAsync({ id: company.id, name, cnpj, idProtheus: idProtheus || null })
       onSaved()
     } catch (err: unknown) {
-      const msg = err && typeof err === 'object' && 'response' in err
-        ? (err as { response?: { data?: { message?: string } } }).response?.data?.message
-        : null
-      setError(msg ?? 'Erro ao salvar empresa.')
-    } finally {
-      setLoading(false)
+      toast.error(getApiErrorMessage(err, 'Erro ao salvar empresa.'))
     }
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/50" onClick={onClose} />
-      <div className="relative bg-[var(--bg-surface)] border border-[var(--border)] rounded-2xl shadow-modal w-full max-w-md p-6 space-y-5">
-        <div className="flex items-center justify-between">
-          <h2 className="text-base font-semibold text-[var(--text-primary)]">Editar Empresa</h2>
-          <button type="button" onClick={onClose} className="text-[var(--text-muted)] hover:text-[var(--text-primary)] p-1 rounded-lg hover:bg-[var(--bg-subtle)] transition-colors">
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
-            </svg>
-          </button>
+    <Modal isOpen onClose={onClose} title="Editar Empresa">
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <FormField label="Nome" required value={name} onChange={(e) => setName(e.target.value)} />
+        <FormField label="CNPJ" required value={cnpj} onChange={(e) => setCnpj(e.target.value)} />
+        <FormField label="Código Protheus" value={idProtheus} onChange={(e) => setIdProtheus(e.target.value)} placeholder="Opcional" />
+
+        <div className="flex gap-3 pt-1">
+          <Button type="button" variant="secondary" onClick={onClose} className="flex-1">
+            Cancelar
+          </Button>
+          <Button type="submit" loading={updateCompany.isPending} className="flex-1">
+            Salvar
+          </Button>
         </div>
-
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">Nome</label>
-            <input required value={name} onChange={(e) => setName(e.target.value)}
-              className="w-full bg-[var(--bg-subtle)] border border-[var(--border)] rounded-lg px-3 py-2.5 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-brand-500" />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">CNPJ</label>
-            <input required value={cnpj} onChange={(e) => setCnpj(e.target.value)}
-              className="w-full bg-[var(--bg-subtle)] border border-[var(--border)] rounded-lg px-3 py-2.5 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-brand-500" />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">Código Protheus</label>
-            <input value={idProtheus} onChange={(e) => setIdProtheus(e.target.value)} placeholder="Opcional"
-              className="w-full bg-[var(--bg-subtle)] border border-[var(--border)] rounded-lg px-3 py-2.5 text-sm text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-brand-500" />
-          </div>
-
-          {error && (
-            <p className="text-sm text-red-500 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">{error}</p>
-          )}
-
-          <div className="flex gap-3 pt-1">
-            <button type="button" onClick={onClose}
-              className="flex-1 border border-[var(--border)] text-[var(--text-secondary)] text-sm font-medium rounded-lg py-2.5 hover:bg-[var(--bg-subtle)] transition-colors">
-              Cancelar
-            </button>
-            <button type="submit" disabled={loading}
-              className="flex-1 bg-brand-600 hover:bg-brand-700 disabled:opacity-50 text-white text-sm font-medium rounded-lg py-2.5 transition-colors">
-              {loading ? 'Salvando...' : 'Salvar'}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  )
-}
-
-function StatusBadge({ active }: { active: boolean }) {
-  return (
-    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
-      active ? 'bg-green-500/10 text-green-500' : 'bg-[var(--bg-subtle)] text-[var(--text-muted)]'
-    }`}>
-      {active ? 'Ativa' : 'Inativa'}
-    </span>
+      </form>
+    </Modal>
   )
 }

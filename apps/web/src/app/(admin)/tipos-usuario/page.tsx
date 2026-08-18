@@ -3,6 +3,8 @@
 export const dynamic = 'force-dynamic'
 
 import { useState } from 'react'
+import { toast } from 'sonner'
+import { getApiErrorMessage } from '@/lib/api'
 import { useUserTypes, useCreateUserType, useUpdateUserType } from '@/hooks/useUserTypes'
 import { useAuth } from '@/contexts/AuthContext'
 import { PageHeader } from '@/components/layout/PageHeader'
@@ -19,7 +21,6 @@ export default function UserTypesPage() {
   const updateUserType = useUpdateUserType()
 
   const [newName, setNewName] = useState('')
-  const [error, setError] = useState<string | null>(null)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editingName, setEditingName] = useState('')
 
@@ -33,16 +34,11 @@ export default function UserTypesPage() {
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault()
-    setError(null)
     try {
       await createUserType.mutateAsync(newName)
       setNewName('')
     } catch (err: unknown) {
-      const message =
-        err && typeof err === 'object' && 'response' in err
-          ? (err as { response?: { data?: { message?: string } } }).response?.data?.message
-          : null
-      setError(message ?? 'Erro ao criar tipo de usuário.')
+      toast.error(getApiErrorMessage(err, 'Erro ao criar tipo de usuário.'))
     }
   }
 
@@ -52,8 +48,12 @@ export default function UserTypesPage() {
   }
 
   async function handleRename(id: string) {
-    await updateUserType.mutateAsync({ id, name: editingName })
-    setEditingId(null)
+    try {
+      await updateUserType.mutateAsync({ id, name: editingName })
+      setEditingId(null)
+    } catch (err: unknown) {
+      toast.error(getApiErrorMessage(err, 'Erro ao renomear tipo de usuário.'))
+    }
   }
 
   const columns: Column<UserType>[] = [
@@ -115,8 +115,6 @@ export default function UserTypesPage() {
           Adicionar
         </Button>
       </form>
-
-      {error && <p className="mb-4 text-sm text-red-400">{error}</p>}
 
       {isLoading ? (
         <div className="flex justify-center py-12"><Spinner size="lg" /></div>

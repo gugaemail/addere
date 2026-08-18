@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
+import { Toaster } from 'sonner'
 import { api, clearAccessToken } from '@/lib/api'
 import { useTheme } from '../theme-provider'
 import { useAuth } from '@/contexts/AuthContext'
@@ -138,6 +139,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
       {/* Conteúdo */}
       <main className="flex-1 overflow-auto p-8">{children}</main>
+
+      {/* Toasts de feedback (sonner) */}
+      <Toaster richColors position="top-right" theme={theme === 'dark' ? 'dark' : 'light'} />
     </div>
   )
 }
