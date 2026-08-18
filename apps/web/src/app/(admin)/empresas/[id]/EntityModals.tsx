@@ -141,7 +141,6 @@ export function BranchModal({ companyId, mode, branch, onClose, onSaved }: Branc
         <p className={`${SECTION_TITLE} pt-1`}>Logo</p>
         {logo && (
           <div className="flex items-center gap-3">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={logo} alt="Logo da filial" className="h-14 w-auto object-contain rounded border border-[var(--border)] p-1 bg-white" />
             <button
               type="button"

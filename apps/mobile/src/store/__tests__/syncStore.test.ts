@@ -27,7 +27,7 @@ describe('enqueue', () => {
   })
 
   it('gera id único para cada item', () => {
-    const id1 = getStore().enqueue('order', {})
+    const _id1 = getStore().enqueue('order', {})
     const id2 = getStore().enqueue('order', {})
     expect(id1).not.toBe(id2)
   })

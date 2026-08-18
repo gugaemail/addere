@@ -171,7 +171,7 @@ export async function protheusPost(
       return protheusPost(companyId, url, body, creds, true)
     }
     if (e.code === 'ECONNRESET' || e.message === 'socket hang up') {
-      throw new Error('Protheus encerrou a conexão sem responder. Verifique os logs do servidor Protheus (possível campo inválido ou erro interno).')
+      throw new Error('Protheus encerrou a conexão sem responder. Verifique os logs do servidor Protheus (possível campo inválido ou erro interno).', { cause: err })
     }
     return enrichError(err, url)
   }

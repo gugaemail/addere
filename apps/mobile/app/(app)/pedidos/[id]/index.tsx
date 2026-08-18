@@ -36,7 +36,7 @@ export default function PedidoDetailScreen() {
   const { data: order, isLoading, error } = usePedido(id)
   const { mutate: sincronizar, isPending: isSyncing }       = useSincronizarPedido()
   const { mutate: consultarStatus, isPending: isChecking }  = useConsultarStatusPedido()
-  const { mutate: cancelar, isPending: isCancelling }       = useCancelarPedido()
+  const { mutate: cancelar }                               = useCancelarPedido()
 
   const showTransportadora  = useFieldVisible('order.transportadora')
   const showCondPag         = useFieldVisible('order.condPag')

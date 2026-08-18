@@ -10,7 +10,7 @@ import axios from 'axios'
 import { Plus, BarChart2, CheckCircle, XCircle, Clock } from 'lucide-react'
 import { api, getAccessToken } from '@/lib/api'
 import { CreatePilotModal } from './CreatePilotModal'
-import type { PilotDashboardMetrics, PilotMetricDelta } from '@addere/types'
+import type { PilotDashboardMetrics } from '@addere/types'
 
 // ─── Tipos locais ────────────────────────────────────────────────────────────
 

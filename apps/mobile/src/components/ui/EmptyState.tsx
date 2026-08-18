@@ -1,8 +1,6 @@
 import React from 'react'
 import { View, Text, StyleSheet } from 'react-native'
-import Svg, {
-  Circle, Rect, Path, Line, Ellipse, G,
-} from 'react-native-svg'
+import Svg, {Circle, Rect, Path, Line, } from 'react-native-svg'
 import { colors, spacing, typography } from '../../theme'
 import { Button } from './Button'
 

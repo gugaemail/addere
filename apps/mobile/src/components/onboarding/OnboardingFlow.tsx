@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react'
 import {
   View, Text, StyleSheet, Modal, TouchableOpacity,
-  Dimensions, Animated,
+  Dimensions,
 } from 'react-native'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import Svg, { Circle, Rect, Path, Line } from 'react-native-svg'

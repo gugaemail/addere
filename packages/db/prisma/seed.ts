@@ -188,7 +188,7 @@ async function main() {
     },
   })
 
-  const cliente3 = await prisma.customer.upsert({
+  const _cliente3 = await prisma.customer.upsert({
     where: { id: 'customer-demo-003' },
     update: {},
     create: {
@@ -250,7 +250,7 @@ async function main() {
     },
   })
 
-  const produto4 = await prisma.product.upsert({
+  const _produto4 = await prisma.product.upsert({
     where: { id: 'product-demo-004' },
     update: {},
     create: {
@@ -267,7 +267,7 @@ async function main() {
   console.log('Produtos criados: 4')
 
   // ─── Pedidos da empresa ───
-  const pedido1 = await prisma.order.upsert({
+  const _pedido1 = await prisma.order.upsert({
     where: { id: 'order-demo-001' },
     update: {},
     create: {
@@ -307,7 +307,7 @@ async function main() {
     },
   })
 
-  const pedido2 = await prisma.order.upsert({
+  const _pedido2 = await prisma.order.upsert({
     where: { id: 'order-demo-002' },
     update: {},
     create: {

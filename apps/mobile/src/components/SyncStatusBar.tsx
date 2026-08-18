@@ -1,7 +1,7 @@
 import React from 'react'
 import { View, Text, TouchableOpacity, ActivityIndicator, StyleSheet, ViewStyle } from 'react-native'
 import { useRouter } from 'expo-router'
-import { Wifi, WifiOff, Upload, AlertCircle, CheckCircle } from 'lucide-react-native'
+import { WifiOff, Upload, AlertCircle, CheckCircle } from 'lucide-react-native'
 import { useSyncQueue } from '../hooks/useSyncQueue'
 import { colors } from '../theme/colors'
 
