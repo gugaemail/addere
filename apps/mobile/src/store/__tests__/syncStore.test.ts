@@ -27,7 +27,7 @@ describe('enqueue', () => {
   })
 
   it('gera id único para cada item', () => {
-    const _id1 = getStore().enqueue('order', {})
+    const id1 = getStore().enqueue('order', {})
     const id2 = getStore().enqueue('order', {})
     expect(id1).not.toBe(id2)
   })
@@ -71,7 +71,7 @@ describe('markError', () => {
 
 describe('pendingCount', () => {
   it('conta itens pending e error com attempts < maxAttempts', () => {
-    const id1 = getStore().enqueue('order', {})
+    const _id1 = getStore().enqueue('order', {})
     const id2 = getStore().enqueue('order', {})
     getStore().markError(id2, 'err')
 
