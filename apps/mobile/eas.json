@@ -37,9 +37,8 @@
   "submit": {
     "production": {
       "ios": {
-        "appleId": "PREENCHER",
-        "ascAppId": "PREENCHER",
-        "appleTeamId": "PREENCHER"
+        "appleId": "gugaemail@gmail.com",
+        "appleTeamId": "M4NZ9W24JX"
       },
       "android": {
         "serviceAccountKeyPath": "./google-service-account.json",
