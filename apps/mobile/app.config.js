@@ -57,6 +57,10 @@ module.exports = {
     },
     ios: {
       bundleIdentifier: variant.bundleId,
+      infoPlist: {
+        // O app só usa HTTPS padrão — isenta a declaração de criptografia no App Store Connect
+        ITSAppUsesNonExemptEncryption: false,
+      },
     },
     web: {
       favicon: './assets/favicon.png',
