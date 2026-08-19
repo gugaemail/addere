@@ -15,6 +15,9 @@ dist
 apps/mobile/google-service-account.json
 
 # Build outputs
+# Pastas nativas geradas por `npx expo prebuild` (Detox/e2e) — não versionadas
+apps/mobile/ios/
+apps/mobile/android/
 apps/web/.next/
 apps/web/out/
 apps/web/next-env.d.ts

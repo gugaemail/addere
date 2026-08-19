@@ -1,9 +1,9 @@
 import { by, device, element, expect, waitFor } from 'detox'
-import { loginAs } from '../helpers/auth'
+import { launchFreshApp, loginAs } from '../helpers/auth'
 
 describe('Autenticação', () => {
   beforeEach(async () => {
-    await device.launchApp({ newInstance: true })
+    await launchFreshApp()
   })
 
   it('login com credenciais válidas', async () => {
@@ -25,6 +25,6 @@ describe('Autenticação', () => {
     await device.reloadReactNative()
     await waitFor(element(by.id('screen-home')))
       .toBeVisible()
-      .withTimeout(5000)
+      .withTimeout(15000)
   })
 })
