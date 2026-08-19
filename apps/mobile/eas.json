@@ -38,7 +38,8 @@
     "production": {
       "ios": {
         "appleId": "gugaemail@gmail.com",
-        "appleTeamId": "M4NZ9W24JX"
+        "appleTeamId": "M4NZ9W24JX",
+        "ascAppId": "6803013404"
       },
       "android": {
         "serviceAccountKeyPath": "./google-service-account.json",
