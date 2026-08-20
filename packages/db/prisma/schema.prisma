@@ -68,6 +68,11 @@ model Company {
   fieldConfig  Json? // visibilidade de campos por empresa: { hidden: string[] }
   syncSchedule Json? // agendamento de sync: { products: {...}, customers: {...} }
 
+  // ─── Camada de Inteligência ───
+  apiSql              String? // POST SELECT genérico (webservice "qualquer SELECT")
+  intelligenceEnabled Boolean @default(false) // liga a camada de inteligência (plano Business+)
+  intelligenceConfig  Json? // { syncHour, syncEveryHours, defaultTone, retentionDays, lgpdNoticeAcceptedAt }
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -80,6 +85,14 @@ model Company {
   condPags        CondPag[]
   pilots          Pilot[]
   protheusLogs    ProtheusLog[]
+
+  intelQueries          IntelQuery[]
+  intelParameters       IntelParameter[]
+  intelParameterHistory IntelParameterHistory[]
+  intelSalesItems       SalesItem[]
+  intelOpenTitles       OpenTitle[]
+  intelGoalSnapshots    GoalSnapshot[]
+  intelJobRuns          IntelJobRun[]
 
   @@map("companies")
 }
@@ -182,9 +195,9 @@ model Permission {
 // ─────────────────────────────────────────
 
 model UserPermission {
-  id           String @id @default(uuid())
+  id           String     @id @default(uuid())
   userId       String
-  user         User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
   permissionId String
   permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
 
@@ -250,6 +263,8 @@ model Customer {
   condPagPadrao String? // A1_COND: código da condição de pagamento padrão do cliente
   tes           String? // A1_TES: código TES (enviado ao Protheus no pedido)
   xcodemp       String? // A1_XCODEMP: código da filial Protheus de faturamento
+  creditLimit   Decimal?  @db.Decimal(14, 2) // limite de crédito (A1_LC) — enriquecido pelo contrato "clientes"
+  segment       String? // segmento do cliente — enriquecido pelo contrato "clientes"
   active        Boolean   @default(true) // soft delete
 
   companyId String
@@ -280,6 +295,7 @@ model Product {
   unit         String  @default("UN") // unidade de medida
   stock        Decimal @default(0) @db.Decimal(10, 3)
   saldo        Decimal @default(0) @db.Decimal(10, 2) // saldo disponível
+  productGroup String? // grupo de produtos (B1_GRUPO) — enriquecido pelo contrato "produtos"
   active       Boolean @default(true) // soft delete
 
   companyId String
@@ -476,11 +492,11 @@ model HelpReport {
   id            String   @id @default(cuid())
   userId        String
   user          User     @relation(fields: [userId], references: [id])
-  type          String   // "pedido_nao_enviou" | "app_travou" | "dados_incorretos" | "falha_sync" | "login" | "outro"
+  type          String // "pedido_nao_enviou" | "app_travou" | "dados_incorretos" | "falha_sync" | "login" | "outro"
   description   String
   appVersion    String?
   device        String?
-  screenshotUrl String?  // caminho relativo: /uploads/help-reports/{userId}/{ticketId}.{ext}
+  screenshotUrl String? // caminho relativo: /uploads/help-reports/{userId}/{ticketId}.{ext}
   status        String   @default("aberto") // "aberto" | "em_analise" | "resolvido"
   ticketId      String   @unique @default(cuid())
   createdAt     DateTime @default(now())
@@ -499,18 +515,224 @@ model ProtheusLog {
   id            String   @id @default(cuid())
   companyId     String
   company       Company  @relation(fields: [companyId], references: [id])
-  operation     String   // ex: syncProducts, syncCustomers, syncOrder, testToken
-  endpointKey   String   // ex: apiPord, apiCliente, apiPedido, apiToken
+  operation     String // ex: syncProducts, syncCustomers, syncOrder, testToken
+  endpointKey   String // ex: apiPord, apiCliente, apiPedido, apiToken
   success       Boolean
-  httpStatus    Int?     // código HTTP da última resposta (se disponível)
-  durationMs    Int?     // duração total da operação em ms
-  recordsSynced Int?     // registros gravados no banco
-  totalRecords  Int?     // total de registros disponíveis na fonte
-  errorMessage  String?  // mensagem de erro truncada (max 500 chars)
-  metadata      Json?    // dados extras: orderId, protheusOrderId, etc.
+  httpStatus    Int? // código HTTP da última resposta (se disponível)
+  durationMs    Int? // duração total da operação em ms
+  recordsSynced Int? // registros gravados no banco
+  totalRecords  Int? // total de registros disponíveis na fonte
+  errorMessage  String? // mensagem de erro truncada (max 500 chars)
+  metadata      Json? // dados extras: orderId, protheusOrderId, etc.
   createdAt     DateTime @default(now())
 
   @@index([companyId, createdAt])
   @@index([companyId, operation, success])
   @@map("protheus_logs")
+}
+
+// ═════════════════════════════════════════
+// Camada de Inteligência (plano E1b — ingestão)
+// Convenções: companyId como tenant, dinheiro Decimal(14,2), tabelas intel_*
+// ═════════════════════════════════════════
+
+enum IntelQueryName {
+  CUSTOMERS // contrato "clientes" (SA1)
+  SALES // contrato "vendas" (SD2/SF2 ou SC5/SC6)
+  OPEN_TITLES // contrato "títulos em aberto" (SE1)
+  PRODUCTS // contrato "produtos" (SB1)
+  STOCK // contrato "estoque" (ao vivo, {{PRODUTO}})
+}
+
+enum IntelQueryScope {
+  ALL // roda por tenant, todos os vendedores
+  PER_SELLER // exige {{VENDEDOR}}
+}
+
+enum IntelJob {
+  NIGHTLY // composto: SYNC completo → GOALS → ENGINE → PLAN → PURGE
+  REFRESH // composto: SALES incremental + OPEN_TITLES → ENGINE
+  SYNC
+  GOALS
+  ENGINE
+  PLAN
+  GEO
+  PURGE
+  EVAL
+}
+
+enum IntelJobRunStatus {
+  RUNNING
+  OK
+  ERROR
+}
+
+// ─────────────────────────────────────────
+// IntelQuery — consulta SQL configurável por tenant (cfg_consulta do doc)
+// ─────────────────────────────────────────
+
+model IntelQuery {
+  id    String          @id @default(uuid())
+  name  IntelQueryName
+  scope IntelQueryScope @default(ALL)
+  sql   String
+
+  // Aba "O que significa" — vai no prompt do agente
+  definition String? // definição em português
+  exclusions String? // o que a consulta exclui (devolução, bonificação…)
+  gotchas    String? // pegadinhas conhecidas
+
+  version     Int       @default(1)
+  validatedAt DateTime?
+  validatedBy String?
+
+  // Reconciliação obrigatória antes de publicar
+  reconciliationPeriod     String? // 'YYYYMM'
+  reconciliationRefAmount  Decimal? @db.Decimal(14, 2) // valor oficial informado pelo admin
+  reconciliationCalcAmount Decimal? @db.Decimal(14, 2) // soma desta consulta no período
+  reconciliationDiffPct    Decimal? @db.Decimal(6, 2)
+
+  published   Boolean   @default(false)
+  publishedAt DateTime?
+
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([companyId, name, version])
+  @@index([companyId, name, published])
+  @@map("intel_queries")
+}
+
+// ─────────────────────────────────────────
+// IntelParameter — premissas do motor por tenant (cfg_premissa do doc)
+// segment "" = global (evita o problema de unique com NULL no Postgres)
+// ─────────────────────────────────────────
+
+model IntelParameter {
+  id        String  @id @default(uuid())
+  key       String // ex: late_factor, risk_days, weight_value…
+  value     Json
+  segment   String  @default("") // "" = global; senão, segmento do cliente
+  changedBy String? // userId de quem alterou
+
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([companyId, key, segment])
+  @@map("intel_parameters")
+}
+
+model IntelParameterHistory {
+  id        String  @id @default(uuid())
+  key       String
+  value     Json
+  segment   String  @default("")
+  changedBy String?
+
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id])
+
+  changedAt DateTime @default(now())
+
+  @@index([companyId, key])
+  @@map("intel_parameter_history")
+}
+
+// ─────────────────────────────────────────
+// SalesItem — item de venda histórica vindo do contrato "vendas" (crm_venda_item)
+// PK composta natural; itemSeq = D2_ITEM/C6_ITEM ("00" quando o contrato não traz)
+// ─────────────────────────────────────────
+
+model SalesItem {
+  companyId    String
+  orderRef     String // pedido/nota (ex: D2_DOC+D2_SERIE ou C5_NUM)
+  itemSeq      String   @default("00")
+  productCode  String
+  date         DateTime @db.Date
+  customerCode String
+  loja         String
+  vendorCode   String?
+  quantity     Decimal  @db.Decimal(12, 3)
+  amount       Decimal  @db.Decimal(14, 2)
+  productDesc  String?
+  productGroup String?
+  syncedAt     DateTime @default(now())
+
+  company Company @relation(fields: [companyId], references: [id])
+
+  @@id([companyId, orderRef, itemSeq, productCode])
+  @@index([companyId, customerCode, loja, date])
+  @@index([companyId, vendorCode, date])
+  @@map("intel_sales_items")
+}
+
+// ─────────────────────────────────────────
+// OpenTitle — título em aberto (contrato "títulos", SE1) — crm_titulo
+// Replace total por tenant a cada sync
+// ─────────────────────────────────────────
+
+model OpenTitle {
+  companyId    String
+  titleRef     String
+  customerCode String
+  loja         String
+  dueDate      DateTime @db.Date
+  balance      Decimal  @db.Decimal(14, 2)
+  daysOverdue  Int?
+  syncedAt     DateTime @default(now())
+
+  company Company @relation(fields: [companyId], references: [id])
+
+  @@id([companyId, titleRef])
+  @@index([companyId, customerCode, loja])
+  @@map("intel_open_titles")
+}
+
+// ─────────────────────────────────────────
+// GoalSnapshot — captura da meta do vendedor via apiMetaVend (crm_meta_hist)
+// Append-only: cada captura gera uma linha nova
+// ─────────────────────────────────────────
+
+model GoalSnapshot {
+  id               String   @id @default(uuid())
+  vendorCode       String // User.idVendProt
+  period           String // 'YYYYMM'
+  goalAmount       Decimal? @db.Decimal(14, 2)
+  soldAmount       Decimal? @db.Decimal(14, 2)
+  goalPositivation Decimal? @db.Decimal(6, 2)
+  capturedAt       DateTime @default(now())
+
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id])
+
+  @@index([companyId, vendorCode, period])
+  @@map("intel_goal_snapshots")
+}
+
+// ─────────────────────────────────────────
+// IntelJobRun — lock e histórico de execução dos jobs de inteligência
+// Base do pill "sinc. 03h12", da tela Saúde e do catch-up no boot
+// ─────────────────────────────────────────
+
+model IntelJobRun {
+  id          String            @id @default(uuid())
+  job         IntelJob
+  status      IntelJobRunStatus @default(RUNNING)
+  startedAt   DateTime          @default(now())
+  finishedAt  DateTime?
+  error       String?
+  metadata    Json? // { queryId, window, rows, progress… }
+  lockedUntil DateTime? // lock distribuído: só um processo roda o job por tenant
+
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id])
+
+  @@index([companyId, job, startedAt])
+  @@map("intel_job_runs")
 }
