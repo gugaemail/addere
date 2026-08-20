@@ -130,3 +130,164 @@ export const DEFAULT_INTELLIGENCE_CONFIG: IntelligenceConfig = {
   retentionDays: 365,
   lgpdNoticeAcceptedAt: null,
 }
+
+// ═══ Parte 2 (motor, plano e execução; plano E1c) ═══
+
+export type Vehicle = 'CAR' | 'MOTORCYCLE' | 'FOOT'
+export type CustomerStatus = 'NEW' | 'ON_CYCLE' | 'LATE' | 'AT_RISK' | 'INACTIVE' | 'BLOCKED'
+export type SignalConfidence = 'HIGH' | 'MEDIUM' | 'LOW'
+export type PlanKind = 'DAY' | 'WEEK'
+export type PlanStatus = 'GENERATED' | 'EDITED' | 'IN_PROGRESS' | 'CLOSED'
+export type PlanItemOrigin = 'ENGINE' | 'MANAGER' | 'SELLER'
+export type MessageTemplate = 'STALLED_PROPOSAL' | 'WENT_QUIET' | 'REACTIVATE'
+export type VisitResult = 'ORDER' | 'NO_ORDER' | 'NOT_FOUND' | 'RESCHEDULED'
+export type FeedbackTargetType = 'PLAN' | 'ITEM' | 'MESSAGE' | 'ANSWER'
+export type GeoPrecision = 'ROOFTOP' | 'STREET' | 'CEP' | 'CITY'
+
+// Rótulos e cores ficam nos apps (tokens de tema); aqui só o domínio.
+
+// Snapshot determinístico embarcado em cada item do plano — sustenta o
+// "antes de entrar" offline (princípio 10 do doc; achado da revisão v0.2)
+export interface SignalsSnapshot {
+  status: CustomerStatus
+  confidence: SignalConfidence
+  cycleDays: number | null
+  daysSinceLastPurchase: number | null
+  orders12m: number
+  avgTicket: string | null
+  trendPct: number | null
+  usualMix: { productCode: string; productDesc: string | null }[]
+  cutMix: { productCode: string; productDesc: string | null }[]
+  openTitles: { count: number; totalBalance: string; maxDaysOverdue: number | null }
+  reasons: string[]
+}
+
+export interface VisitPlanItemDto {
+  id: string
+  position: number
+  customerCode: string
+  loja: string
+  customerName: string // remontado pela API (não vive na tabela)
+  customerAddress: string | null
+  customerPhone: string | null
+  statusAtTime: CustomerStatus
+  shortReason: string | null
+  suggestedOffer:
+    { productCode: string; productDesc: string | null; source: 'usual' | 'ask_about_cut' }[] | null
+  expectedAmount: string | null
+  origin: PlanItemOrigin
+  removedAt: string | null
+  signals: SignalsSnapshot | null
+  lat: number | null
+  lng: number | null
+  plannedTime: string | null
+}
+
+export interface VisitPlanDto {
+  id: string
+  date: string // 'YYYY-MM-DD'
+  kind: PlanKind
+  status: PlanStatus
+  generatedAt: string
+  grouping: string | null
+  expectedAmount: string | null
+  llmSummary: string | null // null = mostrar fallback determinístico
+  items: VisitPlanItemDto[] // ordenados; BLOCKED ao final
+  freshness: { lastSyncAt: string | null; stale: boolean } // pill "sinc. 03h12"
+  goal: {
+    goalAmount: string | null
+    soldAmount: string | null
+    gap: string | null
+    perBusinessDay: string | null
+    lateCoverage: string | null // Σ ticket×prob dos atrasados+risco
+  } | null
+}
+
+export interface BriefingDto {
+  customerCode: string
+  loja: string
+  signals: SignalsSnapshot
+  text: string | null // 3 linhas do agente (null = montar do snapshot)
+  freshness: { lastSyncAt: string | null }
+}
+
+export interface CustomerSignalListItem {
+  customerCode: string
+  loja: string
+  customerName: string
+  status: CustomerStatus
+  daysSinceLastPurchase: number | null
+  avgTicket: string | null
+  reason: string | null
+}
+
+export interface CustomerMessageDto {
+  id: string
+  customerCode: string
+  loja: string
+  template: MessageTemplate
+  text: string
+  generatedAt: string
+  sentAt: string | null
+}
+
+// Idempotência offline: clientId gerado no app; único por tenant no banco
+export interface VisitInput {
+  clientId: string
+  planItemId?: string | null
+  customerCode: string
+  loja: string
+  arrivedAt: string
+  lat?: number | null
+  lng?: number | null
+  accuracyM?: number | null
+  result?: VisitResult | null
+  noOrderReason?: string | null
+  orderId?: string | null
+  notes?: string | null
+  createdOfflineAt?: string | null
+}
+
+export interface FeedbackInput {
+  targetType: FeedbackTargetType
+  targetId: string
+  rating: 1 | -1
+  comment?: string | null
+}
+
+// Operações de edição do plano (PATCH /intel/app/plans/:id/items)
+export type PlanPatchOp =
+  | { opId: string; type: 'reorder'; itemId: string; position: number }
+  | { opId: string; type: 'remove'; itemId: string }
+  | { opId: string; type: 'restore'; itemId: string }
+  | { opId: string; type: 'skip'; itemId: string }
+  | { opId: string; type: 'setGrouping'; grouping: string }
+
+// W1 — Equipe em campo (E8/E11)
+export interface TeamSellerCard {
+  vendorCode: string
+  name: string
+  grouping: string | null
+  plannedVisits: number
+  doneVisits: number
+  offPlanVisits: number
+  ordersCount: number
+  ordersAmount: string
+  startedAt: string | null
+}
+
+export interface TeamReportDto {
+  date: string
+  range: 'day' | 'week' | 'month'
+  kpis: {
+    plannedVisits: number
+    doneVisits: number
+    adherencePct: number | null
+    visitPositivationPct: number | null // com pedido / realizadas
+    portfolioPositivationPct: number | null // clientes que compraram no mês / carteira ativa
+  }
+  sellers: TeamSellerCard[]
+  sellersWithoutManager: number // aviso da hierarquia D3b
+  alerts: { kind: string; message: string; vendorCode?: string }[]
+  freshness: { lastSyncAt: string | null }
+}

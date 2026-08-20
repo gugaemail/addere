@@ -133,10 +133,45 @@ export default async function authRoutes(app: FastifyInstance) {
     async (request: FastifyRequest, reply: FastifyReply) => {
       const user = await prisma.user.findUnique({
         where: { id: request.user.sub },
-        select: { id: true, name: true, email: true, role: true, active: true, createdAt: true },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          role: true,
+          active: true,
+          createdAt: true,
+          idVendProt: true,
+          userTypeId: true,
+          companyId: true,
+          company: { select: { intelligenceEnabled: true, intelligenceConfig: true } },
+        },
       })
       if (!user) return reply.status(404).send({ message: 'Usuário não encontrado' })
-      return reply.send(user)
+
+      // Permissões efetivas + flag da camada de Inteligência (E1c — consumidos por web/mobile)
+      const permissions = await getEffectivePermissions(request.user.sub, request.user.role)
+      const intelligenceConfig = (user.company?.intelligenceConfig ?? null) as {
+        defaultTone?: string
+      } | null
+
+      return reply.send({
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        active: user.active,
+        createdAt: user.createdAt,
+        idVendProt: user.idVendProt,
+        userTypeId: user.userTypeId,
+        companyId: user.companyId,
+        permissions: Array.from(permissions),
+        company: user.company
+          ? {
+              intelligenceEnabled: user.company.intelligenceEnabled,
+              defaultTone: intelligenceConfig?.defaultTone ?? 'informal',
+            }
+          : null,
+      })
     }
   )
 
