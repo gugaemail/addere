@@ -71,7 +71,7 @@ export const QUERY_CONTRACTS: Record<IntelQueryName, QueryContract> = {
        A1_END AS endereco, A1_CEP AS cep, A1_CGC AS cnpj, A1_MSBLQL AS bloqueado,
        A1_LC AS limite_credito, A1_ULTCOM AS ultima_compra
 FROM SA1010
-WHERE D_E_L_ET_ = ' ' AND A1_FILIAL IN ({{FILIAL}})`,
+WHERE D_E_L_E_T_ = ' ' AND A1_FILIAL IN ({{FILIAL}})`,
       },
     ],
     helpText:
@@ -107,10 +107,10 @@ WHERE D_E_L_ET_ = ' ' AND A1_FILIAL IN ({{FILIAL}})`,
        D2_COD AS produto_cod, B1_DESC AS produto_desc, D2_QUANT AS quantidade,
        D2_VALBRUT AS valor, B1_GRUPO AS grupo_produto
 FROM SD2010 D2
-JOIN SF2010 F2 ON F2_FILIAL=D2_FILIAL AND F2_DOC=D2_DOC AND F2_SERIE=D2_SERIE AND F2.D_E_L_ET_=' '
-JOIN SB1010 B1 ON B1_COD=D2_COD AND B1.D_E_L_ET_=' '
+JOIN SF2010 F2 ON F2_FILIAL=D2_FILIAL AND F2_DOC=D2_DOC AND F2_SERIE=D2_SERIE AND F2.D_E_L_E_T_=' '
+JOIN SB1010 B1 ON B1_COD=D2_COD AND B1.D_E_L_E_T_=' '
 JOIN SF4010 F4 ON F4_CODIGO=D2_TES AND F4_DUPLIC='S'
-WHERE D2.D_E_L_ET_=' ' AND D2_FILIAL IN ({{FILIAL}})
+WHERE D2.D_E_L_E_T_=' ' AND D2_FILIAL IN ({{FILIAL}})
   AND D2_EMISSAO BETWEEN {{DATA_INI}} AND {{DATA_FIM}}`,
       },
       {
@@ -119,8 +119,8 @@ WHERE D2.D_E_L_ET_=' ' AND D2_FILIAL IN ({{FILIAL}})
        C5_CLIENTE AS cliente_cod, C5_LOJACLI AS cliente_loja, C5_VEND1 AS vendedor_cod,
        C6_PRODUTO AS produto_cod, C6_QTDVEN AS quantidade, C6_VALOR AS valor
 FROM SC6010 C6
-JOIN SC5010 C5 ON C5_FILIAL=C6_FILIAL AND C5_NUM=C6_NUM AND C5.D_E_L_ET_=' '
-WHERE C6.D_E_L_ET_=' ' AND C6_BLQ<>'R' AND C6_FILIAL IN ({{FILIAL}})
+JOIN SC5010 C5 ON C5_FILIAL=C6_FILIAL AND C5_NUM=C6_NUM AND C5.D_E_L_E_T_=' '
+WHERE C6.D_E_L_E_T_=' ' AND C6_BLQ<>'R' AND C6_FILIAL IN ({{FILIAL}})
   AND C5_EMISSAO BETWEEN {{DATA_INI}} AND {{DATA_FIM}}`,
       },
     ],
@@ -150,7 +150,7 @@ WHERE C6.D_E_L_ET_=' ' AND C6_BLQ<>'R' AND C6_FILIAL IN ({{FILIAL}})
         sql: `SELECT E1_NUM AS titulo, E1_CLIENTE AS cliente_cod, E1_LOJA AS cliente_loja,
        E1_VENCREA AS vencimento, E1_SALDO AS valor_saldo
 FROM SE1010
-WHERE D_E_L_ET_=' ' AND E1_FILIAL IN ({{FILIAL}}) AND E1_SALDO > 0
+WHERE D_E_L_E_T_=' ' AND E1_FILIAL IN ({{FILIAL}}) AND E1_SALDO > 0
   AND E1_TIPO NOT IN ('NCC','RA','AB-','PA')`,
       },
     ],
@@ -179,7 +179,7 @@ WHERE D_E_L_ET_=' ' AND E1_FILIAL IN ({{FILIAL}}) AND E1_SALDO > 0
         sql: `SELECT B1_COD AS produto_cod, B1_DESC AS produto_desc, B1_GRUPO AS grupo,
        CASE WHEN B1_MSBLQL = '1' THEN 'N' ELSE 'S' END AS ativo
 FROM SB1010
-WHERE D_E_L_ET_=' '`,
+WHERE D_E_L_E_T_=' '`,
       },
     ],
     helpText:
@@ -204,7 +204,7 @@ WHERE D_E_L_ET_=' '`,
         label: 'SB2 (saldo em estoque)',
         sql: `SELECT B2_COD AS produto_cod, B2_QATU - B2_RESERVA AS saldo, B2_LOCAL AS local
 FROM SB2010
-WHERE D_E_L_ET_=' ' AND B2_COD = {{PRODUTO}} AND B2_FILIAL IN ({{FILIAL}})`,
+WHERE D_E_L_E_T_=' ' AND B2_COD = {{PRODUTO}} AND B2_FILIAL IN ({{FILIAL}})`,
       },
     ],
     helpText:

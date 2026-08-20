@@ -1,6 +1,13 @@
-// Adapter do endpoint Protheus "qualquer SELECT" (E2; contrato confirmado em P1–P9).
-// Resposta colunar paginada: colunas descritas + linhas estruturadas (P3),
-// paginação padrão limite/deslocamento/paginas.total (P4).
+// Adapter do endpoint Protheus "qualquer SELECT" (E2; contrato confirmado em P1–P9
+// e pelo payload real do consultor em 20/08/2026):
+//   request : POST JSON { "query": "<SELECT ...>" } (+ page/pageSize quando paginado)
+//   response: { success, page, pageSize, count, hasNext,
+//               columns: [{ name, type: 'C'|'N'|... }], items: [{ col: valor }] }
+// Os nomes de todos os campos são configuráveis por empresa via syncConfig.sqlApi.
+//
+// Pendências do contrato (aguardando consultor): payload de erro de negócio e
+// URL de homologação; nomes dos parâmetros de paginação no request assumidos
+// como page/pageSize (a resposta os ecoa) — por isso configuráveis.
 //
 // INTEL_SQL_ADAPTER=mock usa o gerador sintético (13 meses, ~40 clientes) —
 // desenvolvimento e smoke test sem Protheus real.
@@ -32,6 +39,7 @@ export interface SqlRunOptions {
 
 export interface SqlRunResult {
   rows: SqlRow[]
+  /** Linhas efetivamente carregadas — o contrato não devolve total geral */
   totalRows: number
   pages: number
   truncated: boolean
@@ -42,22 +50,30 @@ export interface SqlApiAdapter {
   run(company: SqlCompany, sql: string, opts?: SqlRunOptions): Promise<SqlRunResult>
 }
 
-// ─── Configuração por empresa (syncConfig.sqlApi) — defaults do contrato P2/P3 ───
+// ─── Configuração por empresa (syncConfig.sqlApi) — defaults do contrato real ───
 
 interface SqlApiConfig {
   sqlField: string
   columnsField: string
   rowsField: string
+  pageField: string
+  pageSizeField: string
+  hasNextField: string
+  successField: string
   pageSize: number
   pageable: boolean
   maxRows: number
 }
 
 const DEFAULT_SQL_API: SqlApiConfig = {
-  sqlField: 'sql', // pendência leve P2 — configurável por empresa
-  columnsField: 'colunas',
-  rowsField: 'linhas',
-  pageSize: 200,
+  sqlField: 'query', // confirmado no payload do consultor (20/08/2026)
+  columnsField: 'columns',
+  rowsField: 'items',
+  pageField: 'page',
+  pageSizeField: 'pageSize',
+  hasNextField: 'hasNext',
+  successField: 'success',
+  pageSize: 100, // default observado na resposta real
   pageable: true,
   maxRows: 50_000,
 }
@@ -68,12 +84,12 @@ export function resolveSqlApiConfig(syncConfig: unknown): SqlApiConfig {
   return { ...DEFAULT_SQL_API, ...cfg }
 }
 
-// ─── Normalização da resposta colunar (P3) ───
+// ─── Normalização da resposta ───
 
 /**
  * Converte a página bruta em linhas-objeto. Aceita:
- * - colunar: { colunas: ['a','b'] | [{nome:'a'}...], linhas: [[1,2], ...] }
- * - lista de objetos (fallback): { linhas: [{a:1,b:2}, ...] }
+ * - contrato real: { columns: [{name,type}...], items: [{col: valor}, ...] }
+ * - colunar: { columns: ['a','b'] | [{name:'a'}...], items: [[1,2], ...] }
  */
 export function mapColumnarPage(
   raw: Record<string, unknown>,
@@ -83,7 +99,7 @@ export function mapColumnarPage(
   if (!Array.isArray(rowsRaw)) return []
 
   if (rowsRaw.length > 0 && !Array.isArray(rowsRaw[0])) {
-    // fallback: já vem como objetos
+    // contrato real: items já vem como objetos { coluna: valor }
     return rowsRaw as SqlRow[]
   }
 
@@ -92,7 +108,7 @@ export function mapColumnarPage(
   const columns = columnsRaw.map((c) =>
     typeof c === 'string'
       ? c
-      : String((c as Record<string, unknown>).nome ?? (c as Record<string, unknown>).name ?? '')
+      : String((c as Record<string, unknown>).name ?? (c as Record<string, unknown>).nome ?? '')
   )
 
   return (rowsRaw as unknown[][]).map((line) => {
@@ -119,29 +135,35 @@ export class ProtheusSqlAdapter implements SqlApiAdapter {
     const maxRows = Math.min(opts.maxRows ?? cfg.maxRows, cfg.maxRows)
 
     const rows: SqlRow[] = []
-    let totalRows = 0
     let pages = 0
     let truncated = false
     const t0 = Date.now()
 
     try {
-      let deslocamento = 1
-      while (deslocamento <= MAX_PAGES) {
+      let page = 1
+      while (page <= MAX_PAGES) {
         const body: Record<string, unknown> = { [cfg.sqlField]: sql }
         if (cfg.pageable) {
-          body.limite = cfg.pageSize
-          body.deslocamento = deslocamento
+          body[cfg.pageField] = page
+          body[cfg.pageSizeField] = cfg.pageSize
         }
 
         const raw = (await protheusPost(company.id, company.apiSql, body, creds, {
           timeoutMs: opts.timeoutMs,
         })) as Record<string, unknown>
 
-        const paginas = (raw['paginas'] ?? {}) as Record<string, unknown>
+        // Flag de negócio do contrato (erros de transporte já viram HTTP 4xx/5xx — P8)
+        if (raw[cfg.successField] === false) {
+          const detail = raw['message'] ?? raw['error'] ?? raw['erro']
+          throw new Error(
+            `Endpoint SQL retornou ${cfg.successField}=false${
+              typeof detail === 'string' ? `: ${detail.slice(0, 200)}` : ''
+            }`
+          )
+        }
+
         const pageRows = mapColumnarPage(raw, cfg)
         pages += 1
-
-        if (deslocamento === 1) totalRows = Number(paginas['total'] ?? 0) || 0
 
         for (const row of pageRows) {
           if (rows.length >= maxRows) {
@@ -152,10 +174,12 @@ export class ProtheusSqlAdapter implements SqlApiAdapter {
         }
 
         if (truncated || !cfg.pageable) break
-        if (pageRows.length === 0) break
-        if (totalRows > 0 && rows.length >= totalRows) break
-        if (pageRows.length < cfg.pageSize) break
-        deslocamento += 1
+        const hasNext = raw[cfg.hasNextField]
+        if (hasNext === false) break
+        if (pageRows.length === 0) break // segurança mesmo com hasNext=true
+        // Contrato sem hasNext: para quando a página vem incompleta
+        if (hasNext !== true && pageRows.length < cfg.pageSize) break
+        page += 1
       }
 
       const ms = Date.now() - t0
@@ -167,10 +191,10 @@ export class ProtheusSqlAdapter implements SqlApiAdapter {
         success: true,
         durationMs: ms,
         recordsSynced: rows.length,
-        totalRecords: totalRows || rows.length,
+        totalRecords: rows.length,
         metadata: { queryName: opts.queryName ?? null, pages, truncated },
       })
-      return { rows, totalRows: totalRows || rows.length, pages, truncated, ms }
+      return { rows, totalRows: rows.length, pages, truncated, ms }
     } catch (err) {
       const ms = Date.now() - t0
       await logProtheusCall({

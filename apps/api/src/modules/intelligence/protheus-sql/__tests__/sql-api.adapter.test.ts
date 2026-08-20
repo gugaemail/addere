@@ -1,26 +1,77 @@
-import { describe, it, expect } from 'vitest'
-import { mapColumnarPage, MockSqlAdapter, resolveSqlApiConfig } from '../sql-api.adapter'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
+import {
+  mapColumnarPage,
+  MockSqlAdapter,
+  ProtheusSqlAdapter,
+  resolveSqlApiConfig,
+} from '../sql-api.adapter'
+import { protheusPost } from '../../../sync/protheus.client'
+
+vi.mock('../../../sync/protheus.client', () => ({ protheusPost: vi.fn() }))
+vi.mock('../../../sync/protheus-logger', () => ({ logProtheusCall: vi.fn() }))
+vi.mock('../../../sync/utils', () => ({
+  getCredentials: vi.fn(() => ({
+    apiToken: 'https://erp/token',
+    usrProtheus: 'user',
+    passProtheus: 'pass',
+    syncConfig: null,
+  })),
+}))
+
+const protheusPostMock = vi.mocked(protheusPost)
 
 const REF = new Date('2026-08-20T12:00:00Z')
 const company = {
   id: 'tenant-1',
-  apiSql: null,
+  apiSql: null as string | null,
   apiToken: null,
   usrProtheus: null,
   passProtheus: null,
 }
+const realCompany = {
+  ...company,
+  apiSql: 'https://erp/api/sql',
+  syncConfig: { sqlApi: { pageSize: 2 } },
+}
+
+// Página no formato real confirmado pelo consultor (20/08/2026)
+const page = (n: number, items: Record<string, string | number>[], hasNext: boolean) => ({
+  success: true,
+  page: n,
+  pageSize: 2,
+  count: items.length,
+  hasNext,
+  columns: [
+    { name: 'D2_COD', type: 'C' },
+    { name: '202601', type: 'N' },
+  ],
+  items,
+})
 
 describe('mapColumnarPage', () => {
-  it('mapeia resposta colunar (colunas como strings)', () => {
+  const cfg = { columnsField: 'columns', rowsField: 'items' }
+
+  it('mapeia o formato real: columns [{name,type}] + items como objetos', () => {
+    const rows = mapColumnarPage(
+      page(1, [{ D2_COD: 'CFD30', '202601': 25147.22 }], true) as unknown as Record<
+        string,
+        unknown
+      >,
+      cfg
+    )
+    expect(rows).toEqual([{ D2_COD: 'CFD30', '202601': 25147.22 }])
+  })
+
+  it('mapeia resposta colunar (colunas como strings, linhas como arrays)', () => {
     const rows = mapColumnarPage(
       {
-        colunas: ['a', 'b'],
-        linhas: [
+        columns: ['a', 'b'],
+        items: [
           [1, 'x'],
           [2, null],
         ],
       },
-      { columnsField: 'colunas', rowsField: 'linhas' }
+      cfg
     )
     expect(rows).toEqual([
       { a: 1, b: 'x' },
@@ -28,31 +79,98 @@ describe('mapColumnarPage', () => {
     ])
   })
 
-  it('mapeia colunas como objetos {nome}', () => {
-    const rows = mapColumnarPage(
-      { colunas: [{ nome: 'a' }], linhas: [[9]] },
-      { columnsField: 'colunas', rowsField: 'linhas' }
-    )
-    expect(rows).toEqual([{ a: 9 }])
+  it('mapeia colunas como objetos {name} e {nome}', () => {
+    expect(mapColumnarPage({ columns: [{ name: 'a' }], items: [[9]] }, cfg)).toEqual([{ a: 9 }])
+    expect(mapColumnarPage({ columns: [{ nome: 'a' }], items: [[9]] }, cfg)).toEqual([{ a: 9 }])
   })
 
-  it('fallback: linhas já como objetos', () => {
-    const rows = mapColumnarPage(
-      { linhas: [{ a: 1 }] },
-      { columnsField: 'colunas', rowsField: 'linhas' }
-    )
-    expect(rows).toEqual([{ a: 1 }])
-  })
-
-  it('resposta sem linhas → vazio', () => {
-    expect(mapColumnarPage({}, { columnsField: 'colunas', rowsField: 'linhas' })).toEqual([])
+  it('resposta sem items → vazio', () => {
+    expect(mapColumnarPage({}, cfg)).toEqual([])
   })
 })
 
 describe('resolveSqlApiConfig', () => {
-  it('usa defaults e aceita override por syncConfig.sqlApi', () => {
-    expect(resolveSqlApiConfig(null).sqlField).toBe('sql')
+  it('usa os defaults do contrato real e aceita override por syncConfig.sqlApi', () => {
+    const def = resolveSqlApiConfig(null)
+    expect(def.sqlField).toBe('query')
+    expect(def.columnsField).toBe('columns')
+    expect(def.rowsField).toBe('items')
+    expect(def.pageField).toBe('page')
+    expect(def.pageSizeField).toBe('pageSize')
+    expect(def.hasNextField).toBe('hasNext')
     expect(resolveSqlApiConfig({ sqlApi: { sqlField: 'cQuery' } }).sqlField).toBe('cQuery')
+  })
+})
+
+describe('ProtheusSqlAdapter', () => {
+  beforeEach(() => {
+    protheusPostMock.mockReset()
+  })
+
+  it('envia {query, page, pageSize} e pagina enquanto hasNext=true', async () => {
+    protheusPostMock
+      .mockResolvedValueOnce(
+        page(
+          1,
+          [
+            { D2_COD: 'CFD30', '202601': 20 },
+            { D2_COD: 'CFD31', '202601': 0 },
+          ],
+          true
+        )
+      )
+      .mockResolvedValueOnce(page(2, [{ D2_COD: 'CFD32', '202601': 63 }], false))
+
+    const r = await new ProtheusSqlAdapter().run(realCompany, 'SELECT 1', { queryName: 'SALES' })
+
+    expect(r.rows).toHaveLength(3)
+    expect(r.pages).toBe(2)
+    expect(r.truncated).toBe(false)
+    expect(protheusPostMock).toHaveBeenCalledTimes(2)
+    expect(protheusPostMock.mock.calls[0][2]).toEqual({ query: 'SELECT 1', page: 1, pageSize: 2 })
+    expect(protheusPostMock.mock.calls[1][2]).toEqual({ query: 'SELECT 1', page: 2, pageSize: 2 })
+  })
+
+  it('para na primeira página quando hasNext=false', async () => {
+    protheusPostMock.mockResolvedValueOnce(page(1, [{ D2_COD: 'A', '202601': 1 }], false))
+    const r = await new ProtheusSqlAdapter().run(realCompany, 'SELECT 1')
+    expect(r.pages).toBe(1)
+    expect(protheusPostMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('sem hasNext na resposta, para quando a página vem incompleta', async () => {
+    const legacy = { items: [{ a: 1 }] } // 1 linha < pageSize 2, sem hasNext
+    protheusPostMock.mockResolvedValueOnce(legacy)
+    const r = await new ProtheusSqlAdapter().run(realCompany, 'SELECT 1')
+    expect(r.rows).toEqual([{ a: 1 }])
+    expect(r.pages).toBe(1)
+  })
+
+  it('aplica maxRows cortando a paginação com truncated', async () => {
+    protheusPostMock.mockResolvedValue(
+      page(
+        1,
+        [
+          { D2_COD: 'A', '202601': 1 },
+          { D2_COD: 'B', '202601': 2 },
+        ],
+        true
+      )
+    )
+    const r = await new ProtheusSqlAdapter().run(realCompany, 'SELECT 1', { maxRows: 3 })
+    expect(r.rows).toHaveLength(3)
+    expect(r.truncated).toBe(true)
+  })
+
+  it('lança erro quando success=false', async () => {
+    protheusPostMock.mockResolvedValueOnce({ success: false, message: 'SQL inválido' })
+    await expect(new ProtheusSqlAdapter().run(realCompany, 'SELECT 1')).rejects.toThrow(
+      /success=false: SQL inválido/
+    )
+  })
+
+  it('exige apiSql configurada', async () => {
+    await expect(new ProtheusSqlAdapter().run(company, 'SELECT 1')).rejects.toThrow(/apiSql/)
   })
 })
 

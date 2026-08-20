@@ -152,3 +152,38 @@ describe('sql-guard', () => {
     )
   })
 })
+
+// Consulta estruturalmente igual à real enviada pelo consultor (20/08/2026):
+// UNION de tabelas por empresa, hints WITH (NOLOCK), CASE WHEN + SUBSTRING,
+// aliases numéricos entre aspas simples e colunas D_E_L_E_T_.
+const consultantStyleSales = `SELECT D2_FILIAL, D2_COD, C6_DESCRI, A1_EST, D2_UM,
+  SUM(CASE WHEN SUBSTRING(F2_EMISSAO,1,6) = '202601' THEN (D2_QUANT-D2_QTDEDEV) ELSE 0 END) AS '202601'
+FROM SD2010 SD2 WITH (NOLOCK)
+INNER JOIN SF2010 SF2 WITH (NOLOCK) ON D2_FILIAL = F2_FILIAL AND D2_DOC = F2_DOC AND D2_SERIE = F2_SERIE
+INNER JOIN SA1010 SA1 WITH (NOLOCK) ON F2_CLIENTE + F2_LOJA = A1_COD + A1_LOJA
+INNER JOIN SC6010 SC6 WITH (NOLOCK) ON D2_FILIAL = C6_FILIAL AND D2_DOC = C6_NOTA AND D2_SERIE = C6_SERIE
+  AND D2_COD = C6_PRODUTO AND D2_ITEMPV = C6_ITEM
+WHERE SUBSTRING(SD2.D2_CF,1,2) IN ('51','61','59','69') AND SD2.D2_CF NOT IN ('5910','6910')
+  AND SD2.D2_EMISSAO BETWEEN {{DATA_INI}} AND {{DATA_FIM}}
+  AND D2_FILIAL IN ({{FILIAL}})
+  AND SF2.D_E_L_E_T_ = '' AND SA1.D_E_L_E_T_ = '' AND SD2.D_E_L_E_T_ = '' AND SC6.D_E_L_E_T_ = ''
+GROUP BY D2_FILIAL, D2_COD, C6_DESCRI, A1_EST, D2_UM
+UNION
+SELECT '9901', D2_COD, C6_DESCRI, A1_EST, D2_UM,
+  SUM(CASE WHEN SUBSTRING(F2_EMISSAO,1,6) = '202601' THEN (D2_QUANT-D2_QTDEDEV) ELSE 0 END) AS '202601'
+FROM SD2990 SD2 WITH (NOLOCK)
+INNER JOIN SF2990 SF2 WITH (NOLOCK) ON D2_FILIAL = F2_FILIAL AND D2_DOC = F2_DOC AND D2_SERIE = F2_SERIE
+INNER JOIN SA1010 SA1 WITH (NOLOCK) ON F2_CLIENTE + F2_LOJA = A1_COD + A1_LOJA
+WHERE SD2.D2_EMISSAO BETWEEN {{DATA_INI}} AND {{DATA_FIM}}
+  AND SF2.D_E_L_E_T_ = '' AND SA1.D_E_L_E_T_ = '' AND SD2.D_E_L_E_T_ = ''
+GROUP BY D2_COD, C6_DESCRI, A1_EST, D2_UM`
+
+describe('sql-guard × consulta real do consultor', () => {
+  it('aprova UNION com WITH (NOLOCK), CASE WHEN e aliases numéricos', () => {
+    expect(codes(consultantStyleSales)).toEqual([])
+  })
+
+  it('continua barrando keyword proibida dentro da mesma estrutura', () => {
+    expect(codes(consultantStyleSales + ' UNION SELECT 1 INTO X')).toContain('forbidden_into')
+  })
+})
