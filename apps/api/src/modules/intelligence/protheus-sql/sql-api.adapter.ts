@@ -1,15 +1,11 @@
 // Adapter do endpoint Protheus "qualquer SELECT" (E2; contrato confirmado em P1–P9
-// e pelo payload real do consultor em 20/08/2026):
-//   request : POST JSON { "query": "<SELECT ...>" } (+ page/pageSize quando paginado)
+// e pelos payloads/prints reais do consultor em 20/08/2026 — sem pendências):
+//   request : POST <apiSql>?page=1&pageSize=100  (paginação na QUERY STRING)
+//             body JSON { "query": "<SELECT ...>" }
 //   response: { success, page, pageSize, count, hasNext,
 //               columns: [{ name, type: 'C'|'N'|... }], items: [{ col: valor }] }
-// Os nomes de todos os campos são configuráveis por empresa via syncConfig.sqlApi.
-//
-// Erro de negócio confirmado (payload real, 20/08/2026):
-//   { success: false, errorId: 'WSQ002', message: 'Somente comandos SELECT ...' }
-// Pendências do contrato (aguardando consultor): URL de homologação; nomes dos
-// parâmetros de paginação no request assumidos como page/pageSize (a resposta
-// os ecoa) — por isso configuráveis.
+//   erro    : { success: false, errorId: 'WSQ002', message: 'Somente comandos SELECT ...' }
+// Os nomes de todos os campos/params são configuráveis por empresa via syncConfig.sqlApi.
 //
 // INTEL_SQL_ADAPTER=mock usa o gerador sintético (13 meses, ~40 clientes) —
 // desenvolvimento e smoke test sem Protheus real.
@@ -68,10 +64,10 @@ interface SqlApiConfig {
 }
 
 const DEFAULT_SQL_API: SqlApiConfig = {
-  sqlField: 'query', // confirmado no payload do consultor (20/08/2026)
+  sqlField: 'query', // body: { query } — confirmado no payload do consultor (20/08/2026)
   columnsField: 'columns',
   rowsField: 'items',
-  pageField: 'page',
+  pageField: 'page', // query string — confirmado no print do consultor (20/08/2026)
   pageSizeField: 'pageSize',
   hasNextField: 'hasNext',
   successField: 'success',
@@ -144,13 +140,15 @@ export class ProtheusSqlAdapter implements SqlApiAdapter {
     try {
       let page = 1
       while (page <= MAX_PAGES) {
-        const body: Record<string, unknown> = { [cfg.sqlField]: sql }
+        // Paginação na query string (?page=N&pageSize=M); o body leva só o SQL
+        const url = new URL(company.apiSql)
         if (cfg.pageable) {
-          body[cfg.pageField] = page
-          body[cfg.pageSizeField] = cfg.pageSize
+          url.searchParams.set(cfg.pageField, String(page))
+          url.searchParams.set(cfg.pageSizeField, String(cfg.pageSize))
         }
+        const body: Record<string, unknown> = { [cfg.sqlField]: sql }
 
-        const raw = (await protheusPost(company.id, company.apiSql, body, creds, {
+        const raw = (await protheusPost(company.id, url.toString(), body, creds, {
           timeoutMs: opts.timeoutMs,
         })) as Record<string, unknown>
 

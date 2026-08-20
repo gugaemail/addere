@@ -107,7 +107,7 @@ describe('ProtheusSqlAdapter', () => {
     protheusPostMock.mockReset()
   })
 
-  it('envia {query, page, pageSize} e pagina enquanto hasNext=true', async () => {
+  it('pagina por ?page&pageSize na query string com body {query}, guiado por hasNext', async () => {
     protheusPostMock
       .mockResolvedValueOnce(
         page(
@@ -127,8 +127,11 @@ describe('ProtheusSqlAdapter', () => {
     expect(r.pages).toBe(2)
     expect(r.truncated).toBe(false)
     expect(protheusPostMock).toHaveBeenCalledTimes(2)
-    expect(protheusPostMock.mock.calls[0][2]).toEqual({ query: 'SELECT 1', page: 1, pageSize: 2 })
-    expect(protheusPostMock.mock.calls[1][2]).toEqual({ query: 'SELECT 1', page: 2, pageSize: 2 })
+    // Paginação confirmada no print do consultor (20/08/2026): query string, não body
+    expect(protheusPostMock.mock.calls[0][1]).toBe('https://erp/api/sql?page=1&pageSize=2')
+    expect(protheusPostMock.mock.calls[0][2]).toEqual({ query: 'SELECT 1' })
+    expect(protheusPostMock.mock.calls[1][1]).toBe('https://erp/api/sql?page=2&pageSize=2')
+    expect(protheusPostMock.mock.calls[1][2]).toEqual({ query: 'SELECT 1' })
   })
 
   it('para na primeira página quando hasNext=false', async () => {
