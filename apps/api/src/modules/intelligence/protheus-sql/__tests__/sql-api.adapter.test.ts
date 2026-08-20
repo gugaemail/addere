@@ -169,6 +169,17 @@ describe('ProtheusSqlAdapter', () => {
     )
   })
 
+  it('propaga errorId e message do payload de erro real (WSQ002)', async () => {
+    protheusPostMock.mockResolvedValueOnce({
+      success: false,
+      errorId: 'WSQ002',
+      message: 'Somente comandos SELECT (ou WITH ... SELECT) sao permitidos',
+    })
+    await expect(new ProtheusSqlAdapter().run(realCompany, 'SELECT 1')).rejects.toThrow(
+      /success=false \[WSQ002\]: Somente comandos SELECT \(ou WITH \.\.\. SELECT\) sao permitidos/
+    )
+  })
+
   it('exige apiSql configurada', async () => {
     await expect(new ProtheusSqlAdapter().run(company, 'SELECT 1')).rejects.toThrow(/apiSql/)
   })

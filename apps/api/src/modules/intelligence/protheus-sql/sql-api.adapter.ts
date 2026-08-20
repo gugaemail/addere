@@ -5,9 +5,11 @@
 //               columns: [{ name, type: 'C'|'N'|... }], items: [{ col: valor }] }
 // Os nomes de todos os campos são configuráveis por empresa via syncConfig.sqlApi.
 //
-// Pendências do contrato (aguardando consultor): payload de erro de negócio e
-// URL de homologação; nomes dos parâmetros de paginação no request assumidos
-// como page/pageSize (a resposta os ecoa) — por isso configuráveis.
+// Erro de negócio confirmado (payload real, 20/08/2026):
+//   { success: false, errorId: 'WSQ002', message: 'Somente comandos SELECT ...' }
+// Pendências do contrato (aguardando consultor): URL de homologação; nomes dos
+// parâmetros de paginação no request assumidos como page/pageSize (a resposta
+// os ecoa) — por isso configuráveis.
 //
 // INTEL_SQL_ADAPTER=mock usa o gerador sintético (13 meses, ~40 clientes) —
 // desenvolvimento e smoke test sem Protheus real.
@@ -154,11 +156,12 @@ export class ProtheusSqlAdapter implements SqlApiAdapter {
 
         // Flag de negócio do contrato (erros de transporte já viram HTTP 4xx/5xx — P8)
         if (raw[cfg.successField] === false) {
+          const errorId = raw['errorId']
           const detail = raw['message'] ?? raw['error'] ?? raw['erro']
           throw new Error(
-            `Endpoint SQL retornou ${cfg.successField}=false${
-              typeof detail === 'string' ? `: ${detail.slice(0, 200)}` : ''
-            }`
+            `Endpoint SQL retornou ${cfg.successField}=false` +
+              (typeof errorId === 'string' ? ` [${errorId}]` : '') +
+              (typeof detail === 'string' ? `: ${detail.slice(0, 200)}` : '')
           )
         }
 
