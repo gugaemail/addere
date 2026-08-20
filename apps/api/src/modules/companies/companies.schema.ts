@@ -95,6 +95,7 @@ export const updateProtheusSchema = z.object({
   apiCondPag: z.string().optional(),
   apiTransp: z.string().optional(),
   apiMetaVend: z.string().optional(),
+  apiSql: z.string().optional(),
   usrProtheus: z.string().optional(),
   passProtheus: z.string().optional(),
   syncConfig: z.record(z.unknown()).optional(),

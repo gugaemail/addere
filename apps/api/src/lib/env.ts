@@ -12,6 +12,8 @@ const envSchema = z.object({
   CORS_ORIGIN: z.string().default('http://localhost:3000'),
   UPLOAD_DIR: z.string().default('uploads'),
   RESEND_API_KEY: z.string().optional(),
+  // Camada de Inteligência: 'mock' usa o gerador sintético (dev/smoke sem Protheus)
+  INTEL_SQL_ADAPTER: z.enum(['protheus', 'mock']).default('protheus'),
   WEB_URL: z.string().url().optional(),
 })
 

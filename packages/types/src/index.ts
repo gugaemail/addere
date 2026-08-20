@@ -76,6 +76,7 @@ export interface Company {
   apiConsPed: string | null
   apiCondPag: string | null
   apiTransp: string | null
+  apiSql: string | null // POST SELECT genérico (camada de Inteligência)
   usrProtheus: string | null
   passProtheus: string | null
   syncConfig: unknown | null
@@ -111,6 +112,7 @@ export interface CompanyDetail {
   apiConsPed: string | null
   apiCondPag: string | null
   apiTransp: string | null
+  apiSql: string | null
   usrProtheus: string | null
   passProtheus: string | null
 }
