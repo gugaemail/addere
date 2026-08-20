@@ -1,10 +1,11 @@
 # Addere · Inteligência comercial e roteirização — Plano de execução
 
-**Versão** 0.3 · 19/08/2026 · derivado de `ADDERE-INTELIGENCIA-ARQUITETURA.md` v0.1 + wireframes (`addere-inteligencia-wireframes.html`, `addere-painel-web-wireframes.html`) + leitura do monorepo (`main` = `f83228e`, branch `chore/ios-sim-e2e-setup` = `a1c15d1`).
+**Versão** 0.4 · 19/08/2026 · derivado de `ADDERE-INTELIGENCIA-ARQUITETURA.md` v0.1 + wireframes (`addere-inteligencia-wireframes.html`, `addere-painel-web-wireframes.html`) + leitura do monorepo (`main` = `f83228e`, branch `chore/ios-sim-e2e-setup` = `a1c15d1`).
 **Uso** roteiro operacional para o Claude Code. Cada entrega (E-n) é um PR, com arquivos, passos, testes e DoD. O documento de arquitetura é a fonte de _o quê_; este é a fonte de _como e em que ordem_, ancorado no código que existe.
 **Histórico**
 
 - v0.1 → v0.2: revisão adversarial em 4 lentes (completude vs. spec, viabilidade vs. código, sequência/estimativas, segurança/LGPD/tenant). Cronograma refeito, E1 quebrado em 3 PRs, jobs separados e assíncronos, posse por vendedor nas rotas do app, `Visit.clientId` único por tenant, guarda SQL especificada, allowlist de fatos para o LLM, retenção/LGPD, observabilidade, mock Protheus-SQL antecipado.
+- v0.3 → v0.4: **E0-1 resolvido (P1–P9, Gustavo, 19/08/2026)** — contrato da API SELECT confirmado (§2.7); carga inicial vira ação manual no painel (P5); pendências leves: nome do campo do SQL + payload de exemplo.
 - v0.2 → v0.3: **decisões D1–D14 fechadas pelo Gustavo em 19/08/2026** (registro no §2.0). Mudanças de escopo: hierarquia gerente→vendedores (`User.managerId`), jobs no padrão do painel (in-process, sem GitHub Actions/secret), CTE permitido na guarda, **mapa + geocodificação puxados para a Fase 1** (E15-F1 e E13b; +9 dias-dev), Nominatim com troca p/ Google prevista, react-native-maps, 2 devs.
 
 ---
@@ -115,9 +116,21 @@ Decisão do Gustavo (D5): **usar o mesmo padrão do auto-sync que já existe no 
 
 **Motor 100% Prisma + TypeScript puro** (funções sem `prisma`, testáveis no CI — padrão `orders.pricing.ts`). `$queryRaw` só para agregações medidas (RFM/decomposição, F2) como exceção documentada.
 
-### 2.7 API "qualquer SELECT" do Protheus 🔴 bloqueante
+### 2.7 API "qualquer SELECT" do Protheus — ✅ contrato confirmado (P1–P9, 19/08/2026)
 
-Não existe nada no código. Assumido: nova coluna `Company.apiSql` (URL; passa por `assertSafeUrl` dentro de `protheusPost`), mesmo OAuth2, POST JSON; formato do body/response configurável em `Company.syncConfig.sqlApi = { sqlField, rowsField, pageable, maxRows }` atrás de uma interface `SqlApiAdapter` (E2), com **mock local** desde E2. **Guarda SQL é higiene, não fronteira de segurança: a fronteira é o usuário de banco read-only** — confirmação do consultor é DoD de E14a e texto de ajuda do W3. **Go/no-go de E0-1 ao fim da semana 2**; plano B: motor em modo degradado a partir de `Customer.ultcom` (sem ciclo; status só `LATE/INACTIVE/BLOCKED`) para destravar E5–E7/E13 com dados reais enquanto a API não chega.
+**GO.** Respostas do Gustavo:
+
+- **P1** Endpoint existe, **URL única por empresa** → `Company.apiSql` (passa por `assertSafeUrl` via `protheusPost`).
+- **P2** **POST JSON**; nome do campo do SQL a confirmar → coberto por `syncConfig.sqlApi.sqlField` (pendência leve).
+- **P3** Resposta é **JSON paginado em formato colunar**: colunas descritas conforme o SELECT + linhas estruturadas, sempre no mesmo padrão. O `ProtheusSqlAdapter` reconstrói objetos `{alias: valor}` a partir de `colunas + linhas` (não espera array de objetos). Pendência leve: **payload de exemplo** (1 sucesso + 1 erro) para fixar nomes de campos.
+- **P4** Paginação no **mesmo padrão** das APIs atuais (`limite`/`deslocamento` no body, `paginas.total` na resposta) → reaproveita a lógica do `paginated-fetch.ts`.
+- **P5** **Carga inicial de 13 meses é ação manual no painel** (botão "Carga inicial" por contrato, job em background, timeout folgado, janela a janela); o recorrente é **incremental com poucas páginas** (`hoje−7`).
+- **P6** **Mesmo token OAuth2** (`apiToken`/`usrProtheus`/`passProtheus`) → `getCredentials`/`getToken` servem como estão.
+- **P7** O endpoint **valida e só aceita SELECT na chegada** (defesa no lado Protheus). Com a nossa guarda (E2), são duas camadas — DoD atendido. Hardening opcional no onboarding: apontar o webservice para login de banco read-only, se for barato para o consultor.
+- **P8** SQL inválido → **HTTP 4xx/5xx** com mensagem (o `protheusPost` já propaga; sanitizar antes de exibir na prévia).
+- **P9** **Existe homologação** → empresa piloto entra no Addere staging apontando para homologação; troca para produção no fim do onboarding.
+
+Plano B (motor degradado via `Customer.ultcom`) fica arquivado — só se a homologação atrasar o acesso.
 
 ### 2.8 Mapa e GPS no app — fechada (D9/D10)
 
@@ -156,18 +169,18 @@ Generalizar `syncEngine` por tipo mantendo AsyncStorage; `expo-sqlite` só se o 
 
 ## 3. E0 — Pré-requisitos externos (sem código, semanas 1–2, em paralelo)
 
-| #   | Item                                                                                                                                                                                                 | Bloqueia                  | Responsável                                  |
-| --- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------- | -------------------------------------------- |
-| 1   | Contrato da API "qualquer SELECT": URL, método, campo do SQL, formato da resposta, paginação/limite, timeout, **usuário read-only dedicado**, mesmo token OAuth? **Go/no-go fim da semana 2** (§2.7) | E2 (adapter real), E3, E4 | Gustavo + consultor Protheus                 |
-| 2   | Empresa piloto: SD2/SF2 ou SC5/SC6; filiais (`Branch.idProtheus`); gerente                                                                                                                           | E3, E14                   | Gustavo                                      |
-| 3   | `apiMetaVend`: aceita `ANOMES` anterior e `CODVEND` de outro vendedor? formato numérico de `meta`?                                                                                                   | E4                        | consultor                                    |
-| 4   | `ANTHROPIC_API_KEY` (staging/prod)                                                                                                                                                                   | E6                        | Gustavo                                      |
-| 5   | Validar as 7 telas com 2 vendedores (5 min, "o que você faria agora?")                                                                                                                               | E13                       | Gustavo                                      |
-| 6   | ~~Confirmar decisões do §2~~ ✅ fechadas 19/08 (§2.0)                                                                                                                                                | —                         | —                                            |
-| 7   | ~~Política de cooldown / visita sem pedido~~ ✅ D8a/D8b                                                                                                                                              | —                         | —                                            |
-| 8   | `SKILL.md` do agente Addere (molde da Esteira) + 3 moldes de mensagem                                                                                                                                | E6                        | Gustavo (Claude Code transcreve para prompt) |
-| 9   | ~~1 dev ou 2 devs~~ ✅ D12: 2 devs                                                                                                                                                                   | —                         | —                                            |
-| 10  | Google Maps API key do Android (react-native-maps) + conta                                                                                                                                           | E13b                      | Gustavo                                      |
+| #   | Item                                                                                                                                                                                          | Bloqueia                 | Responsável                                  |
+| --- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------ | -------------------------------------------- |
+| 1   | ~~Contrato da API "qualquer SELECT"~~ ✅ **GO** (P1–P9 no §2.7). Pendências leves com o consultor: nome do campo do SQL no body + payload de exemplo (1 sucesso, 1 erro) + URL de homologação | E2 (fixar `sqlApi` real) | Gustavo + consultor Protheus                 |
+| 2   | Empresa piloto: SD2/SF2 ou SC5/SC6; filiais (`Branch.idProtheus`); gerente                                                                                                                    | E3, E14                  | Gustavo                                      |
+| 3   | `apiMetaVend`: aceita `ANOMES` anterior e `CODVEND` de outro vendedor? formato numérico de `meta`?                                                                                            | E4                       | consultor                                    |
+| 4   | `ANTHROPIC_API_KEY` (staging/prod)                                                                                                                                                            | E6                       | Gustavo                                      |
+| 5   | Validar as 7 telas com 2 vendedores (5 min, "o que você faria agora?")                                                                                                                        | E13                      | Gustavo                                      |
+| 6   | ~~Confirmar decisões do §2~~ ✅ fechadas 19/08 (§2.0)                                                                                                                                         | —                        | —                                            |
+| 7   | ~~Política de cooldown / visita sem pedido~~ ✅ D8a/D8b                                                                                                                                       | —                        | —                                            |
+| 8   | `SKILL.md` do agente Addere (molde da Esteira) + 3 moldes de mensagem                                                                                                                         | E6                       | Gustavo (Claude Code transcreve para prompt) |
+| 9   | ~~1 dev ou 2 devs~~ ✅ D12: 2 devs                                                                                                                                                            | —                        | —                                            |
+| 10  | Google Maps API key do Android (react-native-maps) + conta                                                                                                                                    | E13b                     | Gustavo                                      |
 
 ---
 
@@ -242,7 +255,7 @@ Generalizar `syncEngine` por tipo mantendo AsyncStorage; `expo-sqlite` só se o 
 - `contracts.ts` — catálogo declarativo por contrato: colunas obrigatórias/opcionais, escopo, **frequência** (diária/4h/semanal), janela, SQL de referência (SD2/SF2, SC5/SC6 com `D2_ITEM`/`C6_ITEM`, SE1, SA1, SB1), texto de ajuda (incl. "a fronteira de segurança é o usuário read-only").
 - `sql-guard.ts` — puro, após normalizar (strip de comentários, espaços, caixa): primeiro token `SELECT` **ou `WITH` (CTE permitido — D6: valida que cada CTE e o statement final são SELECT puros, sem DML em nenhum ponto)**; proibidos `;`, `--`, `/*`, `INTO`, `EXEC|EXECUTE|sp_executesql`, `xp_`, `sp_`, `OPENROWSET|OPENQUERY|OPENDATASOURCE`, `WAITFOR`, `BULK`, `FOR XML|JSON`, DDL/DML, `UNION` fora de SELECT aninhado? (permitir `UNION ALL` entre SELECTs — decidir nos testes), acesso a `sys.`/`master.`/`INFORMATION_SCHEMA`; placeholders só os conhecidos e coerentes com o escopo; impõe `TOP`/`maxRows` quando a API não pagina.
 - `placeholders.ts` — puro: valida cada valor com `^[A-Za-z0-9 ]{1,20}$` antes de quotar e escapa `'`→`''`; `{{FILIAL}}` (filiais ativas com `idProtheus`), `{{DATA_INI}}/{{DATA_FIM}}/{{HOJE}}` (`YYYYMMDD` em `America/Sao_Paulo`), `{{VENDEDOR}}`, `{{PRODUTO}}`.
-- `sql-api.adapter.ts` — interface `SqlApiAdapter { run(companyId, sql, opts): Promise<Row[]> }`; `ProtheusSqlAdapter` (monta body por `syncConfig.sqlApi`, `protheusPost` com `opts.timeoutMs` — **adicionar parâmetro opcional em `protheus.client.ts`**; 30 s prévia / 120 s sync; paginação se `pageable`; `logProtheusCall` com metadata sanitizado) e `MockSqlAdapter` (lê fixtures JSON em `apps/api/scripts/mock-protheus-sql/` — gerador sintético de 13 meses para ~40 clientes); seleção por `INTEL_SQL_ADAPTER=protheus|mock`.
+- `sql-api.adapter.ts` — interface `SqlApiAdapter { run(companyId, sql, opts): Promise<Row[]> }`; `ProtheusSqlAdapter` (monta body por `syncConfig.sqlApi` com `sqlField` + `limite`/`deslocamento` — paginação padrão Protheus confirmada na P4; **resposta colunar** (P3): reconstrói objetos `{alias: valor}` de `colunas + linhas`; `protheusPost` com `opts.timeoutMs` — **adicionar parâmetro opcional em `protheus.client.ts`**; 30 s prévia / timeout folgado na carga manual (P5); erros HTTP 4xx/5xx sanitizados (P8); `logProtheusCall` com metadata sanitizado) e `MockSqlAdapter` (lê fixtures JSON em `apps/api/scripts/mock-protheus-sql/` — gerador sintético de 13 meses para ~40 clientes); seleção por `INTEL_SQL_ADAPTER=protheus|mock`.
 - `contract-validator.ts` — puro: colunas vs contrato, fan-out (linhas vs `COUNT DISTINCT pedido`), chaves duplicadas (`orderRef+itemSeq+productCode`), tipos básicos.
 - `companies.schema.ts` / `companies.service.ts` / `ProtheusConfigForm.tsx` — `apiSql`.
   **Testes:** ≥ 40 casos (`;`, `--`, `/*`, `WITH`, `EXEC`, `xp_`, `OPENROWSET`, `INTO`, `sys.`, caixa mista, unicode, CTE válido/CTE com DML/CTE aninhado, placeholder desconhecido/fora de escopo, `idProtheus` com aspas, FILIAL múltipla, fan-out, duplicidade), `protheusPost` com timeout.
@@ -267,7 +280,8 @@ Generalizar `syncEngine` por tipo mantendo AsyncStorage; `expo-sqlite` só se o 
 
 **Depende de:** E2, E3.
 
-- `intelligence/sync/contract-sync.service.ts` — por contrato publicado e vencido pela frequência: `SALES` (carga inicial 13 meses em janelas mensais e incremental `hoje−7` com **replace por janela**: `deleteMany` + `createMany({skipDuplicates})` em transação por janela); `OPEN_TITLES` (replace total por tenant em transação); `CUSTOMERS`/`PRODUCTS` (enriquecimento via `upsertChunked`). `ProtheusLog` + `IntelJobRun`.
+- `intelligence/sync/contract-sync.service.ts` — por contrato publicado e vencido pela frequência: `SALES` incremental `hoje−7` com **replace por janela** (`deleteMany` + `createMany({skipDuplicates})` em transação); `OPEN_TITLES` (replace total por tenant em transação); `CUSTOMERS`/`PRODUCTS` (enriquecimento via `upsertChunked`). `ProtheusLog` + `IntelJobRun`.
+- **Carga inicial manual (P5):** `POST /intel/admin/queries/:name/backfill` (`intel.admin`; job `SYNC` em background com lock; 13 meses em janelas mensais, timeout folgado, progresso em `IntelJobRun.metadata` exibido na tela Consultas — botão "Carga inicial" em E10). O nightly nunca dispara backfill sozinho.
 - `intelligence/sync/goals.service.ts` — `GoalSnapshot` para cada `User` ativo com `idVendProt` (mês atual + anterior).
 - `intelligence/jobs/registry.ts` (mapa `IntelJob → handler`; `ENGINE`/`PLAN` registrados como `notImplemented` até E5/E6 registrarem em `engine/engine.job.ts` e `agent/plan-summary.job.ts`), `jobs/run-job.ts` (lock em `IntelJobRun`, Sentry, background com try/catch), `jobs/nightly.ts`, `jobs/refresh.ts`, `jobs/purge.ts` (§2.13), `jobs/scheduler.ts` — **ticker de 1 min + catch-up no boot, tempos por empresa de `intelligenceConfig` (D5)**; iniciado no `onReady` (padrão `initSchedulers`). Sem rota pública de cron e sem GitHub Actions — disparo manual é o `POST /intel/admin/jobs/run` de E3.
 - `admin/health.routes.ts|service.ts` — `GET /intel/admin/health` (`requireAnyPermission`): % saudável, frescor por job, próximo sync, clientes sem cidade/bairro, vendas sem vendedor, vendas com cliente inexistente, últimas execuções (7 d), "corrigir no Protheus" (códigos), **uso de LLM do mês** (de `IntelLlmCache`); `GET /intel/admin/health/export.csv` (`intel.admin`).
@@ -344,7 +358,7 @@ Generalizar `syncEngine` por tipo mantendo AsyncStorage; `expo-sqlite` só se o 
 
 **Depende de:** E3, E4, E9.
 
-- `/inteligencia/consultas/[name]` — 6 chips (5 contratos + `meta (API)` leitura), 3 abas (SQL / O que significa / Validar e publicar), `Textarea` mono, prévia (modal: checagens incl. tempo < 10 s e fan-out, tabela ≤ 50 linhas, stats), reconciliação (input R$ oficial, diff, causas), "Salvar rascunho" / "Publicar vN" (desabilitado até tudo verde), versão/validado por, ajuda do contrato com aviso "usuário read-only".
+- `/inteligencia/consultas/[name]` — 6 chips (5 contratos + `meta (API)` leitura), 3 abas (SQL / O que significa / Validar e publicar), `Textarea` mono, prévia (modal: checagens incl. tempo < 10 s e fan-out, tabela ≤ 50 linhas, stats), reconciliação (input R$ oficial, diff, causas), "Salvar rascunho" / "Publicar vN" (desabilitado até tudo verde), **"Carga inicial" pós-publicação com barra de progresso (P5)**, versão/validado por, ajuda do contrato.
 - `/inteligencia/saude` — % saudável, frescor por job + próximo, completude (3 cards), histórico 7 d, "corrigir no Protheus" + CSV (`intel.admin`), **uso de LLM do mês**, "Rodar sync agora" (`intel.admin`; mostra status 202/lock).
 - `/inteligencia/premissas` — 3 blocos; valor vs padrão (defaults do doc §4.5); **edição** para `intel.admin` (pode ficar leitura na 1-A se faltar tempo): `late_factor`, `risk_factor/risk_days`, `active_days`, `visits_per_day`, pesos (soma 100); histórico; linha "Por vendedor" (de `User.visitsPerDay/vehicle`); por segmento (leitura).
 - `empresas/[id]/tabs/IntelligenceTab.tsx` — ligar/desligar, `apiSql`, `syncHour`, `syncEveryHours`, tom, `retentionDays`, aviso LGPD (prazos do §2.13).
@@ -567,7 +581,7 @@ Sequência única E1a→E1b→E1c→E2→E3→E9→E4→E10→E5→E6→E7→E15
 ## 11. Próximos passos imediatos
 
 1. ~~Confirmar decisões~~ ✅ D1–D14 fechadas (§2.0).
-2. Fechar E0-1 (API SELECT + usuário read-only) e E0-2 (empresa piloto) com o consultor — go/no-go na semana 2. Lista de 9 perguntas: URL, método/body, formato da resposta, paginação/limite, timeout, autenticação, usuário read-only, sinalização de erro, homologação.
+2. ~~E0-1~~ ✅ GO (P1–P9). Mandar ao consultor a mensagem com as 3 pendências leves: nome do campo do SQL no body, payload de exemplo (1 sucesso + 1 erro) e URL de homologação. Segue E0-2 (empresa piloto).
 3. E0-10: criar a Google Maps API key do Android (restrita por package) — necessária só na semana 7 (E13b).
 4. E0-8: escrever o `SKILL.md` do agente + 3 moldes de mensagem — necessário na semana 6 (E6).
 5. Abrir `feat/intel-e1a-baseline-drift` e executar E1a (independente de tudo).
