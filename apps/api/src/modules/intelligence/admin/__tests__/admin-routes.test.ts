@@ -398,6 +398,89 @@ describe('rotas de jobs', () => {
   })
 })
 
+describe('POST /intel/admin/queries/:name/backfill (E4)', () => {
+  it('dispara a carga inicial como job SYNC → 202; lock ativo → 409', async () => {
+    prismaMock.intelJobRun.create.mockResolvedValue({ id: 'run-bf' })
+    const first = await app.inject({
+      method: 'POST',
+      url: '/intel/admin/queries/SALES/backfill',
+      headers: auth('admin-a'),
+      payload: {},
+    })
+    expect(first.statusCode).toBe(202)
+    expect(first.json().runId).toBe('run-bf')
+    // Job SYNC com lock folgado e metadata de progresso
+    expect(prismaMock.intelJobRun.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          job: 'SYNC',
+          metadata: expect.objectContaining({ kind: 'backfill', contract: 'SALES', total: 13 }),
+        }),
+      })
+    )
+
+    prismaMock.intelJobRun.findFirst.mockResolvedValue({ id: 'run-bf' })
+    const second = await app.inject({
+      method: 'POST',
+      url: '/intel/admin/queries/SALES/backfill',
+      headers: auth('admin-a'),
+      payload: {},
+    })
+    expect(second.statusCode).toBe(409)
+  })
+
+  it('vendedor sem permissão → 403', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/intel/admin/queries/SALES/backfill',
+      headers: auth('sales-a'),
+      payload: {},
+    })
+    expect(res.statusCode).toBe(403)
+  })
+})
+
+describe('GET /intel/admin/health (E4)', () => {
+  it('relatório com base vazia → 100% saudável e frescor nulo', async () => {
+    prismaMock.intelLlmCache.aggregate.mockResolvedValue({
+      _sum: { inputTokens: 1000, outputTokens: 500 },
+      _count: { id: 3 },
+    })
+    const res = await app.inject({
+      method: 'GET',
+      url: '/intel/admin/health',
+      headers: auth('manager-a'),
+    })
+    expect(res.statusCode).toBe(200)
+    const body = res.json()
+    expect(body.healthyPct).toBe(100)
+    expect(body.freshness).toHaveLength(5)
+    expect(body.freshness.every((f: { lastRunAt: null }) => f.lastRunAt === null)).toBe(true)
+    expect(body.llmUsageMonth).toEqual({ inputTokens: 1000, outputTokens: 500, calls: 3 })
+    // Empresa com Inteligência desligada não tem próximo sync
+    expect(body.nextSyncAt).toBeNull()
+  })
+
+  it('export.csv exige intel.admin (manager → 403) e responde text/csv', async () => {
+    prismaMock.intelLlmCache.aggregate.mockResolvedValue({ _sum: {}, _count: { id: 0 } })
+    const denied = await app.inject({
+      method: 'GET',
+      url: '/intel/admin/health/export.csv',
+      headers: auth('manager-a'),
+    })
+    expect(denied.statusCode).toBe(403)
+
+    const res = await app.inject({
+      method: 'GET',
+      url: '/intel/admin/health/export.csv',
+      headers: auth('admin-a'),
+    })
+    expect(res.statusCode).toBe(200)
+    expect(res.headers['content-type']).toContain('text/csv')
+    expect(res.body.split('\n')[0]).toBe('tipo;codigo;detalhe')
+  })
+})
+
 describe('rotas de config e parâmetros', () => {
   it('GET config devolve defaults quando não configurada', async () => {
     const res = await app.inject({

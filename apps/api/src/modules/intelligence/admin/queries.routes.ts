@@ -8,6 +8,8 @@ import {
   upsertQuerySchema,
   reconcileSchema,
 } from './queries.schema'
+import { startJobRun } from '../jobs/run-job'
+import { backfillOptions } from '../jobs/backfill'
 import {
   listQueries,
   saveDraft,
@@ -72,6 +74,26 @@ export default async function queriesRoutes(app: FastifyInstance) {
       return reply.send(
         await reconcileQuery(company, name, body.period, body.refAmount, request.user.sub)
       )
+    }
+  )
+
+  // POST /:name/backfill — carga inicial manual de 13 meses (P5; job SYNC em background)
+  app.post(
+    '/:name/backfill',
+    { preHandler: [adminOnly, userRateLimit(2, '1 minute')] },
+    async (request, reply) => {
+      const name = parseName(request, reply)
+      if (!name) return
+      const company = await resolveTenant(request, reply, 'body')
+      if (!company) return
+
+      const result = await startJobRun(company.id, 'SYNC', backfillOptions(name))
+      if (!result.started) {
+        return reply
+          .status(409)
+          .send({ message: 'Já existe uma carga em andamento', runId: result.activeRunId })
+      }
+      return reply.status(202).send({ runId: result.runId })
     }
   )
 

@@ -14,13 +14,11 @@ import type {
 import { DEFAULT_INTEL_PARAMETERS } from '@addere/types'
 import { badRequest, notFound, unprocessable } from '../../../lib/errors'
 import { env } from '../../../lib/env'
-import { QUERY_CONTRACTS, type QueryContract } from '../protheus-sql/contracts'
+import { QUERY_CONTRACTS } from '../protheus-sql/contracts'
 import { validateSql } from '../protheus-sql/sql-guard'
-import {
-  substitutePlaceholders,
-  formatDateYmdSaoPaulo,
-  type PlaceholderValues,
-} from '../protheus-sql/placeholders'
+import { substitutePlaceholders, formatDateYmdSaoPaulo } from '../protheus-sql/placeholders'
+import { buildPlaceholderValues } from '../protheus-sql/placeholder-values'
+import { periodWindow, type DateWindow } from '../sync/windows'
 import { getSqlAdapter } from '../protheus-sql/sql-api.adapter'
 import { validateResultAgainstContract } from '../protheus-sql/contract-validator'
 import type { UpsertQueryInput } from './queries.schema'
@@ -164,74 +162,12 @@ export async function saveDraft(
   return toQueryDto(updated)
 }
 
-// ─── Substituição de placeholders com dados do tenant ───
-
-interface DateWindow {
-  dataIni: string
-  dataFim: string
-}
-
-async function buildPlaceholderValues(
-  company: Company,
-  contract: QueryContract,
-  window: DateWindow
-): Promise<{ values: PlaceholderValues; errors: string[] }> {
-  const errors: string[] = []
-  const values: PlaceholderValues = {
-    dataIni: window.dataIni,
-    dataFim: window.dataFim,
-    hoje: formatDateYmdSaoPaulo(new Date()),
-  }
-
-  const needed = [...contract.requiredPlaceholders, ...contract.optionalPlaceholders]
-
-  if (needed.includes('FILIAL')) {
-    const branches = await prisma.branch.findMany({
-      where: { companyId: company.id, active: true, idProtheus: { not: null } },
-      select: { idProtheus: true },
-    })
-    values.branches = branches
-      .map((b) => b.idProtheus)
-      .filter((code): code is string => Boolean(code))
-    if (values.branches.length === 0) {
-      errors.push('Nenhuma filial ativa com código Protheus cadastrado')
-    }
-  }
-
-  if (needed.includes('VENDEDOR')) {
-    const seller = await prisma.user.findFirst({
-      where: { companyId: company.id, active: true, idVendProt: { not: null } },
-      select: { idVendProt: true },
-    })
-    if (seller?.idVendProt) values.vendedor = seller.idVendProt
-    else errors.push('Nenhum vendedor ativo com código Protheus para {{VENDEDOR}}')
-  }
-
-  if (needed.includes('PRODUTO')) {
-    const product = await prisma.product.findFirst({
-      where: { companyId: company.id, active: true, protheusCode: { not: null } },
-      select: { protheusCode: true },
-    })
-    if (product?.protheusCode) values.produto = product.protheusCode
-    else errors.push('Nenhum produto ativo com código Protheus para {{PRODUTO}}')
-  }
-
-  return { values, errors }
-}
+// ─── Janela da prévia ───
 
 function previewWindow(): DateWindow {
   const now = new Date()
   const ini = new Date(now.getTime() - PREVIEW_WINDOW_DAYS * 24 * 60 * 60 * 1000)
   return { dataIni: formatDateYmdSaoPaulo(ini), dataFim: formatDateYmdSaoPaulo(now) }
-}
-
-function periodWindow(period: string): DateWindow {
-  const year = Number(period.slice(0, 4))
-  const month = Number(period.slice(4, 6))
-  if (month < 1 || month > 12) throw badRequest('Período inválido (mês fora de 01–12)')
-  const lastDay = new Date(Date.UTC(year, month, 0)).getUTCDate()
-  const mm = String(month).padStart(2, '0')
-  return { dataIni: `${period.slice(0, 4)}${mm}01`, dataFim: `${period.slice(0, 4)}${mm}${String(lastDay).padStart(2, '0')}` }
 }
 
 // ─── Prévia (POST /intel/admin/queries/:name/preview) ───
@@ -384,6 +320,9 @@ export async function reconcileQuery(
   if (!contract.columns.some((c) => c.name === 'valor')) {
     throw unprocessable(`Reconciliação exige a coluna "valor" — contrato ${contract.labelPt} não a possui`)
   }
+
+  const month = Number(period.slice(4, 6))
+  if (month < 1 || month > 12) throw badRequest('Período inválido (mês fora de 01–12)')
 
   const { values, errors: valueErrors } = await buildPlaceholderValues(
     company,

@@ -14,6 +14,7 @@ const envSchema = z.object({
   RESEND_API_KEY: z.string().optional(),
   // Camada de Inteligência: 'mock' usa o gerador sintético (dev/smoke sem Protheus)
   INTEL_SQL_ADAPTER: z.enum(['protheus', 'mock']).default('protheus'),
+  SENTRY_DSN: z.string().url().optional(),
   WEB_URL: z.string().url().optional(),
 })
 
