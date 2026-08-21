@@ -28,6 +28,13 @@ enum OrderStatus {
 }
 
 enum PilotEventType {
+  // Camada de Inteligência (E12)
+  PLAN_OPENED
+  VISIT_CHECKIN
+  VISIT_RESULT
+  MESSAGE_SENT
+  PLAN_EDITED
+
   ORDER_STARTED
   ORDER_COMPLETED
   ORDER_SYNCED
@@ -93,6 +100,14 @@ model Company {
   intelOpenTitles       OpenTitle[]
   intelGoalSnapshots    GoalSnapshot[]
   intelJobRuns          IntelJobRun[]
+  customerSignals       CustomerSignal[]
+  visitPlans            VisitPlan[]
+  visits                Visit[]
+  customerMessages      CustomerMessage[]
+  intelFeedbacks        IntelFeedback[]
+  intelLlmCache         IntelLlmCache[]
+  evalCases             EvalCase[]
+  geoAddresses          GeoAddress[]
 
   @@map("companies")
 }
@@ -137,7 +152,16 @@ model User {
   password   String
   role       Role    @default(SALESPERSON)
   active     Boolean @default(true) // soft delete
-  idVendProt String? // código do vendedor no Protheus
+  idVendProt String? // código do vendedor no Protheus — interpolado em {{VENDEDOR}}, validado por regex no Zod
+
+  // ─── Camada de Inteligência (cfg_vendedor do doc + hierarquia D3b) ───
+  visitsPerDay Int? // capacidade de visitas/dia (default da premissa visits_per_day)
+  vehicle      Vehicle? // afeta tempo de deslocamento (F2)
+  servedCities String[] @default([]) // cidades atendidas (agrupamento do plano)
+  messageTone  String? // tom das mensagens geradas (sobrepõe o default da empresa)
+  managerId    String? // gerente comercial do vendedor (usuário com intel.manager)
+  manager      User?    @relation("SellerManager", fields: [managerId], references: [id], onDelete: SetNull)
+  sellers      User[]   @relation("SellerManager")
 
   // null para SUPERADMIN; obrigatório para ADMIN e SALESPERSON
   companyId String?
@@ -158,6 +182,7 @@ model User {
   helpReports         HelpReport[]
   permissions         UserPermission[]
 
+  @@unique([companyId, idVendProt]) // dois usuários com o mesmo código veriam o mesmo plano (§8 do plano)
   @@map("users")
 }
 
@@ -735,4 +760,320 @@ model IntelJobRun {
 
   @@index([companyId, job, startedAt])
   @@map("intel_job_runs")
+}
+
+// ═════════════════════════════════════════
+// Camada de Inteligência (plano E1c — motor, plano do dia e execução)
+// ═════════════════════════════════════════
+
+enum Vehicle {
+  CAR
+  MOTORCYCLE
+  FOOT
+}
+
+enum CustomerStatus {
+  NEW // < cycle_min_orders pedidos: sem ciclo confiável
+  ON_CYCLE // dias sem compra ≤ late_factor × ciclo
+  LATE // entre late_factor× e risk_factor× o ciclo
+  AT_RISK // > risk_factor× o ciclo ou > risk_days
+  INACTIVE // > active_days sem compra
+  BLOCKED // título vencido > blocked_days, limite estourado ou A1_MSBLQL=1 — sobrepõe os demais
+}
+
+enum SignalConfidence {
+  HIGH // ≥ 8 pedidos em 12m
+  MEDIUM // 3–7 pedidos
+  LOW // < 3 pedidos (status NEW)
+}
+
+enum PlanKind {
+  DAY
+  WEEK
+}
+
+enum PlanStatus {
+  GENERATED
+  EDITED // vendedor/gestor mexeu — o motor não sobrescreve no mesmo dia
+  IN_PROGRESS
+  CLOSED
+}
+
+enum PlanItemOrigin {
+  ENGINE
+  MANAGER
+  SELLER
+}
+
+enum MessageTemplate {
+  STALLED_PROPOSAL // proposta parada
+  WENT_QUIET // cliente sumiu
+  REACTIVATE // reativar inativo
+}
+
+enum VisitResult {
+  ORDER
+  NO_ORDER
+  NOT_FOUND
+  RESCHEDULED
+}
+
+enum FeedbackTargetType {
+  PLAN
+  ITEM
+  MESSAGE
+  ANSWER
+}
+
+enum GeoPrecision {
+  ROOFTOP
+  STREET
+  CEP
+  CITY // não posiciona pino no mapa
+}
+
+// ─────────────────────────────────────────
+// CustomerSignal — sinais calculados pelo motor por cliente (crm_sinal_cliente)
+// Sobrescrito a cada recálculo (ENGINE)
+// ─────────────────────────────────────────
+
+model CustomerSignal {
+  companyId    String
+  customerCode String
+  loja         String
+
+  computedAt            DateTime         @default(now())
+  cycleDays             Int? // mediana dos intervalos entre pedidos (12m)
+  daysSinceLastPurchase Int?
+  status                CustomerStatus
+  confidence            SignalConfidence
+  orders12m             Int              @default(0)
+  avgTicket             Decimal?         @db.Decimal(14, 2)
+  trendPct              Decimal?         @db.Decimal(6, 2) // ticket 3m vs 12m
+  purchaseProb          Decimal?         @db.Decimal(4, 3)
+  rfmR                  Int? // fase 2
+  rfmF                  Int?
+  rfmM                  Int?
+  rfmSegment            String?
+  usualMix              Json? // produtos em ≥2 dos últimos 3 ciclos
+  cutMix                Json? // habitual ausente no último pedido
+  crossSell             Json? // fase 2
+  scoreValue            Decimal?         @db.Decimal(6, 3)
+  scoreUrgency          Decimal?         @db.Decimal(6, 3)
+  scoreRisk             Decimal?         @db.Decimal(6, 3)
+  scoreTotal            Decimal?         @db.Decimal(6, 3)
+  reasons               Json? // frases prontas em PT ("compra a cada 28 dias, está no dia 41")
+
+  company Company @relation(fields: [companyId], references: [id])
+
+  @@id([companyId, customerCode, loja])
+  @@index([companyId, status])
+  @@map("intel_customer_signals")
+}
+
+// ─────────────────────────────────────────
+// VisitPlan / VisitPlanItem — plano do dia/semana por vendedor (crm_plano/_item)
+// ─────────────────────────────────────────
+
+model VisitPlan {
+  id             String     @id @default(uuid())
+  vendorCode     String // User.idVendProt
+  date           DateTime   @db.Date // dia civil em America/Sao_Paulo
+  kind           PlanKind   @default(DAY)
+  generatedAt    DateTime   @default(now())
+  engineVersion  String?
+  goalGap        Decimal?   @db.Decimal(14, 2)
+  expectedAmount Decimal?   @db.Decimal(14, 2)
+  grouping       String? // cidade/bairro do dia
+  llmSummary     String? // frase do agente na home (null = fallback só-motor)
+  status         PlanStatus @default(GENERATED)
+
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id])
+
+  items VisitPlanItem[]
+
+  @@unique([companyId, vendorCode, date, kind])
+  @@index([companyId, date])
+  @@map("intel_visit_plans")
+}
+
+model VisitPlanItem {
+  id              String         @id @default(uuid())
+  planId          String
+  plan            VisitPlan      @relation(fields: [planId], references: [id], onDelete: Cascade)
+  position        Int
+  customerCode    String
+  loja            String
+  statusAtTime    CustomerStatus
+  scoreAtTime     Decimal?       @db.Decimal(6, 3)
+  shortReason     String? // "o porquê" no card
+  suggestedOffer  Json? // mix sugerido + "perguntar sobre X cortado"
+  expectedAmount  Decimal?       @db.Decimal(14, 2)
+  origin          PlanItemOrigin @default(ENGINE)
+  signalsSnapshot Json? // snapshot determinístico p/ "antes de entrar" offline (E7/E13)
+  removedAt       DateTime? // SideEffect: tirado do dia (editar é sinal)
+  movedToPlanId   String?
+
+  // Preenchidos quando há geocodificação (E15-F1); ordenação por distância = F2
+  lat           Decimal? @db.Decimal(9, 6)
+  lng           Decimal? @db.Decimal(9, 6)
+  distFromPrevM Int?
+  etaMin        Int?
+  plannedTime   String? // "08:30"
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([planId, position])
+  @@map("intel_visit_plan_items")
+}
+
+// ─────────────────────────────────────────
+// Visit — check-in e resultado da visita (crm_visita)
+// clientId: uuid gerado no app (idempotência offline) — único POR TENANT (§8)
+// ─────────────────────────────────────────
+
+model Visit {
+  id               String       @id @default(uuid())
+  clientId         String // uuid gerado no app
+  vendorCode       String
+  customerCode     String
+  loja             String
+  planItemId       String? // null = visita fora do plano (sinal importante)
+  arrivedAt        DateTime
+  leftAt           DateTime?
+  lat              Decimal?     @db.Decimal(9, 6) // GPS só no check-in (D10); zerado após 90 dias (D4)
+  lng              Decimal?     @db.Decimal(9, 6)
+  accuracyM        Int?
+  result           VisitResult?
+  noOrderReason    String?
+  orderId          String? // Order.id quando result=ORDER
+  notes            String?
+  createdOfflineAt DateTime?
+  syncedAt         DateTime     @default(now())
+
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id])
+
+  @@unique([companyId, clientId])
+  @@index([companyId, vendorCode, arrivedAt])
+  @@map("intel_visits")
+}
+
+// ─────────────────────────────────────────
+// CustomerMessage — mensagem WhatsApp gerada (crm_mensagem)
+// ─────────────────────────────────────────
+
+model CustomerMessage {
+  id           String          @id @default(uuid())
+  vendorCode   String
+  customerCode String
+  loja         String
+  template     MessageTemplate
+  text         String // expurgado após retentionDays (D4)
+  generatedAt  DateTime        @default(now())
+  sentAt       DateTime?
+  channel      String? // 'whatsapp' | 'copy'
+
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id])
+
+  @@index([companyId, vendorCode, generatedAt])
+  @@map("intel_customer_messages")
+}
+
+// ─────────────────────────────────────────
+// IntelFeedback — 👍/👎 do vendedor sobre plano/item/mensagem (crm_feedback)
+// ─────────────────────────────────────────
+
+model IntelFeedback {
+  id         String             @id @default(uuid())
+  vendorCode String
+  targetType FeedbackTargetType
+  targetId   String
+  rating     Int                @db.SmallInt // +1 / -1
+  comment    String?
+
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@index([companyId, targetType, createdAt])
+  @@map("intel_feedbacks")
+}
+
+// ─────────────────────────────────────────
+// IntelLlmCache — cache de respostas do agente (4h) + uso de tokens (custo)
+// ─────────────────────────────────────────
+
+model IntelLlmCache {
+  id              String   @id @default(uuid())
+  kind            String // 'today' | 'briefing' | 'message' | …
+  vendorCode      String
+  targetKey       String   @default("") // ex: customerCode:loja ou template
+  payload         Json
+  expiresAt       DateTime // expurgo no job PURGE
+  inputTokens     Int      @default(0)
+  outputTokens    Int      @default(0)
+  cacheReadTokens Int      @default(0)
+  model           String?
+  latencyMs       Int?
+  createdAt       DateTime @default(now())
+
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id])
+
+  @@unique([companyId, kind, vendorCode, targetKey])
+  @@index([companyId, expiresAt])
+  @@map("intel_llm_cache")
+}
+
+// ─────────────────────────────────────────
+// EvalCase — conjunto de regressão do agente (eval_caso)
+// Snapshot gravado já pseudonimizado (D4)
+// ─────────────────────────────────────────
+
+model EvalCase {
+  id            String    @id @default(uuid())
+  vendorCode    String
+  frozenDate    DateTime  @db.Date
+  snapshot      Json
+  expected      Json
+  promptVersion String?
+  lastResult    String?
+  ranAt         DateTime?
+
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@index([companyId])
+  @@map("intel_eval_cases")
+}
+
+// ─────────────────────────────────────────
+// GeoAddress — cache permanente de geocodificação (geo_endereco; E15-F1)
+// Refeito só quando o endereço do cliente muda
+// ─────────────────────────────────────────
+
+model GeoAddress {
+  companyId         String
+  customerCode      String
+  loja              String
+  normalizedAddress String?
+  cep               String?
+  lat               Decimal?      @db.Decimal(9, 6)
+  lng               Decimal?      @db.Decimal(9, 6)
+  precision         GeoPrecision?
+  source            String? // 'nominatim' | 'google' (D14a)
+  geocodedAt        DateTime?
+  error             String?
+
+  company Company @relation(fields: [companyId], references: [id])
+
+  @@id([companyId, customerCode, loja])
+  @@map("intel_geo_addresses")
 }

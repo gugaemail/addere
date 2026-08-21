@@ -29,6 +29,10 @@ export interface UserPublic {
   idVendProt: string | null
   userTypeId: string | null
   createdAt: string
+  // ─── E1c: devolvidos por GET /auth/me (opcionais p/ compatibilidade) ───
+  companyId?: string | null
+  permissions?: string[]
+  company?: { intelligenceEnabled: boolean; defaultTone: string } | null
 }
 
 // ─── Permissões dinâmicas ──────────────────────────────────────────────────
