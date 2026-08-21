@@ -50,3 +50,20 @@ export function requirePermission(key: string) {
     }
   }
 }
+
+// Verifica se o usuário possui QUALQUER uma das permissões informadas.
+// SUPERADMIN sempre passa (não participa do cadastro de permissões).
+// Uso: { preHandler: [requireAnyPermission('intel.admin', 'intel.manager')] }
+export function requireAnyPermission(...keys: string[]) {
+  return async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
+    await authenticate(request, reply)
+    if (reply.sent) return
+
+    if (request.user.role === 'SUPERADMIN') return
+
+    const permissions = await getEffectivePermissions(request.user.sub, request.user.role)
+    if (!keys.some((key) => permissions.has(key))) {
+      reply.status(403).send({ message: 'Permissão insuficiente' })
+    }
+  }
+}

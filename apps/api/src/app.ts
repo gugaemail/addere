@@ -18,6 +18,7 @@ import syncRoutes from './modules/sync/sync.routes'
 import { initSchedulers } from './modules/sync/scheduler'
 import transportadorasRoutes from './modules/transportadoras/transportadoras.routes'
 import condpagsRoutes from './modules/condpags/condpags.routes'
+import intelligenceRoutes from './modules/intelligence/intelligence.routes'
 import { pilotRoutes } from './modules/pilot/pilot.routes'
 import helpRoutes from './modules/help/help.routes'
 import usersRoutes from './modules/users/users.routes'
@@ -92,6 +93,7 @@ export async function buildApp(): Promise<FastifyInstance> {
   await app.register(syncRoutes, { prefix: '/sync' })
   await app.register(transportadorasRoutes, { prefix: '/transportadoras' })
   await app.register(condpagsRoutes, { prefix: '/condpags' })
+  await app.register(intelligenceRoutes, { prefix: '/intel' })
   await app.register(pilotRoutes)
   await app.register(helpRoutes, { prefix: '/help' })
   await app.register(usersRoutes, { prefix: '/users' })
