@@ -2,7 +2,7 @@ import { prisma } from '@addere/db'
 import bcrypt from 'bcryptjs'
 import type { JwtPayload } from '@addere/types'
 import type { CreateUserInput } from './users.schema'
-import { copyUserPermissions } from '../permissions/permissions.service'
+import { applyDefaultPermissions, copyUserPermissions } from '../permissions/permissions.service'
 
 const userSelect = {
   id: true,
@@ -48,9 +48,12 @@ export async function createUser(input: CreateUserInput, requester: JwtPayload) 
     select: userSelect,
   })
 
-  // Sem origem informada, o usuário nasce sem nenhuma permissão marcada
+  // Com origem informada, copia as permissões dela; senão aplica os defaults do role
+  // (mesmo catálogo do seed — ADMIN nasce com intel.admin, decisão D3c)
   if (input.copyPermissionsFromUserId) {
     await copyUserPermissions(input.copyPermissionsFromUserId, user.id)
+  } else {
+    await applyDefaultPermissions(user.id, user.role)
   }
 
   return user

@@ -4,6 +4,7 @@ import { encryptCredential } from '../../lib/protheus-crypto'
 import { invalidateToken } from '../sync/protheus.client'
 import { applySchedule, clearSchedule } from '../sync/scheduler'
 import { notFound } from '../../lib/errors'
+import { applyDefaultPermissions } from '../permissions/permissions.service'
 
 const MAX_PAGE_SIZE = 500
 
@@ -86,6 +87,7 @@ export interface UpdateCompanyProtheusInput {
   apiCondPag?: string
   apiTransp?: string
   apiMetaVend?: string
+  apiSql?: string
   usrProtheus?: string
   passProtheus?: string
   syncConfig?: Record<string, unknown>
@@ -102,6 +104,7 @@ export async function updateCompanyProtheus(id: string, input: UpdateCompanyProt
   if (input.apiCondPag !== undefined) data.apiCondPag = input.apiCondPag || null
   if (input.apiTransp !== undefined) data.apiTransp = input.apiTransp || null
   if (input.apiMetaVend !== undefined) data.apiMetaVend = input.apiMetaVend || null
+  if (input.apiSql !== undefined) data.apiSql = input.apiSql || null
   if (input.usrProtheus !== undefined) data.usrProtheus = input.usrProtheus || null
   if (input.syncConfig !== undefined) data.syncConfig = input.syncConfig
 
@@ -232,7 +235,7 @@ export interface CreateUserInput {
 
 export async function createUser(companyId: string, input: CreateUserInput) {
   const passwordHash = await bcrypt.hash(input.password, 12)
-  return prisma.user.create({
+  const user = await prisma.user.create({
     data: { ...input, password: passwordHash, companyId, idVendProt: input.idVendProt ?? null },
     select: {
       id: true,
@@ -244,6 +247,11 @@ export async function createUser(companyId: string, input: CreateUserInput) {
       createdAt: true,
     },
   })
+
+  // Permissões padrão do role (mesmo catálogo do seed — decisão D3c)
+  await applyDefaultPermissions(user.id, user.role)
+
+  return user
 }
 
 export async function toggleUserActive(companyId: string, id: string, active: boolean) {

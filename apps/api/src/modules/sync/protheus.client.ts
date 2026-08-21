@@ -176,11 +176,17 @@ function enrichError(err: unknown, url: string): never {
   throw err as Error
 }
 
+export interface ProtheusPostOptions {
+  /** Timeout da requisição em ms (default 60s) — prévia usa 30s, backfill usa mais (E2) */
+  timeoutMs?: number
+}
+
 export async function protheusPost(
   companyId: string,
   url: string,
   body: unknown,
   creds: CompanyCredentials,
+  opts: ProtheusPostOptions = {},
   isRetry = false
 ): Promise<unknown> {
   await assertSafeUrl(url, 'url')
@@ -193,14 +199,14 @@ export async function protheusPost(
         Authorization: `Bearer ${token}`,
         'Content-Type': 'application/json',
       },
-      60000
+      opts.timeoutMs ?? 60000
     )
   } catch (err) {
     const e = err as { code?: string; message?: string; response?: { status?: number } }
     // Token cacheado pode ter sido revogado antes dos 55 min — renova e retenta uma vez
     if (e.response?.status === 401 && !isRetry) {
       invalidateToken(companyId)
-      return protheusPost(companyId, url, body, creds, true)
+      return protheusPost(companyId, url, body, creds, opts, true)
     }
     if (e.code === 'ECONNRESET' || e.message === 'socket hang up') {
       throw new Error(
