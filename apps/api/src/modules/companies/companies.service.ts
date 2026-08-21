@@ -87,6 +87,7 @@ export interface UpdateCompanyProtheusInput {
   apiCondPag?: string
   apiTransp?: string
   apiMetaVend?: string
+  apiSql?: string
   usrProtheus?: string
   passProtheus?: string
   syncConfig?: Record<string, unknown>
@@ -103,6 +104,7 @@ export async function updateCompanyProtheus(id: string, input: UpdateCompanyProt
   if (input.apiCondPag !== undefined) data.apiCondPag = input.apiCondPag || null
   if (input.apiTransp !== undefined) data.apiTransp = input.apiTransp || null
   if (input.apiMetaVend !== undefined) data.apiMetaVend = input.apiMetaVend || null
+  if (input.apiSql !== undefined) data.apiSql = input.apiSql || null
   if (input.usrProtheus !== undefined) data.usrProtheus = input.usrProtheus || null
   if (input.syncConfig !== undefined) data.syncConfig = input.syncConfig
 
