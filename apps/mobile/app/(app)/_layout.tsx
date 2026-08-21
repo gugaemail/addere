@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { View } from 'react-native'
 import { Tabs } from 'expo-router'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { LayoutDashboard, Users, Package, ClipboardList } from 'lucide-react-native'
 import { brandScreenOptions } from '../../src/navigation/BrandHeader'
 import {
@@ -12,6 +13,8 @@ import { colors, spacing, typography } from '../../src/theme'
 
 export default function AppLayout() {
   const [showOnboarding, setShowOnboarding] = useState(false)
+  // Safe-area inferior: evita a tab bar sobreposta pela barra do sistema (Android) / home indicator (iOS)
+  const insets = useSafeAreaInsets()
 
   useEffect(() => {
     shouldShowOnboarding().then(setShowOnboarding)
@@ -30,8 +33,8 @@ export default function AppLayout() {
             backgroundColor: colors.neutral.white,
             borderTopColor: colors.neutral.border,
             borderTopWidth: 1,
-            height: 60,
-            paddingBottom: spacing.sm,
+            height: 60 + insets.bottom,
+            paddingBottom: Math.max(insets.bottom, spacing.sm),
           },
           tabBarLabelStyle: {
             fontFamily: typography.fontFamily.bodySemibold,
