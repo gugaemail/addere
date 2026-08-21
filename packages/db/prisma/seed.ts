@@ -136,6 +136,47 @@ async function main() {
   })
   console.log('Vendedor criado:', vendedor.email)
 
+  // ─── Usuários dos testes e2e (Detox) — apenas fora de produção ───
+  // Credenciais fixas esperadas por apps/mobile/e2e/helpers/auth.ts
+  if (process.env.NODE_ENV !== 'production') {
+    const e2ePasswordHash = await bcrypt.hash('test1234', 10)
+    const e2eUsers = [
+      { email: 'rep@addere.test', name: 'Vendedor E2E', role: 'SALESPERSON' as const },
+      { email: 'manager@addere.test', name: 'Gerente E2E', role: 'ADMIN' as const },
+    ]
+    for (const u of e2eUsers) {
+      await prisma.user.upsert({
+        where: { email: u.email },
+        update: { password: e2ePasswordHash, active: true },
+        create: {
+          name: u.name,
+          email: u.email,
+          password: e2ePasswordHash,
+          role: u.role,
+          companyId: company.id,
+        },
+      })
+    }
+    console.log('Usuários e2e criados:', e2eUsers.map((u) => u.email).join(', '))
+
+    // Cliente buscado pelos fluxos e2e ("Cliente Teste")
+    await prisma.customer.upsert({
+      where: { id: 'customer-e2e-001' },
+      update: { name: 'Cliente Teste', active: true },
+      create: {
+        id: 'customer-e2e-001',
+        name: 'Cliente Teste',
+        document: '111.222.333-44',
+        email: 'cliente@addere.test',
+        phone: '(31) 99999-0099',
+        protheusCode: 'CLIE2E',
+        companyId: company.id,
+        active: true,
+      },
+    })
+    console.log('Cliente e2e criado: Cliente Teste')
+  }
+
   // ─── Clientes da empresa ───
   const cliente1 = await prisma.customer.upsert({
     where: { id: 'customer-demo-001' },

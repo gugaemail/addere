@@ -8,12 +8,15 @@
       "developmentClient": true,
       "distribution": "internal",
       "env": {
-        "EXPO_PUBLIC_APP_ENV": "development"
+        "EXPO_PUBLIC_APP_ENV": "development",
+        "SENTRY_DISABLE_AUTO_UPLOAD": "true"
       }
     },
     "preview": {
       "distribution": "internal",
-      "ios": { "simulator": false },
+      "ios": {
+        "simulator": false
+      },
       "env": {
         "EXPO_PUBLIC_APP_ENV": "staging",
         "EXPO_PUBLIC_API_URL": "https://addere-api-staging.onrender.com",
@@ -34,9 +37,9 @@
   "submit": {
     "production": {
       "ios": {
-        "appleId": "PREENCHER",
-        "ascAppId": "PREENCHER",
-        "appleTeamId": "PREENCHER"
+        "appleId": "gugaemail@gmail.com",
+        "appleTeamId": "M4NZ9W24JX",
+        "ascAppId": "6803013404"
       },
       "android": {
         "serviceAccountKeyPath": "./google-service-account.json",

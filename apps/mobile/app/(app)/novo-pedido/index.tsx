@@ -124,6 +124,8 @@ function Step1({ onComplete }: { onComplete: (customer: Customer, branch: Branch
         <FlatList
           data={customers}
           keyExtractor={(c) => c.id}
+          keyboardShouldPersistTaps="handled"
+
           renderItem={({ item, index }) => (
             <Card
               testID={`resultado-cliente-${index}`}
@@ -245,6 +247,8 @@ function Step2({
           testID="produto-lista"
           data={products}
           keyExtractor={(p) => p.id}
+          keyboardShouldPersistTaps="handled"
+
           renderItem={({ item, index }) => (
             <Card
               testID={`produto-${index}`}
@@ -363,7 +367,7 @@ function Step3({
   }
 
   return (
-    <ScrollView>
+    <ScrollView testID="scroll-confirmacao" keyboardShouldPersistTaps="handled">
       <Text style={styles.stepTitle}>Resumo do pedido</Text>
 
       <Card style={styles.summaryBox}>

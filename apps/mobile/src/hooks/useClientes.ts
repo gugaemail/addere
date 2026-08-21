@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query'
+import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { api } from '../lib/api'
 import { useCompanyStore } from '../store/company.store'
 import type { Customer, CustomerWithOrders } from '@addere/types'
@@ -17,6 +17,9 @@ export function useClientes(search?: string) {
       return data
     },
     staleTime,
+    // Mantém a lista anterior enquanto a nova busca carrega — sem isso a FlatList é
+    // trocada por LoadingState a cada tecla (pisca e engole toques durante a digitação)
+    placeholderData: keepPreviousData,
   })
 }
 

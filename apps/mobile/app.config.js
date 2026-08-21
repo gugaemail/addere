@@ -26,11 +26,14 @@ module.exports = {
     version: APP_VERSION,
     scheme: 'addere',
     platforms: ['ios', 'android'],
+    // Assets gerados por `npm run icons` (scripts/generate-icons.mjs)
+    icon: './assets/icon.png',
     plugins: [
       'expo-router',
       'expo-secure-store',
       'expo-sqlite',
-      ['@sentry/react-native/expo', { uploadSourceMaps: false }],
+      // Upload de source maps/dSYMs é controlado pela env SENTRY_DISABLE_AUTO_UPLOAD (ver .env.example)
+      '@sentry/react-native/expo',
       [
         'expo-media-library',
         {
@@ -41,17 +44,26 @@ module.exports = {
       ],
     ],
     splash: {
+      image: './assets/splash-icon.png',
       backgroundColor: '#0D2045',
       resizeMode: 'contain',
     },
     android: {
       adaptiveIcon: {
+        foregroundImage: './assets/adaptive-icon.png',
         backgroundColor: '#0D2045',
       },
       package: variant.bundleId,
     },
     ios: {
       bundleIdentifier: variant.bundleId,
+      infoPlist: {
+        // O app só usa HTTPS padrão — isenta a declaração de criptografia no App Store Connect
+        ITSAppUsesNonExemptEncryption: false,
+      },
+    },
+    web: {
+      favicon: './assets/favicon.png',
     },
     updates: {
       url: 'https://u.expo.dev/a8b84402-c872-4b48-b3ba-875a21cc026e',

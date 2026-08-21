@@ -194,7 +194,7 @@ export function OnboardingFlow({ visible, onComplete }: Props) {
 
   return (
     <Modal visible={visible} animationType="fade" transparent={false} statusBarTranslucent>
-      <View style={styles.container}>
+      <View style={styles.container} testID="screen-onboarding">
         {/* Indicadores de progresso */}
         <View style={styles.dots}>
           {screens.map((_, i) => (
@@ -226,7 +226,13 @@ export function OnboardingFlow({ visible, onComplete }: Props) {
         </View>
 
         {/* Botão */}
-        <Button variant="primary" size="lg" onPress={advance} style={styles.button}>
+        <Button
+          testID="btn-onboarding-next"
+          variant="primary"
+          size="lg"
+          onPress={advance}
+          style={styles.button}
+        >
           {screen.buttonLabel}
         </Button>
       </View>

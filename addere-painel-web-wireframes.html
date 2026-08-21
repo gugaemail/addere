@@ -1,0 +1,335 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Addere · Painel web — o que muda para inteligência e rota</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;700;800&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{--cyan:#29BEFF;--navy:#1B4FA8;--deep:#0D2045;--ice:#E8F4FF;--ink:#0F1A2E;--ink-2:#4A5568;--ink-3:#8A94A6;--line:#E3E8F0;--paper:#F7F9FC;
+--ok:#16A34A;--ok-bg:#E8F8EE;--warn:#D97706;--warn-bg:#FFF4E0;--risk:#DC2626;--risk-bg:#FDEBEB;--block:#6B7280;--block-bg:#EEF0F3;--new:#7C3AED;--new-bg:#F1EBFE;
+--disp:'Plus Jakarta Sans',system-ui,sans-serif;--body:'Inter',system-ui,sans-serif;--mono:'JetBrains Mono',ui-monospace,monospace}
+*{box-sizing:border-box}body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.55}
+.wrap{max-width:1240px;margin:0 auto;padding:40px 24px 80px}
+h1,h2,h3{font-family:var(--disp);letter-spacing:-.02em;margin:0}h1{font-size:32px;font-weight:800;color:var(--deep)}h2{font-size:22px;font-weight:700;color:var(--deep);margin:56px 0 8px}h3{font-size:14px;font-weight:700;color:var(--deep)}
+.eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--navy)}
+.lead{color:var(--ink-2);max-width:780px;margin:8px 0 0}
+.hdr{display:flex;justify-content:space-between;gap:24px;border-bottom:1px solid var(--line);padding-bottom:24px}
+.logo{display:flex;align-items:center;gap:10px;font-family:var(--disp);font-weight:800;font-size:20px;color:var(--deep)}
+.logo i{width:26px;height:26px;border-radius:8px;background:var(--navy);display:inline-block;position:relative}.logo i:after{content:"";position:absolute;inset:7px;border-radius:4px;background:var(--cyan)}
+.tag{font-family:var(--mono);font-size:11px;padding:4px 8px;border:1px solid var(--line);border-radius:6px;color:var(--ink-2);background:#fff}
+.cap{font-size:13px;color:var(--ink-2);margin-top:10px}.cap b{color:var(--deep)}
+/* desktop frame */
+.desk{background:#fff;border:1px solid var(--line);border-radius:14px;overflow:hidden;box-shadow:0 1px 0 rgba(13,32,69,.04)}
+.desk .bar{display:flex;align-items:center;gap:6px;padding:8px 12px;border-bottom:1px solid var(--line);background:#FBFCFE}
+.desk .bar i{width:9px;height:9px;border-radius:50%;background:#E3E8F0;display:inline-block}.desk .bar span{margin-left:10px;font-family:var(--mono);font-size:11px;color:var(--ink-3)}
+.app{display:grid;grid-template-columns:200px 1fr;min-height:520px}
+.side{background:var(--deep);color:#fff;padding:16px 12px;display:flex;flex-direction:column;gap:2px}
+.side .brand{font-family:var(--disp);font-weight:800;font-size:15px;padding:4px 8px 14px;display:flex;align-items:center;gap:8px}
+.side .brand i{width:18px;height:18px;border-radius:5px;background:var(--cyan);display:inline-block}
+.side .grp{font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:#8AA4D6;padding:12px 8px 4px}
+.side a{display:flex;align-items:center;justify-content:space-between;font-size:12.5px;color:#C9D6EE;padding:7px 8px;border-radius:8px;text-decoration:none}
+.side a.on{background:rgba(41,190,255,.16);color:#fff;font-weight:600}
+.side a.new:after{content:"novo";font-family:var(--mono);font-size:9px;padding:1px 5px;border-radius:4px;background:var(--cyan);color:var(--deep)}
+.side a.mod:after{content:"muda";font-family:var(--mono);font-size:9px;padding:1px 5px;border-radius:4px;background:#FFD28A;color:#633806}
+.main{padding:18px 20px;display:flex;flex-direction:column;gap:14px;background:var(--paper)}
+.ph{display:flex;justify-content:space-between;align-items:flex-start}.ph h3{font-size:17px}.ph .sub{font-size:12px;color:var(--ink-3)}
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.kpi{background:#fff;border:1px solid var(--line);border-radius:12px;padding:10px 12px}
+.k{font-family:var(--mono);font-size:10px;letter-spacing:.05em;text-transform:uppercase;color:var(--ink-3)}
+.n{font-family:var(--disp);font-weight:800;font-size:20px;color:var(--deep);letter-spacing:-.02em}.n small{font-size:11px;font-weight:500;color:var(--ink-3)}
+.card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+.row{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.s{font-size:12.5px;color:var(--ink-2)}.xs{font-size:11px;color:var(--ink-3)}
+.pill{display:inline-flex;align-items:center;gap:4px;font-size:10.5px;font-weight:600;padding:2px 8px;border-radius:999px;white-space:nowrap}
+.p-ok{background:var(--ok-bg);color:#15803D}.p-warn{background:var(--warn-bg);color:#B45309}.p-risk{background:var(--risk-bg);color:#B91C1C}.p-block{background:var(--block-bg);color:#4B5563}.p-new{background:var(--new-bg);color:#6D28D9}.p-ice{background:var(--ice);color:var(--navy)}
+.btn{font-size:11.5px;font-weight:600;padding:6px 10px;border-radius:8px;border:1px solid var(--line);background:#fff;color:var(--deep);display:inline-flex;gap:5px;align-items:center}
+.btn.pri{background:var(--navy);color:#fff;border-color:var(--navy)}.btn.ghost{border-color:transparent;background:var(--ice);color:var(--navy)}
+.two{display:grid;grid-template-columns:1.3fr 1fr;gap:12px}
+.three{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+table{width:100%;border-collapse:collapse;font-size:12px}th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-family:var(--mono);font-weight:500;font-size:10.5px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.05em}
+code{font-family:var(--mono);font-size:11.5px;background:var(--paper);padding:1px 5px;border-radius:4px;color:var(--deep)}
+.mono{font-family:var(--mono);font-size:11.5px;line-height:1.6;background:#0D2045;color:#D8E6FF;border-radius:10px;padding:12px 14px;white-space:pre;overflow:auto}
+.mono .ph2{color:#29BEFF}.mono .c{color:#8AA4D6}
+.map{border-radius:10px;background:#EEF2F7}
+.bar2{height:8px;border-radius:4px;background:var(--ice);overflow:hidden}.bar2 i{display:block;height:100%;background:var(--navy)}
+.ai{border:1px dashed var(--cyan);background:#F3FBFF;border-radius:10px;padding:10px 12px}
+.input{border:1px solid var(--line);border-radius:8px;padding:7px 10px;font-size:12px;color:var(--ink-3);background:#fff}
+.steps{display:flex;gap:6px}.steps span{flex:1;text-align:center;font-size:11px;padding:5px;border-radius:6px;background:var(--ice);color:var(--navy)}.steps span.on{background:var(--navy);color:#fff;font-weight:600}
+.kv{display:grid;grid-template-columns:200px 1fr;gap:6px 14px;font-size:13.5px}.kv b{color:var(--deep);font-weight:600}
+.note{background:#fff;border-left:3px solid var(--cyan);padding:12px 16px;border-radius:0 12px 12px 0;color:var(--ink-2);font-size:14px}
+.legend{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px}.lg{background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px}.lg p{margin:4px 0 0;font-size:13px;color:var(--ink-2)}
+.chip{font-size:11px;padding:3px 8px;border-radius:6px;background:#fff;border:1px solid var(--line);color:var(--ink-2)}.chip.on{background:var(--deep);color:#fff;border-color:var(--deep)}
+@media(max-width:900px){.app{grid-template-columns:1fr}.side{flex-direction:row;flex-wrap:wrap}.kpis,.two,.three{grid-template-columns:1fr}.kv{grid-template-columns:1fr}}
+</style>
+</head>
+<body><div class="wrap">
+
+<div class="hdr">
+  <div>
+    <div class="logo"><i></i>Addere · Painel</div>
+    <div class="eyebrow" style="margin-top:18px">Painel web · admin e gerente</div>
+    <h1>O que muda no painel para sustentar o app</h1>
+    <p class="lead">Hoje o painel (Next.js) cadastra empresa, usuários, produtos e acompanha pedidos. Para a camada de inteligência e rota, ele ganha <b>um menu novo</b> ("Inteligência"), <b>dois papéis</b> com visões diferentes (admin configura; gerente acompanha) e <b>seis telas</b>. Tudo o que o app mostra ao vendedor é configurado ou auditado aqui.</p>
+  </div>
+  <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end;flex:none"><span class="tag">v0.1 · 19/08/2026</span><span class="tag">web · Next.js</span><span class="tag">papéis: admin · gerente</span></div>
+</div>
+
+<!-- ========== MENU ========== -->
+<h2>1. Menu: o que entra e quem vê</h2>
+<p class="lead">Um grupo novo no menu lateral. Admin vê tudo; gerente vê só "Equipe em campo", "Onde estou perdendo" e a leitura (não edição) de premissas.</p>
+
+<div class="desk" style="margin-top:20px"><div class="bar"><i></i><i></i><i></i><span>painel.addere.com.br</span></div>
+<div class="app">
+  <div class="side">
+    <div class="brand"><i></i>Addere</div>
+    <div class="grp">Operação</div>
+    <a>Visão geral</a><a>Pedidos</a><a>Clientes</a><a>Produtos</a><a>Vendedores</a>
+    <div class="grp">Inteligência</div>
+    <a class="on new">Equipe em campo</a><a class="new">Onde estou perdendo</a><a class="new">Consultas (Protheus)</a><a class="new">Saúde dos dados</a><a class="new">Premissas</a><a class="new">Sugestões &amp; feedback</a>
+    <div class="grp">Empresa</div>
+    <a class="mod">Configurações</a><a>Usuários</a><a>Plano &amp; cobrança</a>
+  </div>
+  <div class="main">
+    <div class="ph"><div><h3>Equipe em campo</h3><div class="sub">qua, 19 ago · 4 vendedores em rota · dados até 18/08, sinc. 03h12</div></div><div style="display:flex;gap:6px"><span class="chip on">Hoje</span><span class="chip">Semana</span><span class="chip">Mês</span></div></div>
+    <div class="kpis">
+      <div class="kpi"><div class="k">Visitas previstas</div><div class="n">28</div></div>
+      <div class="kpi"><div class="k">Realizadas · aderência</div><div class="n">19 <small>68%</small></div></div>
+      <div class="kpi"><div class="k">Positivação da visita</div><div class="n">12/19 <small>63%</small></div></div>
+      <div class="kpi"><div class="k">Positivação da carteira (mês)</div><div class="n">41% <small style="color:var(--ok)">▲4 pp</small></div></div>
+    </div>
+    <div class="two">
+      <svg class="map" viewBox="0 0 520 230" width="100%" height="230" style="display:block"><title>mapa da equipe</title>
+        <g stroke="#fff" stroke-width="6" fill="none"><path d="M0 70H520"/><path d="M0 160H520"/><path d="M120 0V230"/><path d="M270 0V230"/><path d="M400 0V230"/></g>
+        <g stroke="#DDE3EB" stroke-width="2" fill="none"><path d="M0 115H520"/><path d="M0 205H520"/><path d="M195 0V230"/><path d="M335 0V230"/><path d="M460 0V230"/></g>
+        <path d="M40 210L80 180 120 160 195 115 270 70" stroke="#1B4FA8" stroke-width="3" fill="none"/>
+        <path d="M300 210L335 190 400 160 460 115 490 60" stroke="#1D9E75" stroke-width="3" fill="none"/>
+        <path d="M50 40L120 70 195 40 270 20" stroke="#D85A30" stroke-width="3" fill="none" stroke-dasharray="6 4"/>
+        <path d="M335 30L400 70 460 40" stroke="#7F77DD" stroke-width="3" fill="none" stroke-dasharray="6 4"/>
+        <g stroke="#fff" stroke-width="2"><g fill="#1B4FA8"><circle cx="40" cy="210" r="7"/><circle cx="80" cy="180" r="7"/><circle cx="120" cy="160" r="7"/></g><g fill="#fff" stroke="#1B4FA8"><circle cx="195" cy="115" r="7"/><circle cx="270" cy="70" r="7"/></g>
+        <g fill="#1D9E75"><circle cx="300" cy="210" r="7"/><circle cx="335" cy="190" r="7"/><circle cx="400" cy="160" r="7"/><circle cx="460" cy="115" r="7"/><circle cx="490" cy="60" r="7"/></g>
+        <g fill="#D85A30"><circle cx="50" cy="40" r="7"/><circle cx="120" cy="70" r="7"/></g><g fill="#fff" stroke="#D85A30"><circle cx="195" cy="40" r="7"/><circle cx="270" cy="20" r="7"/></g>
+        <g fill="#7F77DD"><circle cx="335" cy="30" r="7"/></g><g fill="#fff" stroke="#7F77DD"><circle cx="400" cy="70" r="7"/><circle cx="460" cy="40" r="7"/></g></g>
+        <circle cx="400" cy="160" r="13" fill="none" stroke="#DC2626" stroke-width="2"/>
+        <rect x="10" y="196" width="200" height="26" rx="6" fill="#fff"/><g font-size="10" font-family="Inter,sans-serif" fill="#2C2C2A"><circle cx="20" cy="209" r="4" fill="#0D2045"/><text x="28" y="212">visitado</text><circle cx="80" cy="209" r="4" fill="#fff" stroke="#0D2045" stroke-width="2"/><text x="88" y="212">previsto</text><line x1="140" y1="209" x2="156" y2="209" stroke="#0D2045" stroke-width="2" stroke-dasharray="4 3"/><text x="160" y="212">em rota</text></g>
+      </svg>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <div class="card" style="padding:9px 12px"><div class="row"><b style="font-size:12.5px;color:var(--deep)"><i style="display:inline-block;width:9px;height:9px;border-radius:50%;background:#1B4FA8;margin-right:6px"></i>Carlos</b><span class="xs">3/5 · 2 pedidos · R$ 5,2 mil</span></div><div class="xs">Boa Viagem</div></div>
+        <div class="card" style="padding:9px 12px"><div class="row"><b style="font-size:12.5px;color:var(--deep)"><i style="display:inline-block;width:9px;height:9px;border-radius:50%;background:#1D9E75;margin-right:6px"></i>Ana</b><span class="xs">5/5 · 4 pedidos · R$ 8,9 mil</span></div><div class="xs">Piedade</div></div>
+        <div class="card" style="padding:9px 12px;border-left:3px solid var(--risk)"><div class="row"><b style="font-size:12.5px;color:var(--deep)"><i style="display:inline-block;width:9px;height:9px;border-radius:50%;background:#D85A30;margin-right:6px"></i>Marcos</b><span class="xs" style="color:var(--risk)">2/4 · 0 pedidos</span></div><div class="xs">Afogados · 2 visitas fora do plano</div></div>
+        <div class="card" style="padding:9px 12px"><div class="row"><b style="font-size:12.5px;color:var(--deep)"><i style="display:inline-block;width:9px;height:9px;border-radius:50%;background:#7F77DD;margin-right:6px"></i>Júlia</b><span class="xs">1/3 · 1 pedido</span></div><div class="xs">Casa Amarela · iniciou 10h40</div></div>
+        <span class="btn ghost" style="justify-content:center">Onde estou perdendo? ↗</span>
+      </div>
+    </div>
+    <div class="ai"><div class="row"><span class="s" style="color:var(--deep)"><b>Distribuidora Norte</b> (Carlos) sugerida pela 3ª vez sem compra — prioridade será reduzida se hoje não converter.</span><span style="display:flex;gap:6px"><span class="btn">Fixar como prioridade</span><span class="btn">Concordo</span></span></div></div>
+  </div>
+</div></div>
+<div class="cap"><b>W1 · Equipe em campo (gerente)</b> — mapa da equipe, quatro KPIs da rota, um card por vendedor e um alerta do motor com as duas ações possíveis. Sem posição GPS contínua, sem ranking por faturamento.</div>
+
+<!-- ========== W2 ========== -->
+<h2>2. Onde estou perdendo (gerente)</h2>
+<p class="lead">A decomposição determinística: receita = clientes ativos × frequência × ticket. O agente só escreve a frase; os números vêm do motor.</p>
+<div class="desk" style="margin-top:20px"><div class="bar"><i></i><i></i><i></i><span>painel.addere.com.br/inteligencia/perdas</span></div>
+<div class="app"><div class="side" style="padding-top:16px"><div class="brand"><i></i>Addere</div><div class="grp">Inteligência</div><a>Equipe em campo</a><a class="on">Onde estou perdendo</a><a>Consultas</a><a>Saúde dos dados</a><a>Premissas</a><a>Sugestões &amp; feedback</a></div>
+<div class="main">
+  <div class="ph"><div><h3>Onde estou perdendo</h3><div class="sub">ago/2026 vs jul/2026 · equipe toda · dados até 18/08</div></div><div style="display:flex;gap:6px"><span class="chip on">Equipe</span><span class="chip">Por vendedor</span><span class="chip">Por produto</span></div></div>
+  <div class="ai"><div class="s" style="color:var(--deep)">Você está <b>18% abaixo</b> do mesmo período de julho: <b>9 clientes a menos positivados</b> (−R$ 21 mil), <b>ticket médio 6% menor</b> (−R$ 7 mil), frequência igual. Os 9 clientes estão listados abaixo — 6 deles sem visita há mais de 30 dias.</div></div>
+  <div class="three">
+    <div class="kpi"><div class="k">Clientes positivados</div><div class="n">118 <small style="color:var(--risk)">▼ 9</small></div><div class="bar2"><i style="width:72%"></i></div><div class="xs" style="margin-top:4px">−R$ 21 mil do gap</div></div>
+    <div class="kpi"><div class="k">Frequência (pedidos/cliente)</div><div class="n">1,9 <small>igual</small></div><div class="bar2"><i style="width:100%;background:var(--ok)"></i></div><div class="xs" style="margin-top:4px">R$ 0 do gap</div></div>
+    <div class="kpi"><div class="k">Ticket médio</div><div class="n">R$ 2.430 <small style="color:var(--risk)">▼ 6%</small></div><div class="bar2"><i style="width:94%"></i></div><div class="xs" style="margin-top:4px">−R$ 7 mil do gap</div></div>
+  </div>
+  <div class="card">
+    <div class="row" style="margin-bottom:6px"><h3>Quem deixou de comprar</h3><span class="xs">9 clientes · R$ 21 mil</span></div>
+    <table>
+      <tr><th>Cliente</th><th>Vendedor</th><th>Situação</th><th>Última compra</th><th>Ticket</th><th>Última visita</th><th></th></tr>
+      <tr><td>Distribuidora Norte</td><td>Carlos</td><td><span class="pill p-risk">Em risco</span></td><td>18/05</td><td>R$ 2.400</td><td>—</td><td><span class="btn">Por no plano</span></td></tr>
+      <tr><td>Mercado Boa Vista</td><td>Marcos</td><td><span class="pill p-warn">Atrasado</span></td><td>11/07</td><td>R$ 3.900</td><td>02/07</td><td><span class="btn">Por no plano</span></td></tr>
+      <tr><td>Depósito Santa Rita</td><td>Ana</td><td><span class="pill p-block">Bloqueado</span></td><td>28/06</td><td>R$ 1.800</td><td>15/07</td><td><span class="btn">Ver título</span></td></tr>
+      <tr><td colspan="7" class="xs" style="text-align:center">+6</td></tr>
+    </table>
+  </div>
+  <div class="card"><div class="row"><h3>Produtos com queda</h3><span class="xs">3 meses vs 12</span></div><div class="row" style="margin-top:6px"><span class="s">Produto X — 6 clientes cortaram</span><span class="s" style="color:var(--risk);font-weight:600">▼ 34%</span></div><div class="row"><span class="s">Óleo 900ml</span><span class="s" style="color:var(--risk);font-weight:600">▼ 12%</span></div></div>
+</div></div></div>
+<div class="cap"><b>W2 · Onde estou perdendo</b> — três causas com o valor de cada uma no gap, a lista de quem sumiu com ação direta ("Por no plano" cria um <code>crm_plano_item</code> com <code>origem=gestor</code>) e produtos com queda.</div>
+
+<!-- ========== W3 CONSULTAS ========== -->
+<h2>3. Consultas Protheus (admin) — o coração da configuração</h2>
+<p class="lead">É onde o admin da empresa preenche o SELECT de cada contrato. Três abas por consulta: o SQL, a definição em português, e a validação (preview + reconciliação). Só publica quando as três estão verdes.</p>
+<div class="desk" style="margin-top:20px"><div class="bar"><i></i><i></i><i></i><span>painel.addere.com.br/inteligencia/consultas/vendas</span></div>
+<div class="app"><div class="side"><div class="brand"><i></i>Addere</div><div class="grp">Inteligência</div><a>Equipe em campo</a><a>Onde estou perdendo</a><a class="on">Consultas</a><a>Saúde dos dados</a><a>Premissas</a><a>Sugestões &amp; feedback</a></div>
+<div class="main">
+  <div class="ph"><div><h3>Consultas Protheus</h3><div class="sub">6 contratos · 4 publicados · 1 em validação · 1 pendente</div></div></div>
+  <div style="display:flex;gap:6px;flex-wrap:wrap">
+    <span class="chip">clientes <span class="pill p-ok">publicada</span></span>
+    <span class="chip on">vendas <span class="pill p-warn">validando</span></span>
+    <span class="chip">títulos <span class="pill p-ok">publicada</span></span>
+    <span class="chip">produtos <span class="pill p-ok">publicada</span></span>
+    <span class="chip">estoque (ao vivo) <span class="pill p-ok">publicada</span></span>
+    <span class="chip">meta (API) <span class="pill p-block">pendente</span></span>
+  </div>
+  <div class="steps"><span class="on">1 · SQL</span><span>2 · O que significa</span><span>3 · Validar e publicar</span></div>
+  <div class="two">
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <div class="card">
+        <div class="row" style="margin-bottom:6px"><h3>SQL da consulta <code>vendas</code></h3><span class="xs">v3 · escopo: toda a força de vendas</span></div>
+<div class="mono"><span class="c">-- só SELECT · sem ; · placeholders obrigatórios</span>
+SELECT D2_DOC+D2_SERIE   AS pedido,
+       D2_EMISSAO        AS data,
+       D2_CLIENTE        AS cliente_cod,
+       D2_LOJA           AS cliente_loja,
+       F2_VEND1          AS vendedor_cod,
+       D2_COD            AS produto_cod,
+       B1_DESC           AS produto_desc,
+       D2_QUANT          AS quantidade,
+       D2_VALBRUT        AS valor,
+       B1_GRUPO          AS grupo_produto
+FROM SD2010 D2
+JOIN SF2010 F2 ON F2_FILIAL=D2_FILIAL AND F2_DOC=D2_DOC
+              AND F2_SERIE=D2_SERIE AND F2.D_E_L_ET_=' '
+JOIN SB1010 B1 ON B1_COD=D2_COD AND B1.D_E_L_ET_=' '
+JOIN SF4010 F4 ON F4_CODIGO=D2_TES AND F4_DUPLIC='S'
+WHERE D2.D_E_L_ET_=' '
+  AND D2_FILIAL IN (<span class="ph2">{{FILIAL}}</span>)
+  AND D2_EMISSAO BETWEEN <span class="ph2">{{DATA_INI}}</span> AND <span class="ph2">{{DATA_FIM}}</span></div>
+        <div class="row" style="margin-top:8px"><span class="xs">Placeholders: <code>{{FILIAL}}</code> <code>{{DATA_INI}}</code> <code>{{DATA_FIM}}</code> <code>{{VENDEDOR}}</code> (opcional) <code>{{HOJE}}</code></span><span class="btn pri">Rodar prévia</span></div>
+      </div>
+      <div class="card">
+        <div class="k">Checagens automáticas</div>
+        <div class="row" style="margin-top:6px"><span class="s">Só SELECT, sem <code>;</code>, sem DDL/DML</span><span class="pill p-ok">ok</span></div>
+        <div class="row"><span class="s">Colunas obrigatórias do contrato (10/10)</span><span class="pill p-ok">ok</span></div>
+        <div class="row"><span class="s">Placeholders coerentes com o escopo</span><span class="pill p-ok">ok</span></div>
+        <div class="row"><span class="s">Tempo da prévia (7 dias): 1,8 s</span><span class="pill p-ok">ok</span></div>
+        <div class="row"><span class="s">Fan-out: linhas da prévia vs notas distintas</span><span class="pill p-warn">ver</span></div>
+      </div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <div class="card">
+        <div class="row"><h3>Prévia (7 dias)</h3><span class="xs">412 linhas · 96 notas · 38 clientes</span></div>
+        <table style="margin-top:6px"><tr><th>pedido</th><th>data</th><th>cliente</th><th>produto</th><th>valor</th></tr>
+        <tr><td>0012341</td><td>18/08</td><td>000123/01</td><td>ARZ5K</td><td>1.240,00</td></tr><tr><td>0012341</td><td>18/08</td><td>000123/01</td><td>OLE900</td><td>380,00</td></tr><tr><td>0012339</td><td>17/08</td><td>000087/01</td><td>ACU1K</td><td>615,50</td></tr><tr><td colspan="5" class="xs" style="text-align:center">…</td></tr></table>
+      </div>
+      <div class="card">
+        <div class="row"><h3>Reconciliação</h3><span class="xs">obrigatória para publicar</span></div>
+        <div class="s" style="margin-top:6px">Faturamento de <b>julho/2026</b> segundo o relatório oficial do Protheus (ex.: Faturamento por Vendedor):</div>
+        <div class="input" style="margin-top:6px">R$ 412.880,10</div>
+        <div class="row" style="margin-top:8px"><span class="s">Soma desta consulta em julho</span><b style="font-size:13px;color:var(--deep)">R$ 431.204,55</b></div>
+        <div class="row"><span class="s">Diferença</span><span class="pill p-risk">+4,4% · acima do limite de 2%</span></div>
+        <div class="ai" style="margin-top:8px"><div class="s" style="color:var(--deep)"><b>Causas prováveis, em ordem:</b> TES de bonificação/remessa entrando como venda (verifique <code>F4_DUPLIC</code> e liste os TES usados); devolução não abatida; filial a mais no <code>{{FILIAL}}</code>.</div></div>
+        <div class="row" style="margin-top:8px"><span class="btn">Salvar rascunho</span><span class="btn" style="opacity:.5">Publicar v3 (bloqueado)</span></div>
+      </div>
+    </div>
+  </div>
+</div></div></div>
+<div class="cap"><b>W3 · Consultas Protheus</b> — o admin cola o SELECT, o painel valida sintaxe/contrato/placeholders, roda prévia e exige reconciliação contra um número oficial. Diferença acima do limite bloqueia a publicação e mostra as causas prováveis. A aba 2 ("O que significa") guarda definição em português, exclusões e gotchas — é o texto que o agente usa para explicar o número ao vendedor.</div>
+
+<!-- ========== W4 SAUDE ========== -->
+<h2>4. Saúde dos dados (admin e gerente)</h2>
+<div class="desk" style="margin-top:20px"><div class="bar"><i></i><i></i><i></i><span>painel.addere.com.br/inteligencia/saude</span></div>
+<div class="app"><div class="side"><div class="brand"><i></i>Addere</div><div class="grp">Inteligência</div><a>Equipe em campo</a><a>Onde estou perdendo</a><a>Consultas</a><a class="on">Saúde dos dados</a><a>Premissas</a><a>Sugestões &amp; feedback</a></div>
+<div class="main">
+  <div class="ph"><div><h3>Saúde dos dados</h3><div class="sub">o que impede o app de planejar bem</div></div><div class="n" style="font-size:26px">94% <small>saudável</small></div></div>
+  <div class="kpis">
+    <div class="kpi"><div class="k">Frescor</div><div class="n">03h12 <small>hoje</small></div><div class="xs">próximo sync 07h00 · sem falha há 12 dias</div></div>
+    <div class="kpi"><div class="k">Clientes sem cidade/bairro</div><div class="n">12 <small>8,6%</small></div><div class="xs">não entram no plano da semana</div></div>
+    <div class="kpi"><div class="k">Vendas sem vendedor</div><div class="n">3 <small>0,7%</small></div><div class="xs">somem da carteira de todos</div></div>
+    <div class="kpi"><div class="k">Vendas com cliente inexistente</div><div class="n">0</div><div class="xs">integridade ok</div></div>
+  </div>
+  <div class="two">
+    <div class="card"><div class="row"><h3>Histórico de sincronização</h3><span class="xs">últimos 7 dias</span></div>
+      <table style="margin-top:6px"><tr><th>quando</th><th>consulta</th><th>linhas</th><th>tempo</th><th>status</th></tr>
+      <tr><td>19/08 03h12</td><td>vendas</td><td>1.204</td><td>6,1 s</td><td><span class="pill p-ok">ok</span></td></tr>
+      <tr><td>19/08 03h11</td><td>clientes</td><td>140</td><td>0,9 s</td><td><span class="pill p-ok">ok</span></td></tr>
+      <tr><td>19/08 03h11</td><td>títulos</td><td>57</td><td>0,4 s</td><td><span class="pill p-ok">ok</span></td></tr>
+      <tr><td>18/08 19h00</td><td>vendas</td><td>—</td><td>30 s</td><td><span class="pill p-risk">timeout</span></td></tr></table></div>
+    <div class="card"><div class="row"><h3>Para corrigir no Protheus</h3><span class="xs">lista exportável</span></div>
+      <div class="s" style="margin-top:6px">12 clientes sem <code>A1_MUN</code>/<code>A1_BAIRRO</code>: 000231/01, 000245/01, 000302/02 …</div>
+      <div class="s" style="margin-top:4px">3 notas sem <code>F2_VEND1</code>: 0012002, 0012117, 0012290</div>
+      <div class="s" style="margin-top:4px">Geocodificação (fase 2): 121 rooftop · 14 rua · 5 só CEP · 0 falhas</div>
+      <div class="row" style="margin-top:8px"><span class="btn">Exportar CSV</span><span class="btn ghost">Enviar para o consultor</span></div></div>
+  </div>
+</div></div></div>
+<div class="cap"><b>W4 · Saúde dos dados</b> — transforma problema de cadastro do cliente em lista de correção. O agente fica honesto no app ("não consigo planejar rota para 12 clientes sem cidade") e o admin sabe o que pedir ao consultor Protheus.</div>
+
+<!-- ========== W5 PREMISSAS ========== -->
+<h2>5. Premissas (admin edita, gerente lê)</h2>
+<div class="desk" style="margin-top:20px"><div class="bar"><i></i><i></i><i></i><span>painel.addere.com.br/inteligencia/premissas</span></div>
+<div class="app"><div class="side"><div class="brand"><i></i>Addere</div><div class="grp">Inteligência</div><a>Equipe em campo</a><a>Onde estou perdendo</a><a>Consultas</a><a>Saúde dos dados</a><a class="on">Premissas</a><a>Sugestões &amp; feedback</a></div>
+<div class="main">
+  <div class="ph"><div><h3>Premissas do motor</h3><div class="sub">valores padrão do Addere · alterados ficam com histórico</div></div><span class="btn">Ver histórico de alterações</span></div>
+  <div class="two">
+    <div class="card"><h3 style="margin-bottom:6px">Ciclo e status</h3>
+      <table><tr><th>premissa</th><th>valor</th><th>padrão</th></tr>
+      <tr><td>Atrasado a partir de</td><td><code>1,3×</code> ciclo</td><td class="xs">1,3×</td></tr>
+      <tr><td>Em risco a partir de</td><td><code>2,0×</code> ciclo ou <code>90</code> dias</td><td class="xs">2,0× / 90</td></tr>
+      <tr><td>Cliente ativo = comprou em</td><td><code>120</code> dias</td><td class="xs">90</td></tr>
+      <tr><td>Ciclo confiável a partir de</td><td><code>3</code> pedidos</td><td class="xs">3</td></tr>
+      <tr><td>Bloquear por título vencido há</td><td><code>5</code> dias</td><td class="xs">1</td></tr></table></div>
+    <div class="card"><h3 style="margin-bottom:6px">Rota e capacidade</h3>
+      <table><tr><th>premissa</th><th>valor</th><th>padrão</th></tr>
+      <tr><td>Visitas por dia (padrão)</td><td><code>8</code></td><td class="xs">8</td></tr>
+      <tr><td>Agrupar por</td><td><code>bairro</code> (1 cidade)</td><td class="xs">cidade</td></tr>
+      <tr><td>Sábado é dia útil</td><td><code>não</code></td><td class="xs">não</td></tr>
+      <tr><td>Máx. do mesmo status por dia</td><td><code>60%</code></td><td class="xs">60%</td></tr></table>
+      <div class="xs" style="margin-top:6px">Por vendedor: Ana 10/dia · Marcos 6/dia (moto)</div></div>
+  </div>
+  <div class="card"><div class="row"><h3>Pesos do ranking</h3><span class="xs">o que o motor prioriza este mês</span></div>
+    <div class="three" style="margin-top:8px">
+      <div><div class="row"><span class="s">Valor esperado</span><b class="s">40%</b></div><div class="bar2"><i style="width:40%"></i></div></div>
+      <div><div class="row"><span class="s">Urgência (atraso no ciclo)</span><b class="s">35%</b></div><div class="bar2"><i style="width:35%"></i></div></div>
+      <div><div class="row"><span class="s">Recuperação (em risco)</span><b class="s">25%</b></div><div class="bar2"><i style="width:25%"></i></div></div>
+    </div>
+    <div class="xs" style="margin-top:8px">Por segmento: atacado grande usa atrasado = 1,1× (compra com menos frequência, atraso pesa mais).</div></div>
+</div></div></div>
+<div class="cap"><b>W5 · Premissas</b> — tudo que antes ficaria escondido em código vira parâmetro visível com padrão e histórico. O gerente que quer "mês de recuperação" mexe num peso, não num prompt.</div>
+
+<!-- ========== W6 FEEDBACK ========== -->
+<h2>6. Sugestões &amp; feedback (admin, fase 3 ganha força)</h2>
+<div class="desk" style="margin-top:20px"><div class="bar"><i></i><i></i><i></i><span>painel.addere.com.br/inteligencia/sugestoes</span></div>
+<div class="app"><div class="side"><div class="brand"><i></i>Addere</div><div class="grp">Inteligência</div><a>Equipe em campo</a><a>Onde estou perdendo</a><a>Consultas</a><a>Saúde dos dados</a><a>Premissas</a><a class="on">Sugestões &amp; feedback</a></div>
+<div class="main">
+  <div class="ph"><div><h3>Sugestões &amp; feedback</h3><div class="sub">o que o motor sugeriu, o que o time mudou, o que converteu</div></div><div style="display:flex;gap:6px"><span class="chip on">30 dias</span><span class="chip">90 dias</span></div></div>
+  <div class="kpis">
+    <div class="kpi"><div class="k">Sugestões de visita</div><div class="n">612</div></div>
+    <div class="kpi"><div class="k">Aceitas sem mudar</div><div class="n">71%</div></div>
+    <div class="kpi"><div class="k">Converteram em 7 dias</div><div class="n">38%</div><div class="xs">vs 22% das visitas fora do plano</div></div>
+    <div class="kpi"><div class="k">👍 / 👎</div><div class="n">84% <small>de 203</small></div></div>
+  </div>
+  <div class="two">
+    <div class="card"><div class="row"><h3>Clientes sugeridos sem converter</h3><span class="xs">penalidade ativa</span></div>
+      <table style="margin-top:6px"><tr><th>cliente</th><th>sugerido</th><th>visitado</th><th>comprou</th><th></th></tr>
+      <tr><td>Distribuidora Norte</td><td>3×</td><td>2×</td><td>0</td><td><span class="btn">Fixar</span> <span class="btn">Pausar 30d</span></td></tr>
+      <tr><td>Bar do Tonho</td><td>2×</td><td>0</td><td>0</td><td><span class="btn">Fixar</span> <span class="btn">Pausar 30d</span></td></tr></table></div>
+    <div class="card"><div class="row"><h3>Comentários dos vendedores</h3><span class="xs">últimos 👎</span></div>
+      <div class="s" style="margin-top:6px">"Mandou ir no Mercadinho Lua de manhã, ele só abre 13h" — Ana <span class="btn" style="margin-left:6px">Criar janela</span></div>
+      <div class="s" style="margin-top:6px">"Sugeriu café pra cliente que só vende limpeza" — Carlos <span class="btn" style="margin-left:6px">Ver segmento</span></div></div>
+  </div>
+  <div class="card"><div class="row"><h3>Regressão do agente</h3><span class="xs">24 casos congelados · prompt v1.3 · modelo atual</span></div><div class="row" style="margin-top:6px"><span class="s">Última rodada: 23/24 ok · 1 diferença (cliente bloqueado apareceu com "Cheguei")</span><span class="btn">Rodar agora</span></div></div>
+</div></div></div>
+<div class="cap"><b>W6 · Sugestões &amp; feedback</b> — o SideEffect visível. Mostra se o plano funciona melhor que improviso (converte mais?), o que o campo corrigiu e a regressão antes de trocar prompt/modelo.</div>
+
+<!-- ========== PAPÉIS E CONFIG ========== -->
+<h2>7. Papéis e o que muda em Configurações</h2>
+<div class="kv" style="margin-top:16px">
+  <b>Admin da empresa</b><span>Consultas Protheus, Saúde dos dados, Premissas (editar), Sugestões &amp; feedback, Configurações. Normalmente o próprio cliente ou o consultor (você).</span>
+  <b>Gerente comercial</b><span>Equipe em campo, Onde estou perdendo, Premissas (só leitura), Sugestões &amp; feedback (leitura + fixar/pausar cliente). Pode "pôr no plano" de qualquer vendedor.</span>
+  <b>Vendedor</b><span>Não acessa o painel. Tudo dele está no app.</span>
+  <b>Configurações (muda)</b><span>Ganha a seção "Inteligência": ligar/desligar a camada por empresa (é feature de plano Business+), horário do sync, capacidade de visitas por vendedor, tom de voz padrão das mensagens, e o aviso LGPD de que dados de clientes são pseudonimizados antes de ir ao modelo.</span>
+  <b>Vendedores (muda pouco)</b><span>Cada vendedor ganha: visitas/dia, veículo (carro/moto/a pé — afeta capacidade), e "cidades que atende" (para o agrupamento quando a carteira cruza cidades).</span>
+  <b>Visão geral (muda pouco)</b><span>Ganha dois cards: positivação da carteira do mês e saúde dos dados (%), com link para as telas novas.</span>
+</div>
+
+<h2>8. Ordem de construção do painel</h2>
+<ul class="lead" style="padding-left:18px">
+  <li><b>Primeiro</b> W3 Consultas — sem ela nada sincroniza. É a tela de onboarding do cliente piloto.</li>
+  <li><b>Junto</b> W4 Saúde dos dados — nasce do mesmo job de sync; barata e mostra valor no primeiro dia.</li>
+  <li><b>Depois</b> W5 Premissas (pode começar só leitura) e W1 Equipe em campo (fase 1 sem mapa de rota: só previsto/realizado e cards por vendedor).</li>
+  <li><b>Fase 2</b> W1 ganha mapa e rota; W2 Onde estou perdendo.</li>
+  <li><b>Fase 3</b> W6 Sugestões &amp; feedback com conversão e regressão.</li>
+</ul>
+
+<div class="note" style="margin-top:28px"><b>Regra que vale para todo o painel:</b> nenhuma tela mostra ranking de vendedor por faturamento como elemento principal nem posição GPS em tempo real. O painel existe para corrigir dados, ajustar premissas e ver se o plano converte — não para vigiar.</div>
+
+</div></body></html>
