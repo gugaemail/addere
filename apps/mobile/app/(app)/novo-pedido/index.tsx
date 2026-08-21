@@ -213,30 +213,32 @@ function Step2({
       {cart.length > 0 && (
         <View style={styles.cartBox}>
           <Text style={styles.cartTitle}>Carrinho ({cart.length})</Text>
-          {cart.map((item) => (
-            <View key={item.productId} style={styles.cartRow}>
-              <Text style={styles.cartName} numberOfLines={1}>
-                {item.productName}
-              </Text>
-              <View style={styles.qtyRow}>
-                <Button
-                  variant="ghost"
-                  size="xs"
-                  onPress={() => updateQty(item.productId, item.quantity - 1)}
-                  icon={<Minus size={16} color={buttonForeground.ghost} strokeWidth={1.5} />}
-                  accessibilityLabel="Diminuir quantidade"
-                />
-                <Text style={styles.qtyNum}>{item.quantity}</Text>
-                <Button
-                  variant="ghost"
-                  size="xs"
-                  onPress={() => updateQty(item.productId, item.quantity + 1)}
-                  icon={<Plus size={16} color={buttonForeground.ghost} strokeWidth={1.5} />}
-                  accessibilityLabel="Aumentar quantidade"
-                />
+          <ScrollView style={styles.cartList} nestedScrollEnabled>
+            {cart.map((item) => (
+              <View key={item.productId} style={styles.cartRow}>
+                <Text style={styles.cartName} numberOfLines={1}>
+                  {item.productName}
+                </Text>
+                <View style={styles.qtyRow}>
+                  <Button
+                    variant="ghost"
+                    size="xs"
+                    onPress={() => updateQty(item.productId, item.quantity - 1)}
+                    icon={<Minus size={16} color={buttonForeground.ghost} strokeWidth={1.5} />}
+                    accessibilityLabel="Diminuir quantidade"
+                  />
+                  <Text style={styles.qtyNum}>{item.quantity}</Text>
+                  <Button
+                    variant="ghost"
+                    size="xs"
+                    onPress={() => updateQty(item.productId, item.quantity + 1)}
+                    icon={<Plus size={16} color={buttonForeground.ghost} strokeWidth={1.5} />}
+                    accessibilityLabel="Aumentar quantidade"
+                  />
+                </View>
               </View>
-            </View>
-          ))}
+            ))}
+          </ScrollView>
         </View>
       )}
 
@@ -708,6 +710,7 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     marginBottom: spacing.sm,
   },
+  cartList: { maxHeight: 160 },
   cartTitle: {
     fontFamily: typography.fontFamily.sansBold,
     fontSize: 13,

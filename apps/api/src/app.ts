@@ -59,13 +59,27 @@ export async function buildApp(): Promise<FastifyInstance> {
     await scope.register(staticPlugin, { root: uploadRoot, prefix: '/uploads/' })
   })
 
-  // GET /health — sem autenticação; usado por load balancers e monitoramento
+  // GET /health — sem autenticação; usado por load balancers, monitoramento e
+  // pelo keep-alive (pré-requisito dos jobs noturnos da Inteligência). Faz ping
+  // real no banco: 503 quando o Postgres está inacessível.
   app.get('/health', async (_request, reply) => {
-    return reply.send({
-      status: 'ok',
-      environment: env.NODE_ENV,
-      timestamp: new Date().toISOString(),
-    })
+    const { prisma } = await import('@addere/db')
+    try {
+      await prisma.$queryRaw`SELECT 1`
+      return reply.send({
+        status: 'ok',
+        db: 'ok',
+        environment: env.NODE_ENV,
+        timestamp: new Date().toISOString(),
+      })
+    } catch {
+      return reply.status(503).send({
+        status: 'error',
+        db: 'unreachable',
+        environment: env.NODE_ENV,
+        timestamp: new Date().toISOString(),
+      })
+    }
   })
 
   // Rotas
