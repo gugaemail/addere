@@ -1,38 +1,9 @@
 import { PrismaClient } from '@prisma/client'
 import bcrypt from 'bcryptjs'
+// Import relativo (não @addere/db) para o tsx do `prisma db seed` resolver sem paths
+import { PERMISSIONS, DEFAULT_PERMISSIONS_BY_ROLE } from '../src/permission-catalog'
 
 const prisma = new PrismaClient()
-
-// Catálogo de permissões disponíveis no sistema
-const PERMISSIONS = [
-  { key: 'users.view', label: 'Ver usuários da empresa', category: 'users' },
-  { key: 'users.manage', label: 'Criar/ativar/desativar usuários', category: 'users' },
-  { key: 'sync.protheus', label: 'Executar sincronização com Protheus', category: 'sync' },
-  {
-    key: 'orders.reset_pending',
-    label: 'Reverter pedido sincronizado para pendente',
-    category: 'orders',
-  },
-  { key: 'orders.change_carrier', label: 'Alterar transportadora do pedido', category: 'orders' },
-  {
-    key: 'orders.change_payment_terms',
-    label: 'Alterar condição de pagamento do pedido',
-    category: 'orders',
-  },
-]
-
-// Permissões concedidas por padrão a cada role existente (backfill)
-const DEFAULT_PERMISSIONS_BY_ROLE: Record<string, string[]> = {
-  ADMIN: [
-    'users.view',
-    'users.manage',
-    'sync.protheus',
-    'orders.reset_pending',
-    'orders.change_carrier',
-    'orders.change_payment_terms',
-  ],
-  SALESPERSON: ['orders.change_carrier', 'orders.change_payment_terms'],
-}
 
 const USER_TYPE_BY_ROLE: Record<string, string> = {
   ADMIN: 'Administrador',

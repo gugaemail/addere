@@ -1,6 +1,6 @@
 // Permissões dinâmicas por usuário. SUPERADMIN não participa do cadastro — tem acesso total.
 
-import { prisma } from '@addere/db'
+import { prisma, DEFAULT_PERMISSIONS_BY_ROLE } from '@addere/db'
 import type { UserRole } from '@addere/types'
 
 interface PermissionCacheEntry {
@@ -37,6 +37,21 @@ export async function setUserPermissions(userId: string, keys: string[]): Promis
       data: permissions.map((permission) => ({ userId, permissionId: permission.id })),
     }),
   ])
+
+  invalidateUserPermissions(userId)
+}
+
+// Concede as permissões padrão do role (catálogo em @addere/db) sem remover as existentes.
+// Usada na criação de usuário (decisão D3c: ADMIN nasce com intel.admin).
+export async function applyDefaultPermissions(userId: string, role: UserRole): Promise<void> {
+  const keys = DEFAULT_PERMISSIONS_BY_ROLE[role] ?? []
+  if (keys.length === 0) return
+
+  const permissions = await prisma.permission.findMany({ where: { key: { in: keys } } })
+  await prisma.userPermission.createMany({
+    data: permissions.map((permission) => ({ userId, permissionId: permission.id })),
+    skipDuplicates: true,
+  })
 
   invalidateUserPermissions(userId)
 }

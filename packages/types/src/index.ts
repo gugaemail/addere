@@ -2,6 +2,9 @@
 export type { FieldDefinition } from './field-registry'
 export { FIELD_REGISTRY, FIELD_REGISTRY_KEYS } from './field-registry'
 
+// ─── Camada de Inteligência ────────────────────────────────────────────────
+export * from './intelligence'
+
 // ─── Auth ──────────────────────────────────────────────────────────────────
 
 export type UserRole = 'SUPERADMIN' | 'ADMIN' | 'SALESPERSON'
