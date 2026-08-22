@@ -15,6 +15,11 @@ const envSchema = z.object({
   // Camada de Inteligência: 'mock' usa o gerador sintético (dev/smoke sem Protheus)
   INTEL_SQL_ADAPTER: z.enum(['protheus', 'mock']).default('protheus'),
   SENTRY_DSN: z.string().url().optional(),
+  // Agente LLM (E6, decisão D13) — sem chave ou desligado, tudo cai no só-motor
+  ANTHROPIC_API_KEY: z.string().optional(),
+  INTEL_LLM_MODEL: z.string().default('claude-sonnet-5'),
+  INTEL_LLM_ENABLED: z.enum(['true', 'false']).default('true'),
+  INTEL_LLM_DAILY_TOKEN_CAP: z.coerce.number().int().positive().default(500_000),
   WEB_URL: z.string().url().optional(),
 })
 

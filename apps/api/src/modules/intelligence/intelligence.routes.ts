@@ -6,6 +6,7 @@ import parametersRoutes from './admin/parameters.routes'
 import configRoutes from './admin/config.routes'
 import jobsRoutes from './admin/jobs.routes'
 import healthRoutes from './admin/health.routes'
+import evalRoutes from './eval/eval.routes'
 
 export default async function intelligenceRoutes(app: FastifyInstance) {
   await app.register(queriesRoutes, { prefix: '/admin/queries' })
@@ -13,4 +14,5 @@ export default async function intelligenceRoutes(app: FastifyInstance) {
   await app.register(configRoutes, { prefix: '/admin/config' })
   await app.register(jobsRoutes, { prefix: '/admin/jobs' })
   await app.register(healthRoutes, { prefix: '/admin/health' })
+  await app.register(evalRoutes, { prefix: '/admin/eval' })
 }

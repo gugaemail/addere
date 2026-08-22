@@ -10,11 +10,14 @@
     "type-check": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "intel:smoke": "tsx scripts/intel-smoke.ts"
+    "intel:smoke": "tsx scripts/intel-smoke.ts",
+    "intel:eval": "tsx scripts/intel-eval.ts",
+    "intel:freeze-eval": "tsx scripts/intel-freeze-eval.ts"
   },
   "dependencies": {
     "@addere/db": "*",
     "@addere/types": "*",
+    "@anthropic-ai/sdk": "^0.120.0",
     "@fastify/cookie": "^11.0.2",
     "@fastify/cors": "^11.2.0",
     "@fastify/helmet": "^13.0.2",
