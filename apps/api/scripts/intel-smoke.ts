@@ -1,7 +1,7 @@
 // Smoke test do pipeline da Inteligência com o adapter sintético (E4).
 //
 // Uso (banco local via docker-compose ou Postgres local):
-//   INTEL_SQL_ADAPTER=mock npm run intel:smoke -w @addere/api -- [--company <id>]
+//   INTEL_SQL_ADAPTER=mock INTEL_GEOCODER=mock npm run intel:smoke -w @addere/api -- [--company <id>]
 //
 // O script prepara o mínimo (empresa com Inteligência ligada, filial com código
 // Protheus, consultas publicadas a partir dos SQLs de referência), roda o
@@ -13,8 +13,10 @@ import { registerIntelJobHandlers } from '../src/modules/intelligence/jobs/regis
 import { nightlyHandler } from '../src/modules/intelligence/jobs/nightly'
 
 async function main() {
-  if (env.INTEL_SQL_ADAPTER !== 'mock') {
-    throw new Error('Rode com INTEL_SQL_ADAPTER=mock — o smoke nunca chama o ERP real')
+  if (env.INTEL_SQL_ADAPTER !== 'mock' || env.INTEL_GEOCODER !== 'mock') {
+    throw new Error(
+      'Rode com INTEL_SQL_ADAPTER=mock INTEL_GEOCODER=mock — o smoke nunca chama serviços externos'
+    )
   }
 
   const companyArg = process.argv.indexOf('--company')

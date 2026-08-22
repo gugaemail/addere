@@ -80,6 +80,12 @@ export interface HealthReport {
   salesWithUnknownCustomer: { count: number; refs: string[] }
   recentRuns: IntelJobRunDto[] // últimos 7 dias
   llmUsageMonth?: { inputTokens: number; outputTokens: number; calls: number }
+  // Geocodificação (E15-F1) — CITY não posiciona pino; withoutPin = fora do mapa
+  geocoding?: {
+    byPrecision: Partial<Record<GeoPrecision, number>>
+    failed: number
+    withoutPin: number
+  }
 }
 
 // ─── Premissas do motor (W5) ───

@@ -20,6 +20,9 @@ const envSchema = z.object({
   INTEL_LLM_MODEL: z.string().default('claude-sonnet-5'),
   INTEL_LLM_ENABLED: z.enum(['true', 'false']).default('true'),
   INTEL_LLM_DAILY_TOKEN_CAP: z.coerce.number().int().positive().default(500_000),
+  // Geocodificação (E15-F1, decisão D14a) — Nominatim agora; Google via stub
+  INTEL_GEOCODER: z.enum(['nominatim', 'google', 'mock']).default('nominatim'),
+  GOOGLE_GEOCODING_API_KEY: z.string().optional(),
   WEB_URL: z.string().url().optional(),
 })
 

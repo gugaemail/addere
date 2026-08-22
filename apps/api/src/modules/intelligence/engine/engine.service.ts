@@ -199,6 +199,14 @@ export async function runEngine(companyId: string, _runId: string): Promise<Engi
     Date.UTC(Number(today.slice(0, 4)), Number(today.slice(4, 6)) - 1, Number(today.slice(6, 8)))
   )
 
+  // Coordenadas do cache de geocodificação (E15-F1) — precisão CITY não
+  // posiciona pino no mapa, então fica de fora
+  const geoRows = await prisma.geoAddress.findMany({
+    where: { companyId, lat: { not: null }, precision: { not: 'CITY' } },
+    select: { customerCode: true, loja: true, lat: true, lng: true },
+  })
+  const geoByKey = new Map(geoRows.map((g) => [key(g.customerCode, g.loja), g]))
+
   for (const seller of sellers) {
     const vendorCode = seller.idVendProt as string
     const portfolio = contexts.filter((c) => c.vendorCode === vendorCode)
@@ -264,8 +272,11 @@ export async function runEngine(companyId: string, _runId: string): Promise<Engi
         items: {
           create: items.map((item, index) => {
             const ctx = contextByKey.get(key(item.customerCode, item.loja))
+            const geoPos = geoByKey.get(key(item.customerCode, item.loja))
             return {
               position: index + 1,
+              lat: geoPos?.lat,
+              lng: geoPos?.lng,
               customerCode: item.customerCode,
               loja: item.loja,
               statusAtTime: item.status,

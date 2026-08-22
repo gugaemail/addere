@@ -58,10 +58,19 @@ export async function nightlyHandler(companyId: string, runId: string): Promise<
     steps.push({ step: 'sync', ok: true, detail: 'nenhum contrato publicado' })
   }
 
-  // 2. Metas por vendedor (mês atual + anterior)
+  // 2. Geocodificação de clientes novos/alterados (E15-F1) — antes do motor,
+  // que copia lat/lng do cache para os itens do plano
+  const geo = getJobHandler('GEO')
+  if (geo) {
+    await record('geo', () => geo(companyId, runId))
+  } else {
+    steps.push({ step: 'geo', ok: true, detail: 'não implementado (E15-F1)' })
+  }
+
+  // 3. Metas por vendedor (mês atual + anterior)
   await record('goals', () => captureGoals(company))
 
-  // 3. Motor de sinais e resumo do plano — handlers chegam na E5/E6
+  // 4. Motor de sinais e resumo do plano — handlers chegam na E5/E6
   for (const dependent of ['ENGINE', 'PLAN'] as IntelJob[]) {
     const handler = getJobHandler(dependent)
     if (!handler) {
@@ -71,7 +80,7 @@ export async function nightlyHandler(companyId: string, runId: string): Promise<
     await record(dependent.toLowerCase(), () => handler(companyId, runId))
   }
 
-  // 4. Expurgo de retenção (§2.13)
+  // 5. Expurgo de retenção (§2.13)
   await record('purge', () => purgeCompany(companyId, config))
 
   await updateRunMetadata(runId, { steps }).catch(() => undefined)

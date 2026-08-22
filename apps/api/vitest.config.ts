@@ -13,6 +13,7 @@ export default defineConfig({
       JWT_REFRESH_SECRET: 'test-refresh-secret',
       // Prévia das consultas da Inteligência roda contra o adapter sintético
       INTEL_SQL_ADAPTER: 'mock',
+      INTEL_GEOCODER: 'mock',
     },
   },
 })
