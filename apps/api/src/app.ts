@@ -16,8 +16,12 @@ import companiesRoutes from './modules/companies/companies.routes'
 import branchesRoutes from './modules/branches/branches.routes'
 import syncRoutes from './modules/sync/sync.routes'
 import { initSchedulers } from './modules/sync/scheduler'
+import { initSentry } from './lib/sentry'
+import { registerIntelJobHandlers } from './modules/intelligence/jobs/register'
+import { initIntelScheduler } from './modules/intelligence/jobs/scheduler'
 import transportadorasRoutes from './modules/transportadoras/transportadoras.routes'
 import condpagsRoutes from './modules/condpags/condpags.routes'
+import intelligenceRoutes from './modules/intelligence/intelligence.routes'
 import { pilotRoutes } from './modules/pilot/pilot.routes'
 import helpRoutes from './modules/help/help.routes'
 import usersRoutes from './modules/users/users.routes'
@@ -92,6 +96,7 @@ export async function buildApp(): Promise<FastifyInstance> {
   await app.register(syncRoutes, { prefix: '/sync' })
   await app.register(transportadorasRoutes, { prefix: '/transportadoras' })
   await app.register(condpagsRoutes, { prefix: '/condpags' })
+  await app.register(intelligenceRoutes, { prefix: '/intel' })
   await app.register(pilotRoutes)
   await app.register(helpRoutes, { prefix: '/help' })
   await app.register(usersRoutes, { prefix: '/users' })
@@ -100,8 +105,12 @@ export async function buildApp(): Promise<FastifyInstance> {
   await app.register(userTypesRoutes, { prefix: '/user-types' })
 
   // Inicia schedulers de auto-sync após o servidor estar pronto
+  initSentry()
+
   app.addHook('onReady', async () => {
     await initSchedulers()
+    registerIntelJobHandlers()
+    initIntelScheduler()
   })
 
   return app

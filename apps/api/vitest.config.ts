@@ -11,6 +11,8 @@ export default defineConfig({
       DATABASE_URL_DIRECT: 'postgresql://test:test@localhost:5432/test',
       JWT_SECRET: 'test-secret',
       JWT_REFRESH_SECRET: 'test-refresh-secret',
+      // Prévia das consultas da Inteligência roda contra o adapter sintético
+      INTEL_SQL_ADAPTER: 'mock',
     },
   },
 })
