@@ -3,11 +3,13 @@
 import { mergeIntelligenceConfig } from '../admin/config.routes'
 import { prisma } from '@addere/db'
 import { registerJobHandler } from './registry'
+import { registerEngineJob } from '../engine/engine.job'
 import { nightlyHandler } from './nightly'
 import { refreshHandler } from './refresh'
 import { purgeCompany } from './purge'
 
 export function registerIntelJobHandlers(): void {
+  registerEngineJob()
   registerJobHandler('NIGHTLY', nightlyHandler)
   registerJobHandler('REFRESH', refreshHandler)
   registerJobHandler('PURGE', async (companyId) => {

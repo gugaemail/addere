@@ -2,7 +2,7 @@
 // E4 registra SYNC/GOALS/NIGHTLY/REFRESH/PURGE; E5 registra ENGINE; E6, PLAN.
 import type { IntelJob } from '@addere/types'
 
-export type IntelJobHandler = (companyId: string, runId: string) => Promise<void>
+export type IntelJobHandler = (companyId: string, runId: string) => Promise<unknown>
 
 const registry = new Map<IntelJob, IntelJobHandler>()
 
