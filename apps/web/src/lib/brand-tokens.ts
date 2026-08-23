@@ -33,4 +33,15 @@ export const EMAIL_PALETTE = {
   dangerTextDim: '#7F1D1D',
 } as const
 
+// Cores de status do motor (fixas em toda tela — doc de arquitetura da
+// Inteligência): ciano/navy ficam só para navegação e ação.
+export const STATUS = {
+  onCycle: '#16A34A',
+  late: '#D97706',
+  atRisk: '#DC2626',
+  blocked: '#6B7280',
+  new: '#7C3AED',
+} as const
+
 export type BrandColor = keyof typeof BRAND
+export type StatusColor = keyof typeof STATUS

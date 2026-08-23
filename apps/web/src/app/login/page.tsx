@@ -8,11 +8,12 @@ import { Logo } from '@/components/Logo'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { getApiErrorMessage } from '@/lib/api'
+import { canAccessPanel, resolveHome } from '@/lib/home-redirect'
 import { loginSchema } from '@/lib/schemas'
 
 export default function LoginPage() {
   const router = useRouter()
-  const { login } = useAuth()
+  const { login, logout } = useAuth()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -33,12 +34,15 @@ export default function LoginPage() {
     try {
       const user = await login(parsed.data.email, parsed.data.password)
 
-      if (user.role !== 'SUPERADMIN') {
-        setError('Acesso restrito ao administrador da plataforma.')
+      // E9: painel aceita SUPERADMIN, ADMIN e quem tem permissão intel.*.
+      // O login já criou sessão/cookie — desfaz para o middleware não redirecionar.
+      if (!canAccessPanel(user)) {
+        await logout().catch(() => undefined)
+        setError('Acesso restrito a administradores e usuários da Inteligência.')
         return
       }
 
-      router.push('/dashboard')
+      router.push(resolveHome(user))
     } catch (err: unknown) {
       setError(getApiErrorMessage(err, 'Erro ao conectar. Tente novamente.'))
     } finally {
