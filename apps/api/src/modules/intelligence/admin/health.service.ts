@@ -1,11 +1,11 @@
 // Relatório de saúde dos dados da Inteligência (E4, tela W4).
 import { prisma } from '@addere/db'
 import type { Company } from '@prisma/client'
-import type { HealthReport, IntelJob, IntelJobRunStatus, IntelligenceConfig } from '@addere/types'
+import type { GeoPrecision, HealthReport, IntelJob, IntelJobRunStatus, IntelligenceConfig } from '@addere/types'
 import { mergeIntelligenceConfig } from './config.routes'
 
 const SAMPLE = 20
-const TRACKED_JOBS: IntelJob[] = ['NIGHTLY', 'REFRESH', 'SYNC', 'GOALS', 'PURGE']
+const TRACKED_JOBS: IntelJob[] = ['NIGHTLY', 'REFRESH', 'SYNC', 'GOALS', 'GEO', 'PURGE']
 
 /** Média simples dos componentes de completude (0–100, arredondado). */
 export function computeHealthyPct(components: number[]): number {
@@ -86,6 +86,34 @@ export async function buildHealthReport(
   const unknown = salesCustomers.filter((s) => !knownSet.has(s.customerCode))
   const unknownSalesCount = unknown.reduce((sum, u) => sum + u._count.customerCode, 0)
 
+  // ─── Geocodificação (E15-F1): pinos por precisão, falhas, sem posição ───
+  // Interseção com clientes ativos: linhas órfãs (cliente inativado/apagado)
+  // não contam; falha só conta quando o cliente ficou de fato sem coordenada
+  const [geoCustomers, geoRows] = await Promise.all([
+    prisma.customer.findMany({
+      where: { companyId, active: true, protheusCode: { not: null } },
+      select: { protheusCode: true, loja: true },
+    }),
+    prisma.geoAddress.findMany({
+      where: { companyId },
+      select: { customerCode: true, loja: true, precision: true, lat: true, error: true },
+    }),
+  ])
+  const activeGeoKeys = new Set(geoCustomers.map((c) => `${c.protheusCode}|${c.loja ?? '01'}`))
+  const byPrecision: Partial<Record<GeoPrecision, number>> = {}
+  let geoFailed = 0
+  for (const row of geoRows) {
+    if (!activeGeoKeys.has(`${row.customerCode}|${row.loja}`)) continue
+    if (row.lat !== null && row.precision) {
+      const precision = row.precision as GeoPrecision
+      byPrecision[precision] = (byPrecision[precision] ?? 0) + 1
+    } else if (row.error) {
+      geoFailed++
+    }
+  }
+  const mappable =
+    (byPrecision.ROOFTOP ?? 0) + (byPrecision.STREET ?? 0) + (byPrecision.CEP ?? 0)
+
   // ─── Frescor por job + execuções recentes (7 dias) ───
   const recentRuns = await prisma.intelJobRun.findMany({
     where: { companyId, startedAt: { gte: new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000) } },
@@ -161,6 +189,11 @@ export async function buildHealthReport(
       finishedAt: run.finishedAt?.toISOString() ?? null,
       error: run.error,
     })),
+    geocoding: {
+      byPrecision,
+      failed: geoFailed,
+      withoutPin: Math.max(0, customersTotal - mappable),
+    },
     llmUsageMonth: {
       inputTokens: llm._sum.inputTokens ?? 0,
       outputTokens: llm._sum.outputTokens ?? 0,

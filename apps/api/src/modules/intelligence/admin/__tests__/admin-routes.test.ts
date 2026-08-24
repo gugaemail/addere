@@ -454,7 +454,7 @@ describe('GET /intel/admin/health (E4)', () => {
     expect(res.statusCode).toBe(200)
     const body = res.json()
     expect(body.healthyPct).toBe(100)
-    expect(body.freshness).toHaveLength(5)
+    expect(body.freshness).toHaveLength(6)
     expect(body.freshness.every((f: { lastRunAt: null }) => f.lastRunAt === null)).toBe(true)
     expect(body.llmUsageMonth).toEqual({ inputTokens: 1000, outputTokens: 500, calls: 3 })
     // Empresa com Inteligência desligada não tem próximo sync
