@@ -15,9 +15,18 @@ import { OrdersTab } from './tabs/OrdersTab'
 import { ProtheusTab } from './tabs/ProtheusTab'
 import { FieldsTab } from './tabs/FieldsTab'
 import { LogsTab } from './tabs/LogsTab'
+import { IntelligenceTab } from './tabs/IntelligenceTab'
 
 type Tab =
-  'filiais' | 'usuarios' | 'clientes' | 'produtos' | 'pedidos' | 'protheus' | 'campos' | 'logs'
+  | 'filiais'
+  | 'usuarios'
+  | 'clientes'
+  | 'produtos'
+  | 'pedidos'
+  | 'protheus'
+  | 'inteligencia'
+  | 'campos'
+  | 'logs'
 
 function PageSkeleton() {
   return (
@@ -76,6 +85,7 @@ export default function EmpresaPage() {
     { key: 'produtos', label: 'Produtos' },
     { key: 'pedidos', label: 'Pedidos' },
     { key: 'protheus', label: 'Protheus' },
+    { key: 'inteligencia', label: 'Inteligência' },
     { key: 'campos', label: 'Campos' },
     { key: 'logs', label: 'Logs API' },
   ]
@@ -145,6 +155,9 @@ export default function EmpresaPage() {
       {tab === 'produtos' && <ProductsTab companyId={company.id} />}
       {tab === 'pedidos' && <OrdersTab companyId={company.id} />}
       {tab === 'protheus' && <ProtheusTab company={company} />}
+      {tab === 'inteligencia' && (
+        <IntelligenceTab companyId={company.id} apiSqlConfigured={!!company.apiSql} />
+      )}
       {tab === 'campos' && <FieldsTab companyId={company.id} />}
       {tab === 'logs' && <LogsTab companyId={company.id} />}
     </div>

@@ -127,6 +127,7 @@ export function UsersTab({ company }: { company: CompanyDetail }) {
       {modal && (
         <UserModal
           companyId={company.id}
+          managers={company.users.filter((u) => u.intelManager).map((u) => ({ id: u.id, name: u.name }))}
           mode={modal.mode}
           user={modal.item}
           onClose={() => setModal(null)}
