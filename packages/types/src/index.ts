@@ -345,6 +345,12 @@ export type PilotEventType =
   | 'ORDER_SYNC_FAILED'
   | 'SESSION_STARTED'
   | 'CATALOG_LOADED'
+  // Camada de Inteligência (E12) — já aceitos por POST /pilot/events
+  | 'PLAN_OPENED'
+  | 'VISIT_CHECKIN'
+  | 'VISIT_RESULT'
+  | 'MESSAGE_SENT'
+  | 'PLAN_EDITED'
 
 export interface Pilot {
   id: string

@@ -18,6 +18,7 @@ interface AuthState {
   clearAuth: () => Promise<void>
   hydrate: () => Promise<void>
   fetchPermissions: (token: string) => Promise<void>
+  fetchMe: (token: string) => Promise<void>
   refreshSession: () => Promise<string>
 }
 
@@ -40,7 +41,10 @@ export const useAuthStore = create<AuthState>((set) => ({
     } catch {
       setSentryUser({ id: user.id, company: 'unknown' })
     }
-    await useAuthStore.getState().fetchPermissions(token)
+    await Promise.all([
+      useAuthStore.getState().fetchPermissions(token),
+      useAuthStore.getState().fetchMe(token),
+    ])
   },
 
   clearAuth: async () => {
@@ -63,6 +67,21 @@ export const useAuthStore = create<AuthState>((set) => ({
       set({ permissions: data.keys })
     } catch {
       // Mantém as permissões atuais (ex: offline) — não bloqueia o app
+    }
+  },
+
+  // Atualiza o usuário com o /auth/me completo (permissions + company com a
+  // flag da Inteligência — E12). Persiste para a flag valer offline no boot.
+  fetchMe: async (token) => {
+    try {
+      const { data } = await axios.get<UserPublic>(`${env.apiUrl}/auth/me`, {
+        headers: { Authorization: `Bearer ${token}` },
+        timeout: 8000,
+      })
+      await SecureStore.setItemAsync(USER_KEY, JSON.stringify(data))
+      set({ user: data })
+    } catch {
+      // Offline: mantém o usuário persistido (flag da última sessão)
     }
   },
 
@@ -113,7 +132,10 @@ export const useAuthStore = create<AuthState>((set) => ({
       try {
         const newToken = await useAuthStore.getState().refreshSession()
         set({ user, hydrated: true })
-        await useAuthStore.getState().fetchPermissions(newToken)
+        await Promise.all([
+          useAuthStore.getState().fetchPermissions(newToken),
+          useAuthStore.getState().fetchMe(newToken),
+        ])
       } catch (err) {
         const e = err as { response?: unknown; code?: string }
         if (!e.response || e.code === 'ECONNABORTED') {

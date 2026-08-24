@@ -1,13 +1,12 @@
 import { AppState, AppStateStatus } from 'react-native'
 import NetInfo from '@react-native-community/netinfo'
 import * as Sentry from '@sentry/react-native'
-import { api } from '../lib/api'
 import { getApiErrorMessage } from '../lib/errors'
 import { queryClient } from '../lib/query-client'
 import { useSyncStore } from '../store/syncStore'
 import { pilotTracker } from './pilotTracking'
+import { syncHandlers } from './syncHandlers'
 import type { SyncQueueItem } from '../types/sync'
-import type { CreateOrderInput } from '@addere/types'
 
 const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms))
 
@@ -17,37 +16,29 @@ export function getSyncDelay(attempts: number): number {
   return 1_000 * Math.pow(2, attempts - 1)
 }
 
-function isValidOrderPayload(payload: unknown): payload is CreateOrderInput {
-  const p = payload as CreateOrderInput
-  return (
-    typeof p === 'object' &&
-    p !== null &&
-    typeof p.customerId === 'string' &&
-    typeof p.branchId === 'string' &&
-    Array.isArray(p.items) &&
-    p.items.length > 0
-  )
-}
-
 async function processItem(item: SyncQueueItem): Promise<void> {
   const { markSyncing, markSynced, markError, markFailedPermanently } = useSyncStore.getState()
 
+  const handler = syncHandlers[item.type]
   markSyncing(item.id)
 
   try {
-    // Payload malformado nunca vai sincronizar — falha permanente, sem retentativas
-    if (!isValidOrderPayload(item.payload)) {
+    // Tipo desconhecido (downgrade do app?) ou payload malformado nunca vai
+    // sincronizar — falha permanente, sem retentativas
+    if (!handler || !handler.validate(item.payload)) {
       markFailedPermanently(item.id, 'Payload inválido: estrutura incorreta')
       Sentry.captureMessage('Item da fila de sync com payload inválido', {
         level: 'error',
-        extra: { itemId: item.id, createdAt: item.createdAt },
+        extra: { itemId: item.id, type: item.type, createdAt: item.createdAt },
         tags: { module: 'sync_engine' },
       })
       return
     }
-    await api.post('/orders', item.payload)
+    await handler.send(item.payload)
     markSynced(item.id)
-    queryClient.invalidateQueries({ queryKey: ['orders'] })
+    for (const key of handler.invalidates) {
+      queryClient.invalidateQueries({ queryKey: key })
+    }
 
     if (item.type === 'order') {
       const queuedDurationMs = Date.now() - new Date(item.createdAt).getTime()
@@ -58,14 +49,16 @@ async function processItem(item: SyncQueueItem): Promise<void> {
     markError(item.id, msg)
 
     if (item.attempts + 1 >= item.maxAttempts) {
+      // LGPD: lastError pode citar dados do cliente nos tipos da Inteligência —
+      // só o pedido (reportPayload) manda o erro completo ao Sentry
       Sentry.captureEvent({
-        message: 'Pedido atingiu máximo de tentativas sem sync',
+        message: 'Item da fila atingiu máximo de tentativas sem sync',
         level: 'error',
         extra: {
           itemId: item.id,
           type: item.type,
           attempts: item.attempts + 1,
-          lastError: msg,
+          ...(handler?.reportPayload ? { lastError: msg } : {}),
           createdAt: item.createdAt,
         },
         tags: { module: 'sync_engine' },
