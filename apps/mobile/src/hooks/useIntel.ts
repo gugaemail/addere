@@ -2,7 +2,14 @@
 // cima destes. Todas as rotas /intel/app/* resolvem o vendedor pelo token;
 // escritas offline-safe entram na fila (syncStore) em vez de POST direto.
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import type { CustomerStatus, VisitPlanDto } from '@addere/types'
+import type {
+  BriefingDto,
+  CustomerSignalListItem,
+  CustomerStatus,
+  PlanPatchOp,
+  VisitPlanDto,
+} from '@addere/types'
+import { generateUuid } from '../utils/uuid'
 import { api } from '../lib/api'
 import { queryClient as globalQueryClient } from '../lib/query-client'
 import { useSyncStore } from '../store/syncStore'
@@ -36,15 +43,8 @@ export interface HomeResponse {
   freshness: IntelFreshness
 }
 
-export interface BriefingResponse {
-  customer: { name: string; municipio: string | null }
-  briefing: {
-    whatHappened: string
-    whyItMatters: string
-    whatToDo: string
-    confidence: string
-  } | null
-  snapshot: unknown
+export interface SignalsListResponse {
+  items: CustomerSignalListItem[]
   freshness: IntelFreshness
 }
 
@@ -74,7 +74,9 @@ export function useCustomerSignals(status?: CustomerStatus) {
     queryKey: intelKeys.signals(status),
     queryFn: () =>
       api
-        .get('/intel/app/customers/signals', { params: status ? { status } : {} })
+        .get<SignalsListResponse>('/intel/app/customers/signals', {
+          params: status ? { status } : {},
+        })
         .then((r) => r.data),
     staleTime: 5 * 60_000,
   })
@@ -85,7 +87,7 @@ export function useBriefing(customerCode: string, loja: string, enabled = true) 
     queryKey: intelKeys.briefing(customerCode, loja),
     queryFn: () =>
       api
-        .get<BriefingResponse>(`/intel/app/customers/${customerCode}/${loja}/briefing`)
+        .get<BriefingDto>(`/intel/app/customers/${customerCode}/${loja}/briefing`)
         .then((r) => r.data),
     enabled: enabled && !!customerCode && !!loja,
     // O servidor cacheia 4h; aqui seguramos 1h para o "antes de entrar" offline
@@ -103,7 +105,7 @@ export function prefetchBriefings(plan: VisitPlanDto | null | undefined): void {
         queryKey: intelKeys.briefing(item.customerCode, item.loja),
         queryFn: () =>
           api
-            .get<BriefingResponse>(`/intel/app/customers/${item.customerCode}/${item.loja}/briefing`)
+            .get<BriefingDto>(`/intel/app/customers/${item.customerCode}/${item.loja}/briefing`)
             .then((r) => r.data),
         staleTime: 60 * 60_000,
       })
@@ -169,30 +171,53 @@ export function useFeedback() {
   }
 }
 
-export interface PlanOp {
-  op: 'remove' | 'restore' | 'move'
-  itemId: string
-  toPosition?: number
+// Omit comum colapsa a união discriminada — a versão distributiva preserva cada variante
+type DistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never
+
+/** Cria uma op do PATCH já com opId (idempotência no servidor) */
+export function makePlanOp(op: DistributiveOmit<PlanPatchOp, 'opId'>): PlanPatchOp {
+  return { opId: generateUuid(), ...op } as PlanPatchOp
+}
+
+/** Aplicação otimista das ops no DTO em cache — pura, espelha applyPlanOps (E7) */
+export function applyOpsOptimistic(plan: VisitPlanDto, ops: PlanPatchOp[]): VisitPlanDto {
+  let items = plan.items.map((i) => ({ ...i }))
+  let grouping = plan.grouping
+  for (const op of ops) {
+    if (op.type === 'setGrouping') {
+      grouping = op.grouping
+      continue
+    }
+    const target = items.find((i) => i.id === op.itemId)
+    if (!target) continue
+    if (op.type === 'remove' || op.type === 'skip') target.removedAt = new Date().toISOString()
+    if (op.type === 'restore') target.removedAt = null
+    if (op.type === 'reorder') {
+      const active = items.filter((i) => !i.removedAt && i.id !== op.itemId)
+      const clamped = Math.max(1, Math.min(op.position, active.length + 1))
+      active.splice(clamped - 1, 0, target)
+      const removed = items.filter((i) => i.removedAt)
+      items = [...active, ...removed]
+    }
+  }
+  // Renumera ativos 1..n (removidos ao final), como o servidor faz
+  const active = items.filter((i) => !i.removedAt)
+  const removed = items.filter((i) => i.removedAt)
+  active.forEach((item, index) => {
+    item.position = index + 1
+  })
+  return { ...plan, grouping, items: [...active, ...removed], status: 'EDITED' }
 }
 
 /** Edição do plano: otimista no cache + fila (applyPlanOps é idempotente) */
 export function usePlanPatch(date?: string) {
   const queryClientHook = useQueryClient()
   return {
-    apply: (planId: string, ops: PlanOp[]) => {
+    apply: (planId: string, ops: PlanPatchOp[]) => {
       const id = enqueueAndSync('planPatch', { planId, ops })
-      // Otimista: marca removidos/restaurados no cache local do plano
-      queryClientHook.setQueryData<VisitPlanDto | null>(intelKeys.plan(date), (current) => {
-        if (!current || current.id !== planId) return current
-        const items = current.items.map((item) => {
-          const removeOp = ops.find((o) => o.itemId === item.id && o.op === 'remove')
-          const restoreOp = ops.find((o) => o.itemId === item.id && o.op === 'restore')
-          if (removeOp) return { ...item, removedAt: new Date().toISOString() }
-          if (restoreOp) return { ...item, removedAt: null }
-          return item
-        })
-        return { ...current, items, status: 'EDITED' as VisitPlanDto['status'] }
-      })
+      queryClientHook.setQueryData<VisitPlanDto | null>(intelKeys.plan(date), (current) =>
+        current && current.id === planId ? applyOpsOptimistic(current, ops) : current
+      )
       return id
     },
   }

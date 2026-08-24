@@ -150,6 +150,7 @@ export default async function authRoutes(app: FastifyInstance) {
           idVendProt: true,
           userTypeId: true,
           companyId: true,
+          servedCities: true,
           company: { select: { intelligenceEnabled: true, intelligenceConfig: true } },
         },
       })
@@ -171,6 +172,7 @@ export default async function authRoutes(app: FastifyInstance) {
         idVendProt: user.idVendProt,
         userTypeId: user.userTypeId,
         companyId: user.companyId,
+        servedCities: user.servedCities,
         permissions: Array.from(permissions),
         company: user.company
           ? {

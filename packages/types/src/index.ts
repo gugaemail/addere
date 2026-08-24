@@ -33,6 +33,13 @@ export interface UserPublic {
   companyId?: string | null
   permissions?: string[]
   company?: { intelligenceEnabled: boolean; defaultTone: string } | null
+  // ─── E10: perfil de vendedor da Inteligência (detalhe da empresa) ───
+  visitsPerDay?: number | null
+  vehicle?: 'CAR' | 'MOTORCYCLE' | 'FOOT' | null
+  servedCities?: string[]
+  messageTone?: string | null
+  managerId?: string | null
+  intelManager?: boolean // tem a permissão intel.manager (D3b)
 }
 
 // ─── Permissões dinâmicas ──────────────────────────────────────────────────
