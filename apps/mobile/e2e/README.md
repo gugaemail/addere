@@ -55,6 +55,7 @@ Todos os testIDs abaixo existem no código (confira com `grep -rn testID app src
 | `screen-visita`, `before-enter`, `resultado-*`, `input-motivo`, `btn-concluir-visita`, `btn-iniciar-pedido` (E13) | tela de Visita |
 | `screen-mensagem`, `molde-*`, `input-mensagem`, `btn-whatsapp`, `btn-copiar` (E13) | tela de Mensagem |
 | `atalho-esfriando`, `btn-limpar-filtro`, `plan-thumbs-up/down` (E13)            | atalhos da Hoje e filtro da lista de clientes |
+| `toggle-mapa`, `plan-map`, `map-stop-card`, `chip-sem-posicao`, `btn-rota-completa-mapa` (E13b) | mapa do Plano do dia |
 | `btn-novo-pedido`                                                               | FAB em `(app)/pedidos/index.tsx`                             |
 | `input-busca-cliente`, `resultado-cliente-{i}`, `btn-adicionar-produto-{i}`     | wizard passo 1 — busca, cliente e filial (`novo-pedido`)     |
 | `produto-lista`, `produto-{i}`, `cache-badge`, `btn-proximo-step`               | wizard passo 2 — produtos                                    |

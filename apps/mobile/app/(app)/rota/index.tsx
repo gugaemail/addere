@@ -13,6 +13,7 @@ import {
 } from 'lucide-react-native'
 import type { VisitPlanItemDto } from '@addere/types'
 import { useAuthStore } from '../../../src/store/auth.store'
+import { useSyncStore } from '../../../src/store/syncStore'
 import { useClientes } from '../../../src/hooks/useClientes'
 import { makePlanOp, prefetchBriefings, usePlan, usePlanPatch, useVisitMutation } from '../../../src/hooks/useIntel'
 import { getVisitPosition } from '../../../src/services/location'
@@ -21,6 +22,8 @@ import { pilotTracker } from '../../../src/services/pilotTracking'
 import { activeAddresses } from '../../../src/utils/intelText'
 import { generateUuid } from '../../../src/utils/uuid'
 import { StatusPill } from '../../../src/components/intel/StatusPill'
+import { PlanMap } from '../../../src/components/intel/PlanMap'
+import { unmappedCount } from '../../../src/utils/mapRegion'
 import { SyncPill } from '../../../src/components/intel/SyncPill'
 import { FreshnessFooter } from '../../../src/components/intel/FreshnessFooter'
 import { EmptyState } from '../../../src/components/ui/EmptyState'
@@ -34,6 +37,17 @@ export default function RotaScreen() {
   const visits = useVisitMutation()
   const { data: customers } = useClientes()
   const [view, setView] = useState<'lista' | 'mapa'>('lista')
+  const [selectedItem, setSelectedItem] = useState<VisitPlanItemDto | null>(null)
+  // Pino cheio = visita registrada NESTE aparelho (fila de sync, E13b)
+  const visitedItemIds = useSyncStore((state) => {
+    const ids = new Set<string>()
+    for (const entry of state.queue) {
+      if (entry.type !== 'visit') continue
+      const planItemId = (entry.payload as { planItemId?: string | null })?.planItemId
+      if (planItemId) ids.add(planItemId)
+    }
+    return ids
+  })
 
   useEffect(() => {
     prefetchBriefings(plan)
@@ -264,8 +278,12 @@ export default function RotaScreen() {
           >
             <Text style={[s.toggleText, view === 'lista' && s.toggleTextActive]}>Lista</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={s.toggleItem} disabled onPress={() => setView('mapa')}>
-            <Text style={[s.toggleText, { color: colors.neutral.disabled }]}>Mapa · em breve</Text>
+          <TouchableOpacity
+            testID="toggle-mapa"
+            style={[s.toggleItem, view === 'mapa' && s.toggleActive]}
+            onPress={() => setView('mapa')}
+          >
+            <Text style={[s.toggleText, view === 'mapa' && s.toggleTextActive]}>Mapa</Text>
           </TouchableOpacity>
         </View>
         <SyncPill />
@@ -284,6 +302,99 @@ export default function RotaScreen() {
         </View>
       )}
 
+      {view === 'mapa' ? (
+        <View style={s.mapContainer}>
+          <PlanMap
+            items={plan?.items ?? []}
+            visitedItemIds={visitedItemIds}
+            selectedId={selectedItem?.id ?? null}
+            onSelect={setSelectedItem}
+          />
+          {unmappedCount(plan?.items ?? []) > 0 && (
+            <TouchableOpacity
+              testID="chip-sem-posicao"
+              style={s.unmappedChip}
+              onPress={() => setView('lista')}
+            >
+              <Text style={s.unmappedText}>
+                {unmappedCount(plan?.items ?? [])} sem posição — ver na lista
+              </Text>
+            </TouchableOpacity>
+          )}
+          {!selectedItem && active.length > 1 && (
+            <TouchableOpacity
+              testID="btn-rota-completa-mapa"
+              style={s.mapRouteButton}
+              onPress={() => openRouteInMaps(activeAddresses(plan))}
+            >
+              <Navigation size={14} color={colors.neutral.white} strokeWidth={1.5} />
+              <Text style={s.mapRouteText}>Abrir rota completa</Text>
+            </TouchableOpacity>
+          )}
+          {selectedItem && (
+            <View style={s.stopCard} testID="map-stop-card">
+              <View style={s.cardHeader}>
+                <View style={s.position}>
+                  <Text style={s.positionText}>{selectedItem.position}</Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={s.name} numberOfLines={1}>
+                    {selectedItem.customerName}
+                  </Text>
+                  {selectedItem.customerAddress ? (
+                    <Text style={s.address} numberOfLines={1}>
+                      {selectedItem.customerAddress}
+                    </Text>
+                  ) : null}
+                </View>
+                <StatusPill status={selectedItem.statusAtTime} />
+              </View>
+              <View style={s.actions}>
+                <TouchableOpacity
+                  style={s.action}
+                  onPress={() =>
+                    openMaps({
+                      lat: selectedItem.lat,
+                      lng: selectedItem.lng,
+                      address: selectedItem.customerAddress,
+                    })
+                  }
+                >
+                  <Navigation size={14} color={colors.brand.primary} strokeWidth={1.5} />
+                  <Text style={s.actionText}>Navegar</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={s.action} onPress={() => openFicha(selectedItem)}>
+                  <UserIcon size={14} color={colors.brand.primary} strokeWidth={1.5} />
+                  <Text style={s.actionText}>Ficha</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={s.action}
+                  onPress={() => {
+                    if (plan) {
+                      planPatch.apply(plan.id, [
+                        makePlanOp({ type: 'skip', itemId: selectedItem.id }),
+                      ])
+                      pilotTracker.track({ type: 'PLAN_EDITED', metadata: { ops: 1 } })
+                    }
+                    setSelectedItem(null)
+                  }}
+                >
+                  <X size={14} color={colors.brand.primary} strokeWidth={1.5} />
+                  <Text style={s.actionText}>Pular</Text>
+                </TouchableOpacity>
+                {selectedItem.statusAtTime !== 'BLOCKED' && (
+                  <TouchableOpacity
+                    style={[s.action, s.actionPrimary]}
+                    onPress={() => checkIn(selectedItem)}
+                  >
+                    <Text style={[s.actionText, { color: colors.neutral.white }]}>Cheguei</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            </View>
+          )}
+        </View>
+      ) : (
       <FlatList
         data={[...active, ...blocked]}
         keyExtractor={(item) => item.id}
@@ -313,12 +424,62 @@ export default function RotaScreen() {
           </View>
         }
       />
+      )}
     </View>
   )
 }
 
 const s = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.neutral.bg, padding: spacing.lg },
+  mapContainer: {
+    flex: 1,
+    borderRadius: radius.lg,
+    overflow: 'hidden',
+    marginBottom: spacing.md,
+  },
+  unmappedChip: {
+    position: 'absolute',
+    top: spacing.sm,
+    alignSelf: 'center',
+    backgroundColor: colors.brand.dark,
+    borderRadius: radius.full,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+  },
+  unmappedText: {
+    fontFamily: typography.fontFamily.bodySemibold,
+    fontSize: typography.size.xs,
+    color: colors.neutral.white,
+  },
+  mapRouteButton: {
+    position: 'absolute',
+    bottom: spacing.md,
+    alignSelf: 'center',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    backgroundColor: colors.brand.primary,
+    borderRadius: radius.full,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
+  },
+  mapRouteText: {
+    fontFamily: typography.fontFamily.bodySemibold,
+    fontSize: typography.size.sm,
+    color: colors.neutral.white,
+  },
+  stopCard: {
+    position: 'absolute',
+    left: spacing.sm,
+    right: spacing.sm,
+    bottom: spacing.sm,
+    backgroundColor: colors.neutral.white,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.neutral.border,
+    padding: spacing.md,
+    gap: spacing.sm,
+  },
   headerRow: {
     flexDirection: 'row',
     alignItems: 'center',

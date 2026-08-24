@@ -63,6 +63,13 @@ module.exports = {
         backgroundColor: '#0D2045',
       },
       package: variant.bundleId,
+      // Mapa do plano (E13b, D14b): Google Maps no Android — chave restrita por
+      // package/SHA-1, vem de EAS secret (E0-10). iOS usa Apple Maps (sem chave).
+      config: {
+        googleMaps: {
+          apiKey: process.env.GOOGLE_MAPS_ANDROID_API_KEY ?? '',
+        },
+      },
     },
     ios: {
       bundleIdentifier: variant.bundleId,
