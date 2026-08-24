@@ -35,6 +35,15 @@ module.exports = {
       // Upload de source maps/dSYMs é controlado pela env SENTRY_DISABLE_AUTO_UPLOAD (ver .env.example)
       '@sentry/react-native/expo',
       [
+        // GPS de visita (E12, D10): leitura única no "Cheguei", when-in-use
+        'expo-location',
+        {
+          locationWhenInUsePermission:
+            'Usamos sua localização apenas no momento do check-in de visita, para registrar onde ela aconteceu.',
+          isAndroidBackgroundLocationEnabled: false,
+        },
+      ],
+      [
         'expo-media-library',
         {
           photosPermission: 'Salvar PDFs de pedidos no dispositivo.',

@@ -49,6 +49,8 @@ Todos os testIDs abaixo existem no código (confira com `grep -rn testID app src
 | `screen-home`                                                                   | dashboard `(app)/index.tsx` (ScrollView raiz)                |
 | `screen-onboarding`, `btn-onboarding-next`                                      | `src/components/onboarding/OnboardingFlow.tsx` (1º login)    |
 | `tab-dashboard`, `tab-clientes`, `tab-produtos`, `tab-pedidos`                  | abas do `Tabs` em `(app)/_layout.tsx` (`tabBarButtonTestID`) |
+| `tab-hoje`, `tab-rota` (E12)                                                    | abas da Inteligência — só existem com `intelligenceEnabled`; `tab-dashboard`/`screen-home` continuam valendo com a flag desligada |
+| `screen-hoje`, `screen-rota`, `card-plano-do-dia`, `sync-pill`, `freshness-footer` (E12) | telas Hoje/Rota e componentes da Inteligência |
 | `btn-novo-pedido`                                                               | FAB em `(app)/pedidos/index.tsx`                             |
 | `input-busca-cliente`, `resultado-cliente-{i}`, `btn-adicionar-produto-{i}`     | wizard passo 1 — busca, cliente e filial (`novo-pedido`)     |
 | `produto-lista`, `produto-{i}`, `cache-badge`, `btn-proximo-step`               | wizard passo 2 — produtos                                    |
