@@ -60,9 +60,9 @@ describe('middleware(request)', () => {
     }
   })
 
-  it('redireciona rota pública com sessão ativa para /dashboard', () => {
+  it("redireciona rota pública com sessão ativa para '/' (home por papel — E9)", () => {
     const res = middleware(makeRequest('/login', { session: true }))
     expect(res.status).toBe(307)
-    expect(new URL(res.headers.get('location')!).pathname).toBe('/dashboard')
+    expect(new URL(res.headers.get('location')!).pathname).toBe('/')
   })
 })

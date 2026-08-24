@@ -243,11 +243,13 @@ interface UserModalProps {
   companyId: string
   mode: ModalMode
   user?: UserPublic
+  /** Usuários com intel.manager da empresa (D3b) — select de gerente */
+  managers?: { id: string; name: string }[]
   onClose: () => void
   onSaved: () => void
 }
 
-export function UserModal({ companyId, mode, user, onClose, onSaved }: UserModalProps) {
+export function UserModal({ companyId, mode, user, managers = [], onClose, onSaved }: UserModalProps) {
   const title =
     mode === 'create' ? 'Novo Usuário' : mode === 'copy' ? 'Copiar Usuário' : 'Editar Usuário'
   const isNew = mode !== 'edit'
@@ -265,10 +267,30 @@ export function UserModal({ companyId, mode, user, onClose, onSaved }: UserModal
       password: '',
       role: user?.role === 'ADMIN' ? 'ADMIN' : 'SALESPERSON',
       idVendProt: user?.idVendProt ?? '',
+      visitsPerDay: user?.visitsPerDay ? String(user.visitsPerDay) : '',
+      vehicle: (user?.vehicle ?? '') as '' | 'CAR' | 'MOTORCYCLE' | 'FOOT',
+      servedCities: (user?.servedCities ?? []).join(', '),
+      messageTone: (user?.messageTone ?? '') as '' | 'informal' | 'formal',
+      managerId: user?.managerId ?? '',
     },
   })
 
   const role = watch('role')
+
+  // Campos do vendedor (E10) — strings do form → payload da API
+  function vendorProfileBody(data: CompanyUserFormData): Record<string, unknown> {
+    return {
+      idVendProt: data.idVendProt || null,
+      visitsPerDay: data.visitsPerDay ? Number(data.visitsPerDay) : null,
+      vehicle: data.vehicle || null,
+      servedCities: (data.servedCities ?? '')
+        .split(',')
+        .map((c) => c.trim())
+        .filter(Boolean),
+      messageTone: data.messageTone || null,
+      managerId: data.managerId || null,
+    }
+  }
 
   async function onSubmit(data: CompanyUserFormData) {
     try {
@@ -279,7 +301,7 @@ export function UserModal({ companyId, mode, user, onClose, onSaved }: UserModal
           role: data.role,
         }
         if (data.password) body.password = data.password
-        if (data.role === 'SALESPERSON') body.idVendProt = data.idVendProt || null
+        if (data.role === 'SALESPERSON') Object.assign(body, vendorProfileBody(data))
         await api.patch(`/companies/${companyId}/users/${user.id}`, body)
       } else {
         await api.post(`/companies/${companyId}/users`, {
@@ -287,7 +309,7 @@ export function UserModal({ companyId, mode, user, onClose, onSaved }: UserModal
           email: data.email,
           password: data.password,
           role: data.role,
-          ...(data.role === 'SALESPERSON' && { idVendProt: data.idVendProt || null }),
+          ...(data.role === 'SALESPERSON' && vendorProfileBody(data)),
         })
       }
       onSaved()
@@ -321,11 +343,51 @@ export function UserModal({ companyId, mode, user, onClose, onSaved }: UserModal
           <option value="ADMIN">Administrador</option>
         </FormSelect>
         {role === 'SALESPERSON' && (
-          <FormField
-            label="Cód. Vendedor (Protheus)"
-            placeholder="Código do vendedor no ERP (ex: 001)"
-            {...register('idVendProt')}
-          />
+          <>
+            <FormField
+              label="Cód. Vendedor (Protheus)"
+              placeholder="Código do vendedor no ERP (ex: 001)"
+              {...register('idVendProt')}
+            />
+            <div className="grid grid-cols-2 gap-3">
+              <FormField
+                type="number"
+                min={1}
+                max={30}
+                label="Visitas por dia"
+                placeholder="padrão da empresa"
+                {...register('visitsPerDay')}
+              />
+              <FormSelect label="Veículo" {...register('vehicle')}>
+                <option value="">—</option>
+                <option value="CAR">Carro</option>
+                <option value="MOTORCYCLE">Moto</option>
+                <option value="FOOT">A pé</option>
+              </FormSelect>
+            </div>
+            <FormField
+              label="Cidades atendidas"
+              placeholder="Campinas, Valinhos (separadas por vírgula)"
+              {...register('servedCities')}
+            />
+            <div className="grid grid-cols-2 gap-3">
+              <FormSelect label="Tom das mensagens" {...register('messageTone')}>
+                <option value="">Herdar da empresa</option>
+                <option value="informal">Informal</option>
+                <option value="formal">Formal</option>
+              </FormSelect>
+              <FormSelect label="Gerente (Inteligência)" {...register('managerId')}>
+                <option value="">Sem gerente</option>
+                {managers
+                  .filter((m) => m.id !== user?.id)
+                  .map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.name}
+                    </option>
+                  ))}
+              </FormSelect>
+            </div>
+          </>
         )}
         <FormActions
           loading={isSubmitting}

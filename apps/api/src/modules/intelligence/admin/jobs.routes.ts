@@ -64,6 +64,8 @@ export default async function jobsRoutes(app: FastifyInstance) {
       startedAt: run.startedAt.toISOString(),
       finishedAt: run.finishedAt?.toISOString() ?? null,
       error: run.error,
+      // Progresso do backfill (P5): { kind:'backfill', contract, done, total }
+      metadata: run.metadata ?? null,
     })
 
     return reply.send({

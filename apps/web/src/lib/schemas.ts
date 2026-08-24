@@ -39,6 +39,12 @@ export const companyUserBaseSchema = z.object({
   password: z.string().optional(),
   role: z.enum(['ADMIN', 'SALESPERSON']),
   idVendProt: z.string().optional(),
+  // Perfil de vendedor da Inteligência (E10) — strings do form, convertidas no submit
+  visitsPerDay: z.string().optional(),
+  vehicle: z.enum(['', 'CAR', 'MOTORCYCLE', 'FOOT']).optional(),
+  servedCities: z.string().optional(),
+  messageTone: z.enum(['', 'informal', 'formal']).optional(),
+  managerId: z.string().optional(),
 })
 
 export type CompanyUserFormData = z.infer<typeof companyUserBaseSchema>
