@@ -51,6 +51,10 @@ Todos os testIDs abaixo existem no código (confira com `grep -rn testID app src
 | `tab-dashboard`, `tab-clientes`, `tab-produtos`, `tab-pedidos`                  | abas do `Tabs` em `(app)/_layout.tsx` (`tabBarButtonTestID`) |
 | `tab-hoje`, `tab-rota` (E12)                                                    | abas da Inteligência — só existem com `intelligenceEnabled`; `tab-dashboard`/`screen-home` continuam valendo com a flag desligada |
 | `screen-hoje`, `screen-rota`, `card-plano-do-dia`, `sync-pill`, `freshness-footer` (E12) | telas Hoje/Rota e componentes da Inteligência |
+| `plan-item-N`, `btn-cheguei-N`, `btn-tirar-N`, `btn-rota-completa` (E13)        | cards do Plano do dia (`rota/index.tsx`) |
+| `screen-visita`, `before-enter`, `resultado-*`, `input-motivo`, `btn-concluir-visita`, `btn-iniciar-pedido` (E13) | tela de Visita |
+| `screen-mensagem`, `molde-*`, `input-mensagem`, `btn-whatsapp`, `btn-copiar` (E13) | tela de Mensagem |
+| `atalho-esfriando`, `btn-limpar-filtro`, `plan-thumbs-up/down` (E13)            | atalhos da Hoje e filtro da lista de clientes |
 | `btn-novo-pedido`                                                               | FAB em `(app)/pedidos/index.tsx`                             |
 | `input-busca-cliente`, `resultado-cliente-{i}`, `btn-adicionar-produto-{i}`     | wizard passo 1 — busca, cliente e filial (`novo-pedido`)     |
 | `produto-lista`, `produto-{i}`, `cache-badge`, `btn-proximo-step`               | wizard passo 2 — produtos                                    |
