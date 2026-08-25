@@ -32,3 +32,19 @@ export function statusColor(status: CustomerStatus): string {
 export function statusLabel(status: CustomerStatus): string {
   return STATUS_LABELS[status] ?? status
 }
+
+const VALID_STATUSES: CustomerStatus[] = ['NEW', 'ON_CYCLE', 'LATE', 'AT_RISK', 'INACTIVE', 'BLOCKED']
+
+/**
+ * Filtro de status vindo do parâmetro de rota (`?intelStatus=LATE,AT_RISK`),
+ * usado pelo atalho "Quem está esfriando?" do Hoje. `null` = sem filtro, ou
+ * seja, a lista completa.
+ */
+export function parseIntelStatusParam(raw: string | undefined): CustomerStatus[] | null {
+  const parsed = (raw ?? '')
+    .split(',')
+    .map((v) => v.trim())
+    .filter((v): v is CustomerStatus => VALID_STATUSES.includes(v as CustomerStatus))
+  return parsed.length > 0 ? parsed : null
+}
+
