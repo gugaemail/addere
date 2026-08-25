@@ -1,0 +1,193 @@
+// KPIs da Equipe em campo (E8) sobre fixtures — nada aqui toca o banco.
+import { describe, expect, it } from 'vitest'
+import { buildTeamReport, type TeamInput } from '../team'
+import { addDays, businessDaysIn, rangeWindow } from '../range'
+import { resolveTeamScope } from '../manager.service'
+
+const seller = (over: Partial<TeamInput['sellers'][number]> = {}) => ({
+  userId: 'u1',
+  name: 'Ana',
+  vendorCode: 'V1',
+  hasManager: true,
+  portfolio: 10,
+  positivatedInMonth: 4,
+  ...over,
+})
+
+const base = (over: Partial<TeamInput> = {}): TeamInput => ({
+  sellers: [seller()],
+  plans: [{ vendorCode: 'V1', ymd: '20260825', activeItems: 8 }],
+  visits: [],
+  fromYmd: '20260825',
+  toYmd: '20260825',
+  minVisits: 0,
+  stale: false,
+  ...over,
+})
+
+const visit = (over: Partial<TeamInput['visits'][number]> = {}) => ({
+  vendorCode: 'V1',
+  ymd: '20260825',
+  customerKey: 'C1|01',
+  planItemId: 'i1',
+  result: 'ORDER' as string | null,
+  ...over,
+})
+
+describe('buildTeamReport', () => {
+  it('aderência é visitas feitas sobre previstas', () => {
+    const report = buildTeamReport(
+      base({ visits: [visit(), visit({ customerKey: 'C2|01' }), visit({ customerKey: 'C3|01' })] })
+    )
+    expect(report.sellers[0].planned).toBe(8)
+    expect(report.sellers[0].done).toBe(3)
+    expect(report.sellers[0].adherencePct).toBe(37.5)
+  })
+
+  it('positivação da visita ignora visita ainda aberta', () => {
+    const report = buildTeamReport(
+      base({
+        visits: [
+          visit({ result: 'ORDER' }),
+          visit({ customerKey: 'C2|01', result: 'NO_ORDER' }),
+          visit({ customerKey: 'C3|01', result: null }),
+        ],
+      })
+    )
+    // 1 pedido em 2 visitas com desfecho — a terceira não conta como "sem pedido"
+    expect(report.sellers[0].visitPositivationPct).toBe(50)
+    expect(report.sellers[0].done).toBe(3)
+  })
+
+  it('positivação da carteira vem do mês, não da janela', () => {
+    const report = buildTeamReport(
+      base({ sellers: [seller({ portfolio: 8, positivatedInMonth: 2 })] })
+    )
+    expect(report.sellers[0].portfolioPositivationPct).toBe(25)
+  })
+
+  it('conta visita fora do plano separado', () => {
+    const report = buildTeamReport(
+      base({ visits: [visit(), visit({ customerKey: 'C9|01', planItemId: null })] })
+    )
+    expect(report.sellers[0].outOfPlan).toBe(1)
+  })
+
+  it('descarta plano e visita fora da janela', () => {
+    const report = buildTeamReport(
+      base({
+        plans: [
+          { vendorCode: 'V1', ymd: '20260825', activeItems: 8 },
+          { vendorCode: 'V1', ymd: '20260826', activeItems: 5 },
+        ],
+        visits: [visit(), visit({ ymd: '20260826', customerKey: 'C2|01' })],
+      })
+    )
+    expect(report.sellers[0].planned).toBe(8)
+    expect(report.sellers[0].done).toBe(1)
+  })
+
+  it('alerta de sem plano e de poucas visitas', () => {
+    const report = buildTeamReport(base({ plans: [], minVisits: 3, visits: [visit()] }))
+    expect(report.sellers[0].alerts.map((a) => a.kind)).toEqual(['NO_PLAN', 'FEW_VISITS'])
+  })
+
+  it('minVisits zero desliga o alerta de poucas visitas', () => {
+    const report = buildTeamReport(base({ minVisits: 0, visits: [] }))
+    expect(report.sellers[0].alerts.map((a) => a.kind)).not.toContain('FEW_VISITS')
+  })
+
+  it('dados velhos viram alerta do relatório, não do vendedor', () => {
+    const report = buildTeamReport(base({ stale: true }))
+    expect(report.alerts.map((a) => a.kind)).toEqual(['STALE_DATA'])
+    expect(report.sellers[0].alerts.map((a) => a.kind)).not.toContain('STALE_DATA')
+  })
+
+  it('sem previstas, aderência é nula em vez de zero', () => {
+    const report = buildTeamReport(base({ plans: [], visits: [visit()] }))
+    expect(report.sellers[0].adherencePct).toBeNull()
+  })
+
+  it('totais somam os vendedores e contam os sem gerente', () => {
+    const report = buildTeamReport(
+      base({
+        sellers: [
+          seller(),
+          seller({
+            userId: 'u2',
+            name: 'Bruno',
+            vendorCode: 'V2',
+            hasManager: false,
+            portfolio: 10,
+            positivatedInMonth: 6,
+          }),
+        ],
+        plans: [
+          { vendorCode: 'V1', ymd: '20260825', activeItems: 8 },
+          { vendorCode: 'V2', ymd: '20260825', activeItems: 2 },
+        ],
+        visits: [visit(), visit({ vendorCode: 'V2', customerKey: 'C5|01', result: 'NO_ORDER' })],
+      })
+    )
+    expect(report.totals).toMatchObject({ sellers: 2, planned: 10, done: 2, adherencePct: 20 })
+    expect(report.totals.visitPositivationPct).toBe(50)
+    expect(report.totals.portfolioPositivationPct).toBe(50) // (4+6)/(10+10)
+    expect(report.unassignedSellers).toBe(1)
+  })
+
+  it('empresa sem vendedores devolve totais vazios sem quebrar', () => {
+    const report = buildTeamReport(base({ sellers: [], plans: [], visits: [] }))
+    expect(report.totals.sellers).toBe(0)
+    expect(report.totals.adherencePct).toBeNull()
+    expect(report.totals.portfolioPositivationPct).toBeNull()
+  })
+})
+
+describe('rangeWindow', () => {
+  it('day é o próprio dia', () => {
+    expect(rangeWindow('20260825', 'day')).toEqual({ fromYmd: '20260825', toYmd: '20260825' })
+  })
+
+  it('week vai de segunda a domingo', () => {
+    // 25/08/2026 é uma terça
+    expect(rangeWindow('20260825', 'week')).toEqual({ fromYmd: '20260824', toYmd: '20260830' })
+    // domingo pertence à semana que começou na segunda anterior
+    expect(rangeWindow('20260830', 'week')).toEqual({ fromYmd: '20260824', toYmd: '20260830' })
+  })
+
+  it('month cobre o mês inteiro, respeitando o último dia', () => {
+    expect(rangeWindow('20260825', 'month')).toEqual({ fromYmd: '20260801', toYmd: '20260831' })
+    expect(rangeWindow('20260210', 'month').toYmd).toBe('20260228')
+  })
+
+  it('addDays atravessa a virada de mês', () => {
+    expect(addDays('20260831', 1)).toBe('20260901')
+    expect(addDays('20260301', -1)).toBe('20260228')
+  })
+
+  it('businessDaysIn exclui domingo e respeita o sábado', () => {
+    const week = rangeWindow('20260825', 'week')
+    expect(businessDaysIn(week, false)).toBe(5)
+    expect(businessDaysIn(week, true)).toBe(6)
+  })
+})
+
+describe('resolveTeamScope (D3b)', () => {
+  it('admin vê a empresa inteira, mesmo com vários gerentes', () => {
+    expect(resolveTeamScope({ viewerId: 'm1', isAdmin: true, managerCount: 3 })).toEqual({
+      managerId: null,
+    })
+  })
+
+  it('gerente único vê todos — os sem gerente contam como dele', () => {
+    expect(resolveTeamScope({ viewerId: 'm1', isAdmin: false, managerCount: 1 })).toEqual({
+      managerId: null,
+    })
+  })
+
+  it('com dois ou mais gerentes, cada um vê só os seus', () => {
+    expect(resolveTeamScope({ viewerId: 'm1', isAdmin: false, managerCount: 2 })).toEqual({
+      managerId: 'm1',
+    })
+  })
+})
