@@ -5,7 +5,10 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { createUserSchema, type CreateUserFormData } from '@/lib/schemas'
 import { useCreateUser, useUsers } from '@/hooks/useUsers'
 import { useUserTypes } from '@/hooks/useUserTypes'
+import { useAuth } from '@/contexts/AuthContext'
+import { useCompanyContext } from '@/contexts/CompanyContext'
 import { getApiErrorMessage } from '@/lib/api'
+import { needsActiveCompany } from '@/lib/intel-helpers'
 import { Modal } from '@/components/ui/Modal'
 import { Input } from '@/components/ui/Input'
 import { Button } from '@/components/ui/Button'
@@ -24,8 +27,16 @@ interface CreateUserModalProps {
 export function CreateUserModal({ isOpen, onClose, companyId }: CreateUserModalProps) {
   const createUser = useCreateUser(companyId)
   const isCompanyScope = !!companyId
+  const { isSuperAdmin } = useAuth()
+  const { companyId: activeCompanyId } = useCompanyContext()
   const { data: userTypes } = useUserTypes()
   const { data: users } = useUsers()
+
+  // Fora do escopo da empresa, o SUPERADMIN precisa dizer em qual empresa o
+  // usuário nasce: a API grava null quando não recebe companyId, e o usuário
+  // fica órfão — sem aparecer na empresa e invisível para a Equipe em campo,
+  // que filtra por companyId. Mesma regra das telas da Inteligência.
+  const missingCompany = !isCompanyScope && needsActiveCompany(isSuperAdmin, activeCompanyId)
 
   const {
     register,
@@ -35,6 +46,7 @@ export function CreateUserModal({ isOpen, onClose, companyId }: CreateUserModalP
   } = useForm<CreateUserFormData>({ resolver: zodResolver(createUserSchema) })
 
   const onSubmit = async (data: CreateUserFormData) => {
+    if (missingCompany) return
     try {
       await createUser.mutateAsync(
         isCompanyScope
@@ -43,6 +55,8 @@ export function CreateUserModal({ isOpen, onClose, companyId }: CreateUserModalP
               ...data,
               userTypeId: data.userTypeId || undefined,
               copyPermissionsFromUserId: data.copyPermissionsFromUserId || undefined,
+              // Demais papéis herdam a empresa do próprio token na API
+              companyId: isSuperAdmin ? (activeCompanyId ?? undefined) : undefined,
             }
       )
       reset()
@@ -96,6 +110,13 @@ export function CreateUserModal({ isOpen, onClose, companyId }: CreateUserModalP
           </>
         )}
 
+        {missingCompany && (
+          <p className="rounded-lg border border-warning/30 bg-warning/5 px-3 py-2 text-sm text-[var(--text-secondary)]">
+            Escolha a empresa ativa na barra lateral antes de criar o usuário — sem ela o cadastro
+            nasceria sem empresa e não apareceria em lugar nenhum.
+          </p>
+        )}
+
         {createUser.isError && (
           <p className="text-sm text-danger">
             {getApiErrorMessage(createUser.error, 'Erro ao criar usuário.')}
@@ -106,7 +127,7 @@ export function CreateUserModal({ isOpen, onClose, companyId }: CreateUserModalP
           <Button type="button" variant="secondary" onClick={onClose}>
             Cancelar
           </Button>
-          <Button type="submit" loading={isSubmitting}>
+          <Button type="submit" loading={isSubmitting} disabled={missingCompany}>
             Criar usuário
           </Button>
         </div>

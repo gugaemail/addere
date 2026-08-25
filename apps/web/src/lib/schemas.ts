@@ -12,6 +12,10 @@ export const createUserSchema = z.object({
   role: z.enum(['ADMIN', 'SALESPERSON']),
   userTypeId: z.string().optional(),
   copyPermissionsFromUserId: z.string().optional(),
+  // Sem isso a API cai no `input.companyId ?? null` e o SUPERADMIN cria um
+  // usuário sem empresa: ele some da aba da empresa e, mesmo com intel.manager,
+  // fica invisível para a Equipe em campo, que filtra por companyId.
+  companyId: z.string().uuid().optional(),
 })
 
 export type LoginFormData = z.infer<typeof loginSchema>
