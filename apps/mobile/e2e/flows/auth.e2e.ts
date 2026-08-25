@@ -1,14 +1,14 @@
-import { by, device, element, expect, waitFor } from 'detox'
-import { loginAs } from '../helpers/auth'
+import { by, device, element, waitFor } from 'detox'
+import { launchFreshApp, loginAs, waitForHome } from '../helpers/auth'
 
 describe('Autenticação', () => {
   beforeEach(async () => {
-    await device.launchApp({ newInstance: true })
+    await launchFreshApp()
   })
 
   it('login com credenciais válidas', async () => {
+    // A home é `screen-hoje` ou `screen-home` conforme a flag da empresa
     await loginAs('rep')
-    await expect(element(by.id('screen-home'))).toBeVisible()
   })
 
   it('rejeita credenciais inválidas', async () => {
@@ -23,8 +23,6 @@ describe('Autenticação', () => {
   it('persiste sessão após restart do app', async () => {
     await loginAs('rep')
     await device.reloadReactNative()
-    await waitFor(element(by.id('screen-home')))
-      .toBeVisible()
-      .withTimeout(5000)
+    await waitForHome(15000)
   })
 })

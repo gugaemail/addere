@@ -9,7 +9,9 @@ import { AppError } from './errors'
 export function registerErrorHandling(app: FastifyInstance): void {
   app.setErrorHandler((err, request, reply) => {
     if (err instanceof AppError) {
-      return reply.status(err.statusCode).send({ message: err.message })
+      return reply
+        .status(err.statusCode)
+        .send(err.details === undefined ? { message: err.message } : { message: err.message, details: err.details })
     }
     if (err instanceof ZodError) {
       return reply.status(400).send({ message: err.errors[0]?.message ?? 'Dados inválidos' })

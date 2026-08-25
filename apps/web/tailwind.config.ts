@@ -1,5 +1,5 @@
 import type { Config } from 'tailwindcss'
-import { BRAND } from './src/lib/brand-tokens'
+import { BRAND, STATUS } from './src/lib/brand-tokens'
 
 const config: Config = {
   darkMode: 'class',
@@ -27,6 +27,8 @@ const config: Config = {
         // Tokens de marca iguais nos dois temas — hex (via brand-tokens) para
         // que modificadores de opacidade (bg-success/10, border-danger/30) funcionem.
         // Cores baseadas em var(--*) não suportam /alpha no Tailwind v3.
+        // Status do motor da Inteligência (bg-status-onCycle, text-status-late...)
+        status: STATUS,
         accent: BRAND.accent,
         navy: BRAND.navy,
         tint: BRAND.tint,

@@ -15,7 +15,8 @@ export function middleware(request: NextRequest) {
   }
 
   if (isPublic && hasSession) {
-    return NextResponse.redirect(new URL('/dashboard', request.url))
+    // '/' decide a home pelo papel (E9): SUPERADMIN → /dashboard; demais → /inteligencia
+    return NextResponse.redirect(new URL('/', request.url))
   }
 
   return NextResponse.next()

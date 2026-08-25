@@ -2,7 +2,8 @@
 
 import { createContext, useContext, useEffect, useState, useCallback } from 'react'
 import axios from 'axios'
-import { api, setAccessToken } from '@/lib/api'
+import { useQueryClient } from '@tanstack/react-query'
+import { api, clearAccessToken, setAccessToken } from '@/lib/api'
 import type { UserPublic } from '@addere/types'
 
 interface AuthContextValue {
@@ -10,6 +11,11 @@ interface AuthContextValue {
   isLoading: boolean
   isAdmin: boolean
   isSuperAdmin: boolean
+  // ─── E9: permissões e tenant vindos de GET /auth/me ───
+  permissions: string[]
+  hasPermission: (key: string) => boolean
+  companyId: string | null
+  intelligenceEnabled: boolean
   login: (email: string, password: string) => Promise<UserPublic>
   logout: () => Promise<void>
 }
@@ -17,6 +23,7 @@ interface AuthContextValue {
 const AuthContext = createContext<AuthContextValue | null>(null)
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const queryClient = useQueryClient()
   const [user, setUser] = useState<UserPublic | null>(null)
   const [isLoading, setIsLoading] = useState(true)
 
@@ -27,14 +34,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const { data } = await axios.post(
           `${process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3333'}/auth/refresh`,
           {},
-          { withCredentials: true }
+          { withCredentials: true, headers: { 'X-Requested-With': 'XMLHttpRequest' } }
         )
         setAccessToken(data.accessToken)
         // Obtém o usuário atual com o novo token
         const { data: userData } = await api.get<UserPublic>('/auth/me')
         setUser(userData)
       } catch {
-        // Sem sessão ativa — usuário não está autenticado
+        // Sem sessão restaurável: limpa o cookie indicador, senão o middleware
+        // fica devolvendo /login → '/' em loop até o cookie expirar (E9)
+        clearAccessToken()
       } finally {
         setIsLoading(false)
       }
@@ -49,8 +58,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       password,
     })
     setAccessToken(data.accessToken)
-    setUser(data.user)
-    return data.user
+    // O login não devolve permissões/empresa — o /auth/me devolve (E1c).
+    // Se falhar, segue com o usuário do login (sem permissions → sem itens intel).
+    try {
+      const { data: me } = await api.get<UserPublic>('/auth/me')
+      setUser(me)
+      return me
+    } catch {
+      setUser(data.user)
+      return data.user
+    }
   }, [])
 
   const logout = useCallback(async () => {
@@ -59,8 +76,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } finally {
       setAccessToken(null)
       setUser(null)
+      // Painel multiusuário (E9): sem isso, dados do tenant anterior ficam
+      // no cache e aparecem para o próximo login na mesma aba
+      queryClient.clear()
     }
-  }, [])
+  }, [queryClient])
+
+  const permissions = user?.permissions ?? []
+  const hasPermission = useCallback(
+    (key: string) => user?.role === 'SUPERADMIN' || (user?.permissions ?? []).includes(key),
+    [user]
+  )
 
   return (
     <AuthContext.Provider
@@ -69,6 +95,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         isLoading,
         isAdmin: user?.role === 'ADMIN',
         isSuperAdmin: user?.role === 'SUPERADMIN',
+        permissions,
+        hasPermission,
+        companyId: user?.companyId ?? null,
+        intelligenceEnabled: user?.company?.intelligenceEnabled ?? false,
         login,
         logout,
       }}

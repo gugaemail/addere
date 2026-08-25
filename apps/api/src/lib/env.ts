@@ -12,8 +12,40 @@ const envSchema = z.object({
   CORS_ORIGIN: z.string().default('http://localhost:3000'),
   UPLOAD_DIR: z.string().default('uploads'),
   RESEND_API_KEY: z.string().optional(),
+  // Camada de Inteligência: 'mock' usa o gerador sintético (dev/smoke sem Protheus)
+  INTEL_SQL_ADAPTER: z.enum(['protheus', 'mock']).default('protheus'),
+  SENTRY_DSN: z.string().url().optional(),
+  // Agente LLM (E6, decisão D13) — sem chave ou desligado, tudo cai no só-motor
+  ANTHROPIC_API_KEY: z.string().optional(),
+  INTEL_LLM_MODEL: z.string().default('claude-sonnet-5'),
+  INTEL_LLM_ENABLED: z.enum(['true', 'false']).default('true'),
+  INTEL_LLM_DAILY_TOKEN_CAP: z.coerce.number().int().positive().default(500_000),
+  // Geocodificação (E15-F1, decisão D14a) — Nominatim agora; Google via stub
+  INTEL_GEOCODER: z.enum(['nominatim', 'google', 'mock']).default('nominatim'),
+  GOOGLE_GEOCODING_API_KEY: z.string().optional(),
   WEB_URL: z.string().url().optional(),
 })
 
+export type Env = z.infer<typeof envSchema>
+
+/**
+ * Variável de ambiente criada sem valor (comum no painel do Render/Vercel) chega
+ * como string vazia, e string vazia NÃO é o mesmo que "não definida" para o zod:
+ * `SENTRY_DSN=""` reprova em `.url()` e derruba o processo no boot, `PORT=""`
+ * passaria batido pelo `.default()`. Tratamos vazio como ausente.
+ */
+export function withoutEmptyValues(source: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+  const cleaned: NodeJS.ProcessEnv = {}
+  for (const [key, value] of Object.entries(source)) {
+    if (typeof value === 'string' && value.trim() === '') continue
+    cleaned[key] = value
+  }
+  return cleaned
+}
+
+export function parseEnv(source: NodeJS.ProcessEnv = process.env): Env {
+  return envSchema.parse(withoutEmptyValues(source))
+}
+
 // Valida no boot — lança erro claro antes de qualquer plugin Fastify carregar
-export const env = envSchema.parse(process.env)
+export const env = parseEnv()

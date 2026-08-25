@@ -18,6 +18,7 @@ interface AuthState {
   clearAuth: () => Promise<void>
   hydrate: () => Promise<void>
   fetchPermissions: (token: string) => Promise<void>
+  fetchMe: (token: string) => Promise<void>
   refreshSession: () => Promise<string>
 }
 
@@ -40,7 +41,10 @@ export const useAuthStore = create<AuthState>((set) => ({
     } catch {
       setSentryUser({ id: user.id, company: 'unknown' })
     }
-    await useAuthStore.getState().fetchPermissions(token)
+    await Promise.all([
+      useAuthStore.getState().fetchPermissions(token),
+      useAuthStore.getState().fetchMe(token),
+    ])
   },
 
   clearAuth: async () => {
@@ -66,6 +70,21 @@ export const useAuthStore = create<AuthState>((set) => ({
     }
   },
 
+  // Atualiza o usuário com o /auth/me completo (permissions + company com a
+  // flag da Inteligência — E12). Persiste para a flag valer offline no boot.
+  fetchMe: async (token) => {
+    try {
+      const { data } = await axios.get<UserPublic>(`${env.apiUrl}/auth/me`, {
+        headers: { Authorization: `Bearer ${token}` },
+        timeout: 8000,
+      })
+      await SecureStore.setItemAsync(USER_KEY, JSON.stringify(data))
+      set({ user: data })
+    } catch {
+      // Offline: mantém o usuário persistido (flag da última sessão)
+    }
+  },
+
   // Única implementação de refresh do app — usada pelo interceptor de 401,
   // pela hidratação no boot e pelo login biométrico.
   // Tenta via cookie (sessão ativa) e cai para o refresh token do SecureStore.
@@ -76,6 +95,10 @@ export const useAuthStore = create<AuthState>((set) => ({
       const { data } = await axios.post(`${env.apiUrl}/auth/refresh`, body, {
         withCredentials: true,
         timeout: 8000,
+        // O RN guarda o cookie de sessão e o envia junto; sem este header a API
+        // trata a chamada como possível CSRF e devolve 403 (o que derrubava a
+        // sessão no boot do app).
+        headers: { 'X-Requested-With': 'XMLHttpRequest' },
       })
       return data as { accessToken: string; refreshToken: string }
     }
@@ -86,7 +109,7 @@ export const useAuthStore = create<AuthState>((set) => ({
     } catch (cookieErr) {
       const e = cookieErr as { response?: unknown }
       if (storedRefreshToken && e.response) {
-        // Cookie ausente (RN não persiste), tenta com token do SecureStore
+        // Cookie recusado/ausente: tenta com o refresh token do SecureStore
         data = await tryRefresh({ refreshToken: storedRefreshToken })
       } else {
         throw cookieErr
@@ -113,7 +136,10 @@ export const useAuthStore = create<AuthState>((set) => ({
       try {
         const newToken = await useAuthStore.getState().refreshSession()
         set({ user, hydrated: true })
-        await useAuthStore.getState().fetchPermissions(newToken)
+        await Promise.all([
+          useAuthStore.getState().fetchPermissions(newToken),
+          useAuthStore.getState().fetchMe(newToken),
+        ])
       } catch (err) {
         const e = err as { response?: unknown; code?: string }
         if (!e.response || e.code === 'ECONNABORTED') {

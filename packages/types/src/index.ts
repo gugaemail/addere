@@ -2,6 +2,9 @@
 export type { FieldDefinition } from './field-registry'
 export { FIELD_REGISTRY, FIELD_REGISTRY_KEYS } from './field-registry'
 
+// ─── Camada de Inteligência ────────────────────────────────────────────────
+export * from './intelligence'
+
 // ─── Auth ──────────────────────────────────────────────────────────────────
 
 export type UserRole = 'SUPERADMIN' | 'ADMIN' | 'SALESPERSON'
@@ -26,6 +29,17 @@ export interface UserPublic {
   idVendProt: string | null
   userTypeId: string | null
   createdAt: string
+  // ─── E1c: devolvidos por GET /auth/me (opcionais p/ compatibilidade) ───
+  companyId?: string | null
+  permissions?: string[]
+  company?: { intelligenceEnabled: boolean; defaultTone: string } | null
+  // ─── E10: perfil de vendedor da Inteligência (detalhe da empresa) ───
+  visitsPerDay?: number | null
+  vehicle?: 'CAR' | 'MOTORCYCLE' | 'FOOT' | null
+  servedCities?: string[]
+  messageTone?: string | null
+  managerId?: string | null
+  intelManager?: boolean // tem a permissão intel.manager (D3b)
 }
 
 // ─── Permissões dinâmicas ──────────────────────────────────────────────────
@@ -69,6 +83,7 @@ export interface Company {
   apiConsPed: string | null
   apiCondPag: string | null
   apiTransp: string | null
+  apiSql: string | null // POST SELECT genérico (camada de Inteligência)
   usrProtheus: string | null
   passProtheus: string | null
   syncConfig: unknown | null
@@ -104,6 +119,7 @@ export interface CompanyDetail {
   apiConsPed: string | null
   apiCondPag: string | null
   apiTransp: string | null
+  apiSql: string | null
   usrProtheus: string | null
   passProtheus: string | null
 }
@@ -329,6 +345,12 @@ export type PilotEventType =
   | 'ORDER_SYNC_FAILED'
   | 'SESSION_STARTED'
   | 'CATALOG_LOADED'
+  // Camada de Inteligência (E12) — já aceitos por POST /pilot/events
+  | 'PLAN_OPENED'
+  | 'VISIT_CHECKIN'
+  | 'VISIT_RESULT'
+  | 'MESSAGE_SENT'
+  | 'PLAN_EDITED'
 
 export interface Pilot {
   id: string

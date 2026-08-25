@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query'
+import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { useEffect, useRef } from 'react'
 import { api } from '../lib/api'
 import { pilotTracker } from '../services/pilotTracking'
@@ -27,6 +27,8 @@ export function useCatalog(search?: string) {
     staleTime,
     gcTime: 1000 * 60 * 60 * 24 * 7,
     networkMode: 'offlineFirst',
+    // Mantém a lista anterior enquanto a nova busca carrega (evita piscar a cada tecla)
+    placeholderData: keepPreviousData,
   })
 
   const isFromCache =

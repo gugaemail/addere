@@ -71,7 +71,11 @@ api.interceptors.response.use(
     _refreshing = true
 
     try {
-      const { data } = await axios.post(`${env.apiUrl}/auth/refresh`, {}, { withCredentials: true })
+      const { data } = await axios.post(
+        `${env.apiUrl}/auth/refresh`,
+        {},
+        { withCredentials: true, headers: { 'X-Requested-With': 'XMLHttpRequest' } }
+      )
       setAccessToken(data.accessToken)
       _refreshQueue.forEach((cb) => cb(data.accessToken))
       original.headers.Authorization = `Bearer ${data.accessToken}`

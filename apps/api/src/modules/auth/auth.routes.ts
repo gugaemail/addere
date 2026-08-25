@@ -100,11 +100,22 @@ export default async function authRoutes(app: FastifyInstance) {
       },
     },
     async (request: FastifyRequest, reply: FastifyReply) => {
-      // Cookie (web) tem prioridade; body (mobile/biometria) é fallback
+      // Token no corpo (mobile/biometria) tem prioridade sobre o cookie (web):
+      // o app RN também guarda o cookie da sessão e o envia junto, então dar
+      // prioridade ao cookie fazia a checagem de CSRF barrar o refresh do app.
+      const cookieToken = request.cookies[COOKIE_NAME]
       const bodyToken = (request.body as { refreshToken?: string } | null)?.refreshToken
-      const token = request.cookies[COOKIE_NAME] ?? bodyToken
+      const token = bodyToken ?? cookieToken
       if (!token) {
         return reply.status(401).send({ message: 'Refresh token ausente' })
+      }
+
+      // CSRF: só quando o token vem do cookie, que o browser anexa sozinho.
+      // Browsers não enviam X-Requested-With em requisições cross-site (form/img/etc.),
+      // e um token mandado explicitamente no corpo não é um vetor de CSRF.
+      const usingCookie = !bodyToken && Boolean(cookieToken)
+      if (usingCookie && request.headers['x-requested-with'] !== 'XMLHttpRequest') {
+        return reply.status(403).send({ message: 'CSRF check falhou' })
       }
 
       try {
@@ -133,10 +144,47 @@ export default async function authRoutes(app: FastifyInstance) {
     async (request: FastifyRequest, reply: FastifyReply) => {
       const user = await prisma.user.findUnique({
         where: { id: request.user.sub },
-        select: { id: true, name: true, email: true, role: true, active: true, createdAt: true },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          role: true,
+          active: true,
+          createdAt: true,
+          idVendProt: true,
+          userTypeId: true,
+          companyId: true,
+          servedCities: true,
+          company: { select: { intelligenceEnabled: true, intelligenceConfig: true } },
+        },
       })
       if (!user) return reply.status(404).send({ message: 'Usuário não encontrado' })
-      return reply.send(user)
+
+      // Permissões efetivas + flag da camada de Inteligência (E1c — consumidos por web/mobile)
+      const permissions = await getEffectivePermissions(request.user.sub, request.user.role)
+      const intelligenceConfig = (user.company?.intelligenceConfig ?? null) as {
+        defaultTone?: string
+      } | null
+
+      return reply.send({
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        active: user.active,
+        createdAt: user.createdAt,
+        idVendProt: user.idVendProt,
+        userTypeId: user.userTypeId,
+        companyId: user.companyId,
+        servedCities: user.servedCities,
+        permissions: Array.from(permissions),
+        company: user.company
+          ? {
+              intelligenceEnabled: user.company.intelligenceEnabled,
+              defaultTone: intelligenceConfig?.defaultTone ?? 'informal',
+            }
+          : null,
+      })
     }
   )
 

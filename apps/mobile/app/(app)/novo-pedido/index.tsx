@@ -3,6 +3,8 @@ import { View, Text, FlatList, StyleSheet, Alert, ScrollView } from 'react-nativ
 import { useRouter, Stack } from 'expo-router'
 import { ArrowLeft, ArrowRight, Minus, Plus, Search } from 'lucide-react-native'
 import { useFocusEffect } from '@react-navigation/native'
+import { useLocalSearchParams } from 'expo-router'
+import { useSyncStore } from '../../../src/store/syncStore'
 import { useClientes } from '../../../src/hooks/useClientes'
 import { useCatalog } from '../../../src/hooks/useCatalog'
 import { useBranches } from '../../../src/hooks/useBranches'
@@ -124,6 +126,8 @@ function Step1({ onComplete }: { onComplete: (customer: Customer, branch: Branch
         <FlatList
           data={customers}
           keyExtractor={(c) => c.id}
+          keyboardShouldPersistTaps="handled"
+
           renderItem={({ item, index }) => (
             <Card
               testID={`resultado-cliente-${index}`}
@@ -211,30 +215,32 @@ function Step2({
       {cart.length > 0 && (
         <View style={styles.cartBox}>
           <Text style={styles.cartTitle}>Carrinho ({cart.length})</Text>
-          {cart.map((item) => (
-            <View key={item.productId} style={styles.cartRow}>
-              <Text style={styles.cartName} numberOfLines={1}>
-                {item.productName}
-              </Text>
-              <View style={styles.qtyRow}>
-                <Button
-                  variant="ghost"
-                  size="xs"
-                  onPress={() => updateQty(item.productId, item.quantity - 1)}
-                  icon={<Minus size={16} color={buttonForeground.ghost} strokeWidth={1.5} />}
-                  accessibilityLabel="Diminuir quantidade"
-                />
-                <Text style={styles.qtyNum}>{item.quantity}</Text>
-                <Button
-                  variant="ghost"
-                  size="xs"
-                  onPress={() => updateQty(item.productId, item.quantity + 1)}
-                  icon={<Plus size={16} color={buttonForeground.ghost} strokeWidth={1.5} />}
-                  accessibilityLabel="Aumentar quantidade"
-                />
+          <ScrollView style={styles.cartList} nestedScrollEnabled>
+            {cart.map((item) => (
+              <View key={item.productId} style={styles.cartRow}>
+                <Text style={styles.cartName} numberOfLines={1}>
+                  {item.productName}
+                </Text>
+                <View style={styles.qtyRow}>
+                  <Button
+                    variant="ghost"
+                    size="xs"
+                    onPress={() => updateQty(item.productId, item.quantity - 1)}
+                    icon={<Minus size={16} color={buttonForeground.ghost} strokeWidth={1.5} />}
+                    accessibilityLabel="Diminuir quantidade"
+                  />
+                  <Text style={styles.qtyNum}>{item.quantity}</Text>
+                  <Button
+                    variant="ghost"
+                    size="xs"
+                    onPress={() => updateQty(item.productId, item.quantity + 1)}
+                    icon={<Plus size={16} color={buttonForeground.ghost} strokeWidth={1.5} />}
+                    accessibilityLabel="Aumentar quantidade"
+                  />
+                </View>
               </View>
-            </View>
-          ))}
+            ))}
+          </ScrollView>
         </View>
       )}
 
@@ -245,6 +251,8 @@ function Step2({
           testID="produto-lista"
           data={products}
           keyExtractor={(p) => p.id}
+          keyboardShouldPersistTaps="handled"
+
           renderItem={({ item, index }) => (
             <Card
               testID={`produto-${index}`}
@@ -363,7 +371,7 @@ function Step3({
   }
 
   return (
-    <ScrollView>
+    <ScrollView testID="scroll-confirmacao" keyboardShouldPersistTaps="handled">
       <Text style={styles.stepTitle}>Resumo do pedido</Text>
 
       <Card style={styles.summaryBox}>
@@ -532,8 +540,17 @@ export default function NovoPedidoScreen() {
   // Reseta o formulário toda vez que a tela ganha foco.
   // Necessário porque o Tab Navigator mantém a tela montada em memória
   // mesmo quando não está visível (href: null no _layout).
+  // Vindo da Visita (E12/E13): pré-seleciona o cliente e liga o pedido à visita
+  const visitParams = useLocalSearchParams<{ customerId?: string; visitClientId?: string }>()
+  const cameFromVisit = !!visitParams.visitClientId
+
   useFocusEffect(
     useCallback(() => {
+      // Com params de visita o formulário NÃO reseta — perderia o contexto
+      if (cameFromVisit) {
+        startOrderSession()
+        return
+      }
       setStep(1)
       setCustomer(null)
       setBranch(null)
@@ -545,7 +562,7 @@ export default function NovoPedidoScreen() {
       setIsPending(false)
       // Marca o início da sessão de pedido para medir a duração no tracking
       startOrderSession()
-    }, [])
+    }, [cameFromVisit])
   )
 
   // Auto-preenche transportadora e condPag a partir dos padrões do cliente
@@ -586,6 +603,15 @@ export default function NovoPedidoScreen() {
       })
 
       setIsPending(false)
+
+      // Pedido nascido de uma visita (E12): registra o resultado ORDER na fila
+      if (visitParams.visitClientId) {
+        useSyncStore.getState().enqueue('visitResult', {
+          clientId: visitParams.visitClientId,
+          result: 'ORDER',
+          leftAt: new Date().toISOString(),
+        })
+      }
 
       if (result.synced) {
         Alert.alert('Pedido criado', 'Pedido salvo com sucesso!', [
@@ -704,6 +730,7 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     marginBottom: spacing.sm,
   },
+  cartList: { maxHeight: 160 },
   cartTitle: {
     fontFamily: typography.fontFamily.sansBold,
     fontSize: 13,

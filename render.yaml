@@ -25,6 +25,8 @@ services:
         sync: false
       - key: PROTHEUS_ENCRYPTION_KEY
         sync: false
+      - key: SENTRY_DSN
+        sync: false
       - key: CORS_ORIGIN
         value: https://addere.vercel.app
 
