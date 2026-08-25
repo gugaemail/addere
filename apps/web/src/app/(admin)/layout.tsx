@@ -5,10 +5,13 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { Toaster } from 'sonner'
 import {
+  Activity,
   Building2,
   BarChart3,
+  Database,
   LogOut,
   Moon,
+  SlidersHorizontal,
   Sparkles,
   Sun,
   Users,
@@ -53,13 +56,37 @@ const NAV_GROUPS: NavGroup[] = [
     ],
   },
   {
+    // As três telas da E10 ficam no menu, não só como cards da Visão geral:
+    // procurar "Saúde" na sidebar e não achar é o caminho natural de quem usa.
     title: 'Inteligência',
     items: [
       {
         href: '/inteligencia',
         label: 'Visão geral',
-        match: (p) => p.startsWith('/inteligencia'),
+        // Exato: senão a Visão geral fica destacada em todas as subtelas
+        match: (p) => p === '/inteligencia',
         icon: Sparkles,
+        requires: { permission: ['intel.admin', 'intel.manager'], orAdmin: true },
+      },
+      {
+        href: '/inteligencia/consultas',
+        label: 'Consultas',
+        match: (p) => p.startsWith('/inteligencia/consultas'),
+        icon: Database,
+        requires: { permission: ['intel.admin', 'intel.manager'], orAdmin: true },
+      },
+      {
+        href: '/inteligencia/saude',
+        label: 'Saúde dos dados',
+        match: (p) => p.startsWith('/inteligencia/saude'),
+        icon: Activity,
+        requires: { permission: ['intel.admin', 'intel.manager'], orAdmin: true },
+      },
+      {
+        href: '/inteligencia/premissas',
+        label: 'Premissas',
+        match: (p) => p.startsWith('/inteligencia/premissas'),
+        icon: SlidersHorizontal,
         requires: { permission: ['intel.admin', 'intel.manager'], orAdmin: true },
       },
     ],

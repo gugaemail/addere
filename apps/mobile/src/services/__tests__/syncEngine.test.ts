@@ -10,7 +10,8 @@ jest.mock('../../lib/api', () => ({
 jest.mock('../../lib/query-client', () => ({
   queryClient: { invalidateQueries: jest.fn() },
 }))
-type NetInfoListener = (state: { isConnected: boolean }) => void
+// isConnected pode vir null quando o NetInfo não consegue determinar o estado
+type NetInfoListener = (state: { isConnected: boolean | null }) => void
 const mockNetInfoAddEventListener = jest.fn((_cb: NetInfoListener): (() => void) => jest.fn())
 jest.mock('@react-native-community/netinfo', () => ({
   addEventListener: (cb: NetInfoListener) => mockNetInfoAddEventListener(cb),
@@ -191,6 +192,48 @@ describe('startSyncListener', () => {
     await new Promise((r) => setTimeout(r, 50))
 
     expect(mockPost).toHaveBeenCalled()
+    cleanup()
+    jest.useFakeTimers()
+  })
+
+  it('estado indeterminado do NetInfo não é tratado como offline', async () => {
+    // isConnected null (o NetInfo não sabe) fazia a fila parar de esvaziar com
+    // rede boa — o app ficava marcado "Offline" e as visitas nunca subiam.
+    jest.useRealTimers()
+    let netInfoCallback: ((state: { isConnected: boolean | null }) => void) | null = null
+    mockNetInfoAddEventListener.mockImplementation(
+      (cb: (state: { isConnected: boolean | null }) => void) => {
+        netInfoCallback = cb
+        return jest.fn()
+      }
+    )
+    mockPost.mockResolvedValue({ data: {} })
+    useSyncStore.getState().enqueue('order', validPayload)
+
+    const cleanup = startSyncListener()
+    netInfoCallback!({ isConnected: null })
+    await new Promise((r) => setTimeout(r, 50))
+
+    expect(useSyncStore.getState().networkAvailable).toBe(true)
+    expect(mockPost).toHaveBeenCalled()
+    cleanup()
+    jest.useFakeTimers()
+  })
+
+  it('isConnected false explícito continua marcando offline', async () => {
+    jest.useRealTimers()
+    let netInfoCallback: ((state: { isConnected: boolean }) => void) | null = null
+    mockNetInfoAddEventListener.mockImplementation(
+      (cb: (state: { isConnected: boolean }) => void) => {
+        netInfoCallback = cb
+        return jest.fn()
+      }
+    )
+
+    const cleanup = startSyncListener()
+    netInfoCallback!({ isConnected: false })
+
+    expect(useSyncStore.getState().networkAvailable).toBe(false)
     cleanup()
     jest.useFakeTimers()
   })

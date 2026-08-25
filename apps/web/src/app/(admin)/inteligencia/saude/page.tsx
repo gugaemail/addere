@@ -13,6 +13,9 @@ import { Spinner } from '@/components/ui/Spinner'
 import { StatCard } from '@/components/ui/StatCard'
 import { FreshnessBadge } from '@/components/ui/FreshnessBadge'
 import { Table, type Column } from '@/components/ui/Table'
+import { useCompanyContext } from '@/contexts/CompanyContext'
+import { needsActiveCompany } from '@/lib/intel-helpers'
+import { SelectCompanyNotice } from '@/components/intel/SelectCompanyNotice'
 
 const JOB_LABELS: Record<string, string> = {
   NIGHTLY: 'Noturno completo',
@@ -49,12 +52,16 @@ interface RunRow {
 }
 
 export default function SaudePage() {
-  const { hasPermission } = useAuth()
+  const { hasPermission, isSuperAdmin } = useAuth()
+  const { companyId } = useCompanyContext()
   const isIntelAdmin = hasPermission('intel.admin')
   const { data, isLoading, refetch } = useIntelHealth()
   const runJob = useRunJob()
   const companyParam = useIntelCompanyParam()
   const [downloading, setDownloading] = useState(false)
+
+  // Sem empresa ativa o tenant não resolve e a tela cairia num vazio genérico
+  if (needsActiveCompany(isSuperAdmin, companyId)) return <SelectCompanyNotice />
 
   if (isLoading) {
     return (

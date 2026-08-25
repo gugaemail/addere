@@ -80,6 +80,18 @@ function AuthGuard() {
       }
 
       try {
+        // Mesma checagem que o LoginScreen e o useAuth já fazem: sem hardware ou
+        // sem biometria cadastrada o prompt falha sempre, e tratar isso como
+        // recusa apagava a sessão de quem nunca teve chance de autenticar.
+        const [hasHardware, isEnrolled] = await Promise.all([
+          LocalAuthentication.hasHardwareAsync(),
+          LocalAuthentication.isEnrolledAsync(),
+        ])
+        if (!hasHardware || !isEnrolled) {
+          setBiometricReady(true)
+          return
+        }
+
         const result = await LocalAuthentication.authenticateAsync({
           promptMessage: 'Entre no Addere',
           cancelLabel: 'Usar senha',

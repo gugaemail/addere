@@ -19,6 +19,9 @@ import { Button } from '@/components/ui/Button'
 import { Spinner } from '@/components/ui/Spinner'
 import { FormField, FormSelect } from '@/components/ui/FormField'
 import { Switch } from '@/components/ui/Switch'
+import { useCompanyContext } from '@/contexts/CompanyContext'
+import { needsActiveCompany } from '@/lib/intel-helpers'
+import { SelectCompanyNotice } from '@/components/intel/SelectCompanyNotice'
 
 interface ParamMeta {
   key: IntelParameterKey
@@ -74,7 +77,8 @@ const BLOCKS: { title: string; subtitle: string; params: ParamMeta[] }[] = [
 ]
 
 export default function PremissasPage() {
-  const { hasPermission } = useAuth()
+  const { hasPermission, isSuperAdmin } = useAuth()
+  const { companyId } = useCompanyContext()
   const canEdit = hasPermission('intel.admin')
   const { data: parameters, isLoading } = useIntelParameters()
   const save = useSaveParameters()
@@ -95,6 +99,9 @@ export default function PremissasPage() {
     for (const p of parameters ?? []) if (p.segment === '') map.set(p.key, p)
     return map
   }, [parameters])
+
+  // Sem empresa ativa o tenant não resolve e a tela cairia num vazio genérico
+  if (needsActiveCompany(isSuperAdmin, companyId)) return <SelectCompanyNotice />
 
   if (isLoading || !seeded) {
     return (
