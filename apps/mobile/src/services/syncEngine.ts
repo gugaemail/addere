@@ -115,7 +115,11 @@ export function startSyncListener(): () => void {
   const appStateSubscription = AppState.addEventListener('change', handleAppStateChange)
 
   const netInfoUnsubscribe = NetInfo.addEventListener((state) => {
-    const available = state.isConnected ?? false
+    // Só desliga com um `false` explícito. Quando o NetInfo não sabe responder
+    // (isConnected null/undefined — acontece no simulador e em aparelho real),
+    // assumir offline faz a fila parar de esvaziar mesmo com rede boa. Tentar e
+    // falhar é seguro: o item volta para a fila com backoff e nada se perde.
+    const available = state.isConnected !== false
     useSyncStore.getState().setNetworkAvailable(available)
     if (available) {
       processSyncQueue().catch((err) => Sentry.captureException(err))
