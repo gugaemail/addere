@@ -59,6 +59,10 @@ App mobile para vendedores externos integrarem com ERP Protheus (TOTVS). Monorep
 - `packages/db` — Prisma 5 schema e migrations (PostgreSQL)
 - `packages/types` — tipos TypeScript compartilhados
 
+A camada de Inteligência (motor de sinais, plano do dia, agente e telas do
+gerente) vive em `apps/api/src/modules/intelligence/` — notas de engenharia,
+jobs, retenção e como desligar em `docs/intelligence/README.md`.
+
 ## Comandos
 
 ```bash
@@ -87,6 +91,12 @@ npx prisma migrate deploy   # aplicar em produção
 npx prisma generate         # gerar client
 npx prisma studio           # GUI do banco
 npx prisma validate         # validar schema sem DB
+
+# Camada de Inteligência (apps/api)
+npm run intel:onboarding -w @addere/api    # prontidão do tenant para o piloto (só lê)
+npm run intel:smoke -w @addere/api         # pipeline completo com dados sintéticos
+npm run intel:freeze-eval -w @addere/api   # congela 20 casos de regressão do agente
+npm run intel:eval -w @addere/api          # roda o eval (SKIPPED sem ANTHROPIC_API_KEY)
 
 # Qualidade (raiz do monorepo)
 npm run lint          # ESLint flat config (eslint.config.mjs)
@@ -147,6 +157,8 @@ Módulo de sync: `apps/api/src/modules/sync/`
 - Idioma do código: **inglês**; comentários e commits: **português**
 - Soft delete em users, customers, products (`active = false`)
 - **Após toda alteração de código, fazer commit no git** — nunca deixar mudanças sem commitar ao final de cada tarefa
+- Scripts em `apps/api/scripts/` precisam importar `dotenv/config` — só o
+  `server.ts` carrega o `.env`, e sem isso o schema de env recusa a partida
 
 ## Variáveis de Ambiente
 
@@ -164,16 +176,19 @@ EXPO_PUBLIC_API_URL
 
 ## Estado de Implementação
 
-| Fase | Descrição                              | Status     |
-| ---- | -------------------------------------- | ---------- |
-| 1    | Setup monorepo                         | ✅ 100%    |
-| 2    | Banco + Prisma                         | ✅ 100%    |
-| 3    | Autenticação JWT                       | ✅ 100%    |
-| 4    | Telas mobile (M-01 a M-07)             | ✅ 100%    |
-| 5    | Painel web admin (W-01, W-02)          | ✅ 100%    |
-| 6    | Integração Protheus (6.1–6.7)          | ✅ 100%    |
-| 7    | Modo offline + sincronização           | 🔄 parcial |
-| 8    | Tooling: ESLint, Prettier, testes e CI | ✅ 100%    |
+| Fase | Descrição                              | Status      |
+| ---- | -------------------------------------- | ----------- |
+| 1    | Setup monorepo                         | ✅ 100%     |
+| 2    | Banco + Prisma                         | ✅ 100%     |
+| 3    | Autenticação JWT                       | ✅ 100%     |
+| 4    | Telas mobile (M-01 a M-07)             | ✅ 100%     |
+| 5    | Painel web admin (W-01, W-02)          | ✅ 100%     |
+| 6    | Integração Protheus (6.1–6.7)          | ✅ 100%     |
+| 7    | Modo offline + sincronização           | 🔄 parcial  |
+| 8    | Tooling: ESLint, Prettier, testes e CI | ✅ 100%     |
+| 9    | Camada de Inteligência (E1–E13b, E15)  | ✅ 100%     |
+| 9b   | Piloto: onboarding, eval, docs (E14a)  | ✅ 100%     |
+| 9c   | Build EAS e dry-run (E14b)             | ⏳ pendente |
 
 ### Fase 7 — Modo offline (estado atual)
 
@@ -195,11 +210,14 @@ EXPO_PUBLIC_API_URL
 
 ## Arquivos Críticos
 
-| Arquivo                                           | Descrição                                            |
-| ------------------------------------------------- | ---------------------------------------------------- |
-| `packages/db/prisma/schema.prisma`                | Schema de referência                                 |
-| `apps/api/src/modules/sync/`                      | Módulo de integração Protheus                        |
-| `apps/api/src/modules/orders/orders.schema.ts`    | Validação Zod dos pedidos                            |
-| `apps/api/src/modules/orders/orders.service.ts`   | Lógica de criação de pedidos                         |
-| `apps/web/src/app/(admin)/empresas/[id]/page.tsx` | Detalhe da empresa + aba Protheus                    |
-| `packages/types/src/index.ts`                     | Tipos compartilhados (Company, Order, Product, etc.) |
+| Arquivo                                           | Descrição                                              |
+| ------------------------------------------------- | ------------------------------------------------------ |
+| `packages/db/prisma/schema.prisma`                | Schema de referência                                   |
+| `apps/api/src/modules/sync/`                      | Módulo de integração Protheus                          |
+| `apps/api/src/modules/orders/orders.schema.ts`    | Validação Zod dos pedidos                              |
+| `apps/api/src/modules/orders/orders.service.ts`   | Lógica de criação de pedidos                           |
+| `apps/web/src/app/(admin)/empresas/[id]/page.tsx` | Detalhe da empresa + aba Protheus                      |
+| `packages/types/src/index.ts`                     | Tipos compartilhados (Company, Order, Product, etc.)   |
+| `apps/api/src/modules/intelligence/`              | Motor de sinais, agente, jobs e rotas da Inteligência  |
+| `docs/intelligence/README.md`                     | Arquitetura, jobs, retenção e rollback da Inteligência |
+| `docs/PILOT_PLAN.md`                              | Métricas do piloto e como lê-las no fim do dry-run     |
