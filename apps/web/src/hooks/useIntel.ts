@@ -261,12 +261,20 @@ export function useIntelConfig(companyIdOverride?: string) {
   })
 }
 
+// O corpo do PUT herda o nome do campo da resposta de propósito: quando os dois
+// divergem, o Zod da API descarta a chave desconhecida em silêncio e a flag
+// nunca é gravada — o painel salvava `enabled` e a rota espera
+// `intelligenceEnabled`, então o botão voltava sozinho depois de cada save.
+type SaveIntelConfigInput = Partial<Pick<ConfigResponse, 'intelligenceEnabled'>> & {
+  config?: Partial<IntelligenceConfig>
+}
+
 export function useSaveIntelConfig(companyIdOverride?: string) {
   const contextParams = useIntelCompanyParam()
   const params = companyIdOverride ? { companyId: companyIdOverride } : contextParams
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (input: { enabled?: boolean; config?: Partial<IntelligenceConfig> }) =>
+    mutationFn: (input: SaveIntelConfigInput) =>
       api.put<ConfigResponse>('/intel/admin/config', { ...input, ...params }).then((r) => r.data),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: intelKeys.config(params.companyId) }),
   })

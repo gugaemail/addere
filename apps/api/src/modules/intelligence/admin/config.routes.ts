@@ -14,11 +14,17 @@ const configPatchSchema = z.object({
   lgpdNoticeAcceptedAt: z.string().datetime().nullable().optional(),
 })
 
-const putSchema = z.object({
-  companyId: z.string().uuid().optional(),
-  intelligenceEnabled: z.boolean().optional(),
-  config: configPatchSchema.optional(),
-})
+// strict de propósito: por padrão o Zod descarta chaves desconhecidas em
+// silêncio, e o painel chegou a mandar `enabled` em vez de
+// `intelligenceEnabled` — a rota respondia 200, gravava o config e ignorava a
+// flag, então o botão voltava sozinho sem nenhum erro em lugar nenhum.
+const putSchema = z
+  .object({
+    companyId: z.string().uuid().optional(),
+    intelligenceEnabled: z.boolean().optional(),
+    config: configPatchSchema.optional(),
+  })
+  .strict()
 
 export function mergeIntelligenceConfig(stored: unknown): IntelligenceConfig {
   const partial = (stored ?? {}) as Partial<IntelligenceConfig>

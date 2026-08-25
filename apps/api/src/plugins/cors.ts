@@ -23,7 +23,10 @@ export default fp(async (app: FastifyInstance) => {
   await app.register(cors, {
     origin: origins,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
+    // X-Requested-With é a guarda de CSRF do POST /auth/refresh no fluxo de
+    // cookie: sem liberá-lo aqui o preflight falha e o painel perde o refresh
+    // silencioso — o admin cai para o login quando o access token expira.
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
     credentials: true,
   })
 })
