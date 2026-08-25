@@ -510,6 +510,20 @@ describe('rotas de config e parâmetros', () => {
     expect(res.json().config.syncHour).toBe(4)
   })
 
+  it('PUT config com campo desconhecido falha alto em vez de ignorar', async () => {
+    // Era assim que o painel mandava: `enabled` era descartado em silêncio e a
+    // flag nunca era gravada, com a rota respondendo 200.
+    const res = await app.inject({
+      method: 'PUT',
+      url: '/intel/admin/config',
+      headers: auth('admin-a'),
+      payload: { enabled: true, config: { syncHour: 4 } },
+    })
+
+    expect(res.statusCode).toBe(400)
+    expect(prismaMock.company.update).not.toHaveBeenCalled()
+  })
+
   it('PUT parameters com valor inválido → 422', async () => {
     const res = await app.inject({
       method: 'PUT',

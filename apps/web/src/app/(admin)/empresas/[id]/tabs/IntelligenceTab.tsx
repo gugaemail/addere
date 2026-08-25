@@ -57,7 +57,7 @@ export function IntelligenceTab({ companyId, apiSqlConfigured }: IntelligenceTab
     if (!Number.isInteger(retention) || retention < 30) return toast.error('Retenção mínima de 30 dias')
     try {
       await save.mutateAsync({
-        enabled,
+        intelligenceEnabled: enabled,
         config: {
           syncHour: hour,
           syncEveryHours: every,
