@@ -275,6 +275,43 @@ describe('POST /intel/manager/plan-items', () => {
     expect(prismaMock.visitPlanItem.create).not.toHaveBeenCalled()
   })
 
+  it('cliente com loja nula no cadastro também é encontrado', async () => {
+    // O motor planeja esse cliente como |01; casar a coluna literalmente dava 404
+    prismaMock.user.findFirst.mockResolvedValue({ id: 'u1', managerId: 'manager-a' })
+    prismaMock.customer.findFirst.mockResolvedValue({ id: 'c1' })
+    prismaMock.visitPlan.upsert.mockResolvedValue({ id: 'plan-1' })
+    prismaMock.visitPlanItem.findFirst.mockResolvedValue(null)
+    prismaMock.visitPlanItem.create.mockResolvedValue({ id: 'item-1' })
+
+    await app.inject({
+      method: 'POST',
+      url: '/intel/manager/plan-items',
+      headers: auth('manager-a'),
+      payload: { vendorCode: 'V1', customerCode: 'C1', date: '2026-08-25' },
+    })
+
+    expect(prismaMock.customer.findFirst.mock.calls[0][0].where.OR).toEqual([
+      { loja: '01' },
+      { loja: null },
+    ])
+  })
+
+  it('loja explícita diferente de 01 casa a coluna sem o fallback', async () => {
+    prismaMock.user.findFirst.mockResolvedValue({ id: 'u1', managerId: 'manager-a' })
+    prismaMock.customer.findFirst.mockResolvedValue(null)
+
+    await app.inject({
+      method: 'POST',
+      url: '/intel/manager/plan-items',
+      headers: auth('manager-a'),
+      payload: { ...payload, loja: '02' },
+    })
+
+    const where = prismaMock.customer.findFirst.mock.calls[0][0].where
+    expect(where.loja).toBe('02')
+    expect(where.OR).toBeUndefined()
+  })
+
   it('campo desconhecido no corpo → 400 (não passa despercebido)', async () => {
     const res = await app.inject({
       method: 'POST',
