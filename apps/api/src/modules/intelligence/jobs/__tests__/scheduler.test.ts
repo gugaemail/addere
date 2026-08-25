@@ -1,5 +1,9 @@
-import { describe, it, expect } from 'vitest'
-import { computeDueJobs } from '../scheduler'
+import { describe, it, expect, vi, afterEach } from 'vitest'
+
+vi.mock('@addere/db', async () => (await import('../../../../test-utils/prisma-mock')).mockDb())
+
+import { prismaMock, resetPrismaMock } from '../../../../test-utils/prisma-mock'
+import { computeDueJobs, tickIntelScheduler } from '../scheduler'
 
 // Horários em UTC; São Paulo = UTC-3 (sem horário de verão desde 2019)
 const at = (iso: string) => new Date(iso)
@@ -56,5 +60,32 @@ describe('computeDueJobs — refresh', () => {
 
   it('sem execução anterior → vence imediatamente', () => {
     expect(computeDueJobs({ ...base, now: at('2026-08-21T12:00:00Z') })).toContain('REFRESH')
+  })
+})
+
+describe('tickIntelScheduler — resiliência', () => {
+  afterEach(() => resetPrismaMock())
+
+  // O tick roda solto (`void`) no boot e no setInterval: se ele rejeitar, o Node
+  // encerra o processo e a API inteira cai por causa de um job de segundo plano.
+  // Foi o que aconteceu na staging com `companies.intelligenceConfig` faltando.
+  it('engole falha do banco em vez de derrubar o processo', async () => {
+    prismaMock.company.findMany.mockRejectedValueOnce(
+      new Error('The column `companies.intelligenceConfig` does not exist in the current database.')
+    )
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {})
+
+    await expect(tickIntelScheduler()).resolves.toBeUndefined()
+    expect(log).toHaveBeenCalledWith(
+      '[intel-scheduler] falha ao listar empresas:',
+      expect.stringContaining('intelligenceConfig')
+    )
+
+    log.mockRestore()
+  })
+
+  it('sem empresas com a Inteligência ligada, não faz nada', async () => {
+    await expect(tickIntelScheduler()).resolves.toBeUndefined()
+    expect(prismaMock.intelJobRun.findFirst).not.toHaveBeenCalled()
   })
 })
