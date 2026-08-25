@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
+import { safeNextPath } from '@/lib/home-redirect'
 
 // Cookie indicador de sessão ativa (sem valor sensível — apenas presença importa)
 const SESSION_COOKIE = 'addere_session'
@@ -11,12 +12,18 @@ export function middleware(request: NextRequest) {
   const hasSession = !!request.cookies.get(SESSION_COOKIE)?.value
 
   if (!isPublic && !hasSession) {
-    return NextResponse.redirect(new URL('/login', request.url))
+    // Guarda o destino: sem isso um link direto para /inteligencia/saude
+    // sempre terminava na home do papel depois do login.
+    const login = new URL('/login', request.url)
+    const next = safeNextPath(`${pathname}${request.nextUrl.search}`)
+    if (next) login.searchParams.set('next', next)
+    return NextResponse.redirect(login)
   }
 
   if (isPublic && hasSession) {
     // '/' decide a home pelo papel (E9): SUPERADMIN → /dashboard; demais → /inteligencia
-    return NextResponse.redirect(new URL('/', request.url))
+    const next = safeNextPath(request.nextUrl.searchParams.get('next'))
+    return NextResponse.redirect(new URL(next ?? '/', request.url))
   }
 
   return NextResponse.next()
