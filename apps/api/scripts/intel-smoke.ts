@@ -6,6 +6,9 @@
 // O script prepara o mínimo (empresa com Inteligência ligada, filial com código
 // Protheus, consultas publicadas a partir dos SQLs de referência), roda o
 // nightlyHandler de verdade e imprime o resultado + contagens das tabelas.
+// Carrega o .env como o server.ts faz — sem isso o schema de env recusa a
+// partida e o comando documentado não roda fora de um shell já exportado.
+import 'dotenv/config'
 import { prisma } from '@addere/db'
 import { env } from '../src/lib/env'
 import { QUERY_CONTRACTS } from '../src/modules/intelligence/protheus-sql/contracts'
@@ -100,7 +103,9 @@ async function main() {
       prisma.openTitle.count({ where: { companyId: company.id } }),
       prisma.goalSnapshot.count({ where: { companyId: company.id } }),
     ])
-    console.log(`[smoke] intel_sales_items=${sales} intel_open_titles=${titles} intel_goal_snapshots=${goals}`)
+    console.log(
+      `[smoke] intel_sales_items=${sales} intel_open_titles=${titles} intel_goal_snapshots=${goals}`
+    )
   }
 }
 

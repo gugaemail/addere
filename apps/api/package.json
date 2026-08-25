@@ -12,7 +12,8 @@
     "test:watch": "vitest",
     "intel:smoke": "tsx scripts/intel-smoke.ts",
     "intel:eval": "tsx scripts/intel-eval.ts",
-    "intel:freeze-eval": "tsx scripts/intel-freeze-eval.ts"
+    "intel:freeze-eval": "tsx scripts/intel-freeze-eval.ts",
+    "intel:onboarding": "tsx scripts/intel-onboarding-check.ts"
   },
   "dependencies": {
     "@addere/db": "*",

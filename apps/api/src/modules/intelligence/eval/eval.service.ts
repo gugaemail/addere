@@ -9,18 +9,33 @@ import { llmAvailable } from '../agent/client'
 import { buildCustomerFacts, type CustomerFacts } from '../agent/facts'
 import { Pseudonymizer } from '../agent/pseudonymizer'
 import { promptVersion, buildTenantContext, systemBlocks } from '../agent/tenant-context'
-import { buildBriefingPrompt, BRIEFING_SCHEMA, type BriefingOutput } from '../agent/prompts/briefing'
+import {
+  buildBriefingPrompt,
+  BRIEFING_SCHEMA,
+  type BriefingOutput,
+} from '../agent/prompts/briefing'
 import type { SelfCheckFacts } from '../agent/self-check'
+import { selectEvalCases } from './select-cases'
 
-const FREEZE_LIMIT = 10
+// 20 casos é o piso do piloto (E14a). O teto da busca existe só para não puxar
+// a base inteira de um tenant grande — a escolha em si é estratificada.
+const FREEZE_LIMIT = 20
+const FREEZE_SCAN_LIMIT = 2000
 
 /** Congela casos a partir dos sinais atuais — snapshot JÁ pseudonimizado (D4). */
 export async function freezeEvalCases(company: Company): Promise<number> {
-  const signals = await prisma.customerSignal.findMany({
+  const candidates = await prisma.customerSignal.findMany({
     where: { companyId: company.id },
     orderBy: [{ status: 'asc' }, { customerCode: 'asc' }],
-    take: FREEZE_LIMIT,
+    take: FREEZE_SCAN_LIMIT,
   })
+  const signals = selectEvalCases(
+    candidates.map((signal) => ({
+      ...signal,
+      hasCutMix: Array.isArray(signal.cutMix) && signal.cutMix.length > 0,
+    })),
+    FREEZE_LIMIT
+  )
 
   let created = 0
   for (const signal of signals) {

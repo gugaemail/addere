@@ -80,6 +80,45 @@ Critérios para conversão em cliente pagante ao final do piloto:
 
 > **Avaliação de NPS**: pergunta simples no último dia — "De 0 a 10, quanto você recomendaria o Addere?" — enviada por formulário Google ou WhatsApp.
 
+### Métricas da camada de Inteligência (E14a)
+
+As de cima medem se o **app** funciona. Estas medem se a **Inteligência mudou o
+resultado comercial** — é o que decide se a camada se paga.
+
+| Métrica                             | O que responde                                                        | Meta                                                 |
+| ----------------------------------- | --------------------------------------------------------------------- | ---------------------------------------------------- |
+| **Positivação da carteira**         | Dos clientes da carteira, quantos compraram no período                | Subir vs. o mês anterior ao piloto                   |
+| **Conversão sugestão→pedido (7 d)** | Dos clientes que o motor sugeriu, quantos compraram em até 7 dias     | Acima da conversão fora do plano                     |
+| **Recuperação de AT_RISK**          | Dos clientes em risco que foram sugeridos, quantos voltaram a comprar | > 0 já é sinal; a tendência importa mais que o nível |
+
+**Como ler no fim do dry-run:**
+
+```bash
+# Painel: Inteligência → Equipe em campo (aba Mês)
+# Ou direto da API, com um usuário intel.manager ou intel.admin:
+curl -H "Authorization: Bearer <token>" \
+  "$API/intel/manager/pilot-metrics?from=2026-09-01&to=2026-09-30"
+```
+
+A resposta traz cada métrica como `{ total, hits, pct }` e mais o `liftPp` — a
+diferença em pontos percentuais entre a conversão do que foi sugerido e a do que
+foi visitado fora do plano. **É o `liftPp` que sustenta a conversa comercial**:
+sem ele, uma conversão de 30% não diz se o motor ajudou ou se aquele mês foi bom
+para todo mundo.
+
+Três cuidados na leitura, para não vender o número errado:
+
+- **`pct: null` não é zero.** Significa que não houve denominador — nenhum cliente
+  sugerido, ou nenhuma visita fora do plano no período. Um `liftPp` nulo quer
+  dizer "não dá para comparar ainda", não "não houve ganho".
+- **O denominador é cliente, não sugestão.** Sugerir o mesmo cliente cinco vezes
+  conta uma vez, pela sugestão mais antiga.
+- **Quem foi sugerido sai do grupo de comparação.** Senão a mesma conversão
+  contaria dos dois lados e o lift sairia inflado.
+
+Tire um retrato **antes** de ligar a camada (mesmo intervalo do mês anterior) —
+sem a linha de base, nenhum dos três números tem contra o que ser comparado.
+
 ---
 
 ## Critérios de saída antecipada
