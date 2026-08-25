@@ -64,3 +64,12 @@ export function parseCities(text: string): string[] {
     .map((c) => c.trim())
     .filter(Boolean)
 }
+
+// ─── Empresa ativa ───
+// As rotas /intel/admin/* resolvem o tenant pelo `companyId`, que o SUPERADMIN
+// escolhe na sidebar. Sem ele a resposta vem vazia e as telas mostravam um
+// estado genérico ("Sem dados de saúde") que manda procurar problema no banco.
+export function needsActiveCompany(isSuperAdmin: boolean, companyId: string | null): boolean {
+  return isSuperAdmin && !companyId
+}
+

@@ -35,6 +35,9 @@ import { Spinner } from '@/components/ui/Spinner'
 import { Tabs } from '@/components/ui/Tabs'
 import { Textarea } from '@/components/ui/Textarea'
 import { FormField } from '@/components/ui/FormField'
+import { useCompanyContext } from '@/contexts/CompanyContext'
+import { needsActiveCompany } from '@/lib/intel-helpers'
+import { SelectCompanyNotice } from '@/components/intel/SelectCompanyNotice'
 
 // URL em português ↔ nome do contrato na API
 const SLUG_TO_NAME: Record<string, string> = {
@@ -62,7 +65,8 @@ export default function ConsultaPage() {
   const router = useRouter()
   const params = useParams<{ name: string }>()
   const contractName = SLUG_TO_NAME[params.name]
-  const { hasPermission } = useAuth()
+  const { hasPermission, isSuperAdmin } = useAuth()
+  const { companyId } = useCompanyContext()
   const canEdit = hasPermission('intel.admin')
 
   const { data, isLoading } = useIntelQueries()
@@ -123,6 +127,9 @@ export default function ConsultaPage() {
   const [period, setPeriod] = useState('')
   const [refAmount, setRefAmount] = useState('')
   const [reconResult, setReconResult] = useState<ReconciliationResult | null>(null)
+
+  // Sem empresa ativa o tenant não resolve e a tela cairia num vazio genérico
+  if (needsActiveCompany(isSuperAdmin, companyId)) return <SelectCompanyNotice />
 
   if (isLoading || !contractName) {
     return (

@@ -3,6 +3,7 @@ import {
   backfillProgress,
   brl,
   formatDiffPct,
+  needsActiveCompany,
   parseCities,
   periodLabel,
   weightsSum,
@@ -69,5 +70,19 @@ describe('periodLabel/brl/parseCities', () => {
   it('parseCities separa por vírgula e limpa vazios', () => {
     expect(parseCities(' Campinas , Valinhos ,, ')).toEqual(['Campinas', 'Valinhos'])
     expect(parseCities('')).toEqual([])
+  })
+})
+
+describe('needsActiveCompany', () => {
+  it('SUPERADMIN sem empresa escolhida precisa escolher', () => {
+    expect(needsActiveCompany(true, null)).toBe(true)
+  })
+
+  it('SUPERADMIN com empresa escolhida segue direto', () => {
+    expect(needsActiveCompany(true, 'company-1')).toBe(false)
+  })
+
+  it('quem não é SUPERADMIN nunca precisa — o tenant vem do próprio token', () => {
+    expect(needsActiveCompany(false, null)).toBe(false)
   })
 })
