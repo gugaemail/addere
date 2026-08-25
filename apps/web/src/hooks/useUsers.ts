@@ -32,7 +32,8 @@ export function useCreateUser(companyId?: string) {
 export function useToggleUser() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (id: string) => api.patch<UserPublic>(`/users/${id}`).then((r) => r.data),
+    // PATCH /users/:id virou edição; o toggle mora em /:id/active
+    mutationFn: (id: string) => api.patch<UserPublic>(`/users/${id}/active`).then((r) => r.data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['users'] })
     },
