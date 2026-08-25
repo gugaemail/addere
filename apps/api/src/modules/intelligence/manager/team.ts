@@ -62,10 +62,13 @@ export interface TeamInput {
   /** Piso de visitas da janela — visits_per_day × dias úteis (0 desliga o alerta). */
   minVisits: number
   stale: boolean
+  lastSyncAt: string | null
 }
 
 export interface TeamReport {
   range: { fromYmd: string; toYmd: string }
+  /** ISO do último sync OK — o cabeçalho da tela mostra o frescor. */
+  lastSyncAt: string | null
   totals: TeamTotals
   sellers: SellerCard[]
   alerts: TeamAlert[]
@@ -148,6 +151,7 @@ export function buildTeamReport(input: TeamInput): TeamReport {
 
   return {
     range: { fromYmd, toYmd },
+    lastSyncAt: input.lastSyncAt,
     totals: {
       sellers: sellers.length,
       planned: totalPlanned,

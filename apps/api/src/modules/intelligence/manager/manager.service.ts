@@ -185,6 +185,7 @@ export async function buildTeam(
   const vendorCodes = sellers.map((s) => s.idVendProt as string)
 
   if (vendorCodes.length === 0) {
+    const freshness = await getFreshness(companyId)
     return buildTeamReport({
       sellers: [],
       plans: [],
@@ -192,7 +193,8 @@ export async function buildTeam(
       fromYmd: window.fromYmd,
       toYmd: window.toYmd,
       minVisits: 0,
-      stale: (await getFreshness(companyId)).stale,
+      stale: freshness.stale,
+      lastSyncAt: freshness.lastSyncAt,
     })
   }
 
@@ -225,6 +227,7 @@ export async function buildTeam(
     toYmd: window.toYmd,
     minVisits,
     stale: freshness.stale,
+    lastSyncAt: freshness.lastSyncAt,
   })
 }
 

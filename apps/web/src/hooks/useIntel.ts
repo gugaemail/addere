@@ -19,7 +19,8 @@ import { useCompanyContext } from '@/contexts/CompanyContext'
 
 export const intelKeys = {
   all: ['intel'] as const,
-  queries: (companyId?: string | null) => [...intelKeys.all, 'queries', companyId ?? 'own'] as const,
+  queries: (companyId?: string | null) =>
+    [...intelKeys.all, 'queries', companyId ?? 'own'] as const,
   query: (name: string, companyId?: string | null) =>
     [...intelKeys.all, 'query', name, companyId ?? 'own'] as const,
   health: (companyId?: string | null) => [...intelKeys.all, 'health', companyId ?? 'own'] as const,
@@ -29,6 +30,10 @@ export const intelKeys = {
     [...intelKeys.all, 'param-history', companyId ?? 'own'] as const,
   config: (companyId?: string | null) => [...intelKeys.all, 'config', companyId ?? 'own'] as const,
   jobs: (companyId?: string | null) => [...intelKeys.all, 'jobs', companyId ?? 'own'] as const,
+  team: (date: string, range: string, companyId?: string | null) =>
+    [...intelKeys.all, 'team', date, range, companyId ?? 'own'] as const,
+  pilotMetrics: (from: string, to: string, companyId?: string | null) =>
+    [...intelKeys.all, 'pilot-metrics', from, to, companyId ?? 'own'] as const,
 }
 
 // Params de tenant das rotas /intel/*: só SUPERADMIN manda companyId na query
@@ -132,7 +137,8 @@ export function usePreviewQuery(name: string) {
       api
         .post<QueryPreviewResult>(`/intel/admin/queries/${name}/preview`, { ...params })
         .then((r) => r.data),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: intelKeys.queries(params.companyId) }),
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: intelKeys.queries(params.companyId) }),
   })
 }
 
@@ -147,7 +153,8 @@ export function useReconcileQuery(name: string) {
           ...params,
         })
         .then((r) => r.data),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: intelKeys.queries(params.companyId) }),
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: intelKeys.queries(params.companyId) }),
   })
 }
 
@@ -156,7 +163,9 @@ export function usePublishQuery(name: string) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: () =>
-      api.post<IntelQueryDto>(`/intel/admin/queries/${name}/publish`, { ...params }).then((r) => r.data),
+      api
+        .post<IntelQueryDto>(`/intel/admin/queries/${name}/publish`, { ...params })
+        .then((r) => r.data),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: intelKeys.all }),
   })
 }
@@ -276,6 +285,95 @@ export function useSaveIntelConfig(companyIdOverride?: string) {
   return useMutation({
     mutationFn: (input: SaveIntelConfigInput) =>
       api.put<ConfigResponse>('/intel/admin/config', { ...input, ...params }).then((r) => r.data),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: intelKeys.config(params.companyId) }),
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: intelKeys.config(params.companyId) }),
+  })
+}
+
+// ─── W1 · Equipe em campo (E11) ───
+
+export type TeamRange = 'day' | 'week' | 'month'
+
+export interface TeamAlert {
+  kind: 'NO_PLAN' | 'FEW_VISITS' | 'STALE_DATA'
+  message: string
+}
+
+export interface TeamSellerCard {
+  userId: string
+  name: string
+  vendorCode: string
+  planned: number
+  done: number
+  outOfPlan: number
+  adherencePct: number | null
+  visitPositivationPct: number | null
+  portfolioPositivationPct: number | null
+  alerts: TeamAlert[]
+}
+
+export interface TeamReportResponse {
+  range: { fromYmd: string; toYmd: string }
+  lastSyncAt: string | null
+  totals: {
+    sellers: number
+    planned: number
+    done: number
+    adherencePct: number | null
+    visitPositivationPct: number | null
+    portfolioPositivationPct: number | null
+  }
+  sellers: TeamSellerCard[]
+  alerts: TeamAlert[]
+  unassignedSellers: number
+}
+
+/**
+ * @param date 'YYYY-MM-DD' — a API ancora a janela nesse dia.
+ * @param enabled desliga a busca quando não há tenant a resolver (SUPERADMIN
+ *   sem empresa escolhida) — sem isso a home dispara um 400 garantido.
+ */
+export function useTeamReport(date: string, range: TeamRange, enabled = true) {
+  const companyParams = useIntelCompanyParam()
+  return useQuery({
+    enabled,
+    queryKey: intelKeys.team(date, range, companyParams.companyId),
+    queryFn: () =>
+      api
+        .get<TeamReportResponse>('/intel/manager/team', {
+          params: { date, range, ...companyParams },
+        })
+        .then((r) => r.data),
+  })
+}
+
+export interface MetricRatio {
+  total: number
+  hits: number
+  pct: number | null
+}
+
+export interface PilotMetricsResponse {
+  range: { fromYmd: string; toYmd: string }
+  conversionDays: number
+  portfolioPositivation: MetricRatio
+  suggestionConversion: MetricRatio
+  outOfPlanConversion: MetricRatio
+  liftPp: number | null
+  atRiskRecovery: MetricRatio
+}
+
+/** @param from/to 'YYYY-MM-DD'. `enabled` desliga a busca enquanto não há período. */
+export function usePilotMetrics(from: string, to: string, enabled = true) {
+  const companyParams = useIntelCompanyParam()
+  return useQuery({
+    enabled,
+    queryKey: intelKeys.pilotMetrics(from, to, companyParams.companyId),
+    queryFn: () =>
+      api
+        .get<PilotMetricsResponse>('/intel/manager/pilot-metrics', {
+          params: { from, to, ...companyParams },
+        })
+        .then((r) => r.data),
   })
 }

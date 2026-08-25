@@ -22,6 +22,7 @@ const base = (over: Partial<TeamInput> = {}): TeamInput => ({
   toYmd: '20260825',
   minVisits: 0,
   stale: false,
+  lastSyncAt: null,
   ...over,
 })
 
@@ -101,6 +102,11 @@ describe('buildTeamReport', () => {
     const report = buildTeamReport(base({ stale: true }))
     expect(report.alerts.map((a) => a.kind)).toEqual(['STALE_DATA'])
     expect(report.sellers[0].alerts.map((a) => a.kind)).not.toContain('STALE_DATA')
+  })
+
+  it('devolve o último sync para o cabeçalho mostrar o frescor', () => {
+    const at = '2026-08-25T06:03:00.000Z'
+    expect(buildTeamReport(base({ lastSyncAt: at })).lastSyncAt).toBe(at)
   })
 
   it('sem previstas, aderência é nula em vez de zero', () => {
