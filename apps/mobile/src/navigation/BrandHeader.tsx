@@ -40,6 +40,9 @@ export const detailScreenOptions = {
   headerStyle: { backgroundColor: colors.neutral.white },
   headerTintColor: colors.brand.dark,
   headerShadowVisible: false,
+  // As telas-índice usam o header da marca (sem `title`), então o iOS cairia no
+  // nome da rota — o botão de voltar aparecia como "index"
+  headerBackTitle: 'Voltar',
   headerTitleStyle: {
     fontFamily: typography.fontFamily.sansSemibold,
     fontSize: 16,
