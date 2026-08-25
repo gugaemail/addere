@@ -5,6 +5,14 @@ import type { UserPublic } from '@addere/types'
 import { setSentryUser, clearSentryUser } from '../services/sentryContext'
 import { env } from '../config/env'
 
+// Cada limpeza de sessão (logout, biometria recusada) abre uma nova época.
+// Escritas assíncronas que começaram antes não aplicam mais: era assim que o
+// app voltava com token e sem usuário — meio logado, caindo no dashboard
+// legado com "Olá," sem nome.
+let sessionEpoch = 0
+const openEpoch = () => sessionEpoch
+const epochIsCurrent = (epoch: number) => epoch === sessionEpoch
+
 const TOKEN_KEY = 'addere_access_token'
 const USER_KEY = 'addere_user'
 export const REFRESH_TOKEN_KEY = 'addere_refresh_token'
@@ -48,6 +56,7 @@ export const useAuthStore = create<AuthState>((set) => ({
   },
 
   clearAuth: async () => {
+    sessionEpoch += 1
     await Promise.all([
       SecureStore.deleteItemAsync(TOKEN_KEY),
       SecureStore.deleteItemAsync(USER_KEY),
@@ -59,11 +68,13 @@ export const useAuthStore = create<AuthState>((set) => ({
 
   // Busca as permissões efetivas do usuário logado (SUPERADMIN recebe o catálogo completo)
   fetchPermissions: async (token) => {
+    const epoch = openEpoch()
     try {
       const { data } = await axios.get<{ keys: string[] }>(`${env.apiUrl}/auth/me/permissions`, {
         headers: { Authorization: `Bearer ${token}` },
         timeout: 8000,
       })
+      if (!epochIsCurrent(epoch)) return
       set({ permissions: data.keys })
     } catch {
       // Mantém as permissões atuais (ex: offline) — não bloqueia o app
@@ -73,11 +84,13 @@ export const useAuthStore = create<AuthState>((set) => ({
   // Atualiza o usuário com o /auth/me completo (permissions + company com a
   // flag da Inteligência — E12). Persiste para a flag valer offline no boot.
   fetchMe: async (token) => {
+    const epoch = openEpoch()
     try {
       const { data } = await axios.get<UserPublic>(`${env.apiUrl}/auth/me`, {
         headers: { Authorization: `Bearer ${token}` },
         timeout: 8000,
       })
+      if (!epochIsCurrent(epoch)) return
       await SecureStore.setItemAsync(USER_KEY, JSON.stringify(data))
       set({ user: data })
     } catch {
@@ -89,6 +102,7 @@ export const useAuthStore = create<AuthState>((set) => ({
   // pela hidratação no boot e pelo login biométrico.
   // Tenta via cookie (sessão ativa) e cai para o refresh token do SecureStore.
   refreshSession: async () => {
+    const epoch = openEpoch()
     const storedRefreshToken = await SecureStore.getItemAsync(REFRESH_TOKEN_KEY)
 
     const tryRefresh = async (body: Record<string, string> = {}) => {
@@ -120,12 +134,19 @@ export const useAuthStore = create<AuthState>((set) => ({
       SecureStore.setItemAsync(TOKEN_KEY, data.accessToken),
       SecureStore.setItemAsync(REFRESH_TOKEN_KEY, data.refreshToken),
     ])
-    set({ accessToken: data.accessToken })
+    if (epochIsCurrent(epoch)) set({ accessToken: data.accessToken })
     return data.accessToken
   },
 
   // Chamado uma vez no boot do app para restaurar sessão salva
   hydrate: async () => {
+    const epoch = openEpoch()
+    // O guard de biometria roda em paralelo e pode limpar a sessão no meio da
+    // hidratação: `hydrated` sempre avança (senão o app trava no splash), mas
+    // usuário e token só voltam se a época ainda for a mesma.
+    const applySession = (partial: { user?: UserPublic | null; accessToken?: string | null }) =>
+      set(epochIsCurrent(epoch) ? { ...partial, hydrated: true } : { hydrated: true })
+
     const [token, userJson] = await Promise.all([
       SecureStore.getItemAsync(TOKEN_KEY),
       SecureStore.getItemAsync(USER_KEY),
@@ -135,7 +156,7 @@ export const useAuthStore = create<AuthState>((set) => ({
     if (token) {
       try {
         const newToken = await useAuthStore.getState().refreshSession()
-        set({ user, hydrated: true })
+        applySession({ user })
         await Promise.all([
           useAuthStore.getState().fetchPermissions(newToken),
           useAuthStore.getState().fetchMe(newToken),
@@ -144,7 +165,7 @@ export const useAuthStore = create<AuthState>((set) => ({
         const e = err as { response?: unknown; code?: string }
         if (!e.response || e.code === 'ECONNABORTED') {
           // Sem internet ou timeout: usa token existente e segue em frente
-          set({ accessToken: token, user, hydrated: true })
+          applySession({ accessToken: token, user })
           await useAuthStore.getState().fetchPermissions(token)
         } else {
           // Refresh token inválido/expirado: desloga
@@ -153,11 +174,11 @@ export const useAuthStore = create<AuthState>((set) => ({
             SecureStore.deleteItemAsync(USER_KEY),
             SecureStore.deleteItemAsync(REFRESH_TOKEN_KEY),
           ])
-          set({ accessToken: null, user: null, hydrated: true })
+          applySession({ accessToken: null, user: null })
         }
       }
     } else {
-      set({ accessToken: null, user, hydrated: true })
+      applySession({ accessToken: null, user })
     }
   },
 }))
