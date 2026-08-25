@@ -100,17 +100,21 @@ export default async function authRoutes(app: FastifyInstance) {
       },
     },
     async (request: FastifyRequest, reply: FastifyReply) => {
-      // Cookie (web) tem prioridade; body (mobile/biometria) é fallback
+      // Token no corpo (mobile/biometria) tem prioridade sobre o cookie (web):
+      // o app RN também guarda o cookie da sessão e o envia junto, então dar
+      // prioridade ao cookie fazia a checagem de CSRF barrar o refresh do app.
       const cookieToken = request.cookies[COOKIE_NAME]
       const bodyToken = (request.body as { refreshToken?: string } | null)?.refreshToken
-      const token = cookieToken ?? bodyToken
+      const token = bodyToken ?? cookieToken
       if (!token) {
         return reply.status(401).send({ message: 'Refresh token ausente' })
       }
 
-      // CSRF: quando o token vem do cookie (fluxo web) exige header customizado.
-      // Browsers não enviam X-Requested-With em requisições cross-site (form/img/etc.).
-      if (cookieToken && request.headers['x-requested-with'] !== 'XMLHttpRequest') {
+      // CSRF: só quando o token vem do cookie, que o browser anexa sozinho.
+      // Browsers não enviam X-Requested-With em requisições cross-site (form/img/etc.),
+      // e um token mandado explicitamente no corpo não é um vetor de CSRF.
+      const usingCookie = !bodyToken && Boolean(cookieToken)
+      if (usingCookie && request.headers['x-requested-with'] !== 'XMLHttpRequest') {
         return reply.status(403).send({ message: 'CSRF check falhou' })
       }
 

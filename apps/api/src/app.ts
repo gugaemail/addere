@@ -16,7 +16,7 @@ import companiesRoutes from './modules/companies/companies.routes'
 import branchesRoutes from './modules/branches/branches.routes'
 import syncRoutes from './modules/sync/sync.routes'
 import { initSchedulers } from './modules/sync/scheduler'
-import { initSentry } from './lib/sentry'
+import { captureError, initSentry } from './lib/sentry'
 import { registerIntelJobHandlers } from './modules/intelligence/jobs/register'
 import { initIntelScheduler } from './modules/intelligence/jobs/scheduler'
 import transportadorasRoutes from './modules/transportadoras/transportadoras.routes'
@@ -108,7 +108,14 @@ export async function buildApp(): Promise<FastifyInstance> {
   initSentry()
 
   app.addHook('onReady', async () => {
-    await initSchedulers()
+    // Nenhum scheduler pode bloquear o boot: se este hook rejeitar, o Fastify
+    // não sobe e a API fica fora do ar por causa de um job de segundo plano.
+    try {
+      await initSchedulers()
+    } catch (err) {
+      captureError(err, { module: 'scheduler' })
+      app.log.error({ err }, '[scheduler] initSchedulers falhou — auto-sync off neste boot')
+    }
     registerIntelJobHandlers()
     initIntelScheduler()
   })

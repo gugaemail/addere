@@ -95,6 +95,10 @@ export const useAuthStore = create<AuthState>((set) => ({
       const { data } = await axios.post(`${env.apiUrl}/auth/refresh`, body, {
         withCredentials: true,
         timeout: 8000,
+        // O RN guarda o cookie de sessão e o envia junto; sem este header a API
+        // trata a chamada como possível CSRF e devolve 403 (o que derrubava a
+        // sessão no boot do app).
+        headers: { 'X-Requested-With': 'XMLHttpRequest' },
       })
       return data as { accessToken: string; refreshToken: string }
     }
@@ -105,7 +109,7 @@ export const useAuthStore = create<AuthState>((set) => ({
     } catch (cookieErr) {
       const e = cookieErr as { response?: unknown }
       if (storedRefreshToken && e.response) {
-        // Cookie ausente (RN não persiste), tenta com token do SecureStore
+        // Cookie recusado/ausente: tenta com o refresh token do SecureStore
         data = await tryRefresh({ refreshToken: storedRefreshToken })
       } else {
         throw cookieErr

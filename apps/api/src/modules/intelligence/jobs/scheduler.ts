@@ -64,11 +64,28 @@ async function lastRunStartedAt(companyId: string, job: IntelJob): Promise<Date 
   return run?.startedAt ?? null
 }
 
-export async function tickIntelScheduler(now: Date = new Date()): Promise<void> {
-  const companies = await prisma.company.findMany({
+function listEnabledCompanies() {
+  return prisma.company.findMany({
     where: { active: true, intelligenceEnabled: true },
     select: { id: true, intelligenceConfig: true },
   })
+}
+
+/**
+ * Um tick nunca propaga erro. Ele roda solto (`void`) no boot e no setInterval:
+ * no Node 26 uma rejeição não tratada encerra o processo, então uma falha aqui
+ * — drift de schema, banco piscando — tiraria a API inteira do ar em vez de
+ * apenas desligar a Inteligência.
+ */
+export async function tickIntelScheduler(now: Date = new Date()): Promise<void> {
+  let companies: Awaited<ReturnType<typeof listEnabledCompanies>>
+  try {
+    companies = await listEnabledCompanies()
+  } catch (err) {
+    captureError(err, { module: 'intel-scheduler' })
+    console.error('[intel-scheduler] falha ao listar empresas:', (err as Error).message)
+    return
+  }
 
   for (const company of companies) {
     try {

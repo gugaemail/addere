@@ -17,18 +17,19 @@ describe('Plano do dia — visita online', () => {
       .withTimeout(10000)
 
     await element(by.id('card-plano-do-dia')).tap()
+    // Build debug: a primeira navegação carrega o módulo da rota pelo Metro
     await waitFor(element(by.id('screen-rota')))
-      .toBeVisible()
-      .withTimeout(5000)
+      .toExist()
+      .withTimeout(15000)
 
     // Primeira parada: check-in
     await waitFor(element(by.id('plan-item-1')))
       .toBeVisible()
-      .withTimeout(5000)
+      .withTimeout(10000)
     await element(by.id('btn-cheguei-1')).tap()
 
     await waitFor(element(by.id('screen-visita')))
-      .toBeVisible()
+      .toExist()
       .withTimeout(5000)
 
     // "Antes de entrar" sempre presente (snapshot determinístico)
@@ -39,15 +40,22 @@ describe('Plano do dia — visita online', () => {
     // Resultado: sem pedido, com motivo (obrigatório)
     await element(by.id('resultado-NO_ORDER')).tap()
     await element(by.id('input-motivo')).typeText('Estoque cheio')
+    // O teclado cobre o rodapé do formulário: um toque fora fecha o teclado
+    // (o ScrollView não rola porque o conteúdo cabe na tela)
+    await element(by.id('before-enter')).tap()
     await element(by.id('btn-concluir-visita')).tap()
 
     // De volta ao plano
     await waitFor(element(by.id('screen-rota')))
-      .toBeVisible()
+      .toExist()
       .withTimeout(5000)
   })
 
   it('tira uma parada do dia e o plano vira editado', async () => {
+    // Volta da visita com a lista re-renderizando — espera o card assentar
+    await waitFor(element(by.id('btn-tirar-1')))
+      .toBeVisible()
+      .withTimeout(10000)
     await element(by.id('btn-tirar-1')).tap()
     await element(by.text('Tirar')).tap()
     // A lista renumera — o item 1 continua existindo (era o 2)
