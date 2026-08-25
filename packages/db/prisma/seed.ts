@@ -140,29 +140,40 @@ async function main() {
   // Credenciais fixas esperadas por apps/mobile/e2e/helpers/auth.ts
   if (process.env.NODE_ENV !== 'production') {
     const e2ePasswordHash = await bcrypt.hash('test1234', 10)
+    // O vendedor e2e tem código Protheus porque os fluxos da Inteligência
+    // (plano do dia, visita) são chaveados por `User.idVendProt` — o mesmo
+    // código do gerador sintético usado pelo `intel:smoke` da API.
+    const E2E_VENDOR_CODE = '000001'
     const e2eUsers = [
-      { email: 'rep@addere.test', name: 'Vendedor E2E', role: 'SALESPERSON' as const },
+      {
+        email: 'rep@addere.test',
+        name: 'Vendedor E2E',
+        role: 'SALESPERSON' as const,
+        idVendProt: E2E_VENDOR_CODE,
+      },
       { email: 'manager@addere.test', name: 'Gerente E2E', role: 'ADMIN' as const },
     ]
     for (const u of e2eUsers) {
       await prisma.user.upsert({
         where: { email: u.email },
-        update: { password: e2ePasswordHash, active: true },
+        update: { password: e2ePasswordHash, active: true, idVendProt: u.idVendProt ?? null },
         create: {
           name: u.name,
           email: u.email,
           password: e2ePasswordHash,
           role: u.role,
           companyId: company.id,
+          idVendProt: u.idVendProt ?? null,
         },
       })
     }
     console.log('Usuários e2e criados:', e2eUsers.map((u) => u.email).join(', '))
 
-    // Cliente buscado pelos fluxos e2e ("Cliente Teste")
+    // Cliente buscado pelos fluxos e2e ("Cliente Teste") — precisa ser da
+    // carteira do vendedor e2e, senão a listagem por vendedor não o devolve
     await prisma.customer.upsert({
       where: { id: 'customer-e2e-001' },
-      update: { name: 'Cliente Teste', active: true },
+      update: { name: 'Cliente Teste', active: true, vendorCode: E2E_VENDOR_CODE },
       create: {
         id: 'customer-e2e-001',
         name: 'Cliente Teste',
@@ -170,6 +181,7 @@ async function main() {
         email: 'cliente@addere.test',
         phone: '(31) 99999-0099',
         protheusCode: 'CLIE2E',
+        vendorCode: E2E_VENDOR_CODE,
         companyId: company.id,
         active: true,
       },

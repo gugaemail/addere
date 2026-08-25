@@ -3,10 +3,11 @@
 Os fluxos em `flows/` cobrem login, pedido online e a fila offline
 (sync, retry e restart do app com itens pendentes).
 
-> Os fluxos `order-offline-*` só rodam no **Android**: eles desligam WiFi/dados do
+> Os fluxos `order-offline-*` e `visit-offline` só rodam no **Android**: eles desligam WiFi/dados do
 > emulador via `adb` para o NetInfo reportar offline. No simulador iOS o
 > `setURLBlacklist` bloqueia HTTP, mas o NetInfo continua "conectado" e a
-> `SyncStatusBar` nunca entra em modo offline. `auth` e `order-online` rodam nos dois.
+> `SyncStatusBar` nunca entra em modo offline. `auth`, `order-online` e `plan-visit`
+> rodam nos dois.
 
 ## Pré-requisitos
 
@@ -46,7 +47,7 @@ Todos os testIDs abaixo existem no código (confira com `grep -rn testID app src
 | testID                                                                          | Onde                                                         |
 | ------------------------------------------------------------------------------- | ------------------------------------------------------------ |
 | `input-email`, `input-password`, `btn-login`, `error-login`                     | `src/screens/auth/LoginScreen.tsx`                           |
-| `screen-home`                                                                   | dashboard `(app)/index.tsx` (ScrollView raiz)                |
+| `screen-home`                                                                   | dashboard legado (`src/screens/LegacyDashboard.tsx`) — só com `intelligenceEnabled` **desligado** |
 | `screen-onboarding`, `btn-onboarding-next`                                      | `src/components/onboarding/OnboardingFlow.tsx` (1º login)    |
 | `tab-dashboard`, `tab-clientes`, `tab-produtos`, `tab-pedidos`                  | abas do `Tabs` em `(app)/_layout.tsx` (`tabBarButtonTestID`) |
 | `tab-hoje`, `tab-rota` (E12)                                                    | abas da Inteligência — só existem com `intelligenceEnabled`; `tab-dashboard`/`screen-home` continuam valendo com a flag desligada |
@@ -68,8 +69,13 @@ Observações:
 - Todo fluxo deve começar com `launchFreshApp()` (`e2e/helpers/auth.ts`): reinstala o app e,
   no iOS, limpa o keychain — sem isso a sessão do SecureStore sobrevive ao relaunch.
 - No primeiro login o app mostra o onboarding (3 telas); `loginAs()` já avança por ele
-  (`dismissOnboardingIfShown`) antes de esperar `screen-home`.
-- A tela após o login é a Dashboard; o FAB `btn-novo-pedido` fica na aba **Pedidos** —
+  (`dismissOnboardingIfShown`) e depois espera a home com `waitForHome()`.
+- **A home depende da flag da empresa**: com `intelligenceEnabled` o app abre em `screen-hoje`
+  (aba Hoje), sem a flag em `screen-home` (dashboard legado). Nunca espere um dos dois direto —
+  use `waitForHome()`, que faz polling nos dois e devolve qual apareceu. Os fluxos da
+  Inteligência (`plan-visit`, `visit-offline`) exigem a flag ligada e um plano gerado para hoje
+  (rodar o `intel-smoke` da API antes da suíte).
+- O FAB `btn-novo-pedido` fica na aba **Pedidos** —
   use o helper `goToPedidos()` de `e2e/helpers/navigation.ts` (toca `tab-pedidos` e aguarda o FAB).
 - `btn-adicionar-produto-{i}` é o card de **filial** do passo 1 (nome mantido por
   compatibilidade com os fluxos existentes).

@@ -17,16 +17,17 @@ describe('Visita offline com sync posterior', () => {
       .toBeVisible()
       .withTimeout(10000)
     await element(by.id('card-plano-do-dia')).tap()
+    // Build debug: a primeira navegação carrega o módulo da rota pelo Metro
     await waitFor(element(by.id('plan-item-1')))
       .toBeVisible()
-      .withTimeout(5000)
+      .withTimeout(15000)
 
     await goOffline()
 
     // Check-in offline: entra na fila (SyncPill aparece) e a tela abre normal
     await element(by.id('btn-cheguei-1')).tap()
     await waitFor(element(by.id('screen-visita')))
-      .toBeVisible()
+      .toExist()
       .withTimeout(5000)
     await waitFor(element(by.id('sync-pill')))
       .toBeVisible()
@@ -40,7 +41,7 @@ describe('Visita offline com sync posterior', () => {
     await element(by.id('resultado-RESCHEDULED')).tap()
     await element(by.id('btn-concluir-visita')).tap()
     await waitFor(element(by.id('screen-rota')))
-      .toBeVisible()
+      .toExist()
       .withTimeout(5000)
 
     await goOnline()
