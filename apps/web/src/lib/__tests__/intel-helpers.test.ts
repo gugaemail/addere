@@ -6,6 +6,11 @@ import {
   needsActiveCompany,
   parseCities,
   periodLabel,
+  pctLabel,
+  ppLabel,
+  dayLabel,
+  rangeLabel,
+  todayInSaoPaulo,
   weightsSum,
   weightsValid,
 } from '../intel-helpers'
@@ -50,7 +55,9 @@ describe('backfillProgress', () => {
   })
 
   it('clampa done dentro de [0, total]', () => {
-    expect(backfillProgress({ kind: 'backfill', contract: 'SALES', done: 99, total: 13 })?.pct).toBe(100)
+    expect(
+      backfillProgress({ kind: 'backfill', contract: 'SALES', done: 99, total: 13 })?.pct
+    ).toBe(100)
   })
 })
 
@@ -84,5 +91,51 @@ describe('needsActiveCompany', () => {
 
   it('quem não é SUPERADMIN nunca precisa — o tenant vem do próprio token', () => {
     expect(needsActiveCompany(false, null)).toBe(false)
+  })
+})
+
+describe('pctLabel/ppLabel', () => {
+  it('null vira travessão — não 0%', () => {
+    // "sem plano" e "0% de aderência" são acusações diferentes na tela do gerente
+    expect(pctLabel(null)).toBe('—')
+    expect(pctLabel(undefined)).toBe('—')
+    expect(pctLabel(0)).toBe('0%')
+  })
+
+  it('percentual com vírgula decimal', () => {
+    expect(pctLabel(37.5)).toBe('37,5%')
+    expect(pctLabel(100)).toBe('100%')
+  })
+
+  it('pontos percentuais levam sinal', () => {
+    expect(ppLabel(12.5)).toBe('+12,5 p.p.')
+    expect(ppLabel(-8)).toBe('-8 p.p.')
+    expect(ppLabel(null)).toBe('—')
+  })
+})
+
+describe('dayLabel/rangeLabel', () => {
+  it('dia isolado sai com ano', () => {
+    expect(rangeLabel({ fromYmd: '20260825', toYmd: '20260825' })).toBe('25/08/2026')
+  })
+
+  it('intervalo no mesmo ano omite o ano do início', () => {
+    expect(rangeLabel({ fromYmd: '20260824', toYmd: '20260830' })).toBe('24/08 a 30/08/2026')
+  })
+
+  it('intervalo que cruza o ano mostra os dois anos', () => {
+    expect(rangeLabel({ fromYmd: '20261228', toYmd: '20270103' })).toBe('28/12/2026 a 03/01/2027')
+  })
+
+  it('formato inesperado não quebra a tela', () => {
+    expect(dayLabel('2026-08-25')).toBe('—')
+  })
+})
+
+describe('todayInSaoPaulo', () => {
+  it('usa o dia civil de São Paulo, não o UTC', () => {
+    // 26/08 00:30 UTC ainda é 25/08 em São Paulo (UTC−3)
+    expect(todayInSaoPaulo(new Date('2026-08-26T00:30:00Z'))).toBe('2026-08-25')
+    expect(todayInSaoPaulo(new Date('2026-08-25T12:00:00Z'))).toBe('2026-08-25')
   })
 })

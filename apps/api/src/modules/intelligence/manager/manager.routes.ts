@@ -16,6 +16,8 @@ import {
 } from './manager.service'
 import { compactYmd, ymdToUtcDate } from './range'
 
+const DEFAULT_LOJA = '01'
+
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'data deve ser YYYY-MM-DD')
 
 const teamQuerySchema = z.object({
@@ -30,7 +32,7 @@ const planItemSchema = z
     companyId: z.string().uuid().optional(),
     vendorCode: z.string().min(1).max(20),
     customerCode: z.string().min(1).max(20),
-    loja: z.string().min(1).max(10).default('01'),
+    loja: z.string().min(1).max(10).default(DEFAULT_LOJA),
     date: isoDate.optional(),
     shortReason: z.string().max(280).optional(),
   })
@@ -99,12 +101,20 @@ export default async function managerRoutes(app: FastifyInstance) {
       return reply.status(403).send({ message: 'Este vendedor não é da sua equipe' })
     }
 
+    // O cadastro tem cliente com `loja` nula, e o resto da Inteligência os lê
+    // como '01' (`loja ?? '01'`) — inclusive o motor, que já os põe no plano.
+    // Casar a coluna literalmente devolvia 404 justamente nesses.
+    const lojaFilter =
+      body.loja === DEFAULT_LOJA
+        ? { OR: [{ loja: DEFAULT_LOJA }, { loja: null }] }
+        : { loja: body.loja }
+
     const customer = await prisma.customer.findFirst({
       where: {
         companyId: company.id,
         active: true,
         protheusCode: body.customerCode,
-        loja: body.loja,
+        ...lojaFilter,
       },
       select: { id: true },
     })

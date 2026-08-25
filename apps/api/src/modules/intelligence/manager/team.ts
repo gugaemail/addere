@@ -59,13 +59,21 @@ export interface TeamInput {
   visits: VisitFact[]
   fromYmd: string
   toYmd: string
-  /** Piso de visitas da janela — visits_per_day × dias úteis (0 desliga o alerta). */
+  /**
+   * Capacidade esperada de visitas no período. Só faz sentido no recorte de um
+   * dia: somada ao longo de um mês, a capacidade vira um número que todo
+   * vendedor fura, e o alerta deixa de significar qualquer coisa. Em 0, sobra
+   * apenas o caso inequívoco — tinha plano e não saiu.
+   */
   minVisits: number
   stale: boolean
+  lastSyncAt: string | null
 }
 
 export interface TeamReport {
   range: { fromYmd: string; toYmd: string }
+  /** ISO do último sync OK — o cabeçalho da tela mostra o frescor. */
+  lastSyncAt: string | null
   totals: TeamTotals
   sellers: SellerCard[]
   alerts: TeamAlert[]
@@ -109,14 +117,18 @@ export function buildTeamReport(input: TeamInput): TeamReport {
     const closed = visits.filter((v) => v.result !== null)
     const withOrder = closed.filter((v) => v.result === 'ORDER').length
 
+    // Um alerta por vendedor, do mais acionável para o menos: sem plano, o
+    // gerente resolve no cadastro; com plano e sem sair, é conversa com o
+    // vendedor. Empilhar os dois só faria o painel gritar duas vezes o mesmo.
     const alerts: TeamAlert[] = []
     if (planned === 0) {
       alerts.push({ kind: 'NO_PLAN', message: 'Sem plano gerado no período' })
-    }
-    if (input.minVisits > 0 && done < input.minVisits) {
+    } else if (done === 0) {
+      alerts.push({ kind: 'FEW_VISITS', message: 'Plano gerado, nenhuma visita registrada' })
+    } else if (input.minVisits > 0 && done < input.minVisits) {
       alerts.push({
         kind: 'FEW_VISITS',
-        message: `${done} visita(s) no período — esperado ao menos ${input.minVisits}`,
+        message: `${done} de ${input.minVisits} visitas previstas para o dia`,
       })
     }
 
@@ -148,6 +160,7 @@ export function buildTeamReport(input: TeamInput): TeamReport {
 
   return {
     range: { fromYmd, toYmd },
+    lastSyncAt: input.lastSyncAt,
     totals: {
       sellers: sellers.length,
       planned: totalPlanned,

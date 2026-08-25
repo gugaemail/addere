@@ -12,14 +12,7 @@ import {
   type VisitFact,
 } from './team'
 import { buildPilotMetrics, type PilotMetrics } from './pilot-metrics'
-import {
-  addDays,
-  businessDaysIn,
-  rangeWindow,
-  ymdToUtcDate,
-  type DateWindow,
-  type TeamRange,
-} from './range'
+import { addDays, rangeWindow, ymdToUtcDate, type DateWindow, type TeamRange } from './range'
 
 const CONVERSION_DAYS = 7
 
@@ -163,7 +156,14 @@ async function loadVisits(
   }))
 }
 
-async function resolveMinVisits(companyId: string, window: DateWindow): Promise<number> {
+/**
+ * Capacidade esperada de visitas — só no recorte de um dia. Multiplicar pela
+ * quantidade de dias úteis parecia generalizar bem, mas com dados reais o mês
+ * pedia 168 visitas e acusava todo mundo: o alerta perdia o sentido. Na semana
+ * e no mês quem responde por volume é a aderência, não um alerta.
+ */
+async function resolveMinVisits(companyId: string, range: TeamRange): Promise<number> {
+  if (range !== 'day') return 0
   const overrides = await prisma.intelParameter.findMany({
     where: { companyId },
     select: { key: true, value: true, segment: true },
@@ -171,7 +171,7 @@ async function resolveMinVisits(companyId: string, window: DateWindow): Promise<
   const params = resolveParameters(
     overrides.map((o) => ({ key: o.key, value: o.value, segment: o.segment ?? '' }))
   )
-  return params.visits_per_day * businessDaysIn(window, params.saturday_workday)
+  return params.visits_per_day
 }
 
 export async function buildTeam(
@@ -185,6 +185,7 @@ export async function buildTeam(
   const vendorCodes = sellers.map((s) => s.idVendProt as string)
 
   if (vendorCodes.length === 0) {
+    const freshness = await getFreshness(companyId)
     return buildTeamReport({
       sellers: [],
       plans: [],
@@ -192,7 +193,8 @@ export async function buildTeam(
       fromYmd: window.fromYmd,
       toYmd: window.toYmd,
       minVisits: 0,
-      stale: (await getFreshness(companyId)).stale,
+      stale: freshness.stale,
+      lastSyncAt: freshness.lastSyncAt,
     })
   }
 
@@ -200,7 +202,7 @@ export async function buildTeam(
     loadPortfolio(companyId, vendorCodes, anchorYmd.slice(0, 6)),
     loadPlans(companyId, vendorCodes, window),
     loadVisits(companyId, vendorCodes, window),
-    resolveMinVisits(companyId, window),
+    resolveMinVisits(companyId, range),
     getFreshness(companyId),
   ])
 
@@ -225,6 +227,7 @@ export async function buildTeam(
     toYmd: window.toYmd,
     minVisits,
     stale: freshness.stale,
+    lastSyncAt: freshness.lastSyncAt,
   })
 }
 

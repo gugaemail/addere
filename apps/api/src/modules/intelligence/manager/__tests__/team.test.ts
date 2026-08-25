@@ -22,6 +22,7 @@ const base = (over: Partial<TeamInput> = {}): TeamInput => ({
   toYmd: '20260825',
   minVisits: 0,
   stale: false,
+  lastSyncAt: null,
   ...over,
 })
 
@@ -87,20 +88,48 @@ describe('buildTeamReport', () => {
     expect(report.sellers[0].done).toBe(1)
   })
 
-  it('alerta de sem plano e de poucas visitas', () => {
-    const report = buildTeamReport(base({ plans: [], minVisits: 3, visits: [visit()] }))
-    expect(report.sellers[0].alerts.map((a) => a.kind)).toEqual(['NO_PLAN', 'FEW_VISITS'])
+  it('sem plano, o alerta é só esse — não empilha com o de visitas', () => {
+    const report = buildTeamReport(base({ plans: [], minVisits: 8, visits: [] }))
+    expect(report.sellers[0].alerts.map((a) => a.kind)).toEqual(['NO_PLAN'])
   })
 
-  it('minVisits zero desliga o alerta de poucas visitas', () => {
+  it('plano gerado e nenhuma visita alerta mesmo sem capacidade definida', () => {
+    // minVisits 0 é o caso de semana/mês: sobra só o inequívoco
     const report = buildTeamReport(base({ minVisits: 0, visits: [] }))
-    expect(report.sellers[0].alerts.map((a) => a.kind)).not.toContain('FEW_VISITS')
+    expect(report.sellers[0].alerts).toEqual([
+      { kind: 'FEW_VISITS', message: 'Plano gerado, nenhuma visita registrada' },
+    ])
+  })
+
+  it('abaixo da capacidade do dia alerta com o número previsto', () => {
+    const report = buildTeamReport(base({ minVisits: 8, visits: [visit()] }))
+    expect(report.sellers[0].alerts).toEqual([
+      { kind: 'FEW_VISITS', message: '1 de 8 visitas previstas para o dia' },
+    ])
+  })
+
+  it('dentro da capacidade não alerta', () => {
+    const visits = Array.from({ length: 8 }, (_, i) => visit({ customerKey: `C${i}|01` }))
+    const report = buildTeamReport(base({ minVisits: 8, visits }))
+    expect(report.sellers[0].alerts).toEqual([])
+  })
+
+  it('na semana e no mês, volume abaixo da capacidade não vira alerta', () => {
+    // minVisits 0 = a aderência responde por volume; o alerta ficaria gritando
+    // com todo vendedor que não fez 8 visitas por dia útil do mês
+    const report = buildTeamReport(base({ minVisits: 0, visits: [visit()] }))
+    expect(report.sellers[0].alerts).toEqual([])
   })
 
   it('dados velhos viram alerta do relatório, não do vendedor', () => {
     const report = buildTeamReport(base({ stale: true }))
     expect(report.alerts.map((a) => a.kind)).toEqual(['STALE_DATA'])
     expect(report.sellers[0].alerts.map((a) => a.kind)).not.toContain('STALE_DATA')
+  })
+
+  it('devolve o último sync para o cabeçalho mostrar o frescor', () => {
+    const at = '2026-08-25T06:03:00.000Z'
+    expect(buildTeamReport(base({ lastSyncAt: at })).lastSyncAt).toBe(at)
   })
 
   it('sem previstas, aderência é nula em vez de zero', () => {

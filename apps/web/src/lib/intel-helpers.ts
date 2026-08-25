@@ -73,3 +73,43 @@ export function needsActiveCompany(isSuperAdmin: boolean, companyId: string | nu
   return isSuperAdmin && !companyId
 }
 
+// ─── Equipe em campo (W1/E11) ───
+
+// A API devolve null quando não há denominador — "sem plano gerado" e "0% de
+// aderência" são coisas diferentes na tela do gerente, e virar 0 acusaria o
+// vendedor de algo que não aconteceu.
+export function pctLabel(value: number | null | undefined): string {
+  if (value === null || value === undefined || !Number.isFinite(value)) return '—'
+  return `${String(value).replace('.', ',')}%`
+}
+
+/** Pontos percentuais com sinal (lift da conversão sugerida vs. fora do plano). */
+export function ppLabel(value: number | null | undefined): string {
+  if (value === null || value === undefined || !Number.isFinite(value)) return '—'
+  const sign = value > 0 ? '+' : ''
+  return `${sign}${String(value).replace('.', ',')} p.p.`
+}
+
+/** 'YYYYMMDD' → 'DD/MM'; com ano quando o período cruza anos. */
+export function dayLabel(ymd: string, withYear = false): string {
+  if (!/^\d{8}$/.test(ymd)) return '—'
+  const base = `${ymd.slice(6, 8)}/${ymd.slice(4, 6)}`
+  return withYear ? `${base}/${ymd.slice(0, 4)}` : base
+}
+
+/** Cabeçalho do período: um dia aparece sozinho, um intervalo vira "de … a …". */
+export function rangeLabel(range: { fromYmd: string; toYmd: string }): string {
+  const crossesYear = range.fromYmd.slice(0, 4) !== range.toYmd.slice(0, 4)
+  if (range.fromYmd === range.toYmd) return dayLabel(range.fromYmd, true)
+  return `${dayLabel(range.fromYmd, crossesYear)} a ${dayLabel(range.toYmd, true)}`
+}
+
+/** 'YYYY-MM-DD' do dia civil em São Paulo — o input date e a query usam esse formato. */
+export function todayInSaoPaulo(now: Date = new Date()): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Sao_Paulo',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(now)
+}

@@ -69,6 +69,13 @@ const NAV_GROUPS: NavGroup[] = [
         requires: { permission: ['intel.admin', 'intel.manager'], orAdmin: true },
       },
       {
+        href: '/inteligencia/equipe',
+        label: 'Equipe em campo',
+        match: (p) => p.startsWith('/inteligencia/equipe'),
+        icon: Users,
+        requires: { permission: ['intel.admin', 'intel.manager'], orAdmin: true },
+      },
+      {
         href: '/inteligencia/consultas',
         label: 'Consultas',
         match: (p) => p.startsWith('/inteligencia/consultas'),
@@ -127,7 +134,10 @@ function CompanySelector() {
 
   return (
     <div className="px-3 pt-3">
-      <label htmlFor="company-selector" className="block px-2 pb-1 text-[11px] uppercase tracking-wider text-white/40">
+      <label
+        htmlFor="company-selector"
+        className="block px-2 pb-1 text-[11px] uppercase tracking-wider text-white/40"
+      >
         Empresa ativa
       </label>
       <select
