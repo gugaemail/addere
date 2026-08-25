@@ -10,9 +10,10 @@ import { Input } from '../../../src/components/ui/Input'
 import { EmptyState } from '../../../src/components/ui/EmptyState'
 import { useFieldVisible } from '../../../src/hooks/useFieldConfig'
 import { colors, spacing, typography } from '../../../src/theme'
-import type { Customer, CustomerStatus } from '@addere/types'
+import type { Customer } from '@addere/types'
 import { formatDocument } from '../../../src/utils/format'
 import { useCustomerSignals } from '../../../src/hooks/useIntel'
+import { parseIntelStatusParam } from '../../../src/utils/customerStatus'
 import { StatusPill } from '../../../src/components/intel/StatusPill'
 
 function ClienteItem({ customer, onPress }: { customer: Customer; onPress: () => void }) {
@@ -32,22 +33,19 @@ function ClienteItem({ customer, onPress }: { customer: Customer; onPress: () =>
   )
 }
 
-const VALID_STATUSES: CustomerStatus[] = ['NEW', 'ON_CYCLE', 'LATE', 'AT_RISK', 'INACTIVE', 'BLOCKED']
-
 export default function ClientesScreen() {
   const router = useRouter()
   const [search, setSearch] = useState('')
   const debouncedSearch = useDebouncedValue(search)
   const { data: customers, isLoading, refetch } = useClientes(debouncedSearch || undefined)
 
-  // Filtro por status do motor (E13): atalho "Quem está esfriando?" do Hoje
+  // Filtro por status do motor (E13): atalho "Quem está esfriando?" do Hoje.
+  // Derivado do parâmetro, nunca copiado para estado: a aba fica montada, então
+  // um `useState` só lia o parâmetro no primeiro mount — o atalho parava de
+  // filtrar da segunda vez em diante, e limpar o filtro mudava só o estado
+  // local, deixando o parâmetro para ressuscitá-lo no mount seguinte.
   const params = useLocalSearchParams<{ intelStatus?: string }>()
-  const [statusFilter, setStatusFilter] = useState<CustomerStatus[] | null>(() => {
-    const parsed = (params.intelStatus ?? '')
-      .split(',')
-      .filter((v): v is CustomerStatus => VALID_STATUSES.includes(v as CustomerStatus))
-    return parsed.length > 0 ? parsed : null
-  })
+  const statusFilter = useMemo(() => parseIntelStatusParam(params.intelStatus), [params.intelStatus])
   const signals = useCustomerSignals()
   const filteredSignals = useMemo(() => {
     if (!statusFilter || !signals.data) return null
@@ -83,7 +81,7 @@ export default function ClientesScreen() {
           ))}
           <TouchableOpacity
             testID="btn-limpar-filtro"
-            onPress={() => setStatusFilter(null)}
+            onPress={() => router.setParams({ intelStatus: '' })}
             hitSlop={8}
             style={{ marginLeft: 'auto' }}
           >
