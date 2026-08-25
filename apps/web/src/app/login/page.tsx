@@ -8,7 +8,7 @@ import { Logo } from '@/components/Logo'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { getApiErrorMessage } from '@/lib/api'
-import { canAccessPanel, resolveHome } from '@/lib/home-redirect'
+import { canAccessPanel, resolveHome, safeNextPath } from '@/lib/home-redirect'
 import { loginSchema } from '@/lib/schemas'
 
 export default function LoginPage() {
@@ -42,7 +42,10 @@ export default function LoginPage() {
         return
       }
 
-      router.push(resolveHome(user))
+      // Lido de window (e não de useSearchParams) para a página não precisar de
+      // Suspense: isto roda só no submit, já no cliente.
+      const next = safeNextPath(new URLSearchParams(window.location.search).get('next'))
+      router.push(next ?? resolveHome(user))
     } catch (err: unknown) {
       setError(getApiErrorMessage(err, 'Erro ao conectar. Tente novamente.'))
     } finally {

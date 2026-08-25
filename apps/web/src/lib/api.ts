@@ -16,7 +16,11 @@ export function setAccessToken(token: string | null) {
   _accessToken = token
   if (token) {
     const expires = new Date(Date.now() + 8 * 60 * 60 * 1000).toUTCString()
-    document.cookie = `addere_session=1; expires=${expires}; path=/; SameSite=Strict`
+    // Lax e não Strict: com Strict o navegador omite o cookie em navegação
+    // vinda de outro site, então abrir um link direto do painel (e-mail, chat)
+    // caía no login mesmo com sessão válida. O cookie é só indicador de UX —
+    // não carrega autoridade nenhuma (ver lib/pilot-auth.ts).
+    document.cookie = `addere_session=1; expires=${expires}; path=/; SameSite=Lax`
   } else {
     document.cookie = `addere_session=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`
   }
