@@ -70,6 +70,28 @@ describe('época de sessão', () => {
     expect(useAuthStore.getState().accessToken).toBeNull()
   })
 
+  it('refreshSession que chega depois do clearAuth também não regrava o keychain', async () => {
+    ;(SecureStore.getItemAsync as jest.Mock).mockResolvedValue('refresh-antigo')
+    let resolveRefresh: (v: unknown) => void = () => {}
+    mockPost.mockReturnValue(
+      new Promise((resolve) => {
+        resolveRefresh = resolve
+      })
+    )
+
+    const pending = useAuthStore.getState().refreshSession()
+    await useAuthStore.getState().clearAuth()
+    resolveRefresh({ data: { accessToken: 'novo', refreshToken: 'novo-r' } })
+    await pending
+
+    // O clearAuth apaga token e usuário; regravar só o token aqui deixava o
+    // access token órfão no keychain para o boot seguinte encontrar.
+    expect(SecureStore.setItemAsync).not.toHaveBeenCalledWith(
+      'addere_access_token',
+      expect.anything()
+    )
+  })
+
   it('sem clearAuth no meio, o fetchMe aplica normalmente', async () => {
     mockGet.mockResolvedValue({ data: USER })
 
@@ -77,5 +99,60 @@ describe('época de sessão', () => {
 
     expect(useAuthStore.getState().user?.name).toBe('Gustavo Costa')
     expect(useAuthStore.getState().user?.company?.intelligenceEnabled).toBe(true)
+  })
+})
+
+describe('hydrate', () => {
+  const keychain = (values: Record<string, string | null>) =>
+    (SecureStore.getItemAsync as jest.Mock).mockImplementation(
+      async (key: string) => values[key] ?? null
+    )
+
+  it('token órfão no keychain, sem usuário e sem /auth/me, encerra a sessão', async () => {
+    keychain({ addere_access_token: 'token-orfao', addere_refresh_token: 'refresh-x' })
+    mockPost.mockResolvedValue({ data: { accessToken: 'novo', refreshToken: 'novo-r' } })
+    // Instância fria/offline: nem permissões nem /auth/me respondem
+    mockGet.mockRejectedValue(new Error('timeout'))
+
+    await useAuthStore.getState().hydrate()
+
+    const state = useAuthStore.getState()
+    expect(state.accessToken).toBeNull()
+    expect(state.user).toBeNull()
+    expect(state.hydrated).toBe(true)
+    expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith('addere_access_token')
+    expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith('addere_refresh_token')
+  })
+
+  it('token órfão volta a valer quando o /auth/me repõe o usuário', async () => {
+    keychain({ addere_access_token: 'token-orfao', addere_refresh_token: 'refresh-x' })
+    mockPost.mockResolvedValue({ data: { accessToken: 'novo', refreshToken: 'novo-r' } })
+    mockGet.mockImplementation(async (url: string) =>
+      url.endsWith('/permissions') ? { data: { keys: ['orders.view'] } } : { data: USER }
+    )
+
+    await useAuthStore.getState().hydrate()
+
+    expect(useAuthStore.getState().user?.name).toBe('Gustavo Costa')
+    expect(useAuthStore.getState().accessToken).toBe('novo')
+  })
+
+  it('sessão íntegra no keychain hidrata normalmente', async () => {
+    keychain({
+      addere_access_token: 'token-bom',
+      addere_user: JSON.stringify(USER),
+      addere_refresh_token: 'refresh-x',
+    })
+    mockPost.mockResolvedValue({ data: { accessToken: 'novo', refreshToken: 'novo-r' } })
+    mockGet.mockImplementation(async (url: string) =>
+      url.endsWith('/permissions') ? { data: { keys: ['orders.view'] } } : { data: USER }
+    )
+
+    await useAuthStore.getState().hydrate()
+
+    const state = useAuthStore.getState()
+    expect(state.user?.name).toBe('Gustavo Costa')
+    expect(state.accessToken).toBe('novo')
+    expect(SecureStore.deleteItemAsync).not.toHaveBeenCalledWith('addere_access_token')
   })
 })

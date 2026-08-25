@@ -130,11 +130,17 @@ export const useAuthStore = create<AuthState>((set) => ({
       }
     }
 
+    // Sessão encerrada no meio do refresh (logout, 401, biometria recusada):
+    // devolve o token para quem pediu, mas não o grava. Escrever aqui deixava
+    // um access token órfão no keychain — sem o usuário, que clearAuth apagou —
+    // e no boot seguinte o app subia meio logado.
+    if (!epochIsCurrent(epoch)) return data.accessToken
+
     await Promise.all([
       SecureStore.setItemAsync(TOKEN_KEY, data.accessToken),
       SecureStore.setItemAsync(REFRESH_TOKEN_KEY, data.refreshToken),
     ])
-    if (epochIsCurrent(epoch)) set({ accessToken: data.accessToken })
+    set({ accessToken: data.accessToken })
     return data.accessToken
   },
 
@@ -146,6 +152,15 @@ export const useAuthStore = create<AuthState>((set) => ({
     // usuário e token só voltam se a época ainda for a mesma.
     const applySession = (partial: { user?: UserPublic | null; accessToken?: string | null }) =>
       set(epochIsCurrent(epoch) ? { ...partial, hydrated: true } : { hydrated: true })
+
+    const dropSession = async () => {
+      await Promise.all([
+        SecureStore.deleteItemAsync(TOKEN_KEY),
+        SecureStore.deleteItemAsync(USER_KEY),
+        SecureStore.deleteItemAsync(REFRESH_TOKEN_KEY),
+      ])
+      applySession({ accessToken: null, user: null })
+    }
 
     const [token, userJson] = await Promise.all([
       SecureStore.getItemAsync(TOKEN_KEY),
@@ -169,13 +184,17 @@ export const useAuthStore = create<AuthState>((set) => ({
           await useAuthStore.getState().fetchPermissions(token)
         } else {
           // Refresh token inválido/expirado: desloga
-          await Promise.all([
-            SecureStore.deleteItemAsync(TOKEN_KEY),
-            SecureStore.deleteItemAsync(USER_KEY),
-            SecureStore.deleteItemAsync(REFRESH_TOKEN_KEY),
-          ])
-          applySession({ accessToken: null, user: null })
+          await dropSession()
         }
+      }
+
+      // Token sem usuário é sessão inutilizável: sobra de um keychain que ficou
+      // com o access token órfão e um /auth/me que não conseguiu repor o
+      // usuário (offline, instância fria). Encerra em vez de subir o app com
+      // "Olá," vazio — o login é o estado honesto.
+      const current = useAuthStore.getState()
+      if (epochIsCurrent(epoch) && current.accessToken && !current.user) {
+        await dropSession()
       }
     } else {
       applySession({ accessToken: null, user })

@@ -36,7 +36,7 @@ Sentry.init({
 function AuthGuard() {
   const router = useRouter()
   const segments = useSegments()
-  const { accessToken, hydrated, hydrate } = useAuthStore()
+  const { accessToken, user, hydrated, hydrate } = useAuthStore()
   const hydrateFieldConfig = useCompanyStore((s) => s.hydrateFieldConfig)
   const hydrateSyncSchedule = useCompanyStore((s) => s.hydrateSyncSchedule)
 
@@ -119,12 +119,18 @@ function AuthGuard() {
 
     if (inDevPreview) return
 
-    if (!accessToken && !inAuthGroup) {
+    // Token e usuário: só o token não basta. O refresh publica o access token
+    // antes de existir usuário por trás dele (login biométrico, hidratação), e
+    // gatear só nele mandava o app para dentro meio logado — dashboard com
+    // "Olá," vazio em vez de continuar no login.
+    const authenticated = Boolean(accessToken && user)
+
+    if (!authenticated && !inAuthGroup) {
       router.replace('/(auth)/login')
-    } else if (accessToken && inAuthGroup) {
+    } else if (authenticated && inAuthGroup) {
       router.replace('/(app)')
     }
-  }, [accessToken, hydrated, segments, biometricReady])
+  }, [accessToken, user, hydrated, segments, biometricReady])
 
   return null
 }
