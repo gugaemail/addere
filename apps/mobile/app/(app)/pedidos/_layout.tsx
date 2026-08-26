@@ -7,14 +7,20 @@ export default function PedidosLayout() {
       {/* `title` não aparece (o header é o da marca), mas é o rótulo do
           botão de voltar nas telas de detalhe — sem ele o iOS mostra "index" */}
       <Stack.Screen name="index" options={{ title: 'Pedidos', ...brandScreenOptions }} />
-      <Stack.Screen name="[id]" options={{ title: 'Detalhe do Pedido', ...detailScreenOptions }} />
+      {/* As rotas reais são [id]/index e [id]/editar — os nomes antigos
+          ("[id]" e "pedido/[id]") não existiam e o Expo Router avisava a cada
+          abertura da aba (toast amarelo em dev) */}
+      <Stack.Screen
+        name="[id]/index"
+        options={{ title: 'Detalhe do Pedido', ...detailScreenOptions }}
+      />
+      <Stack.Screen
+        name="[id]/editar"
+        options={{ title: 'Editar Pedido', ...detailScreenOptions }}
+      />
       <Stack.Screen
         name="pendentes"
         options={{ title: 'Pedidos Pendentes', ...detailScreenOptions }}
-      />
-      <Stack.Screen
-        name="pedido/[id]"
-        options={{ title: 'Detalhe do Pedido', ...detailScreenOptions }}
       />
     </Stack>
   )

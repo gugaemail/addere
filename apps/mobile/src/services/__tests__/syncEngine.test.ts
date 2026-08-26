@@ -64,6 +64,31 @@ describe('getSyncDelay', () => {
 })
 
 describe('processSyncQueue', () => {
+  it('4xx (ex.: 422) falha de vez: sem retentativa e cache do handler invalidado', async () => {
+    const { queryClient } = jest.requireMock('../../lib/query-client') as {
+      queryClient: { invalidateQueries: jest.Mock }
+    }
+    queryClient.invalidateQueries.mockClear()
+    mockPost.mockRejectedValue({ response: { status: 422, data: { message: 'Item de plano não pertence ao seu plano' } } })
+    useSyncStore.getState().enqueue('order', validPayload)
+    await processSyncQueue()
+    const [item] = useSyncStore.getState().queue
+    expect(mockPost).toHaveBeenCalledTimes(1)
+    expect(item.status).toBe('error')
+    expect(item.attempts).toBe(item.maxAttempts)
+    expect(item.lastError).toContain('Item de plano')
+    expect(queryClient.invalidateQueries).toHaveBeenCalledWith({ queryKey: ['orders'] })
+  })
+
+  it('401 continua transitório: entra no retry normal', async () => {
+    mockPost.mockRejectedValue({ response: { status: 401, data: { message: 'expirado' } } })
+    useSyncStore.getState().enqueue('order', validPayload)
+    await processSyncQueue()
+    const [item] = useSyncStore.getState().queue
+    expect(item.status).toBe('error')
+    expect(item.attempts).toBe(1)
+  })
+
   it('não processa se offline', async () => {
     resetStore({ networkAvailable: false })
     useSyncStore.getState().enqueue('order', {})
