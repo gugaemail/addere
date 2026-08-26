@@ -25,6 +25,9 @@ export const updateUserSchema = z.object({
   servedCities: z.array(z.string()).optional(),
   messageTone: z.enum(['informal', 'formal']).nullable().optional(),
   managerId: z.string().uuid().nullable().optional(),
+  // Só para vincular um usuário que ficou sem empresa (bug antigo do painel).
+  // Não serve para mover de empresa — ver users.service:updateUserById.
+  companyId: z.string().uuid().optional(),
 })
 
 export type CreateUserInput = z.infer<typeof createUserSchema>

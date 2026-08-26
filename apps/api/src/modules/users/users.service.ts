@@ -124,10 +124,31 @@ export async function updateUserById(id: string, input: UpdateUserInput, request
   if (requester.role !== 'SUPERADMIN' && target.companyId !== requester.companyId) {
     throw new ForbiddenError('Não é permitido editar usuários de outra empresa')
   }
-  if (!target.companyId) throw new Error('Usuário sem empresa não pode ser editado por aqui')
+  const { intelManager, companyId, ...profile } = input
 
-  const { intelManager, ...profile } = input
-  const user = await updateCompanyUser(target.companyId, id, profile)
+  // Vincular empresa é conserto de cadastro órfão, não mudança de lotação:
+  // mover alguém de empresa arrastaria junto pedidos, gerente e código de
+  // vendedor, que são todos por empresa. Por isso só preenche o vazio.
+  let scopeId = target.companyId
+  if (companyId !== undefined && companyId !== target.companyId) {
+    if (target.companyId) throw new Error('Não é possível mover o usuário para outra empresa')
+    // Quem não é SUPERADMIN já parou na checagem de empresa acima: um órfão
+    // (companyId null) nunca casa com a empresa de um ADMIN.
+    const company = await prisma.company.findUnique({
+      where: { id: companyId },
+      select: { id: true },
+    })
+    if (!company) throw new Error('Empresa não encontrada')
+    await prisma.user.update({ where: { id }, data: { companyId } })
+    scopeId = companyId
+  }
+  if (!scopeId) {
+    throw new Error(
+      'Usuário sem empresa: selecione a empresa ativa para vinculá-lo antes de editar'
+    )
+  }
+
+  const user = await updateCompanyUser(scopeId, id, profile)
 
   // O perfil Gerente é a permissão intel.manager: trocar de perfil na tela tem
   // de conceder ou revogar, senão o rótulo e o acesso ficam discordando.

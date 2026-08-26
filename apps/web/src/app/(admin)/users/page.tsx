@@ -8,6 +8,7 @@ import { useMemo, useState } from 'react'
 import { Plus } from 'lucide-react'
 import type { UserPublic } from '@addere/types'
 import { useUsers, useToggleUser } from '@/hooks/useUsers'
+import { useCompanies } from '@/hooks/useCompanies'
 import { useAuth } from '@/contexts/AuthContext'
 import { useCompanyContext } from '@/contexts/CompanyContext'
 import { PageHeader } from '@/components/layout/PageHeader'
@@ -24,6 +25,7 @@ import {
 } from '@/components/ui/DataTable'
 import { applyTable, toggleSort, type SortConfig } from '@/lib/table'
 import { profileLabel } from '@/lib/user-profile'
+import { isCompanyless, managerOptions, scopeUsersToCompany } from '@/lib/user-scope'
 import { PermissionsModal } from '@/components/users/PermissionsModal'
 import { UserFormModal, type UserFormMode } from '@/components/users/UserFormModal'
 import { formatDate } from '@/lib/utils'
@@ -34,6 +36,8 @@ export default function UsersPage() {
   const { isAdmin, isSuperAdmin } = useAuth()
   const { companyId } = useCompanyContext()
   const { data: users, isLoading, refetch } = useUsers()
+  // Já em cache: a sidebar carrega a mesma lista para o seletor de empresa
+  const { data: companies } = useCompanies()
   const toggleUser = useToggleUser()
 
   const [form, setForm] = useState<FormState>(null)
@@ -43,17 +47,14 @@ export default function UsersPage() {
   const [sort, setSort] = useState<SortConfig>(null)
 
   // O SUPERADMIN vê todas as empresas; a seleção da sidebar recorta a lista
-  // para a mesma empresa em que o botão "Novo usuário" vai criar.
-  const scoped = useMemo(
-    () => (companyId ? (users ?? []).filter((u) => u.companyId === companyId) : (users ?? [])),
-    [users, companyId]
-  )
+  // para a mesma empresa em que o botão "Novo usuário" vai criar — mas o
+  // recorte carrega junto os usuários sem empresa (ver lib/user-scope).
+  const scoped = useMemo(() => scopeUsersToCompany(users ?? [], companyId), [users, companyId])
 
-  // Só quem tem intel.manager pode ser gerente de alguém, e da mesma empresa (D3b)
-  const managers = useMemo(
-    () => scoped.filter((u) => u.intelManager && u.active).map((u) => ({ id: u.id, name: u.name })),
-    [scoped]
-  )
+  // Gerente é sempre da mesma empresa do editado (D3b) — que na criação é a
+  // ativa e, ao vincular um órfão, também.
+  const formCompanyId = form?.user?.companyId || companyId
+  const managers = useMemo(() => managerOptions(users ?? [], formCompanyId), [users, formCompanyId])
 
   const q = search.toLowerCase()
   const table = applyTable(
@@ -92,7 +93,16 @@ export default function UsersPage() {
     {
       key: 'name',
       header: <SortHeader label="Nome" col="name" sort={sort} onSort={onSort} />,
-      render: (u) => <span className="font-medium text-[var(--text-primary)]">{u.name}</span>,
+      render: (u) => (
+        <span className="font-medium text-[var(--text-primary)]">
+          {u.name}
+          {isCompanyless(u) && (
+            <Badge variant="warning" className="ml-2 whitespace-nowrap align-middle">
+              sem empresa
+            </Badge>
+          )}
+        </span>
+      ),
     },
     {
       key: 'email',
@@ -212,6 +222,7 @@ export default function UsersPage() {
           mode={form.mode}
           user={form.user}
           companyId={form.user?.companyId ?? companyId}
+          companyName={companies?.find((c) => c.id === formCompanyId)?.name ?? null}
           managers={managers}
           onClose={() => setForm(null)}
           onSaved={() => {
