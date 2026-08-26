@@ -17,15 +17,7 @@ import { LogsTab } from './tabs/LogsTab'
 import { IntelligenceTab } from './tabs/IntelligenceTab'
 
 type Tab =
-  | 'filiais'
-  | 'usuarios'
-  | 'clientes'
-  | 'produtos'
-  | 'pedidos'
-  | 'protheus'
-  | 'inteligencia'
-  | 'campos'
-  | 'logs'
+  'filiais' | 'clientes' | 'produtos' | 'pedidos' | 'protheus' | 'inteligencia' | 'campos' | 'logs'
 
 function PageSkeleton() {
   return (
@@ -79,7 +71,6 @@ export default function EmpresaPage() {
 
   const tabs: { key: Tab; label: string }[] = [
     { key: 'filiais', label: `Filiais (${company.branches.length})` },
-    { key: 'usuarios', label: `Usuários (${company.users.length})` },
     { key: 'clientes', label: 'Clientes' },
     { key: 'produtos', label: 'Produtos' },
     { key: 'pedidos', label: 'Pedidos' },

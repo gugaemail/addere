@@ -183,7 +183,7 @@ describe('PATCH /users/:id', () => {
     expect(prismaMock.userPermission.deleteMany).not.toHaveBeenCalled()
   })
 
-  it('usuário sem empresa não é editável por aqui', async () => {
+  it('usuário sem empresa não é editável enquanto não for vinculado', async () => {
     targetInCompany(null)
     const res = await app.inject({
       method: 'PATCH',
@@ -192,6 +192,79 @@ describe('PATCH /users/:id', () => {
       payload: { name: 'Órfão' },
     })
     expect(res.statusCode).toBe(404)
+    expect(res.json().message).toMatch(/sem empresa/i)
+  })
+
+  it('vincula o órfão à empresa informada e segue com a edição', async () => {
+    // O caso real: usuário criado sem empresa pelo bug antigo do painel. Sem
+    // isto ele fica invisível na Equipe em campo e sem caminho de conserto.
+    targetInCompany(null)
+    prismaMock.company.findUnique.mockResolvedValue({ id: COMPANY_A })
+    prismaMock.user.findFirst.mockResolvedValue({ id: TARGET, companyId: COMPANY_A })
+    prismaMock.user.update.mockResolvedValue({ id: TARGET, name: 'Gustavo Gerente' })
+    prismaMock.userPermission.findFirst.mockResolvedValue(null)
+
+    const res = await app.inject({
+      method: 'PATCH',
+      url: `/users/${TARGET}`,
+      headers: auth('super-1'),
+      payload: { name: 'Gustavo Gerente', companyId: COMPANY_A },
+    })
+
+    expect(res.statusCode).toBe(200)
+    // Duas escritas: a do vínculo e a da edição em si
+    expect(prismaMock.user.update.mock.calls[0][0].data).toEqual({ companyId: COMPANY_A })
+    expect(prismaMock.user.update.mock.calls[1][0].data).toMatchObject({ name: 'Gustavo Gerente' })
+    // E o recorte da edição passou a ser a empresa nova, não null
+    expect(prismaMock.user.findFirst.mock.calls[0][0].where).toMatchObject({ companyId: COMPANY_A })
+  })
+
+  it('não vincula a uma empresa que não existe', async () => {
+    targetInCompany(null)
+    prismaMock.company.findUnique.mockResolvedValue(null)
+
+    const res = await app.inject({
+      method: 'PATCH',
+      url: `/users/${TARGET}`,
+      headers: auth('super-1'),
+      payload: { name: 'Órfão', companyId: COMPANY_A },
+    })
+
+    expect(res.statusCode).toBe(404)
+    expect(prismaMock.user.update).not.toHaveBeenCalled()
+  })
+
+  it('não move um usuário que já tem empresa', async () => {
+    // Trocar de empresa arrastaria pedidos, gerente e código de vendedor junto
+    targetInCompany(COMPANY_A)
+
+    const res = await app.inject({
+      method: 'PATCH',
+      url: `/users/${TARGET}`,
+      headers: auth('super-1'),
+      payload: { companyId: COMPANY_B },
+    })
+
+    expect(res.statusCode).toBe(404)
+    expect(res.json().message).toMatch(/mover/i)
+    expect(prismaMock.user.update).not.toHaveBeenCalled()
+  })
+
+  it('repetir a empresa atual não conta como mudança', async () => {
+    targetInCompany(COMPANY_A)
+    prismaMock.user.findFirst.mockResolvedValue({ id: TARGET, companyId: COMPANY_A })
+    prismaMock.user.update.mockResolvedValue({ id: TARGET })
+    prismaMock.userPermission.findFirst.mockResolvedValue(null)
+
+    const res = await app.inject({
+      method: 'PATCH',
+      url: `/users/${TARGET}`,
+      headers: auth('super-1'),
+      payload: { name: 'Ana', companyId: COMPANY_A },
+    })
+
+    expect(res.statusCode).toBe(200)
+    expect(prismaMock.user.update).toHaveBeenCalledTimes(1)
   })
 
   it('corpo inválido → 400', async () => {

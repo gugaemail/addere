@@ -16,6 +16,7 @@ import {
   profileOf,
   profileToPayload,
 } from '@/lib/user-profile'
+import { isCompanyless } from '@/lib/user-scope'
 import { parseCities } from '@/lib/intel-helpers'
 import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
@@ -28,6 +29,8 @@ interface UserFormModalProps {
   user?: UserPublic
   /** Empresa em que o usuário nasce/vive — obrigatória na criação. */
   companyId: string | null
+  /** Nome da empresa acima, para o aviso de vínculo dizer qual é. */
+  companyName?: string | null
   /** Usuários com intel.manager da mesma empresa (D3b) — select de gerente. */
   managers: { id: string; name: string }[]
   onClose: () => void
@@ -44,11 +47,15 @@ export function UserFormModal({
   mode,
   user,
   companyId,
+  companyName,
   managers,
   onClose,
   onSaved,
 }: UserFormModalProps) {
   const isNew = mode !== 'edit'
+  // Órfão do bug antigo: a edição precisa vinculá-lo, senão a API recusa
+  // ("usuário sem empresa não pode ser editado por aqui").
+  const orphan = mode === 'edit' && !!user && isCompanyless(user)
 
   const {
     register,
@@ -98,6 +105,7 @@ export function UserFormModal({
           intelManager,
         }
         if (data.password) body.password = data.password
+        if (orphan && companyId) body.companyId = companyId
         if (hasVendorProfile(data.profile)) Object.assign(body, vendorBody(data))
         await api.patch(`/users/${user.id}`, body)
       } else {
@@ -117,9 +125,10 @@ export function UserFormModal({
     }
   }
 
-  // Sem empresa não dá para criar: a API grava companyId nulo e o usuário some
-  // da empresa e da Equipe em campo, que filtra por ela.
-  const missingCompany = isNew && !companyId
+  // Sem empresa não dá para criar nem para consertar um órfão: a API grava
+  // companyId nulo e o usuário some da empresa e da Equipe em campo, que
+  // filtra por ela.
+  const missingCompany = (isNew || orphan) && !companyId
 
   return (
     <Modal isOpen onClose={onClose} title={TITLES[mode]}>
@@ -206,8 +215,18 @@ export function UserFormModal({
 
         {missingCompany && (
           <p className="rounded-lg border border-warning/30 bg-warning/5 px-3 py-2 text-sm text-[var(--text-secondary)]">
-            Escolha a empresa ativa na barra lateral antes de criar o usuário — sem ela o cadastro
-            nasceria sem empresa e não apareceria em lugar nenhum.
+            {orphan
+              ? 'Este usuário não pertence a nenhuma empresa. Escolha a empresa ativa na barra lateral para vinculá-lo — enquanto isso, ele não pode ser editado.'
+              : 'Escolha a empresa ativa na barra lateral antes de criar o usuário — sem ela o cadastro nasceria sem empresa e não apareceria em lugar nenhum.'}
+          </p>
+        )}
+        {orphan && companyId && (
+          <p className="rounded-lg border border-warning/30 bg-warning/5 px-3 py-2 text-sm text-[var(--text-secondary)]">
+            Este usuário não pertence a nenhuma empresa. Ao salvar, ele será vinculado a{' '}
+            <strong className="font-semibold text-[var(--text-primary)]">
+              {companyName ?? 'empresa ativa'}
+            </strong>
+            .
           </p>
         )}
 
