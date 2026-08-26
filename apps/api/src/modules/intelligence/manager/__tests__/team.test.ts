@@ -108,6 +108,31 @@ describe('buildTeamReport', () => {
     ])
   })
 
+  it('a mensagem conta contra o plano do vendedor, não contra a capacidade', () => {
+    const report = buildTeamReport(
+      base({
+        plans: [{ vendorCode: 'V1', ymd: '20260825', activeItems: 10 }],
+        minVisits: 8,
+        visits: [visit()],
+      })
+    )
+    expect(report.sellers[0].alerts).toEqual([
+      { kind: 'FEW_VISITS', message: '1 de 10 visitas previstas para o dia' },
+    ])
+  })
+
+  it('plano menor que a capacidade e todo visitado não alerta', () => {
+    const visits = Array.from({ length: 5 }, (_, i) => visit({ customerKey: `C${i}|01` }))
+    const report = buildTeamReport(
+      base({
+        plans: [{ vendorCode: 'V1', ymd: '20260825', activeItems: 5 }],
+        minVisits: 8,
+        visits,
+      })
+    )
+    expect(report.sellers[0].alerts).toEqual([])
+  })
+
   it('dentro da capacidade não alerta', () => {
     const visits = Array.from({ length: 8 }, (_, i) => visit({ customerKey: `C${i}|01` }))
     const report = buildTeamReport(base({ minVisits: 8, visits }))
