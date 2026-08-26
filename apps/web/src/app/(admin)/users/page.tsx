@@ -2,28 +2,78 @@
 
 export const dynamic = 'force-dynamic'
 
-import { useState } from 'react'
+// Tela única de cadastro de usuários. Absorveu a aba Usuários de Empresas, que
+// tinha busca, ordenação, paginação, edição e cópia — a tela nova só listava.
+import { useMemo, useState } from 'react'
 import { Plus } from 'lucide-react'
+import type { UserPublic } from '@addere/types'
 import { useUsers, useToggleUser } from '@/hooks/useUsers'
-import { useUserTypes } from '@/hooks/useUserTypes'
 import { useAuth } from '@/contexts/AuthContext'
+import { useCompanyContext } from '@/contexts/CompanyContext'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { Table, type Column } from '@/components/ui/Table'
 import { Spinner } from '@/components/ui/Spinner'
-import { CreateUserModal } from '@/components/users/CreateUserModal'
+import {
+  NoResultsState,
+  Pagination,
+  SearchInput,
+  SortHeader,
+  TableEmptyState,
+} from '@/components/ui/DataTable'
+import { applyTable, toggleSort, type SortConfig } from '@/lib/table'
+import { profileLabel } from '@/lib/user-profile'
 import { PermissionsModal } from '@/components/users/PermissionsModal'
+import { UserFormModal, type UserFormMode } from '@/components/users/UserFormModal'
 import { formatDate } from '@/lib/utils'
-import type { UserPublic } from '@addere/types'
+
+type FormState = { mode: UserFormMode; user?: UserPublic } | null
 
 export default function UsersPage() {
   const { isAdmin, isSuperAdmin } = useAuth()
-  const { data: users, isLoading } = useUsers()
-  const { data: userTypes } = useUserTypes()
+  const { companyId } = useCompanyContext()
+  const { data: users, isLoading, refetch } = useUsers()
   const toggleUser = useToggleUser()
-  const [modalOpen, setModalOpen] = useState(false)
+
+  const [form, setForm] = useState<FormState>(null)
   const [permissionsUser, setPermissionsUser] = useState<UserPublic | null>(null)
+  const [search, setSearch] = useState('')
+  const [page, setPage] = useState(1)
+  const [sort, setSort] = useState<SortConfig>(null)
+
+  // O SUPERADMIN vê todas as empresas; a seleção da sidebar recorta a lista
+  // para a mesma empresa em que o botão "Novo usuário" vai criar.
+  const scoped = useMemo(
+    () => (companyId ? (users ?? []).filter((u) => u.companyId === companyId) : (users ?? [])),
+    [users, companyId]
+  )
+
+  // Só quem tem intel.manager pode ser gerente de alguém, e da mesma empresa (D3b)
+  const managers = useMemo(
+    () => scoped.filter((u) => u.intelManager && u.active).map((u) => ({ id: u.id, name: u.name })),
+    [scoped]
+  )
+
+  const q = search.toLowerCase()
+  const table = applyTable(
+    scoped,
+    (u) =>
+      !q ||
+      u.name.toLowerCase().includes(q) ||
+      u.email.toLowerCase().includes(q) ||
+      (u.idVendProt ?? '').toLowerCase().includes(q),
+    sort,
+    (u, col) =>
+      col === 'name'
+        ? u.name
+        : col === 'email'
+          ? u.email
+          : col === 'company'
+            ? (u.companyName ?? '')
+            : profileLabel(u),
+    page
+  )
 
   if (!isAdmin && !isSuperAdmin) {
     return (
@@ -33,58 +83,78 @@ export default function UsersPage() {
     )
   }
 
-  const userTypeName = (id: string | null) => userTypes?.find((t) => t.id === id)?.name ?? '—'
+  const onSort = (col: string) => {
+    setSort(toggleSort(sort, col))
+    setPage(1)
+  }
 
   const columns: Column<UserPublic>[] = [
     {
       key: 'name',
-      header: 'Nome',
-      render: (row) => <span className="font-medium text-[var(--text-primary)]">{row.name}</span>,
-    },
-    { key: 'email', header: 'Email', render: (row) => row.email },
-    {
-      key: 'role',
-      header: 'Perfil',
-      render: (row) => (
-        <span className="text-xs text-[var(--text-muted)]">
-          {row.role === 'ADMIN' ? 'Administrador' : 'Vendedor'}
-        </span>
-      ),
+      header: <SortHeader label="Nome" col="name" sort={sort} onSort={onSort} />,
+      render: (u) => <span className="font-medium text-[var(--text-primary)]">{u.name}</span>,
     },
     {
-      key: 'userTypeId',
-      header: 'Tipo',
-      render: (row) => (
-        <span className="text-xs text-[var(--text-muted)]">{userTypeName(row.userTypeId)}</span>
-      ),
+      key: 'email',
+      header: <SortHeader label="E-mail" col="email" sort={sort} onSort={onSort} />,
+      render: (u) => u.email,
+    },
+    {
+      key: 'profile',
+      header: <SortHeader label="Perfil" col="profile" sort={sort} onSort={onSort} />,
+      render: (u) => <span className="text-[var(--text-muted)]">{profileLabel(u)}</span>,
+    },
+    // Sem a empresa, o SUPERADMIN não sabe de quem é cada linha
+    ...(isSuperAdmin && !companyId
+      ? [
+          {
+            key: 'company',
+            header: <SortHeader label="Empresa" col="company" sort={sort} onSort={onSort} />,
+            render: (u: UserPublic) => (
+              <span className={u.companyName ? '' : 'text-warning'}>
+                {u.companyName ?? 'sem empresa'}
+              </span>
+            ),
+          } as Column<UserPublic>,
+        ]
+      : []),
+    {
+      key: 'idVendProt',
+      header: 'Cód. vendedor',
+      render: (u) => <span className="text-[var(--text-muted)]">{u.idVendProt ?? '—'}</span>,
     },
     {
       key: 'active',
       header: 'Status',
-      render: (row) => (
-        <Badge variant={row.active ? 'success' : 'danger'}>
-          {row.active ? 'Ativo' : 'Inativo'}
-        </Badge>
+      render: (u) => (
+        <Badge variant={u.active ? 'success' : 'danger'}>{u.active ? 'Ativo' : 'Inativo'}</Badge>
       ),
     },
-    { key: 'createdAt', header: 'Criado em', render: (row) => formatDate(row.createdAt) },
+    { key: 'createdAt', header: 'Criado em', render: (u) => formatDate(u.createdAt) },
     {
       key: 'actions',
       header: '',
-      render: (row) => (
+      className: 'text-right',
+      render: (u) => (
         <div className="flex justify-end gap-2">
-          {isSuperAdmin && row.role !== 'SUPERADMIN' && (
-            <Button size="sm" variant="secondary" onClick={() => setPermissionsUser(row)}>
+          <Button size="sm" variant="secondary" onClick={() => setForm({ mode: 'edit', user: u })}>
+            Editar
+          </Button>
+          <Button size="sm" variant="secondary" onClick={() => setForm({ mode: 'copy', user: u })}>
+            Copiar
+          </Button>
+          {isSuperAdmin && u.role !== 'SUPERADMIN' && (
+            <Button size="sm" variant="secondary" onClick={() => setPermissionsUser(u)}>
               Permissões
             </Button>
           )}
           <Button
             size="sm"
-            variant={row.active ? 'danger' : 'secondary'}
+            variant={u.active ? 'danger' : 'secondary'}
             loading={toggleUser.isPending}
-            onClick={() => toggleUser.mutate(row.id)}
+            onClick={() => toggleUser.mutate(u.id)}
           >
-            {row.active ? 'Desativar' : 'Ativar'}
+            {u.active ? 'Desativar' : 'Ativar'}
           </Button>
         </div>
       ),
@@ -95,23 +165,62 @@ export default function UsersPage() {
     <div>
       <PageHeader
         title="Usuários"
-        subtitle="Gerencie vendedores e administradores"
+        subtitle="Vendedores, gerentes e administradores"
         action={
-          <Button onClick={() => setModalOpen(true)} leftIcon={Plus}>
-            Novo Usuário
+          <Button onClick={() => setForm({ mode: 'create' })} leftIcon={Plus}>
+            Novo usuário
           </Button>
         }
       />
+
+      <div className="mb-3">
+        <SearchInput
+          value={search}
+          onChange={(v) => {
+            setSearch(v)
+            setPage(1)
+          }}
+          placeholder="Pesquisar por nome, e-mail ou código…"
+        />
+      </div>
 
       {isLoading ? (
         <div className="flex justify-center py-12">
           <Spinner size="lg" />
         </div>
+      ) : scoped.length === 0 ? (
+        <TableEmptyState
+          title="Nenhum usuário"
+          description="Cadastre o primeiro usuário desta empresa."
+        />
+      ) : table.total === 0 ? (
+        <NoResultsState />
       ) : (
-        <Table columns={columns} data={users ?? []} emptyMessage="Nenhum usuário cadastrado." />
+        <div className="overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--bg-surface)]">
+          <Table
+            columns={columns}
+            data={table.rows}
+            rowKey={(u) => u.id}
+            className="rounded-none"
+          />
+          <Pagination page={page} total={table.total} pages={table.pages} onPage={setPage} />
+        </div>
       )}
 
-      <CreateUserModal isOpen={modalOpen} onClose={() => setModalOpen(false)} />
+      {form && (
+        <UserFormModal
+          mode={form.mode}
+          user={form.user}
+          companyId={form.user?.companyId ?? companyId}
+          managers={managers}
+          onClose={() => setForm(null)}
+          onSaved={() => {
+            setForm(null)
+            refetch()
+          }}
+        />
+      )}
+
       {isSuperAdmin && (
         <PermissionsModal
           isOpen={!!permissionsUser}

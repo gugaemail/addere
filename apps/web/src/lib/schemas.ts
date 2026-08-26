@@ -10,7 +10,6 @@ export const createUserSchema = z.object({
   email: z.string().email('Email inválido'),
   password: z.string().min(8, 'Senha deve ter pelo menos 8 caracteres'),
   role: z.enum(['ADMIN', 'SALESPERSON']),
-  userTypeId: z.string().optional(),
   copyPermissionsFromUserId: z.string().optional(),
   // Sem isso a API cai no `input.companyId ?? null` e o SUPERADMIN cria um
   // usuário sem empresa: ele some da aba da empresa e, mesmo com intel.manager,
@@ -41,7 +40,9 @@ export const companyUserBaseSchema = z.object({
   name: z.string().min(1, 'Nome obrigatório'),
   email: z.string().email('Email inválido'),
   password: z.string().optional(),
-  role: z.enum(['ADMIN', 'SALESPERSON']),
+  // Perfil da tela, não o enum do banco: "Gerente" é vendedor + intel.manager
+  // (decisão D3). A tradução mora em lib/user-profile.ts.
+  profile: z.enum(['SALESPERSON', 'MANAGER', 'ADMIN']),
   idVendProt: z.string().optional(),
   // Perfil de vendedor da Inteligência (E10) — strings do form, convertidas no submit
   visitsPerDay: z.string().optional(),
@@ -51,10 +52,10 @@ export const companyUserBaseSchema = z.object({
   managerId: z.string().optional(),
 })
 
-export type CompanyUserFormData = z.infer<typeof companyUserBaseSchema>
+export type UserFormData = z.infer<typeof companyUserBaseSchema>
 
 // Senha obrigatória (min 8) apenas na criação; na edição, vazio mantém a atual
-export function makeCompanyUserSchema(isNew: boolean) {
+export function makeUserFormSchema(isNew: boolean) {
   return companyUserBaseSchema.superRefine((data, ctx) => {
     const missing = isNew && !data.password
     const tooShort = !!data.password && data.password.length < 8

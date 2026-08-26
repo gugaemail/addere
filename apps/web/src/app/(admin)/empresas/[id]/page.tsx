@@ -8,7 +8,6 @@ import { StatCard } from '@/components/ui/StatCard'
 import { useCompany, useToggleCompany } from '@/hooks/useCompany'
 import { getApiErrorMessage } from '@/lib/api'
 import { BranchesTab } from './tabs/BranchesTab'
-import { UsersTab } from './tabs/UsersTab'
 import { CustomersTab } from './tabs/CustomersTab'
 import { ProductsTab } from './tabs/ProductsTab'
 import { OrdersTab } from './tabs/OrdersTab'
@@ -150,7 +149,6 @@ export default function EmpresaPage() {
 
       {/* Conteúdo da aba ativa */}
       {tab === 'filiais' && <BranchesTab company={company} />}
-      {tab === 'usuarios' && <UsersTab company={company} />}
       {tab === 'clientes' && <CustomersTab companyId={company.id} />}
       {tab === 'produtos' && <ProductsTab companyId={company.id} />}
       {tab === 'pedidos' && <OrdersTab companyId={company.id} />}

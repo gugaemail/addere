@@ -16,7 +16,6 @@ const userSelect = {
   email: true,
   role: true,
   active: true,
-  userTypeId: true,
   createdAt: true,
   // A lista global é a tela de cadastro do painel: sem estes campos ela não
   // consegue mostrar de que empresa é cada linha nem editar o vendedor.
@@ -73,7 +72,6 @@ export async function createUser(input: CreateUserInput, requester: JwtPayload) 
       email: input.email,
       password: hashedPassword,
       role: input.role,
-      userTypeId: input.userTypeId,
       companyId,
     },
     select: userSelect,
