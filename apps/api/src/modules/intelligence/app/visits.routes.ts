@@ -31,6 +31,18 @@ const patchSchema = z.object({
   notes: z.string().max(1000).nullish(),
 })
 
+// Primeiro check-in do dia: o plano deixa de ser GENERATED. O motor só
+// recria planos GENERATED — sem esta promoção, um "Rodar sync agora" no meio
+// do dia apagava o plano em andamento (ids novos, visitas com planItemId
+// órfão, "Visitado" e pinos do mapa perdidos).
+async function markPlanInProgress(planId: string | null): Promise<void> {
+  if (!planId) return
+  await prisma.visitPlan.updateMany({
+    where: { id: planId, status: 'GENERATED' },
+    data: { status: 'IN_PROGRESS' },
+  })
+}
+
 export default async function visitsRoutes(app: FastifyInstance) {
   const guard = [authenticate, requireCompany, requireVendorCode]
 
@@ -56,14 +68,16 @@ export default async function visitsRoutes(app: FastifyInstance) {
     if (body.orderId && !(await assertOwnOrder(body.orderId, companyId, request.user.sub))) {
       return reply.status(422).send({ message: 'Pedido informado não pertence a você' })
     }
+    let planId: string | null = null
     if (body.planItemId) {
       const item = await prisma.visitPlanItem.findFirst({
         where: { id: body.planItemId, plan: { companyId, vendorCode } },
-        select: { id: true },
+        select: { id: true, planId: true },
       })
       if (!item) {
         return reply.status(422).send({ message: 'Item de plano não pertence ao seu plano' })
       }
+      planId = item.planId
     }
 
     const existing = await prisma.visit.findUnique({
@@ -91,12 +105,14 @@ export default async function visitsRoutes(app: FastifyInstance) {
 
     if (existing) {
       await prisma.visit.update({ where: { id: existing.id }, data })
+      await markPlanInProgress(planId)
       return reply.send({ id: existing.id, clientId: body.clientId, updated: true })
     }
 
     const visit = await prisma.visit.create({
       data: { ...data, companyId, vendorCode, clientId: body.clientId },
     })
+    await markPlanInProgress(planId)
     return reply.status(201).send({ id: visit.id, clientId: body.clientId, updated: false })
   })
 

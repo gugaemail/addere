@@ -43,10 +43,37 @@ api.interceptors.request.use((config) => {
   return config
 })
 
-// Em caso de 401 tenta renovar o token antes de deslogar
-let _refreshing = false
-let _refreshQueue: Array<(token: string | null) => void> = []
+// ─── Refresh único (single-flight) ───────────────────────────────────────────
+// O refresh token gira a cada uso: dois POST /auth/refresh em paralelo fazem o
+// segundo chegar com o token já consumido e receber 401. Era exatamente o que
+// acontecia num reload: o AuthContext restaurava a sessão enquanto as páginas
+// já disparavam queries, o interceptor abria um refresh próprio e o "perdedor"
+// derrubava a sessão inteira — link direto ou F5 em /users caía no login.
+// Todo mundo (restore, interceptor, quem mais precisar) compartilha a mesma
+// promessa em andamento.
 
+let _refreshPromise: Promise<string> | null = null
+
+export function refreshAccessToken(): Promise<string> {
+  if (!_refreshPromise) {
+    _refreshPromise = axios
+      .post<{ accessToken: string }>(
+        `${env.apiUrl}/auth/refresh`,
+        {},
+        { withCredentials: true, headers: { 'X-Requested-With': 'XMLHttpRequest' } }
+      )
+      .then(({ data }) => {
+        setAccessToken(data.accessToken)
+        return data.accessToken
+      })
+      .finally(() => {
+        _refreshPromise = null
+      })
+  }
+  return _refreshPromise
+}
+
+// Em caso de 401 tenta renovar o token antes de deslogar
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
@@ -61,37 +88,16 @@ api.interceptors.response.use(
       return Promise.reject(error)
     }
 
-    if (_refreshing) {
-      return new Promise((resolve, reject) => {
-        _refreshQueue.push((token) => {
-          if (!token) return reject(error)
-          original.headers.Authorization = `Bearer ${token}`
-          resolve(api(original))
-        })
-      })
-    }
-
     original._retry = true
-    _refreshing = true
 
     try {
-      const { data } = await axios.post(
-        `${env.apiUrl}/auth/refresh`,
-        {},
-        { withCredentials: true, headers: { 'X-Requested-With': 'XMLHttpRequest' } }
-      )
-      setAccessToken(data.accessToken)
-      _refreshQueue.forEach((cb) => cb(data.accessToken))
-      original.headers.Authorization = `Bearer ${data.accessToken}`
+      const token = await refreshAccessToken()
+      original.headers.Authorization = `Bearer ${token}`
       return api(original)
     } catch {
-      _refreshQueue.forEach((cb) => cb(null))
       clearAccessToken()
       if (typeof window !== 'undefined') window.location.href = '/login'
       return Promise.reject(error)
-    } finally {
-      _refreshing = false
-      _refreshQueue = []
     }
   }
 )

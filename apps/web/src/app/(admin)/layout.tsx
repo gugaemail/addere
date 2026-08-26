@@ -25,6 +25,7 @@ import { useCompanies } from '@/hooks/useCompanies'
 import { canAccessPanel } from '@/lib/home-redirect'
 import { filterNavGroups, type NavRequirement } from '@/lib/nav-gating'
 import { Logo } from '@/components/Logo'
+import { Spinner } from '@/components/ui/Spinner'
 
 interface NavItem {
   href: string
@@ -264,7 +265,18 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       </aside>
 
       {/* Conteúdo */}
-      <main className="flex-1 overflow-auto p-8">{children}</main>
+      {/* Enquanto a sessão é restaurada (reload/link direto) as páginas não
+          montam: suas queries sairiam sem token, cairiam em 401 e disputariam
+          o refresh com o AuthContext. */}
+      <main className="flex-1 overflow-auto p-8">
+        {isLoading ? (
+          <div className="flex justify-center pt-24">
+            <Spinner size="lg" />
+          </div>
+        ) : (
+          children
+        )}
+      </main>
 
       {/* Toasts de feedback (sonner) */}
       <Toaster richColors position="top-right" theme={theme === 'dark' ? 'dark' : 'light'} />

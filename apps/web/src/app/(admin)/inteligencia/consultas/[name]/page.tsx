@@ -379,7 +379,7 @@ export default function ConsultaPage() {
             {query?.validatedAt && (
               <p className="mt-2 flex items-center gap-1.5 text-xs text-success">
                 <CheckCircle2 size={13} aria-hidden /> Prévia ok em {new Date(query.validatedAt).toLocaleString('pt-BR')}
-                {query.validatedBy && ` por ${query.validatedBy}`}
+                {query.validatedBy && ` por ${query.validatedByName ?? query.validatedBy}`}
               </p>
             )}
           </section>

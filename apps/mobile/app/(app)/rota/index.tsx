@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { View, Text, FlatList, TouchableOpacity, StyleSheet, Alert } from 'react-native'
 import { useRouter } from 'expo-router'
 import {
+  Check,
   ChevronDown,
   ChevronUp,
   MessageCircle,
@@ -155,6 +156,9 @@ export default function RotaScreen() {
   const renderItem = useCallback(
     ({ item, index }: { item: VisitPlanItemDto; index: number }) => {
       const isBlocked = item.statusAtTime === 'BLOCKED'
+      // Visita registrada neste aparelho: o card diz "Visitado" em vez de
+      // oferecer "Cheguei" de novo — antes só o pino do mapa mudava.
+      const isVisited = visitedItemIds.has(item.id)
       return (
         <View style={s.card} testID={`plan-item-${index + 1}`}>
           <View style={s.cardHeader}>
@@ -217,7 +221,13 @@ export default function RotaScreen() {
               <MessageCircle size={14} color={colors.brand.primary} strokeWidth={1.5} />
               <Text style={s.actionText}>Mensagem</Text>
             </TouchableOpacity>
-            {!isBlocked && (
+            {!isBlocked && isVisited && (
+              <View style={[s.action, s.actionDone]} testID={`badge-visitado-${index + 1}`}>
+                <Check size={14} color={colors.semantic.success} strokeWidth={1.5} />
+                <Text style={[s.actionText, s.actionDoneText]}>Visitado</Text>
+              </View>
+            )}
+            {!isBlocked && !isVisited && (
               <TouchableOpacity
                 testID={`btn-cheguei-${index + 1}`}
                 style={[s.action, s.actionPrimary]}
@@ -253,7 +263,7 @@ export default function RotaScreen() {
         </View>
       )
     },
-    [checkIn, move, openFicha, removeFromDay, router]
+    [checkIn, move, openFicha, removeFromDay, router, visitedItemIds]
   )
 
   if (!isLoading && !plan) {
@@ -601,6 +611,8 @@ const s = StyleSheet.create({
     paddingVertical: spacing.xs,
   },
   actionPrimary: { backgroundColor: colors.brand.primary, marginLeft: 'auto' },
+  actionDone: { backgroundColor: colors.semantic.successLight, marginLeft: 'auto' },
+  actionDoneText: { color: colors.semantic.success },
   actionText: {
     fontFamily: typography.fontFamily.bodySemibold,
     fontSize: typography.size.xs,

@@ -48,6 +48,17 @@ const historyQuerySchema = z.object({
   key: z.string().optional(),
 })
 
+// changedBy guarda o id do usuário; a tela mostrava o UUID cru no histórico.
+async function namesByUserId(ids: (string | null)[]): Promise<Map<string, string>> {
+  const unique = [...new Set(ids.filter((id): id is string => Boolean(id)))]
+  if (unique.length === 0) return new Map()
+  const users = await prisma.user.findMany({
+    where: { id: { in: unique } },
+    select: { id: true, name: true },
+  })
+  return new Map(users.map((u) => [u.id, u.name]))
+}
+
 export default async function parametersRoutes(app: FastifyInstance) {
   const adminOnly = requirePermission('intel.admin')
   const adminOrManager = requireAnyPermission('intel.admin', 'intel.manager')
@@ -64,6 +75,7 @@ export default async function parametersRoutes(app: FastifyInstance) {
     const overrideByKey = new Map(
       overrides.filter((o) => o.segment === '').map((o) => [o.key, o])
     )
+    const names = await namesByUserId(overrides.map((o) => o.changedBy))
 
     const parameters = PARAMETER_KEYS.map((key) => {
       const override = overrideByKey.get(key)
@@ -73,6 +85,7 @@ export default async function parametersRoutes(app: FastifyInstance) {
         segment: '',
         isDefault: !override,
         changedBy: override?.changedBy ?? null,
+        changedByName: override?.changedBy ? (names.get(override.changedBy) ?? null) : null,
         updatedAt: override?.updatedAt.toISOString() ?? null,
       }
     })
@@ -84,6 +97,7 @@ export default async function parametersRoutes(app: FastifyInstance) {
         segment: o.segment,
         isDefault: false,
         changedBy: o.changedBy,
+        changedByName: o.changedBy ? (names.get(o.changedBy) ?? null) : null,
         updatedAt: o.updatedAt.toISOString(),
       }))
 
@@ -147,12 +161,14 @@ export default async function parametersRoutes(app: FastifyInstance) {
       orderBy: { changedAt: 'desc' },
       take: 50,
     })
+    const names = await namesByUserId(rows.map((r) => r.changedBy))
     return reply.send({
       history: rows.map((r) => ({
         key: r.key,
         value: r.value,
         segment: r.segment,
         changedBy: r.changedBy,
+        changedByName: r.changedBy ? (names.get(r.changedBy) ?? null) : null,
         changedAt: r.changedAt.toISOString(),
       })),
     })

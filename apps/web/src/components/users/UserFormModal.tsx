@@ -18,6 +18,7 @@ import {
 } from '@/lib/user-profile'
 import { isCompanyless } from '@/lib/user-scope'
 import { parseCities } from '@/lib/intel-helpers'
+import { useAuth } from '@/contexts/AuthContext'
 import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
 import { FormField, FormSelect } from '@/components/ui/FormField'
@@ -81,6 +82,13 @@ export function UserFormModal({
 
   const profile = watch('profile')
   const showVendorFields = hasVendorProfile(profile)
+  // Só o SUPERADMIN cria ou promove administradores (a API devolve 403 para
+  // os demais) — o ADMIN da empresa não deve nem ver a opção. Se o usuário
+  // editado já é ADMIN, a opção fica para o select mostrar o perfil atual.
+  const { isSuperAdmin } = useAuth()
+  const profiles = SELECTABLE_PROFILES.filter(
+    (key) => key !== 'ADMIN' || isSuperAdmin || (user && profileOf(user) === 'ADMIN')
+  )
 
   // Campos do vendedor (E10) — strings do form viram o payload da API
   function vendorBody(data: UserFormData): Record<string, unknown> {
@@ -152,7 +160,7 @@ export function UserFormModal({
         />
 
         <FormSelect label="Perfil" error={errors.profile?.message} {...register('profile')}>
-          {SELECTABLE_PROFILES.map((key) => (
+          {profiles.map((key) => (
             <option key={key} value={key}>
               {PROFILE_LABELS[key]}
             </option>

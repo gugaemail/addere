@@ -1,9 +1,8 @@
 'use client'
 
 import { createContext, useContext, useEffect, useState, useCallback } from 'react'
-import axios from 'axios'
 import { useQueryClient } from '@tanstack/react-query'
-import { api, clearAccessToken, setAccessToken } from '@/lib/api'
+import { api, clearAccessToken, refreshAccessToken, setAccessToken } from '@/lib/api'
 import type { UserPublic } from '@addere/types'
 
 interface AuthContextValue {
@@ -31,12 +30,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const restoreSession = async () => {
       try {
-        const { data } = await axios.post(
-          `${process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3333'}/auth/refresh`,
-          {},
-          { withCredentials: true, headers: { 'X-Requested-With': 'XMLHttpRequest' } }
-        )
-        setAccessToken(data.accessToken)
+        // Mesmo refresh do interceptor (single-flight): se uma página já
+        // disparou queries e caiu em 401, os dois esperam a mesma chamada.
+        await refreshAccessToken()
         // Obtém o usuário atual com o novo token
         const { data: userData } = await api.get<UserPublic>('/auth/me')
         setUser(userData)

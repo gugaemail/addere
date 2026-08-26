@@ -32,7 +32,7 @@ const RECONCILE_TIMEOUT_MS = 120_000
 
 // ─── Mapeamento para DTO ───
 
-export function toQueryDto(row: IntelQuery): IntelQueryDto {
+export function toQueryDto(row: IntelQuery, validatedByName: string | null = null): IntelQueryDto {
   return {
     id: row.id,
     name: row.name as IntelQueryName,
@@ -44,6 +44,7 @@ export function toQueryDto(row: IntelQuery): IntelQueryDto {
     version: row.version,
     validatedAt: row.validatedAt?.toISOString() ?? null,
     validatedBy: row.validatedBy,
+    validatedByName,
     reconciliationPeriod: row.reconciliationPeriod,
     reconciliationRefAmount: row.reconciliationRefAmount?.toString() ?? null,
     reconciliationCalcAmount: row.reconciliationCalcAmount?.toString() ?? null,
@@ -54,6 +55,21 @@ export function toQueryDto(row: IntelQuery): IntelQueryDto {
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   }
+}
+
+// validatedBy guarda o id do usuário — a tela mostrava o UUID cru em
+// "Prévia ok em … por …". Resolve os nomes de uma vez para a lista.
+async function validatorNames(rows: IntelQuery[]): Promise<Map<string, string>> {
+  const ids = [...new Set(rows.map((r) => r.validatedBy).filter((id): id is string => Boolean(id)))]
+  if (ids.length === 0) return new Map()
+  const users =
+    (await prisma.user.findMany({ where: { id: { in: ids } }, select: { id: true, name: true } })) ?? []
+  return new Map(users.map((u) => [u.id, u.name]))
+}
+
+async function toQueryDtoNamed(row: IntelQuery): Promise<IntelQueryDto> {
+  const names = await validatorNames([row])
+  return toQueryDto(row, row.validatedBy ? (names.get(row.validatedBy) ?? null) : null)
 }
 
 async function getLatestQuery(companyId: string, name: IntelQueryName) {
@@ -74,6 +90,7 @@ export async function listQueries(company: Company) {
   for (const row of rows) {
     if (!latestByName.has(row.name)) latestByName.set(row.name, row)
   }
+  const names = await validatorNames([...latestByName.values()])
 
   const contracts = Object.values(QUERY_CONTRACTS).map((contract) => {
     const latest = latestByName.get(contract.name) ?? null
@@ -89,7 +106,9 @@ export async function listQueries(company: Company) {
       referenceSql: contract.referenceSql,
       helpText: contract.helpText,
       status,
-      query: latest ? toQueryDto(latest) : null,
+      query: latest
+        ? toQueryDto(latest, latest.validatedBy ? (names.get(latest.validatedBy) ?? null) : null)
+        : null,
     }
   })
 
@@ -147,7 +166,7 @@ export async function saveDraft(
     const created = await prisma.intelQuery.create({
       data: { ...data, companyId: company.id, name, version: 1 },
     })
-    return toQueryDto(created)
+    return toQueryDtoNamed(created)
   }
 
   if (latest.published) {
@@ -155,11 +174,11 @@ export async function saveDraft(
     const created = await prisma.intelQuery.create({
       data: { ...data, companyId: company.id, name, version: latest.version + 1 },
     })
-    return toQueryDto(created)
+    return toQueryDtoNamed(created)
   }
 
   const updated = await prisma.intelQuery.update({ where: { id: latest.id }, data })
-  return toQueryDto(updated)
+  return toQueryDtoNamed(updated)
 }
 
 // ─── Janela da prévia ───
@@ -405,5 +424,5 @@ export async function publishQuery(company: Company, name: IntelQueryName, userI
     }),
   ])
 
-  return toQueryDto(published)
+  return toQueryDtoNamed(published)
 }

@@ -33,7 +33,7 @@ Sentry.init({
   },
 })
 
-function AuthGuard() {
+function AuthGuard({ children }: { children: React.ReactNode }) {
   const router = useRouter()
   const segments = useSegments()
   const { accessToken, user, hydrated, hydrate } = useAuthStore()
@@ -132,7 +132,13 @@ function AuthGuard() {
     }
   }, [accessToken, user, hydrated, segments, biometricReady])
 
-  return null
+  // Antes da hidratação (e da biometria) o navegador não monta: a rota
+  // inicial `(app)/index` subia na frente, disparava as queries do dashboard
+  // sem token (3×401), o interceptor renovava pelo cookie e o app piscava o
+  // dashboard legado com "Olá," vazio até o guard redirecionar para o login.
+  if (!hydrated || !biometricReady) return <SplashScreen />
+
+  return <>{children}</>
 }
 
 const asyncStoragePersister = createAsyncStoragePersister({
@@ -162,8 +168,9 @@ export default function RootLayout() {
             },
           }}
         >
-          <AuthGuard />
-          <Stack screenOptions={{ headerShown: false }} />
+          <AuthGuard>
+            <Stack screenOptions={{ headerShown: false }} />
+          </AuthGuard>
         </PersistQueryClientProvider>
       </AppErrorBoundary>
     </GestureHandlerRootView>

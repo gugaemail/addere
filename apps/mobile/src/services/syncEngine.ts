@@ -16,6 +16,13 @@ export function getSyncDelay(attempts: number): number {
   return 1_000 * Math.pow(2, attempts - 1)
 }
 
+const TRANSIENT_4XX = new Set([401, 408, 429])
+
+export function isPermanentRejection(err: unknown): boolean {
+  const status = (err as { response?: { status?: unknown } } | null)?.response?.status
+  return typeof status === 'number' && status >= 400 && status < 500 && !TRANSIENT_4XX.has(status)
+}
+
 async function processItem(item: SyncQueueItem): Promise<void> {
   const { markSyncing, markSynced, markError, markFailedPermanently } = useSyncStore.getState()
 
@@ -46,6 +53,31 @@ async function processItem(item: SyncQueueItem): Promise<void> {
     }
   } catch (err: unknown) {
     const msg = getApiErrorMessage(err)
+
+    // 4xx é rejeição do servidor (posse, validação, item de plano que não
+    // existe mais): retentar 5× com backoff só atrasa o aviso e deixa a fila
+    // presa em "1 a enviar". 401/408/429 são transitórios (token, timeout,
+    // rate limit) e continuam no retry. O cache que o handler invalidaria
+    // pode estar defasado (ex.: plano regenerado no servidor) — refaz agora.
+    if (isPermanentRejection(err)) {
+      markFailedPermanently(item.id, msg)
+      for (const key of handler.invalidates) {
+        queryClient.invalidateQueries({ queryKey: key })
+      }
+      Sentry.captureEvent({
+        message: 'Item da fila rejeitado pelo servidor',
+        level: 'warning',
+        extra: {
+          itemId: item.id,
+          type: item.type,
+          ...(handler.reportPayload ? { lastError: msg } : {}),
+          createdAt: item.createdAt,
+        },
+        tags: { module: 'sync_engine' },
+      })
+      return
+    }
+
     markError(item.id, msg)
 
     if (item.attempts + 1 >= item.maxAttempts) {
