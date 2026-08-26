@@ -112,7 +112,10 @@ async function main() {
   })
 
   // 5. Cadastro dos vendedores
-  const sellers = await prisma.user.findMany({
+  // O gerente é role SALESPERSON + intel.manager (D3), mas não vende: cobrar
+  // dele um código Protheus é cobrar uma carteira que ele não tem. Fica de
+  // fora da conta — a menos que tenha código, aí ele também vende e conta.
+  const staff = await prisma.user.findMany({
     where: { companyId: company.id, active: true, role: 'SALESPERSON' },
     select: {
       name: true,
@@ -120,8 +123,10 @@ async function main() {
       visitsPerDay: true,
       servedCities: true,
       managerId: true,
+      permissions: { where: { permission: { key: 'intel.manager' } }, select: { id: true } },
     },
   })
+  const sellers = staff.filter((s) => s.idVendProt !== null || s.permissions.length === 0)
   const withoutCode = sellers.filter((s) => !s.idVendProt).map((s) => s.name)
   checks.push({
     level: sellers.length > 0 && withoutCode.length === 0 ? 'ok' : 'fail',

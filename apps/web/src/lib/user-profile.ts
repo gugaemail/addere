@@ -44,7 +44,14 @@ export function profileToPayload(profile: Profile): {
   return { role: 'SALESPERSON', intelManager: false }
 }
 
-/** Vendedor e gerente têm carteira; o administrador não. */
+/**
+ * Quem tem carteira no Protheus — só o vendedor.
+ *
+ * O gerente não vende: ele acompanha os vendedores associados a ele, e a
+ * associação é feita do lado do vendedor (campo Gerente). Pedir código de
+ * vendedor, visitas por dia ou cidades para um gerente é pedir o cadastro de
+ * uma carteira que ele não tem.
+ */
 export function hasVendorProfile(profile: Profile): boolean {
-  return profile === 'SALESPERSON' || profile === 'MANAGER'
+  return profile === 'SALESPERSON'
 }

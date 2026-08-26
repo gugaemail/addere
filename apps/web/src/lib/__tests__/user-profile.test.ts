@@ -53,10 +53,15 @@ describe('ida e volta', () => {
 })
 
 describe('hasVendorProfile', () => {
-  it('vendedor e gerente têm carteira; administrador não', () => {
+  it('só o vendedor tem carteira', () => {
     expect(hasVendorProfile('SALESPERSON')).toBe(true)
-    expect(hasVendorProfile('MANAGER')).toBe(true)
     expect(hasVendorProfile('ADMIN')).toBe(false)
+  })
+
+  it('gerente não tem carteira — ele acompanha quem tem', () => {
+    // A associação é do lado do vendedor (campo Gerente); o gerente não vende,
+    // então não tem código Protheus, visitas por dia nem cidades atendidas.
+    expect(hasVendorProfile('MANAGER')).toBe(false)
   })
 })
 
