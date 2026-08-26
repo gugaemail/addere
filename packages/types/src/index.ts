@@ -260,6 +260,8 @@ export interface Order {
   transportadora: { id: string; nome: string } | null
   condPag: { id: string; nome: string } | null
   items: OrderItemDetail[]
+  // Quem criou — o gerente vê os pedidos da equipe no app e precisa saber de quem é
+  user?: { id: string; name: string }
 }
 
 // Pedido retornado nas rotas admin da empresa (inclui o vendedor que criou)

@@ -5,6 +5,8 @@ import type { CreateOrderInput, UpdateOrderInput } from './orders.schema'
 
 const orderInclude = {
   customer: { select: { id: true, name: true, document: true } },
+  // Quem criou — o gerente vê os pedidos da equipe e precisa saber de quem é
+  user: { select: { id: true, name: true } },
   branch: { select: { id: true, name: true, idProtheus: true } },
   transportadora: { select: { id: true, nome: true } },
   condPag: { select: { id: true, nome: true } },
@@ -77,28 +79,39 @@ async function assertOrderRefsBelongToCompany(
   if (refs.condId && !cond) throw unprocessable('Condição de pagamento não encontrada')
 }
 
-export async function getOrder(userId: string, companyId: string, orderId: string) {
+/**
+ * Dono(s) visíveis nas leituras: o vendedor vê os seus; o gerente, os da
+ * equipe (users/data-scope:resolveOrderOwners). Escrita continua só do dono.
+ */
+type OrderOwners = string | string[]
+
+function ownerWhere(owners: OrderOwners) {
+  return Array.isArray(owners) ? { userId: { in: owners } } : { userId: owners }
+}
+
+export async function getOrder(owners: OrderOwners, companyId: string, orderId: string) {
   return prisma.order.findFirst({
-    where: { id: orderId, userId, companyId },
+    where: { id: orderId, companyId, ...ownerWhere(owners) },
     include: orderInclude,
   })
 }
 
-export async function listOrders(userId: string, companyId: string, limit?: number) {
+export async function listOrders(owners: OrderOwners, companyId: string, limit?: number) {
   return prisma.order.findMany({
-    where: { userId, companyId },
+    where: { companyId, ...ownerWhere(owners) },
     orderBy: { createdAt: 'desc' },
     take: limit,
     include: orderInclude,
   })
 }
 
-export async function getOrderStats(userId: string, companyId: string) {
+export async function getOrderStats(owners: OrderOwners, companyId: string) {
+  const where = { companyId, ...ownerWhere(owners) }
   const [totalOrders, pendingOrders, syncedOrders, revenueResult] = await Promise.all([
-    prisma.order.count({ where: { userId, companyId } }),
-    prisma.order.count({ where: { userId, companyId, status: 'PENDING' } }),
-    prisma.order.count({ where: { userId, companyId, status: 'SYNCED' } }),
-    prisma.order.aggregate({ where: { userId, companyId }, _sum: { total: true } }),
+    prisma.order.count({ where }),
+    prisma.order.count({ where: { ...where, status: 'PENDING' } }),
+    prisma.order.count({ where: { ...where, status: 'SYNCED' } }),
+    prisma.order.aggregate({ where, _sum: { total: true } }),
   ])
 
   return {

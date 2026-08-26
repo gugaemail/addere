@@ -2,7 +2,15 @@ import { useState, useEffect } from 'react'
 import { View } from 'react-native'
 import { Tabs } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
-import { LayoutDashboard, Map as MapIcon, Sun, Users, Package, ClipboardList } from 'lucide-react-native'
+import {
+  ClipboardList,
+  LayoutDashboard,
+  Map as MapIcon,
+  Package,
+  Sun,
+  Users,
+  UsersRound,
+} from 'lucide-react-native'
 import { brandScreenOptions } from '../../src/navigation/BrandHeader'
 import {
   OnboardingFlow,
@@ -11,11 +19,20 @@ import {
 import { FeedbackPrompt } from '../../src/components/FeedbackPrompt'
 import { colors, spacing, typography } from '../../src/theme'
 import { useIntelEnabled } from '../../src/hooks/useIntelEnabled'
+import { useIsManager } from '../../src/hooks/useProfile'
 
 export default function AppLayout() {
   const [showOnboarding, setShowOnboarding] = useState(false)
   // Abas Hoje/Rota só aparecem quando a empresa tem a Inteligência ligada (E12)
   const intelEnabled = useIntelEnabled()
+  // Gerente (intel.manager sem carteira): a home vira Equipe e a Rota some —
+  // ele não tem plano; Clientes e Pedidos mostram os da equipe (recorte na API)
+  const isManager = useIsManager()
+  const home = isManager
+    ? { testID: 'tab-equipe', title: 'Equipe', Icon: UsersRound }
+    : intelEnabled
+      ? { testID: 'tab-hoje', title: 'Hoje', Icon: Sun }
+      : { testID: 'tab-dashboard', title: 'Dashboard', Icon: LayoutDashboard }
   // Safe-area inferior: evita a tab bar sobreposta pela barra do sistema (Android) / home indicator (iOS)
   const insets = useSafeAreaInsets()
 
@@ -48,21 +65,16 @@ export default function AppLayout() {
         <Tabs.Screen
           name="index"
           options={{
-            tabBarButtonTestID: intelEnabled ? 'tab-hoje' : 'tab-dashboard',
-            title: intelEnabled ? 'Hoje' : 'Dashboard',
-            tabBarIcon: ({ color }) =>
-              intelEnabled ? (
-                <Sun size={22} color={color} strokeWidth={1.5} />
-              ) : (
-                <LayoutDashboard size={22} color={color} strokeWidth={1.5} />
-              ),
+            tabBarButtonTestID: home.testID,
+            title: home.title,
+            tabBarIcon: ({ color }) => <home.Icon size={22} color={color} strokeWidth={1.5} />,
           }}
         />
-        {/* Rota (D11): oculta quando a Inteligência está desligada */}
+        {/* Rota (D11): oculta quando a Inteligência está desligada — e para o gerente */}
         <Tabs.Screen
           name="rota"
           options={{
-            href: intelEnabled ? undefined : null,
+            href: intelEnabled && !isManager ? undefined : null,
             tabBarButtonTestID: 'tab-rota',
             title: 'Rota',
             headerShown: false,

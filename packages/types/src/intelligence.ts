@@ -299,3 +299,30 @@ export interface TeamReportDto {
   alerts: { kind: string; message: string; vendorCode?: string }[]
   freshness: { lastSyncAt: string | null }
 }
+
+// Home do gerente no app (decisão 1 do teste geral de 25/08/2026)
+export interface ManagerHomeSellerDto {
+  userId: string
+  name: string
+  vendorCode: string
+  goalAmount: string | null
+  soldAmount: string | null
+  pct: number | null
+  planned: number
+  done: number
+  adherencePct: number | null
+}
+
+export interface ManagerHomeDto {
+  period: string // YYYYMM
+  goal: {
+    goalAmount: string | null
+    soldAmount: string | null
+    gap: string | null
+    pct: number | null
+    sellersWithGoal: number
+  }
+  today: { ymd: string; planned: number; done: number }
+  sellers: ManagerHomeSellerDto[]
+  lastSyncAt: string | null
+}

@@ -12,6 +12,7 @@ import {
   type VisitFact,
 } from './team'
 import { buildPilotMetrics, type PilotMetrics } from './pilot-metrics'
+import { buildTeamGoal, type TeamGoal } from './team-goal'
 import { addDays, rangeWindow, ymdToUtcDate, type DateWindow, type TeamRange } from './range'
 
 const CONVERSION_DAYS = 7
@@ -323,4 +324,66 @@ export async function buildPilotReport(
     })),
     conversionDays: CONVERSION_DAYS,
   })
+}
+
+export interface ManagerHome {
+  /** YYYYMM da meta. */
+  period: string
+  goal: TeamGoal
+  today: { ymd: string; planned: number; done: number }
+  sellers: Array<
+    TeamGoal['sellers'][number] & { planned: number; done: number; adherencePct: number | null }
+  >
+  lastSyncAt: string | null
+}
+
+/**
+ * Home do gerente no app (decisão 1 do teste geral): meta do mês somada e as
+ * visitas de hoje, só dos vendedores associados a ele (managerId) — aqui não
+ * vale a regra do gerente único ver a empresa inteira, que é da tela Equipe
+ * em campo do painel.
+ */
+export async function buildManagerHome(companyId: string, managerId: string): Promise<ManagerHome> {
+  const todayYmd = ymdSaoPaulo(new Date())
+  const period = todayYmd.slice(0, 6)
+  const scope: TeamScope = { managerId }
+  const sellers = await loadSellers(companyId, scope)
+  const vendorCodes = sellers.map((s) => s.idVendProt as string)
+
+  const [snapshots, team] = await Promise.all([
+    vendorCodes.length === 0
+      ? Promise.resolve([])
+      : prisma.goalSnapshot.findMany({
+          where: { companyId, period, vendorCode: { in: vendorCodes } },
+          select: { vendorCode: true, goalAmount: true, soldAmount: true, capturedAt: true },
+        }),
+    buildTeam(companyId, scope, todayYmd, 'day'),
+  ])
+
+  const goal = buildTeamGoal(
+    sellers.map((s) => ({ userId: s.id, name: s.name, vendorCode: s.idVendProt as string })),
+    snapshots.map((snap) => ({
+      vendorCode: snap.vendorCode,
+      goalAmount: snap.goalAmount === null ? null : Number(snap.goalAmount),
+      soldAmount: snap.soldAmount === null ? null : Number(snap.soldAmount),
+      capturedAt: snap.capturedAt,
+    }))
+  )
+  const visitsBy = new Map(team.sellers.map((card) => [card.vendorCode, card]))
+
+  return {
+    period,
+    goal,
+    today: { ymd: todayYmd, planned: team.totals.planned, done: team.totals.done },
+    sellers: goal.sellers.map((seller) => {
+      const card = visitsBy.get(seller.vendorCode)
+      return {
+        ...seller,
+        planned: card?.planned ?? 0,
+        done: card?.done ?? 0,
+        adherencePct: card?.adherencePct ?? null,
+      }
+    }),
+    lastSyncAt: team.lastSyncAt,
+  }
 }

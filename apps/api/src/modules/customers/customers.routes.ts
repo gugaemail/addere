@@ -10,7 +10,10 @@ export default async function customersRoutes(app: FastifyInstance) {
     { preHandler: [authenticate, requireCompany] },
     async (request: FastifyRequest, reply: FastifyReply) => {
       const { search } = request.query as { search?: string }
-      const customers = await listCustomers(request.user.companyId!, search, request.user.sub)
+      const customers = await listCustomers(request.user.companyId!, search, {
+        id: request.user.sub,
+        role: request.user.role,
+      })
       return reply.send(customers)
     }
   )
