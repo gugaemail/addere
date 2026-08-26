@@ -35,10 +35,12 @@ Protheus ──(SQL genérico, só SELECT)──▶ sync dos contratos ──▶
 (Equipe em campo, Saúde só-leitura, pôr no plano). SUPERADMIN passa em tudo e
 escolhe o tenant por `companyId`.
 
-Visibilidade da equipe (D3b): **um** gerente na empresa vê todos os vendedores;
-com **dois ou mais**, cada um vê só `managerId = seu id`, e quem está sem gerente
-aparece apenas para `intel.admin`. Regra isolada em
-`manager/manager.service.ts:resolveTeamScope` — pura e testada.
+Visibilidade da equipe (D3b, revista em 26/08/2026): o gerente vê só os
+vendedores com `managerId = seu id` — no painel (Equipe em campo, métricas do
+piloto) e no app (aba Equipe, clientes e pedidos); quem está sem gerente aparece
+apenas para `intel.admin`/SUPERADMIN, com o aviso de "vendedores sem gerente".
+Regra isolada em `manager/manager.service.ts:resolveTeamScope` (painel) e
+`users/data-scope.ts` (clientes/pedidos do app) — puras e testadas.
 
 ## Jobs
 

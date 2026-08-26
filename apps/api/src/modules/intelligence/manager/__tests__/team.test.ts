@@ -227,21 +227,11 @@ describe('rangeWindow', () => {
 })
 
 describe('resolveTeamScope (D3b)', () => {
-  it('admin vê a empresa inteira, mesmo com vários gerentes', () => {
-    expect(resolveTeamScope({ viewerId: 'm1', isAdmin: true, managerCount: 3 })).toEqual({
-      managerId: null,
-    })
+  it('admin vê a empresa inteira', () => {
+    expect(resolveTeamScope({ viewerId: 'm1', isAdmin: true })).toEqual({ managerId: null })
   })
 
-  it('gerente único vê todos — os sem gerente contam como dele', () => {
-    expect(resolveTeamScope({ viewerId: 'm1', isAdmin: false, managerCount: 1 })).toEqual({
-      managerId: null,
-    })
-  })
-
-  it('com dois ou mais gerentes, cada um vê só os seus', () => {
-    expect(resolveTeamScope({ viewerId: 'm1', isAdmin: false, managerCount: 2 })).toEqual({
-      managerId: 'm1',
-    })
+  it('gerente vê só os vendedores associados a ele — mesmo sendo o único da empresa', () => {
+    expect(resolveTeamScope({ viewerId: 'm1', isAdmin: false })).toEqual({ managerId: 'm1' })
   })
 })

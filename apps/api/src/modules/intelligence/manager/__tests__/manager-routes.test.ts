@@ -121,17 +121,16 @@ describe('GET /intel/manager/team', () => {
     expect(res.statusCode).toBe(400)
   })
 
-  it('com dois gerentes, a consulta filtra pelo managerId de quem pediu', async () => {
-    prismaMock.user.count.mockResolvedValue(2)
+  it('gerente: a consulta filtra pelo managerId de quem pediu, mesmo sendo o único', async () => {
+    prismaMock.user.count.mockResolvedValue(1)
     await app.inject({ method: 'GET', url: '/intel/manager/team', headers: auth('manager-a') })
 
     const where = prismaMock.user.findMany.mock.calls[0][0].where
     expect(where.managerId).toBe('manager-a')
   })
 
-  it('com um gerente só, não filtra por managerId', async () => {
-    prismaMock.user.count.mockResolvedValue(1)
-    await app.inject({ method: 'GET', url: '/intel/manager/team', headers: auth('manager-a') })
+  it('intel.admin não filtra por managerId — vê a empresa inteira', async () => {
+    await app.inject({ method: 'GET', url: '/intel/manager/team', headers: auth('admin-a') })
 
     expect(prismaMock.user.findMany.mock.calls[0][0].where.managerId).toBeUndefined()
   })

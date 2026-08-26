@@ -23,28 +23,16 @@ export interface TeamScope {
 }
 
 /**
- * Visibilidade da equipe (decisão D3b):
- * - intel.admin / SUPERADMIN → todos os vendedores
- * - um único gerente na empresa → todos (os sem `managerId` contam como dele)
- * - dois ou mais gerentes → cada um vê só `managerId = seu id`
+ * Visibilidade da equipe (decisão D3b, revista no teste geral de 26/08/2026):
+ * - intel.admin / SUPERADMIN → todos os vendedores da empresa
+ * - gerente → só `managerId = seu id`, no painel e no app. A regra antiga do
+ *   gerente único ver a empresa inteira fazia painel e app discordarem; um
+ *   vendedor sem gerente aparece só para o administrador (e no aviso
+ *   `unassignedSellers`), que é quem resolve isso no cadastro.
  */
-export function resolveTeamScope(input: {
-  viewerId: string
-  isAdmin: boolean
-  managerCount: number
-}): TeamScope {
-  if (input.isAdmin || input.managerCount <= 1) return { managerId: null }
+export function resolveTeamScope(input: { viewerId: string; isAdmin: boolean }): TeamScope {
+  if (input.isAdmin) return { managerId: null }
   return { managerId: input.viewerId }
-}
-
-export async function countManagers(companyId: string): Promise<number> {
-  return prisma.user.count({
-    where: {
-      companyId,
-      active: true,
-      permissions: { some: { permission: { key: 'intel.manager' } } },
-    },
-  })
 }
 
 function customerKey(row: { customerCode: string; loja: string }): string {
@@ -339,9 +327,8 @@ export interface ManagerHome {
 
 /**
  * Home do gerente no app (decisão 1 do teste geral): meta do mês somada e as
- * visitas de hoje, só dos vendedores associados a ele (managerId) — aqui não
- * vale a regra do gerente único ver a empresa inteira, que é da tela Equipe
- * em campo do painel.
+ * visitas de hoje, só dos vendedores associados a ele (managerId) — o mesmo
+ * recorte da tela Equipe em campo do painel.
  */
 export async function buildManagerHome(companyId: string, managerId: string): Promise<ManagerHome> {
   const todayYmd = ymdSaoPaulo(new Date())
