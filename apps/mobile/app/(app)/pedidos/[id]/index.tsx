@@ -18,6 +18,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { fmtMoeda, fmtQtd, fmtData, formatDocument } from '../../../../src/utils/format'
 import { STATUS_BADGE, STATUS_LABEL } from '../../../../src/utils/orderStatus'
 import { getApiErrorMessage } from '../../../../src/lib/errors'
+import { useIsManager } from '../../../../src/hooks/useProfile'
 
 function Section({ title, children }: { title: string; children: ViewProps['children'] }) {
   return (
@@ -46,6 +47,8 @@ export default function PedidoDetailScreen() {
   const { mutate: sincronizar, isPending: isSyncing } = useSincronizarPedido()
   const { mutate: consultarStatus, isPending: isChecking } = useConsultarStatusPedido()
   const { mutate: cancelar } = useCancelarPedido()
+  // Gerente vê os pedidos da equipe, mas não edita nem cancela: isso é do dono
+  const isManager = useIsManager()
 
   const showTransportadora = useFieldVisible('order.transportadora')
   const showCondPag = useFieldVisible('order.condPag')
@@ -71,6 +74,13 @@ export default function PedidoDetailScreen() {
   }
 
   function handleCancelar() {
+    if (isManager) {
+      Alert.alert(
+        'Pedido não encontrado',
+        'O Protheus não encontrou este pedido. Só o vendedor que o criou pode cancelá-lo.'
+      )
+      return
+    }
     Alert.alert(
       'Cancelar pedido',
       'O pedido não foi encontrado no Protheus. Deseja cancelar este pedido?',
@@ -140,6 +150,7 @@ export default function PedidoDetailScreen() {
           <Badge variant={variant}>{STATUS_LABEL[order.status]}</Badge>
         </View>
         <InfoRow label="Cliente" value={order.customer.name} />
+        {isManager && order.user && <InfoRow label="Vendedor" value={order.user.name} />}
         <InfoRow label="CNPJ/CPF" value={formatDocument(order.customer.document)} />
         <InfoRow label="Filial" value={order.branch?.name ?? null} />
         {showTransportadora && (
@@ -205,7 +216,7 @@ export default function PedidoDetailScreen() {
         <Text style={s.totalValue}>R$ {fmtMoeda(order.total)}</Text>
       </Card>
 
-      {order.status === 'PENDING' && (
+      {order.status === 'PENDING' && !isManager && (
         <Button
           variant="secondary"
           size="lg"

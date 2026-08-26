@@ -137,6 +137,48 @@ describe('GET /intel/manager/team', () => {
   })
 })
 
+describe('GET /intel/manager/home', () => {
+  it('meta da equipe é a soma dos vendedores associados — só os dele, mesmo sendo o único gerente', async () => {
+    prismaMock.user.count.mockResolvedValue(1)
+    prismaMock.user.findMany.mockResolvedValue([
+      { id: 'u-ana', name: 'Ana', idVendProt: 'V1', managerId: 'manager-a' },
+      { id: 'u-bia', name: 'Bia', idVendProt: 'V2', managerId: 'manager-a' },
+    ])
+    prismaMock.goalSnapshot.findMany.mockResolvedValue([
+      { vendorCode: 'V1', goalAmount: '1000', soldAmount: '250', capturedAt: new Date() },
+      { vendorCode: 'V2', goalAmount: '3000', soldAmount: '1750', capturedAt: new Date() },
+    ])
+
+    const res = await app.inject({
+      method: 'GET',
+      url: '/intel/manager/home',
+      headers: auth('manager-a'),
+    })
+    expect(res.statusCode).toBe(200)
+    const body = res.json()
+    expect(body.goal).toMatchObject({ goalAmount: '4000.00', soldAmount: '2000.00', pct: 50 })
+    expect(body.sellers.map((s: { name: string; pct: number }) => [s.name, s.pct])).toEqual([
+      ['Ana', 25],
+      ['Bia', 58],
+    ])
+    expect(body.today).toMatchObject({ planned: 0, done: 0 })
+
+    // Recorte estrito por managerId — a regra do gerente único é só do painel
+    for (const call of prismaMock.user.findMany.mock.calls) {
+      expect(call[0].where.managerId).toBe('manager-a')
+    }
+  })
+
+  it('vendedor sem intel.* → 403', async () => {
+    const res = await app.inject({
+      method: 'GET',
+      url: '/intel/manager/home',
+      headers: auth('sales-a'),
+    })
+    expect(res.statusCode).toBe(403)
+  })
+})
+
 describe('GET /intel/manager/pilot-metrics', () => {
   it('período invertido → 400', async () => {
     const res = await app.inject({

@@ -11,6 +11,7 @@ import type {
 } from '@addere/types'
 import { generateUuid } from '../utils/uuid'
 import { api } from '../lib/api'
+import { useHasVendorCode } from './useProfile'
 import { queryClient as globalQueryClient } from '../lib/query-client'
 import { useSyncStore } from '../store/syncStore'
 import { processSyncQueue } from '../services/syncEngine'
@@ -50,26 +51,33 @@ export interface SignalsListResponse {
 
 // ─── Leituras ───
 
+// As rotas /intel/app/* exigem carteira (idVendProt) — sem ela respondem 422.
+// O gerente não tem: as leituras ficam desligadas em vez de bater na parede.
 export function useHome() {
+  const hasVendorCode = useHasVendorCode()
   return useQuery({
     queryKey: intelKeys.home(),
     queryFn: () => api.get<HomeResponse>('/intel/app/home').then((r) => r.data),
+    enabled: hasVendorCode,
     staleTime: 5 * 60_000,
   })
 }
 
 export function usePlan(date?: string) {
+  const hasVendorCode = useHasVendorCode()
   return useQuery({
     queryKey: intelKeys.plan(date),
     queryFn: () =>
       api
         .get<VisitPlanDto | null>('/intel/app/plan', { params: date ? { date } : {} })
         .then((r) => r.data),
+    enabled: hasVendorCode,
     staleTime: 5 * 60_000,
   })
 }
 
 export function useCustomerSignals(status?: CustomerStatus) {
+  const hasVendorCode = useHasVendorCode()
   return useQuery({
     queryKey: intelKeys.signals(status),
     queryFn: () =>
@@ -78,18 +86,20 @@ export function useCustomerSignals(status?: CustomerStatus) {
           params: status ? { status } : {},
         })
         .then((r) => r.data),
+    enabled: hasVendorCode,
     staleTime: 5 * 60_000,
   })
 }
 
 export function useBriefing(customerCode: string, loja: string, enabled = true) {
+  const hasVendorCode = useHasVendorCode()
   return useQuery({
     queryKey: intelKeys.briefing(customerCode, loja),
     queryFn: () =>
       api
         .get<BriefingDto>(`/intel/app/customers/${customerCode}/${loja}/briefing`)
         .then((r) => r.data),
-    enabled: enabled && !!customerCode && !!loja,
+    enabled: enabled && hasVendorCode && !!customerCode && !!loja,
     // O servidor cacheia 4h; aqui seguramos 1h para o "antes de entrar" offline
     staleTime: 60 * 60_000,
     gcTime: 6 * 60 * 60_000,

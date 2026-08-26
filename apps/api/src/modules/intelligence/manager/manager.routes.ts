@@ -8,6 +8,7 @@ import { resolveTenant } from '../../../middleware/resolve-tenant'
 import { getEffectivePermissions } from '../../permissions/permissions.service'
 import { ymdSaoPaulo } from '../engine/business-days'
 import {
+  buildManagerHome,
   buildPilotReport,
   buildTeam,
   countManagers,
@@ -63,6 +64,14 @@ export default async function managerRoutes(app: FastifyInstance) {
     const anchorYmd = query.date ? compactYmd(query.date) : ymdSaoPaulo(new Date())
     const scope = await scopeFor(request, company.id)
     return reply.send(await buildTeam(company.id, scope, anchorYmd, query.range))
+  })
+
+  // GET /intel/manager/home — home do gerente no app: meta da equipe (soma das
+  // metas dos vendedores associados) e as visitas de hoje, só da equipe dele
+  app.get('/home', { preHandler: [guard] }, async (request, reply) => {
+    const company = await resolveTenant(request, reply, 'query')
+    if (!company) return
+    return reply.send(await buildManagerHome(company.id, request.user.sub))
   })
 
   // GET /intel/manager/pilot-metrics?from=&to= — as 3 métricas do dry-run

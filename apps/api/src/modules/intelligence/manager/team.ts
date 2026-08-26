@@ -125,10 +125,14 @@ export function buildTeamReport(input: TeamInput): TeamReport {
       alerts.push({ kind: 'NO_PLAN', message: 'Sem plano gerado no período' })
     } else if (done === 0) {
       alerts.push({ kind: 'FEW_VISITS', message: 'Plano gerado, nenhuma visita registrada' })
-    } else if (input.minVisits > 0 && done < input.minVisits) {
+    } else if (input.minVisits > 0 && done < Math.min(input.minVisits, planned)) {
+      // O número da mensagem é o plano do vendedor (o mesmo "previstas" do
+      // card), não a capacidade da empresa: "1 de 8" ao lado de "PREVISTAS 10"
+      // confundia. A capacidade só decide se vale alertar — e um plano menor
+      // que ela, todo visitado, não é falta de visita.
       alerts.push({
         kind: 'FEW_VISITS',
-        message: `${done} de ${input.minVisits} visitas previstas para o dia`,
+        message: `${done} de ${planned} visitas previstas para o dia`,
       })
     }
 

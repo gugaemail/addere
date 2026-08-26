@@ -154,6 +154,7 @@ export default async function authRoutes(app: FastifyInstance) {
           idVendProt: true,
           companyId: true,
           servedCities: true,
+          managerId: true,
           company: { select: { intelligenceEnabled: true, intelligenceConfig: true } },
         },
       })
@@ -175,6 +176,10 @@ export default async function authRoutes(app: FastifyInstance) {
         idVendProt: user.idVendProt,
         companyId: user.companyId,
         servedCities: user.servedCities,
+        managerId: user.managerId,
+        // Perfil "Gerente" (SALESPERSON + intel.manager) — o app troca a home e
+        // esconde a Rota por este campo; SUPERADMIN tem o catálogo inteiro
+        intelManager: user.role !== 'SUPERADMIN' && permissions.has('intel.manager'),
         permissions: Array.from(permissions),
         company: user.company
           ? {

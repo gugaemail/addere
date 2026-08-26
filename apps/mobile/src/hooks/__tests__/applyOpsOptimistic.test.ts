@@ -12,6 +12,8 @@ jest.mock('../../lib/query-client', () => ({
 jest.mock('../../services/syncEngine', () => ({
   processSyncQueue: jest.fn().mockResolvedValue(undefined),
 }))
+// useIntel → useProfile → auth.store (SecureStore + env): o teste é puro, não roda hooks
+jest.mock('../../store/auth.store', () => ({ useAuthStore: jest.fn() }))
 
 import { applyOpsOptimistic, makePlanOp } from '../useIntel'
 import type { VisitPlanDto, VisitPlanItemDto } from '@addere/types'

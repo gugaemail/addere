@@ -4,6 +4,7 @@ import * as SecureStore from 'expo-secure-store'
 import type { UserPublic } from '@addere/types'
 import { setSentryUser, clearSentryUser } from '../services/sentryContext'
 import { env } from '../config/env'
+import { useSyncStore } from './syncStore'
 
 // Cada limpeza de sessão (logout, biometria recusada) abre uma nova época.
 // Escritas assíncronas que começaram antes não aplicam mais: era assim que o
@@ -201,3 +202,11 @@ export const useAuthStore = create<AuthState>((set) => ({
     }
   },
 }))
+
+// A fila offline é do aparelho e a API grava cada envio em nome de quem manda:
+// cada item leva o id de quem o criou e só o dono vê e envia. Toda troca de
+// sessão (login, logout, boot) atualiza o dono aqui, num lugar só.
+useAuthStore.subscribe((state, prev) => {
+  const ownerId = state.user?.id ?? null
+  if (ownerId !== (prev.user?.id ?? null)) useSyncStore.getState().setOwner(ownerId)
+})
