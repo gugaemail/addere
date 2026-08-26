@@ -22,6 +22,7 @@ export interface IntelQueryDto {
   version: number
   validatedAt: string | null
   validatedBy: string | null
+  validatedByName: string | null // nome de quem validou (validatedBy é o id)
   reconciliationPeriod: string | null // 'YYYYMM'
   reconciliationRefAmount: string | null
   reconciliationCalcAmount: string | null
@@ -95,6 +96,7 @@ export interface IntelParameterDto {
   value: unknown
   segment: string // '' = global
   changedBy: string | null
+  changedByName: string | null
   updatedAt: string
 }
 

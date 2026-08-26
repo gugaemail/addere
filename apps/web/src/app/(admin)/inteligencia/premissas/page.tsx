@@ -170,7 +170,8 @@ export default function PremissasPage() {
                 <li key={i}>
                   <code>{h.key}</code>
                   {h.segment && ` (${h.segment})`} → <b className="text-[var(--text-primary)]">{String(h.value)}</b> ·{' '}
-                  {h.changedBy ?? 'sistema'} em {new Date(h.changedAt).toLocaleString('pt-BR')}
+                  {h.changedByName ?? h.changedBy ?? 'sistema'} em{' '}
+                  {new Date(h.changedAt).toLocaleString('pt-BR')}
                 </li>
               ))}
             </ul>
@@ -197,7 +198,7 @@ export default function PremissasPage() {
                 meta.hint,
                 isDefault ? 'padrão' : `padrão: ${String(defaultValue)}`,
                 row?.changedBy && !row.isDefault
-                  ? `por ${row.changedBy}${row.updatedAt ? ` em ${new Date(row.updatedAt).toLocaleDateString('pt-BR')}` : ''}`
+                  ? `por ${row.changedByName ?? row.changedBy}${row.updatedAt ? ` em ${new Date(row.updatedAt).toLocaleDateString('pt-BR')}` : ''}`
                   : null,
               ]
                 .filter(Boolean)

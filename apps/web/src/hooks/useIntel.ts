@@ -38,6 +38,11 @@ export const intelKeys = {
 
 // Params de tenant das rotas /intel/*: só SUPERADMIN manda companyId na query
 // (resolveTenant da API rejeita companyId de quem não é SUPERADMIN — 403).
+/** false até o tenant estar resolvido — as buscas /intel/* esperam por isso. */
+export function useIntelReady(): boolean {
+  return useCompanyContext().ready
+}
+
 export function useIntelCompanyParam(): { companyId?: string } {
   const { isSuperAdmin } = useAuth()
   const { companyId } = useCompanyContext()
@@ -71,6 +76,7 @@ export interface ParameterRow {
   segment: string
   isDefault: boolean
   changedBy: string | null
+  changedByName: string | null
   updatedAt: string | null
 }
 
@@ -79,6 +85,7 @@ export interface ParameterHistoryRow {
   value: unknown
   segment: string
   changedBy: string | null
+  changedByName: string | null
   changedAt: string
 }
 
@@ -104,7 +111,9 @@ export interface ConfigResponse {
 
 export function useIntelQueries() {
   const params = useIntelCompanyParam()
+  const ready = useIntelReady()
   return useQuery({
+    enabled: ready,
     queryKey: intelKeys.queries(params.companyId),
     queryFn: () => api.get<QueriesResponse>('/intel/admin/queries', { params }).then((r) => r.data),
   })
@@ -186,7 +195,9 @@ export function useBackfillQuery(name: string) {
 
 export function useIntelHealth() {
   const params = useIntelCompanyParam()
+  const ready = useIntelReady()
   return useQuery({
+    enabled: ready,
     queryKey: intelKeys.health(params.companyId),
     queryFn: () => api.get<HealthResponse>('/intel/admin/health', { params }).then((r) => r.data),
   })
@@ -196,7 +207,9 @@ export function useIntelHealth() {
 
 export function useJobsStatus(options?: { refetchInterval?: number | false }) {
   const params = useIntelCompanyParam()
+  const ready = useIntelReady()
   return useQuery({
+    enabled: ready,
     queryKey: intelKeys.jobs(params.companyId),
     queryFn: () =>
       api
@@ -223,7 +236,9 @@ export function useRunJob() {
 
 export function useIntelParameters() {
   const params = useIntelCompanyParam()
+  const ready = useIntelReady()
   return useQuery({
+    enabled: ready,
     queryKey: intelKeys.parameters(params.companyId),
     queryFn: () =>
       api
@@ -234,13 +249,14 @@ export function useIntelParameters() {
 
 export function useParameterHistory(enabled: boolean) {
   const params = useIntelCompanyParam()
+  const ready = useIntelReady()
   return useQuery({
     queryKey: intelKeys.paramHistory(params.companyId),
     queryFn: () =>
       api
         .get<{ history: ParameterHistoryRow[] }>('/intel/admin/parameters/history', { params })
         .then((r) => r.data.history),
-    enabled,
+    enabled: enabled && ready,
   })
 }
 
@@ -248,8 +264,15 @@ export function useSaveParameters() {
   const params = useIntelCompanyParam()
   const queryClient = useQueryClient()
   return useMutation({
+    // A rota espera `parameters: [{ key, value, segment }]` — mandar o mapa
+    // `values` dava 400 "Required" em todo Salvar da tela de Premissas.
     mutationFn: (values: Partial<Record<IntelParameterKey, unknown>>) =>
-      api.put('/intel/admin/parameters', { values, ...params }).then((r) => r.data),
+      api
+        .put('/intel/admin/parameters', {
+          parameters: Object.entries(values).map(([key, value]) => ({ key, value, segment: '' })),
+          ...params,
+        })
+        .then((r) => r.data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: intelKeys.parameters(params.companyId) })
       queryClient.invalidateQueries({ queryKey: intelKeys.paramHistory(params.companyId) })
@@ -263,8 +286,10 @@ export function useSaveParameters() {
 
 export function useIntelConfig(companyIdOverride?: string) {
   const contextParams = useIntelCompanyParam()
+  const ready = useIntelReady()
   const params = companyIdOverride ? { companyId: companyIdOverride } : contextParams
   return useQuery({
+    enabled: Boolean(companyIdOverride) || ready,
     queryKey: intelKeys.config(params.companyId),
     queryFn: () => api.get<ConfigResponse>('/intel/admin/config', { params }).then((r) => r.data),
   })
@@ -335,8 +360,9 @@ export interface TeamReportResponse {
  */
 export function useTeamReport(date: string, range: TeamRange, enabled = true) {
   const companyParams = useIntelCompanyParam()
+  const ready = useIntelReady()
   return useQuery({
-    enabled,
+    enabled: enabled && ready,
     queryKey: intelKeys.team(date, range, companyParams.companyId),
     queryFn: () =>
       api
@@ -366,8 +392,9 @@ export interface PilotMetricsResponse {
 /** @param from/to 'YYYY-MM-DD'. `enabled` desliga a busca enquanto não há período. */
 export function usePilotMetrics(from: string, to: string, enabled = true) {
   const companyParams = useIntelCompanyParam()
+  const ready = useIntelReady()
   return useQuery({
-    enabled,
+    enabled: enabled && ready,
     queryKey: intelKeys.pilotMetrics(from, to, companyParams.companyId),
     queryFn: () =>
       api

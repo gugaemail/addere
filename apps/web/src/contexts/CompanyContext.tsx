@@ -16,6 +16,12 @@ interface CompanyContextValue {
   setCompanyId: (id: string | null) => void
   /** true quando o usuário pode escolher a empresa (SUPERADMIN) */
   canSelect: boolean
+  /**
+   * false enquanto a seleção do SUPERADMIN ainda não foi lida do localStorage.
+   * As telas da Inteligência esperam por isso: sem esperar, a primeira busca
+   * saía sem companyId e voltava 400 antes da seleção ser restaurada.
+   */
+  ready: boolean
 }
 
 const CompanyContext = createContext<CompanyContextValue | null>(null)
@@ -23,6 +29,7 @@ const CompanyContext = createContext<CompanyContextValue | null>(null)
 export function CompanyProvider({ children }: { children: React.ReactNode }) {
   const { user, isLoading, isSuperAdmin } = useAuth()
   const [selected, setSelected] = useState<string | null>(null)
+  const [restored, setRestored] = useState(false)
 
   // Restaura a seleção do SUPERADMIN após o carregamento da sessão; sem
   // sessão, limpa — a seleção de um SUPERADMIN não pode vazar para o
@@ -31,6 +38,7 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
     if (isLoading) return
     if (isSuperAdmin) {
       setSelected(localStorage.getItem(STORAGE_KEY))
+      setRestored(true)
     } else if (!user) {
       setSelected(null)
       localStorage.removeItem(STORAGE_KEY)
@@ -48,9 +56,10 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
   )
 
   const companyId = isSuperAdmin ? selected : (user?.companyId ?? null)
+  const ready = !isLoading && (!isSuperAdmin || restored)
 
   return (
-    <CompanyContext.Provider value={{ companyId, setCompanyId, canSelect: isSuperAdmin }}>
+    <CompanyContext.Provider value={{ companyId, setCompanyId, canSelect: isSuperAdmin, ready }}>
       {children}
     </CompanyContext.Provider>
   )
