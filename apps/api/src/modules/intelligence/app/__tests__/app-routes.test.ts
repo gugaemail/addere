@@ -187,6 +187,31 @@ describe('visitas — idempotência offline e posse', () => {
     expect(retry.json().updated).toBe(true)
   })
 
+  it('check-in com planItemId promove o plano GENERATED → IN_PROGRESS', async () => {
+    const PLAN_ITEM_ID = '7c1f9c0e-6d0e-4d8a-9f3b-2a1b3c4d5e6f'
+    prismaMock.visitPlanItem.findFirst.mockResolvedValue({ id: PLAN_ITEM_ID, planId: 'plan-1' })
+    prismaMock.visit.create.mockResolvedValue({ id: 'visit-3' })
+    const res = await app.inject({
+      method: 'POST',
+      url: '/intel/app/visits',
+      headers: auth(),
+      payload: { ...visitPayload, planItemId: PLAN_ITEM_ID },
+    })
+    expect(res.statusCode).toBe(201)
+    // Só GENERATED vira IN_PROGRESS — EDITED/IN_PROGRESS ficam como estão
+    expect(prismaMock.visitPlan.updateMany).toHaveBeenCalledWith({
+      where: { id: 'plan-1', status: 'GENERATED' },
+      data: { status: 'IN_PROGRESS' },
+    })
+  })
+
+  it('check-in sem planItemId (fora do plano) não mexe em plano nenhum', async () => {
+    prismaMock.visit.create.mockResolvedValue({ id: 'visit-4' })
+    const res = await app.inject({ method: 'POST', url: '/intel/app/visits', headers: auth(), payload: visitPayload })
+    expect(res.statusCode).toBe(201)
+    expect(prismaMock.visitPlan.updateMany).not.toHaveBeenCalled()
+  })
+
   it('clientId de OUTRO vendedor → 409', async () => {
     prismaMock.visit.findUnique.mockResolvedValue({ id: 'visit-2', vendorCode: 'V2' })
     const res = await app.inject({ method: 'POST', url: '/intel/app/visits', headers: auth(), payload: visitPayload })
