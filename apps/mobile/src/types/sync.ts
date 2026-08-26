@@ -21,4 +21,6 @@ export interface SyncQueueItem {
   lastError: string | null
   createdAt: string
   syncedAt: string | null
+  /** Quem criou o item — só o dono vê e envia (aparelho compartilhado) */
+  userId?: string
 }

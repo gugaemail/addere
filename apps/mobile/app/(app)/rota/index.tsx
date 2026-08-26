@@ -14,7 +14,7 @@ import {
 } from 'lucide-react-native'
 import type { VisitPlanItemDto } from '@addere/types'
 import { useAuthStore } from '../../../src/store/auth.store'
-import { useSyncStore } from '../../../src/store/syncStore'
+import { selectOwnQueue, useSyncStore } from '../../../src/store/syncStore'
 import { useClientes } from '../../../src/hooks/useClientes'
 import { makePlanOp, prefetchBriefings, usePlan, usePlanPatch, useVisitMutation } from '../../../src/hooks/useIntel'
 import { getVisitPosition } from '../../../src/services/location'
@@ -42,7 +42,7 @@ export default function RotaScreen() {
   // Pino cheio = visita registrada NESTE aparelho (fila de sync, E13b)
   const visitedItemIds = useSyncStore((state) => {
     const ids = new Set<string>()
-    for (const entry of state.queue) {
+    for (const entry of selectOwnQueue(state)) {
       if (entry.type !== 'visit') continue
       const planItemId = (entry.payload as { planItemId?: string | null })?.planItemId
       if (planItemId) ids.add(planItemId)

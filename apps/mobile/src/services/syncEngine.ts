@@ -3,7 +3,7 @@ import NetInfo from '@react-native-community/netinfo'
 import * as Sentry from '@sentry/react-native'
 import { getApiErrorMessage } from '../lib/errors'
 import { queryClient } from '../lib/query-client'
-import { useSyncStore } from '../store/syncStore'
+import { selectOwnQueue, useSyncStore } from '../store/syncStore'
 import { pilotTracker } from './pilotTracking'
 import { syncHandlers } from './syncHandlers'
 import type { SyncQueueItem } from '../types/sync'
@@ -114,7 +114,8 @@ export async function processSyncQueue(): Promise<void> {
   // então chamadas concorrentes (AppState + NetInfo + interval) não passam juntas
   if (state.isSyncing) return
 
-  const items = state.queue.filter(
+  // Só os itens do usuário logado: a API grava o pedido em nome de quem envia
+  const items = selectOwnQueue(state).filter(
     (item) =>
       item.status === 'pending' || (item.status === 'error' && item.attempts < item.maxAttempts)
   )

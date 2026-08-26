@@ -7,6 +7,10 @@ import { useAuthStore } from '../auth.store'
 
 const mockGet = jest.fn()
 const mockPost = jest.fn()
+// auth.store mantém o dono da fila offline (syncStore → AsyncStorage nativo)
+jest.mock('@react-native-async-storage/async-storage', () =>
+  require('@react-native-async-storage/async-storage/jest/async-storage-mock')
+)
 jest.mock('axios', () => ({
   __esModule: true,
   default: { get: (...a: unknown[]) => mockGet(...a), post: (...a: unknown[]) => mockPost(...a) },
