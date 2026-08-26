@@ -27,7 +27,6 @@ export interface UserPublic {
   role: UserRole
   active: boolean
   idVendProt: string | null
-  userTypeId: string | null
   createdAt: string
   // ─── E1c: devolvidos por GET /auth/me (opcionais p/ compatibilidade) ───
   companyId?: string | null
@@ -40,6 +39,7 @@ export interface UserPublic {
   messageTone?: string | null
   managerId?: string | null
   intelManager?: boolean // tem a permissão intel.manager (D3b)
+  companyName?: string | null // devolvido por GET /users — o SUPERADMIN vê várias empresas
 }
 
 // ─── Permissões dinâmicas ──────────────────────────────────────────────────

@@ -5,11 +5,6 @@ import { PERMISSIONS, DEFAULT_PERMISSIONS_BY_ROLE } from '../src/permission-cata
 
 const prisma = new PrismaClient()
 
-const USER_TYPE_BY_ROLE: Record<string, string> = {
-  ADMIN: 'Administrador',
-  SALESPERSON: 'Vendedor',
-}
-
 async function seedPermissions() {
   // ─── Catálogo de permissões ───
   for (const permission of PERMISSIONS) {
@@ -21,27 +16,10 @@ async function seedPermissions() {
   }
   console.log('Catálogo de permissões criado:', PERMISSIONS.length)
 
-  // ─── Tipos de usuário ───
-  const userTypes: Record<string, { id: string }> = {}
-  for (const name of Object.values(USER_TYPE_BY_ROLE)) {
-    userTypes[name] = await prisma.userType.upsert({
-      where: { name },
-      update: {},
-      create: { name },
-    })
-  }
-  console.log('Tipos de usuário criados:', Object.keys(userTypes).join(', '))
-
-  // ─── Backfill: associa tipo + permissões padrão aos usuários existentes ───
+  // ─── Backfill: permissões padrão dos usuários existentes ───
   const users = await prisma.user.findMany({ where: { role: { in: ['ADMIN', 'SALESPERSON'] } } })
   for (const user of users) {
-    const typeName = USER_TYPE_BY_ROLE[user.role]
     const permissionKeys = DEFAULT_PERMISSIONS_BY_ROLE[user.role] ?? []
-
-    await prisma.user.update({
-      where: { id: user.id },
-      data: { userTypeId: userTypes[typeName].id },
-    })
 
     for (const key of permissionKeys) {
       const permission = await prisma.permission.findUniqueOrThrow({ where: { key } })
@@ -52,7 +30,7 @@ async function seedPermissions() {
       })
     }
   }
-  console.log('Backfill de tipo/permissões aplicado a', users.length, 'usuário(s)')
+  console.log('Backfill de permissões aplicado a', users.length, 'usuário(s)')
 }
 
 async function main() {

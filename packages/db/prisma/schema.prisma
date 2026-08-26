@@ -167,10 +167,6 @@ model User {
   companyId String?
   company   Company? @relation(fields: [companyId], references: [id])
 
-  // null para SUPERADMIN — apenas caracteriza o usuário (cadastro dinâmico)
-  userTypeId String?
-  userType   UserType? @relation(fields: [userTypeId], references: [id])
-
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -184,20 +180,6 @@ model User {
 
   @@unique([companyId, idVendProt]) // dois usuários com o mesmo código veriam o mesmo plano (§8 do plano)
   @@map("users")
-}
-
-// ─────────────────────────────────────────
-// UserType — cadastro dinâmico de tipos de usuário
-// ─────────────────────────────────────────
-
-model UserType {
-  id        String   @id @default(uuid())
-  name      String   @unique // "Administrador", "Vendedor", ...
-  createdAt DateTime @default(now())
-
-  users User[]
-
-  @@map("user_types")
 }
 
 // ─────────────────────────────────────────

@@ -5,7 +5,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { MoreVertical } from 'lucide-react'
 import { toast } from 'sonner'
-import type { Branch, Customer, Product, UserPublic } from '@addere/types'
+import type { Branch, Customer, Product } from '@addere/types'
 import { api, getApiErrorMessage } from '@/lib/api'
 import { maskCEP, maskDocument, formatCEPDisplay, formatDocumentDisplay } from '@/lib/utils'
 import { Modal } from '@/components/ui/Modal'
@@ -15,9 +15,7 @@ import {
   branchSchema,
   customerSchema,
   productSchema,
-  makeCompanyUserSchema,
   type BranchFormData,
-  type CompanyUserFormData,
   type CustomerFormData,
   type ProductFormData,
 } from '@/lib/schemas'
@@ -227,168 +225,6 @@ export function BranchModal({ companyId, mode, branch, onClose, onSaved }: Branc
           </p>
         </div>
 
-        <FormActions
-          loading={isSubmitting}
-          onClose={onClose}
-          submitLabel={mode === 'edit' ? 'Salvar' : 'Criar'}
-        />
-      </form>
-    </Modal>
-  )
-}
-
-// ─── Modal Usuário ────────────────────────────────────────────────────────────
-
-interface UserModalProps {
-  companyId: string
-  mode: ModalMode
-  user?: UserPublic
-  /** Usuários com intel.manager da empresa (D3b) — select de gerente */
-  managers?: { id: string; name: string }[]
-  onClose: () => void
-  onSaved: () => void
-}
-
-export function UserModal({ companyId, mode, user, managers = [], onClose, onSaved }: UserModalProps) {
-  const title =
-    mode === 'create' ? 'Novo Usuário' : mode === 'copy' ? 'Copiar Usuário' : 'Editar Usuário'
-  const isNew = mode !== 'edit'
-
-  const {
-    register,
-    handleSubmit,
-    watch,
-    formState: { errors, isSubmitting },
-  } = useForm<CompanyUserFormData>({
-    resolver: zodResolver(makeCompanyUserSchema(isNew)),
-    defaultValues: {
-      name: user?.name ?? '',
-      email: mode === 'copy' ? '' : (user?.email ?? ''),
-      password: '',
-      role: user?.role === 'ADMIN' ? 'ADMIN' : 'SALESPERSON',
-      idVendProt: user?.idVendProt ?? '',
-      visitsPerDay: user?.visitsPerDay ? String(user.visitsPerDay) : '',
-      vehicle: (user?.vehicle ?? '') as '' | 'CAR' | 'MOTORCYCLE' | 'FOOT',
-      servedCities: (user?.servedCities ?? []).join(', '),
-      messageTone: (user?.messageTone ?? '') as '' | 'informal' | 'formal',
-      managerId: user?.managerId ?? '',
-    },
-  })
-
-  const role = watch('role')
-
-  // Campos do vendedor (E10) — strings do form → payload da API
-  function vendorProfileBody(data: CompanyUserFormData): Record<string, unknown> {
-    return {
-      idVendProt: data.idVendProt || null,
-      visitsPerDay: data.visitsPerDay ? Number(data.visitsPerDay) : null,
-      vehicle: data.vehicle || null,
-      servedCities: (data.servedCities ?? '')
-        .split(',')
-        .map((c) => c.trim())
-        .filter(Boolean),
-      messageTone: data.messageTone || null,
-      managerId: data.managerId || null,
-    }
-  }
-
-  async function onSubmit(data: CompanyUserFormData) {
-    try {
-      if (mode === 'edit' && user) {
-        const body: Record<string, unknown> = {
-          name: data.name,
-          email: data.email,
-          role: data.role,
-        }
-        if (data.password) body.password = data.password
-        if (data.role === 'SALESPERSON') Object.assign(body, vendorProfileBody(data))
-        await api.patch(`/companies/${companyId}/users/${user.id}`, body)
-      } else {
-        await api.post(`/companies/${companyId}/users`, {
-          name: data.name,
-          email: data.email,
-          password: data.password,
-          role: data.role,
-          ...(data.role === 'SALESPERSON' && vendorProfileBody(data)),
-        })
-      }
-      onSaved()
-    } catch (err: unknown) {
-      toast.error(getApiErrorMessage(err, 'Erro ao salvar usuário.'))
-    }
-  }
-
-  return (
-    <Modal isOpen onClose={onClose} title={title}>
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-        <FormField label="Nome" error={errors.name?.message} {...register('name')} />
-        <FormField label="E-mail" error={errors.email?.message} {...register('email')} />
-        <FormField
-          type="password"
-          label={
-            <>
-              Senha{' '}
-              {!isNew && (
-                <span className="text-[var(--text-muted)] font-normal">
-                  (deixe em branco para manter)
-                </span>
-              )}
-            </>
-          }
-          error={errors.password?.message}
-          {...register('password')}
-        />
-        <FormSelect label="Perfil" error={errors.role?.message} {...register('role')}>
-          <option value="SALESPERSON">Vendedor</option>
-          <option value="ADMIN">Administrador</option>
-        </FormSelect>
-        {role === 'SALESPERSON' && (
-          <>
-            <FormField
-              label="Cód. Vendedor (Protheus)"
-              placeholder="Código do vendedor no ERP (ex: 001)"
-              {...register('idVendProt')}
-            />
-            <div className="grid grid-cols-2 gap-3">
-              <FormField
-                type="number"
-                min={1}
-                max={30}
-                label="Visitas por dia"
-                placeholder="padrão da empresa"
-                {...register('visitsPerDay')}
-              />
-              <FormSelect label="Veículo" {...register('vehicle')}>
-                <option value="">—</option>
-                <option value="CAR">Carro</option>
-                <option value="MOTORCYCLE">Moto</option>
-                <option value="FOOT">A pé</option>
-              </FormSelect>
-            </div>
-            <FormField
-              label="Cidades atendidas"
-              placeholder="Campinas, Valinhos (separadas por vírgula)"
-              {...register('servedCities')}
-            />
-            <div className="grid grid-cols-2 gap-3">
-              <FormSelect label="Tom das mensagens" {...register('messageTone')}>
-                <option value="">Herdar da empresa</option>
-                <option value="informal">Informal</option>
-                <option value="formal">Formal</option>
-              </FormSelect>
-              <FormSelect label="Gerente (Inteligência)" {...register('managerId')}>
-                <option value="">Sem gerente</option>
-                {managers
-                  .filter((m) => m.id !== user?.id)
-                  .map((m) => (
-                    <option key={m.id} value={m.id}>
-                      {m.name}
-                    </option>
-                  ))}
-              </FormSelect>
-            </div>
-          </>
-        )}
         <FormActions
           loading={isSubmitting}
           onClose={onClose}

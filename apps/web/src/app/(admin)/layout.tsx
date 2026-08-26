@@ -15,7 +15,6 @@ import {
   Sparkles,
   Sun,
   Users,
-  Tags,
   type LucideIcon,
 } from 'lucide-react'
 import { clearAccessToken } from '@/lib/api'
@@ -113,13 +112,6 @@ const NAV_GROUPS: NavGroup[] = [
         label: 'Piloto',
         match: (p) => p.startsWith('/piloto'),
         icon: BarChart3,
-        requires: 'superadmin',
-      },
-      {
-        href: '/tipos-usuario',
-        label: 'Tipos de usuário',
-        match: (p) => p.startsWith('/tipos-usuario'),
-        icon: Tags,
         requires: 'superadmin',
       },
     ],
