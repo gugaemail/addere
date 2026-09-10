@@ -33,9 +33,15 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   content: {
+    // Largura cheia + textAlign nos filhos: no Android a caixa medida para a
+    // fonte custom sai estreita demais e corta o ultimo glifo ("Adder|e").
+    alignSelf: 'stretch',
     alignItems: 'center',
+    paddingHorizontal: spacing.lg,
   },
   logoText: {
+    alignSelf: 'stretch',
+    textAlign: 'center',
     marginTop: spacing.md,
     fontFamily: typography.fontFamily.sansBold,
     fontSize: 32,
@@ -43,6 +49,8 @@ const styles = StyleSheet.create({
     letterSpacing: 32 * -0.03,
   },
   subtitle: {
+    alignSelf: 'stretch',
+    textAlign: 'center',
     marginTop: spacing.sm,
     fontFamily: typography.fontFamily.body,
     fontSize: 14,
