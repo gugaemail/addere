@@ -38,12 +38,21 @@ jobs:
           DATABASE_URL_DIRECT: ${{ secrets.DATABASE_URL_DIRECT_PROD }}
         run: npx prisma migrate deploy --schema packages/db/prisma/schema.prisma
 
+      # O build do Render também roda `migrate deploy` (render.yaml), então sem a
+      # URL direta este passo avisa e segue — antes ele derrubava o workflow e o
+      # deploy hook nunca disparava (desde 26/08/2026 o segredo estava cadastrado
+      # como ATABASE_URL_DIRECT_STAGING, sem o D).
       - name: Rodar migrations (staging)
         if: github.ref == 'refs/heads/staging'
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL_STAGING }}
           DATABASE_URL_DIRECT: ${{ secrets.DATABASE_URL_DIRECT_STAGING }}
-        run: npx prisma migrate deploy --schema packages/db/prisma/schema.prisma
+        run: |
+          if [ -z "$DATABASE_URL_DIRECT" ]; then
+            echo "::warning::Segredo DATABASE_URL_DIRECT_STAGING vazio — a migration fica por conta do build do Render."
+            exit 0
+          fi
+          npx prisma migrate deploy --schema packages/db/prisma/schema.prisma
 
       - name: Disparar deploy no Render (production)
         if: github.ref == 'refs/heads/main'
