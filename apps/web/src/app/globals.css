@@ -62,3 +62,21 @@
     font-family: var(--font-body), sans-serif;
   }
 }
+
+/* Mapa da equipe (E20): o Leaflet traz Helvetica e popups com fonte própria;
+   aqui só entra a fonte do painel — cores dos pinos vêm de lib/team-map.
+   O leaflet.css chega com o chunk do mapa, depois deste arquivo: o prefixo
+   `body` dá a especificidade que faz estas regras valerem mesmo assim. */
+body .leaflet-container {
+  font-family: var(--font-body), sans-serif;
+}
+
+body .leaflet-popup-content {
+  margin: 10px 12px;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+body .leaflet-popup-content p {
+  margin: 0 0 2px;
+}

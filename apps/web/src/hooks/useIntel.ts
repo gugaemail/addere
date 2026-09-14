@@ -10,8 +10,10 @@ import type {
   IntelParameterKey,
   IntelQueryDto,
   IntelligenceConfig,
+  LossesReportDto,
   QueryPreviewResult,
   ReconciliationResult,
+  TeamMapDto,
 } from '@addere/types'
 import { api } from '@/lib/api'
 import { useAuth } from '@/contexts/AuthContext'
@@ -34,6 +36,18 @@ export const intelKeys = {
     [...intelKeys.all, 'team', date, range, companyId ?? 'own'] as const,
   pilotMetrics: (from: string, to: string, companyId?: string | null) =>
     [...intelKeys.all, 'pilot-metrics', from, to, companyId ?? 'own'] as const,
+  // Fase 2 — os prefixos sem argumentos servem para invalidar de uma vez
+  teamMapAll: () => [...intelKeys.all, 'team-map'] as const,
+  teamMap: (date: string, companyId?: string | null) =>
+    [...intelKeys.teamMapAll(), date, companyId ?? 'own'] as const,
+  lossesAll: () => [...intelKeys.all, 'losses'] as const,
+  losses: (
+    date: string,
+    vendorCode: string | null,
+    baselineMonths: number,
+    companyId?: string | null
+  ) =>
+    [...intelKeys.lossesAll(), date, vendorCode ?? 'all', baselineMonths, companyId ?? 'own'] as const,
 }
 
 // Params de tenant das rotas /intel/*: só SUPERADMIN manda companyId na query
@@ -387,6 +401,82 @@ export interface PilotMetricsResponse {
   outOfPlanConversion: MetricRatio
   liftPp: number | null
   atRiskRecovery: MetricRatio
+}
+
+// ─── Fase 2 · Mapa da equipe (E20) ───
+
+/**
+ * GET /intel/manager/team-map?date=YYYY-MM-DD — paradas do dia com coordenada
+ * e último check-in por vendedor. Só faz sentido no recorte de um dia, por
+ * isso a tela desliga (`enabled`) fora dele.
+ */
+export function useTeamMap(date: string, enabled = true) {
+  const companyParams = useIntelCompanyParam()
+  const ready = useIntelReady()
+  return useQuery({
+    enabled: enabled && ready,
+    queryKey: intelKeys.teamMap(date, companyParams.companyId),
+    queryFn: () =>
+      api
+        .get<TeamMapDto>('/intel/manager/team-map', { params: { date, ...companyParams } })
+        .then((r) => r.data),
+  })
+}
+
+// ─── Fase 2 · Onde estou perdendo (E21) ───
+
+export interface LossesQuery {
+  /** 'YYYY-MM-DD' — o período atual vai do dia 1º desse mês até ele. */
+  date: string
+  /** null/'' = equipe inteira. */
+  vendorCode?: string | null
+  /** Meses fechados anteriores que formam a base (3 ou 6). */
+  baselineMonths: number
+}
+
+/** GET /intel/manager/losses?date&baselineMonths[&vendorCode] → LossesReportDto */
+export function useLosses({ date, vendorCode, baselineMonths }: LossesQuery, enabled = true) {
+  const companyParams = useIntelCompanyParam()
+  const ready = useIntelReady()
+  const vendor = vendorCode || null
+  return useQuery({
+    enabled: enabled && ready,
+    queryKey: intelKeys.losses(date, vendor, baselineMonths, companyParams.companyId),
+    queryFn: () =>
+      api
+        .get<LossesReportDto>('/intel/manager/losses', {
+          params: { date, baselineMonths, ...(vendor ? { vendorCode: vendor } : {}), ...companyParams },
+        })
+        .then((r) => r.data),
+  })
+}
+
+export interface AddToPlanInput {
+  vendorCode: string
+  customerCode: string
+  loja: string
+  /** 'YYYY-MM-DD'; sem ele a API usa o plano de hoje. */
+  date?: string
+  shortReason?: string
+}
+
+/**
+ * POST /intel/manager/plan-items — põe o cliente no plano do dia do vendedor
+ * (botão "Pôr no plano"). Quem entrou no plano muda `inPlanToday` nas perdas,
+ * os cards da Equipe e o mapa — os três caches são invalidados.
+ */
+export function useAddToPlan() {
+  const params = useIntelCompanyParam()
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (input: AddToPlanInput) =>
+      api.post<unknown>('/intel/manager/plan-items', { ...input, ...params }).then((r) => r.data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: intelKeys.lossesAll() })
+      queryClient.invalidateQueries({ queryKey: intelKeys.teamMapAll() })
+      queryClient.invalidateQueries({ queryKey: [...intelKeys.all, 'team'] })
+    },
+  })
 }
 
 /** @param from/to 'YYYY-MM-DD'. `enabled` desliga a busca enquanto não há período. */

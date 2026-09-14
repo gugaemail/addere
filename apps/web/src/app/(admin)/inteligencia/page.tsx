@@ -3,7 +3,14 @@
 // Home da Inteligência (E9; links na E10; cards de resumo na E11) — destino de
 // login de ADMIN/gerente, com o retrato do mês e atalhos para as telas admin.
 import Link from 'next/link'
-import { Activity, Database, HeartPulse, SlidersHorizontal, Users } from 'lucide-react'
+import {
+  Activity,
+  Database,
+  HeartPulse,
+  SlidersHorizontal,
+  TrendingDown,
+  Users,
+} from 'lucide-react'
 import { Card } from '@/components/ui/Card'
 import { KpiCard } from '@/components/ui/KpiCard'
 import { useAuth } from '@/contexts/AuthContext'
@@ -17,6 +24,12 @@ const SHORTCUTS = [
     title: 'Equipe em campo',
     href: '/inteligencia/equipe',
     description: 'Aderência ao plano, positivação e alertas por vendedor.',
+  },
+  {
+    icon: TrendingDown,
+    title: 'Onde estou perdendo',
+    href: '/inteligencia/perdas',
+    description: 'Quem parou de comprar, quem comprou menos e o que pôr no plano de hoje.',
   },
   {
     icon: Database,

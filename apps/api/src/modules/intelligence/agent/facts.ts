@@ -19,6 +19,9 @@ export const ALLOWED_FACT_KEYS = new Set([
   'position', 'shortReason', 'expectedAmount',
   // frescor / mensagem
   'lastSyncAt', 'template', 'lastOrderDays',
+  // fase 2 — carteira (E19), semana (E18) e perdas (E21)
+  'counts', 'days', 'rfmSegment', 'crossSell', 'peersPct',
+  'totals', 'baselineAmount', 'currentAmount', 'diffAmount', 'diffPct', 'components', 'products',
 ])
 
 // Padrões que denunciam dado pessoal vazando em VALOR de string
@@ -79,6 +82,8 @@ export interface CustomerFacts {
   openTitles: { count: number; totalBalance: string; maxDaysOverdue: number | null }
   reasons: string[]
   city: string | null
+  rfmSegment?: string
+  crossSell?: { productCode: string; productDesc: string | null; peersPct: number }[]
 }
 
 export function buildCustomerFacts(
@@ -99,6 +104,16 @@ export function buildCustomerFacts(
     openTitles: snapshot.openTitles,
     reasons: snapshot.reasons,
     city: input.city,
+    ...(snapshot.rfmSegment ? { rfmSegment: snapshot.rfmSegment } : {}),
+    ...(snapshot.crossSell && snapshot.crossSell.length > 0
+      ? {
+          crossSell: snapshot.crossSell.map((p) => ({
+            productCode: p.productCode,
+            productDesc: p.productDesc,
+            peersPct: p.peersPct,
+          })),
+        }
+      : {}),
   }
 }
 

@@ -1,11 +1,37 @@
 import {
   parseIntelStatusParam,
+  rfmColor,
+  rfmLabel,
+  RFM_LABELS,
+  RFM_SEGMENTS,
   statusColor,
   statusLabel,
   STATUS_LABELS,
 } from '../customerStatus'
 import { colors } from '../../theme'
 import type { CustomerStatus } from '@addere/types'
+
+describe('rfm (E19)', () => {
+  it('cada segmento tem rótulo PT e cor de token', () => {
+    const tokenColors = new Set<string>([
+      ...Object.values(colors.status),
+      ...Object.values(colors.brand),
+      ...Object.values(colors.semantic),
+    ])
+    for (const segment of RFM_SEGMENTS) {
+      expect(rfmLabel(segment)).toBe(RFM_LABELS[segment])
+      expect(rfmLabel(segment)).not.toBe('')
+      expect(tokenColors.has(rfmColor(segment))).toBe(true)
+    }
+  })
+
+  it('rótulos combinados com o painel', () => {
+    expect(rfmLabel('CHAMPION')).toBe('Campeão')
+    expect(rfmLabel('AT_RISK')).toBe('Valioso em risco')
+    expect(rfmColor('AT_RISK')).toBe(colors.status.atRisk)
+    expect(rfmColor('CHAMPION')).toBe(colors.status.onCycle)
+  })
+})
 
 describe('customerStatus', () => {
   it('mapeia cada status para a cor do token (nunca hex solto)', () => {

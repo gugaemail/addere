@@ -6,6 +6,7 @@ import { useCliente } from '../../../src/hooks/useClientes'
 import { useIntelEnabled } from '../../../src/hooks/useIntelEnabled'
 import { useBriefing } from '../../../src/hooks/useIntel'
 import { BeforeEnterCard } from '../../../src/components/intel/BeforeEnterCard'
+import { CustomerWindowsCard } from '../../../src/components/intel/CustomerWindowsCard'
 import { StatusPill } from '../../../src/components/intel/StatusPill'
 import { SyncPill } from '../../../src/components/intel/SyncPill'
 import { useFieldVisible } from '../../../src/hooks/useFieldConfig'
@@ -181,6 +182,11 @@ export default function ClienteDetailScreen() {
         {showXcodemp && <InfoRow label="Filial de faturamento" value={customer.xcodemp} />}
         {customer.protheusCode && <InfoRow label="Cód. Protheus" value={customer.protheusCode} />}
       </Card>
+
+      {/* Janelas de atendimento (E16): só com a Inteligência ligada e código Protheus */}
+      {intelEnabled && customer.protheusCode && (
+        <CustomerWindowsCard customerCode={customer.protheusCode} loja={customer.loja ?? '01'} />
+      )}
 
       <Text style={styles.sectionTitle}>Pedidos ({orders.length})</Text>
       {orders.length === 0 ? (

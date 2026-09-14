@@ -4,7 +4,7 @@ jest.mock('@react-native-async-storage/async-storage', () =>
   require('@react-native-async-storage/async-storage/jest/async-storage-mock')
 )
 jest.mock('../../lib/api', () => ({
-  api: { get: jest.fn(), post: jest.fn(), patch: jest.fn() },
+  api: { get: jest.fn(), post: jest.fn(), patch: jest.fn(), put: jest.fn() },
 }))
 jest.mock('../../lib/query-client', () => ({
   queryClient: { invalidateQueries: jest.fn(), prefetchQuery: jest.fn() },
@@ -15,10 +15,15 @@ jest.mock('../../services/syncEngine', () => ({
 // useIntel → useProfile → auth.store (SecureStore + env): o teste é puro, não roda hooks
 jest.mock('../../store/auth.store', () => ({ useAuthStore: jest.fn() }))
 
-import { applyOpsOptimistic, makePlanOp } from '../useIntel'
+import { applyOpsOptimistic, intelKeys, makePlanOp } from '../useIntel'
 import type { VisitPlanDto, VisitPlanItemDto } from '@addere/types'
 
-function item(id: string, position: number, removedAt: string | null = null): VisitPlanItemDto {
+function item(
+  id: string,
+  position: number,
+  removedAt: string | null = null,
+  plannedDate: string | null = null
+): VisitPlanItemDto {
   return {
     id,
     position,
@@ -37,14 +42,17 @@ function item(id: string, position: number, removedAt: string | null = null): Vi
     lat: null,
     lng: null,
     plannedTime: null,
+    distFromPrevM: null,
+    etaMin: null,
+    plannedDate,
   }
 }
 
-function plan(items: VisitPlanItemDto[]): VisitPlanDto {
+function plan(items: VisitPlanItemDto[], kind: VisitPlanDto['kind'] = 'DAY'): VisitPlanDto {
   return {
     id: 'plan-1',
     date: '2026-08-23',
-    kind: 'DAY',
+    kind,
     status: 'GENERATED',
     generatedAt: '2026-08-23T06:00:00Z',
     grouping: 'Campinas',
@@ -98,10 +106,70 @@ describe('applyOpsOptimistic (espelha applyPlanOps do servidor)', () => {
     expect(result.items.filter((i) => !i.removedAt)).toHaveLength(1)
   })
 
+  describe('moveToDay (plano semanal, E18)', () => {
+    const week = () =>
+      plan(
+        [
+          item('a', 1, null, '2026-09-15'),
+          item('b', 2, null, '2026-09-15'),
+          item('c', 3, null, '2026-09-16'),
+          item('d', 4, null, '2026-09-17'),
+          item('x', 5, '2026-09-13T10:00:00Z', '2026-09-15'),
+        ],
+        'WEEK'
+      )
+
+    it('muda plannedDate e leva a parada para o fim do dia de destino', () => {
+      const result = applyOpsOptimistic(week(), [
+        makePlanOp({ type: 'moveToDay', itemId: 'a', date: '2026-09-16' }),
+      ])
+      const active = result.items.filter((i) => !i.removedAt)
+      expect(active.map((i) => [i.id, i.plannedDate, i.position])).toEqual([
+        ['b', '2026-09-15', 1],
+        ['c', '2026-09-16', 2],
+        ['a', '2026-09-16', 3],
+        ['d', '2026-09-17', 4],
+      ])
+      // Removida continua fora da numeração, ao final
+      expect(result.items[result.items.length - 1].id).toBe('x')
+    })
+
+    it('mover para um dia ainda sem paradas insere na ordem cronológica', () => {
+      const result = applyOpsOptimistic(week(), [
+        makePlanOp({ type: 'moveToDay', itemId: 'd', date: '2026-09-14' }),
+      ])
+      expect(result.items.filter((i) => !i.removedAt).map((i) => i.id)).toEqual(['d', 'a', 'b', 'c'])
+      expect(result.items[0].position).toBe(1)
+    })
+
+    it('mover para o mesmo dia mantém a parada no fim do dia', () => {
+      const result = applyOpsOptimistic(week(), [
+        makePlanOp({ type: 'moveToDay', itemId: 'a', date: '2026-09-15' }),
+      ])
+      expect(result.items.filter((i) => !i.removedAt).map((i) => i.id)).toEqual(['b', 'a', 'c', 'd'])
+    })
+  })
+
   it('makePlanOp gera opId único', () => {
     const a = makePlanOp({ type: 'remove', itemId: 'x' })
     const b = makePlanOp({ type: 'remove', itemId: 'x' })
     expect(a.opId).not.toBe(b.opId)
     expect(a.opId).toMatch(/^[0-9a-f-]{36}$/)
+  })
+})
+
+describe('intelKeys (cache persistido não pode servir o plano de ontem)', () => {
+  it('plano e home carregam o dia civil de São Paulo na chave', () => {
+    const today = /^\d{4}-\d{2}-\d{2}$/
+    expect(intelKeys.plan()[2]).toMatch(today)
+    expect(intelKeys.home()[2]).toMatch(today)
+    expect(intelKeys.plan('2026-09-10')).toEqual(['intel', 'plan', '2026-09-10'])
+  })
+
+  it('semana usa a segunda-feira e fica sob o prefixo do plano (invalidação da fila)', () => {
+    const key = intelKeys.week()
+    expect(key.slice(0, 3)).toEqual(['intel', 'plan', 'week'])
+    expect(key[3]).toMatch(/^\d{4}-\d{2}-\d{2}$/)
+    expect(new Date(`${key[3]}T00:00:00Z`).getUTCDay()).toBe(1)
   })
 })

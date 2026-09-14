@@ -14,7 +14,7 @@
 
 - Processo de pedidos exclusivamente por EDI/integração automática
 - Infraestrutura Protheus sem acesso REST externo (VPN complexa)
-- Equipe sem smartphones compatíveis (Android 10+ ou iOS 14+)
+- Equipe sem smartphones compatíveis (Android 10+ ou iOS 15.1+ — piso do React Native 0.81 do app)
 
 ---
 

@@ -1,5 +1,6 @@
-// Visita (E13) — "antes de entrar" sempre do snapshot (offline), briefing do
-// agente quando em cache, mix sugerido → pedido, resultado em 4 botões.
+// Visita (E13/Fase 2) — "antes de entrar" sempre do snapshot (offline),
+// briefing do agente quando em cache, mix sugerido → pedido (com estoque ao
+// vivo sob demanda, E22), resultado em 4 botões.
 // O check-in já entrou na fila no "Cheguei"; abrindo direto, registra aqui.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
@@ -11,15 +12,17 @@ import {
   StyleSheet,
   Alert,
   Linking,
+  ActivityIndicator,
 } from 'react-native'
 import { useLocalSearchParams, useRouter } from 'expo-router'
-import { MessageCircle, Navigation, Phone, ShoppingCart } from 'lucide-react-native'
-import type { VisitResult } from '@addere/types'
+import { MessageCircle, Navigation, PackageSearch, Phone, ShoppingCart } from 'lucide-react-native'
+import type { VisitPlanItemDto, VisitResult } from '@addere/types'
 import { useClientes } from '../../../../src/hooks/useClientes'
-import { useBriefing, usePlan, useVisitMutation } from '../../../../src/hooks/useIntel'
+import { useBriefing, usePlan, useStock, useVisitMutation } from '../../../../src/hooks/useIntel'
 import { getVisitPosition } from '../../../../src/services/location'
 import { openMaps } from '../../../../src/services/navigationLinks'
 import { pilotTracker } from '../../../../src/services/pilotTracking'
+import { offerSuffix, stockLabel } from '../../../../src/utils/intelText'
 import { generateUuid } from '../../../../src/utils/uuid'
 import { BeforeEnterCard } from '../../../../src/components/intel/BeforeEnterCard'
 import { StatusPill } from '../../../../src/components/intel/StatusPill'
@@ -33,6 +36,43 @@ const RESULTS: { key: VisitResult; label: string }[] = [
   { key: 'NOT_FOUND', label: 'Não estava' },
   { key: 'RESCHEDULED', label: 'Reagendou' },
 ]
+
+type Offer = NonNullable<VisitPlanItemDto['suggestedOffer']>[number]
+
+// Linha do mix com estoque sob demanda (E22): a consulta ao vivo pode levar
+// ~8 s, então só dispara no toque; 404/erro vira "sem informação".
+function MixLine({ offer }: { offer: Offer }) {
+  const stock = useStock(offer.productCode)
+  return (
+    <View style={s.mixRow}>
+      <Text style={s.mixLine}>
+        • {offer.productDesc ?? offer.productCode}
+        {offerSuffix(offer.source)}
+      </Text>
+      {stock.isFetching ? (
+        <ActivityIndicator size="small" color={colors.brand.primary} />
+      ) : stock.data ? (
+        <Text style={s.stockText} testID={`estoque-${offer.productCode}`}>
+          {stockLabel(stock.data)}
+        </Text>
+      ) : stock.isError ? (
+        <Text style={s.stockText} testID={`estoque-${offer.productCode}`}>
+          Estoque: sem informação
+        </Text>
+      ) : (
+        <TouchableOpacity
+          testID={`btn-ver-estoque-${offer.productCode}`}
+          style={s.stockButton}
+          onPress={() => stock.refetch()}
+          hitSlop={4}
+        >
+          <PackageSearch size={12} color={colors.brand.primary} strokeWidth={1.5} />
+          <Text style={s.stockButtonText}>Ver estoque</Text>
+        </TouchableOpacity>
+      )}
+    </View>
+  )
+}
 
 export default function VisitaScreen() {
   const router = useRouter()
@@ -144,10 +184,7 @@ export default function VisitaScreen() {
         <View style={s.mixCard}>
           <Text style={s.mixTitle}>Mix sugerido</Text>
           {item.suggestedOffer.map((offer) => (
-            <Text key={offer.productCode} style={s.mixLine}>
-              • {offer.productDesc ?? offer.productCode}
-              {offer.source === 'ask_about_cut' ? ' — perguntar (cortado)' : ''}
-            </Text>
+            <MixLine key={offer.productCode} offer={offer} />
           ))}
           <TouchableOpacity testID="btn-iniciar-pedido" style={s.mixButton} onPress={startOrder}>
             <ShoppingCart size={14} color={colors.neutral.white} strokeWidth={1.5} />
@@ -259,11 +296,34 @@ const s = StyleSheet.create({
     fontSize: typography.size.sm,
     color: colors.neutral.text,
   },
+  mixRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   mixLine: {
+    flex: 1,
     fontFamily: typography.fontFamily.body,
     fontSize: typography.size.sm,
     color: colors.neutral.text,
     lineHeight: 19,
+  },
+  stockButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+    backgroundColor: colors.brand.tint,
+    borderRadius: radius.full,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 3,
+  },
+  stockButtonText: {
+    fontFamily: typography.fontFamily.bodySemibold,
+    fontSize: typography.size.xs,
+    color: colors.brand.primary,
+  },
+  stockText: {
+    fontFamily: typography.fontFamily.bodySemibold,
+    fontSize: typography.size.xs,
+    color: colors.neutral.textSub,
+    maxWidth: '45%',
+    textAlign: 'right',
   },
   mixButton: {
     flexDirection: 'row',

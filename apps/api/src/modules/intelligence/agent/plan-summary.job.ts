@@ -2,12 +2,13 @@
 // Sem LLM disponível, os planos ficam com llmSummary=null (fallback só-motor).
 import { prisma } from '@addere/db'
 import { unprocessable } from '../../../lib/errors'
-import { ymdSaoPaulo } from '../engine/business-days'
+import { dateToYmdUtc, mondayOf, ymdSaoPaulo, ymdToDate } from '../engine/business-days'
 import { registerJobHandler } from '../jobs/registry'
 import { generateWithGuardrails } from './agent.service'
 import { llmAvailable } from './client'
 import { buildTenantContext, systemBlocks } from './tenant-context'
 import { buildTodayPrompt, TODAY_SCHEMA, type TodayOutput } from './prompts/today'
+import { buildWeekPrompt, WEEK_SCHEMA, type WeekFacts, type WeekOutput } from './prompts/week'
 import { Pseudonymizer } from './pseudonymizer'
 import type { TodayFacts } from './facts'
 import type { SelfCheckFacts } from './self-check'
@@ -117,5 +118,92 @@ export async function planSummaryHandler(companyId: string): Promise<unknown> {
     }
   }
 
-  return { plans: plans.length, generated, fallback }
+  // Plano da semana (E18): uma frase-resumo por vendedor, cache diário
+  const week = await summarizeWeekPlans(companyId, today, system, lastSyncAt)
+
+  return { plans: plans.length, generated, fallback, week }
+}
+
+/** Resumo do plano da semana (E18) — só o texto; o plano em si vem do motor. */
+async function summarizeWeekPlans(
+  companyId: string,
+  today: string,
+  system: ReturnType<typeof systemBlocks>,
+  lastSyncAt: string | null
+): Promise<{ plans: number; generated: number }> {
+  const weekStart = ymdToDate(mondayOf(today))
+  const plans = await prisma.visitPlan.findMany({
+    where: { companyId, date: weekStart, kind: 'WEEK' },
+    include: { items: { where: { removedAt: null }, orderBy: { position: 'asc' } } },
+  })
+  let generated = 0
+  for (const plan of plans) {
+    const pseudonymizer = new Pseudonymizer()
+    const names = await prisma.customer.findMany({
+      where: { companyId, protheusCode: { in: plan.items.map((i) => i.customerCode) } },
+      select: { protheusCode: true, loja: true, name: true },
+    })
+    const nameByKey = new Map(names.map((c) => [`${c.protheusCode}|${c.loja ?? '01'}`, c.name]))
+
+    const byDay = new Map<string, typeof plan.items>()
+    for (const item of plan.items) {
+      const day = item.plannedDate ? dateToYmdUtc(item.plannedDate) : today
+      if (day < today) continue
+      const list = byDay.get(day) ?? []
+      list.push(item)
+      byDay.set(day, list)
+    }
+    if (byDay.size === 0) continue
+
+    const facts: WeekFacts = {
+      date: mondayOf(today),
+      goal:
+        plan.goalGap === null
+          ? null
+          : { goalAmount: null, soldAmount: null, gap: Number(plan.goalGap).toFixed(2), perBusinessDay: null, lateCoverage: null },
+      days: [...byDay.entries()]
+        .sort((a, b) => a[0].localeCompare(b[0]))
+        .map(([date, items]) => ({
+          date,
+          grouping: null,
+          count: items.length,
+          plan: items.map((item, index) => ({
+            position: index + 1,
+            pseudonym: pseudonymizer.code(`${item.customerCode}|${item.loja}`),
+            status: item.statusAtTime,
+            shortReason: item.shortReason,
+          })),
+        })),
+      freshness: { lastSyncAt },
+    }
+    const selfCheckFacts: SelfCheckFacts = {
+      customers: facts.days.flatMap((d) => d.plan.map((p) => ({ pseudonym: p.pseudonym, status: p.status }))),
+      numbers: [
+        plan.items.length,
+        ...facts.days.flatMap((d) => [d.count, ...d.plan.map((p) => p.position)]),
+        ...(facts.goal?.gap ? [Number(facts.goal.gap)] : []),
+      ],
+      freshnessLine: null,
+    }
+    const result = await generateWithGuardrails<WeekOutput>({
+      companyId,
+      kind: 'week',
+      vendorCode: plan.vendorCode,
+      targetKey: today,
+      system,
+      userPrompt: buildWeekPrompt(facts),
+      schema: WEEK_SCHEMA as unknown as Record<string, unknown>,
+      factsPayload: facts,
+      selfCheckFacts,
+      extractText: (data) => data.weekText,
+    })
+    if (result.data) {
+      await prisma.visitPlan.update({
+        where: { id: plan.id },
+        data: { llmSummary: pseudonymizer.rehydrate(result.data.weekText, nameByKey) },
+      })
+      generated++
+    }
+  }
+  return { plans: plans.length, generated }
 }

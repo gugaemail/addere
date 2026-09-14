@@ -57,6 +57,12 @@ Todos os testIDs abaixo existem no código (confira com `grep -rn testID app src
 | `screen-mensagem`, `molde-*`, `input-mensagem`, `btn-whatsapp`, `btn-copiar` (E13) | tela de Mensagem |
 | `atalho-esfriando`, `btn-limpar-filtro`, `plan-thumbs-up/down` (E13)            | atalhos da Hoje e filtro da lista de clientes |
 | `toggle-mapa`, `plan-map`, `map-stop-card`, `chip-sem-posicao`, `btn-rota-completa-mapa` (E13b) | mapa do Plano do dia |
+| `plan-drag-handle-N`, `map-stop-subir`, `map-stop-descer` (E17)                | alça de arrasto (long press) do card do Plano do dia; Subir/Descer no card da parada do mapa |
+| `btn-semana`, `screen-semana`, `semana-dia-YYYY-MM-DD`, `semana-item-N`, `btn-mover-N`, `btn-tirar-semana-N`, `mover-dia-YYYY-MM-DD` (E18) | Plano da semana (`rota/semana.tsx`): botão no cabeçalho do Plano do dia, seções por dia, sheet "Mover" (N = índice sequencial na semana) |
+| `screen-carteira`, `btn-so-atrasados`, `chip-status-*`, `chip-rfm-*`, `carteira-item-N`, `btn-mensagem-carteira-N`, `carteira-texto-agente` (E19) | Carteira (`rota/carteira.tsx`) — `*` = `CustomerStatus` / `RfmSegment` |
+| `atalho-semana`, `atalho-carteira`, `card-meta` (Fase 2)                        | atalhos da Hoje para Semana e Carteira; card "Meta do mês" (só com meta > 0) |
+| `btn-ver-estoque-<productCode>`, `estoque-<productCode>` (E22)                  | "Ver estoque" em cada linha do mix sugerido na Visita e o texto que o substitui |
+| `card-janelas`, `btn-adicionar-janela`, `janela-dia-N`, `input-janela-inicio`, `input-janela-fim`, `btn-salvar-janela`, `btn-remover-janela-N` (E16) | Ficha do cliente (`clientes/[id].tsx`) — card "Horário de atendimento" (N do dia = 1..6, Seg..Sáb) |
 | `btn-novo-pedido`                                                               | FAB em `(app)/pedidos/index.tsx`                             |
 | `input-busca-cliente`, `resultado-cliente-{i}`, `btn-adicionar-produto-{i}`     | wizard passo 1 — busca, cliente e filial (`novo-pedido`)     |
 | `produto-lista`, `produto-{i}`, `cache-badge`, `btn-proximo-step`               | wizard passo 2 — produtos                                    |
@@ -75,6 +81,9 @@ Observações:
   use `waitForHome()`, que faz polling nos dois e devolve qual apareceu. Os fluxos da
   Inteligência (`plan-visit`, `visit-offline`) exigem a flag ligada e um plano gerado para hoje
   (rodar o `intel-smoke` da API antes da suíte).
+- Semana e Carteira (Fase 2) exigem, além da flag, um usuário com carteira (`idVendProt`); a
+  Semana mostra `EmptyState` até o motor montar o plano semanal (`GET /intel/app/plan?kind=week`
+  responde 404 antes disso). O card `card-janelas` só aparece em cliente com código Protheus.
 - O FAB `btn-novo-pedido` fica na aba **Pedidos** —
   use o helper `goToPedidos()` de `e2e/helpers/navigation.ts` (toca `tab-pedidos` e aguarda o FAB).
 - `btn-adicionar-produto-{i}` é o card de **filial** do passo 1 (nome mantido por

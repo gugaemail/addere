@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 
 vi.mock('@addere/db', async () => (await import('../../../../test-utils/prisma-mock')).mockDb())
 
@@ -106,5 +106,57 @@ describe('runEngine (E5)', () => {
   it('empresa com camada desligada → erro claro', async () => {
     prismaMock.company.findUnique.mockResolvedValue({ id: COMPANY, intelligenceEnabled: false })
     await expect(runEngine(COMPANY, 'run-4')).rejects.toThrow(/desligada/)
+  })
+})
+
+describe('runEngine — fase 2 (E16/E18)', () => {
+  beforeEach(() => {
+    resetPrismaMock()
+    baseMocks()
+    // Quarta-feira 16/09/2026 12:00 em São Paulo — sobram qua, qui e sex na semana
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-09-16T15:00:00Z'))
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('anota hora prevista e distância quando há coordenadas', async () => {
+    prismaMock.geoAddress.findMany.mockResolvedValue([
+      { customerCode: 'A', loja: '01', lat: -22.9, lng: -47.06 },
+    ])
+    await runEngine(COMPANY, 'run-geo')
+    const dayPlan = prismaMock.visitPlan.create.mock.calls[0][0]
+    const first = dayPlan.data.items.create[0]
+    expect(first.customerCode).toBe('A')
+    expect(first.plannedTime).toBe('08:00')
+    expect(first.distFromPrevM).toBeNull()
+    // bloqueado fica sem hora
+    expect(dayPlan.data.items.create[1].plannedTime).toBeNull()
+  })
+
+  it('cria o plano da semana com segunda-feira como data e um dia por parada', async () => {
+    const summary = await runEngine(COMPANY, 'run-week')
+    expect(summary.weekPlansCreated).toBe(1)
+    const week = prismaMock.visitPlan.create.mock.calls.find(
+      (call: [{ data: { kind: string } }]) => call[0].data.kind === 'WEEK'
+    )[0].data
+    expect(week.date.toISOString().slice(0, 10)).toBe('2026-09-14')
+    expect(week.status).toBe('GENERATED')
+    const dates = week.items.create.map((i: { plannedDate: Date }) => i.plannedDate.toISOString().slice(0, 10))
+    // só há 1 cliente elegível → entra na quarta; os outros dias ficam vazios
+    expect(dates).toEqual(['2026-09-16'])
+  })
+
+  it('plano da semana EDITED pelo vendedor não é sobrescrito', async () => {
+    prismaMock.visitPlan.findUnique.mockImplementation(async (args: { where: { companyId_vendorCode_date_kind: { kind: string } } }) =>
+      args.where.companyId_vendorCode_date_kind.kind === 'WEEK'
+        ? { id: 'week-x', status: 'EDITED', items: [] }
+        : null
+    )
+    const summary = await runEngine(COMPANY, 'run-week-edited')
+    expect(summary.weekPlansSkipped).toBe(1)
+    expect(summary.plansCreated).toBe(1)
   })
 })

@@ -6,6 +6,7 @@ import { View, Text, ScrollView, TouchableOpacity, StyleSheet } from 'react-nati
 import { useRouter } from 'expo-router'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import {
+  CalendarDays,
   ChevronRight,
   Map as MapIcon,
   Navigation,
@@ -17,7 +18,7 @@ import {
 import { useAuthStore } from '../store/auth.store'
 import { useFeedback, useHome, usePlan } from '../hooks/useIntel'
 import { openRouteInMaps } from '../services/navigationLinks'
-import { activeAddresses, planFallbackLine } from '../utils/intelText'
+import { activeAddresses, goalCardModel, planFallbackLine } from '../utils/intelText'
 import { Card } from '../components/ui/Card'
 import { SyncPill } from '../components/intel/SyncPill'
 import { FreshnessFooter } from '../components/intel/FreshnessFooter'
@@ -32,13 +33,6 @@ function todayLabel(): string {
     month: 'long',
   })
   return label.charAt(0).toUpperCase() + label.slice(1)
-}
-
-const fmtBRL = (value: string | null | undefined): string => {
-  const n = Number(value)
-  return Number.isFinite(n) && value !== null && value !== undefined
-    ? n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 })
-    : '—'
 }
 
 export function HojeScreen() {
@@ -69,14 +63,8 @@ export function HojeScreen() {
   const byStatus = home?.portfolio.byStatus ?? {}
   const lateCount = (byStatus.LATE ?? 0) + (byStatus.AT_RISK ?? 0)
   const blockedCount = byStatus.BLOCKED ?? 0
-  const goal = plan?.goal ?? null
-
-  const goalPct = (() => {
-    const sold = Number(goal?.soldAmount)
-    const target = Number(goal?.goalAmount)
-    if (!Number.isFinite(sold) || !Number.isFinite(target) || target <= 0) return null
-    return Math.min(100, Math.round((sold / target) * 100))
-  })()
+  // Só há card com meta numérica > 0 — "0.00" chega como string e é truthy
+  const goalCard = goalCardModel(plan?.goal)
 
   return (
     <ScrollView testID="screen-hoje" style={s.scroll} contentContainerStyle={s.content}>
@@ -147,26 +135,17 @@ export function HojeScreen() {
       </TouchableOpacity>
 
       {/* Meta do mês */}
-      {goal && (goal.goalAmount || goal.gap) && (
-        <Card>
+      {goalCard && (
+        <Card testID="card-meta">
           <View style={s.goalHeader}>
             <Text style={s.cardTitle}>Meta do mês</Text>
-            {goalPct !== null && <Text style={s.goalPct}>{goalPct}%</Text>}
+            <Text style={s.goalPct}>{goalCard.pct}%</Text>
           </View>
-          {goalPct !== null && (
-            <View style={s.goalTrack}>
-              <View style={[s.goalFill, { width: `${goalPct}%` }]} />
-            </View>
-          )}
-          <Text style={s.goalDetail}>
-            {goal.gap ? `Faltam ${fmtBRL(goal.gap)}` : `Vendido ${fmtBRL(goal.soldAmount)}`}
-            {goal.perBusinessDay ? ` · ${fmtBRL(goal.perBusinessDay)} por dia útil` : ''}
-          </Text>
-          {goal.lateCoverage && Number(goal.lateCoverage) > 0 && (
-            <Text style={s.goalHint}>
-              Os clientes atrasados da sua carteira cobrem {fmtBRL(goal.lateCoverage)} disso.
-            </Text>
-          )}
+          <View style={s.goalTrack}>
+            <View style={[s.goalFill, { width: `${goalCard.pct}%` }]} />
+          </View>
+          <Text style={s.goalDetail}>{goalCard.line}</Text>
+          {goalCard.hint && <Text style={s.goalHint}>{goalCard.hint}</Text>}
         </Card>
       )}
 
@@ -195,12 +174,26 @@ export function HojeScreen() {
         <Text style={s.shortcutText}>Quem está esfriando?</Text>
         <ChevronRight size={16} color={colors.neutral.placeholder} strokeWidth={1.5} />
       </TouchableOpacity>
-      <View style={[s.shortcut, s.shortcutDisabled]}>
-        <Users size={16} color={colors.neutral.placeholder} strokeWidth={1.5} />
-        <Text style={[s.shortcutText, { color: colors.neutral.placeholder }]}>
-          Semana e Carteira — em breve
-        </Text>
-      </View>
+      <TouchableOpacity
+        testID="atalho-semana"
+        style={s.shortcut}
+        activeOpacity={0.85}
+        onPress={() => router.push('/rota/semana')}
+      >
+        <CalendarDays size={16} color={colors.brand.primary} strokeWidth={1.5} />
+        <Text style={s.shortcutText}>Plano da semana</Text>
+        <ChevronRight size={16} color={colors.neutral.placeholder} strokeWidth={1.5} />
+      </TouchableOpacity>
+      <TouchableOpacity
+        testID="atalho-carteira"
+        style={s.shortcut}
+        activeOpacity={0.85}
+        onPress={() => router.push('/rota/carteira')}
+      >
+        <Users size={16} color={colors.brand.primary} strokeWidth={1.5} />
+        <Text style={s.shortcutText}>Minha carteira</Text>
+        <ChevronRight size={16} color={colors.neutral.placeholder} strokeWidth={1.5} />
+      </TouchableOpacity>
 
       <FreshnessFooter computedAt={home?.freshness.lastSyncAt ?? null} />
     </ScrollView>
@@ -329,7 +322,6 @@ const s = StyleSheet.create({
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.md,
   },
-  shortcutDisabled: { opacity: 0.7 },
   shortcutText: {
     flex: 1,
     fontFamily: typography.fontFamily.bodySemibold,

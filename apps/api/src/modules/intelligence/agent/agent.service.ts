@@ -11,7 +11,7 @@ import { selfCheck, type SelfCheckFacts } from './self-check'
 
 const CACHE_HOURS = 4
 
-export type AgentKind = 'today' | 'briefing' | 'message'
+export type AgentKind = 'today' | 'briefing' | 'message' | 'week' | 'portfolio' | 'losses'
 
 export interface GenerateInput<T> {
   companyId: string

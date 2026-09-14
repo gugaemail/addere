@@ -1,12 +1,20 @@
-// Plano do dia (E13) — lista de paradas do ranking com edição, check-in e
-// navegação. Toggle Lista/Mapa (mapa chega na E13b). Funciona do cache offline.
+// Plano do dia (E13/Fase 2) — lista de paradas do ranking com edição
+// (arrasto, setas, tirar do dia), check-in e navegação. Toggle Lista/Mapa e
+// atalho para a Semana (E18). Funciona do cache offline.
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { View, Text, FlatList, TouchableOpacity, StyleSheet, Alert } from 'react-native'
+import { View, Text, TouchableOpacity, StyleSheet, Alert } from 'react-native'
+import DraggableFlatList, {
+  ScaleDecorator,
+  type DragEndParams,
+  type RenderItemParams,
+} from 'react-native-draggable-flatlist'
 import { useRouter } from 'expo-router'
 import {
+  CalendarDays,
   Check,
   ChevronDown,
   ChevronUp,
+  GripVertical,
   MessageCircle,
   Navigation,
   User as UserIcon,
@@ -20,7 +28,7 @@ import { makePlanOp, prefetchBriefings, usePlan, usePlanPatch, useVisitMutation 
 import { getVisitPosition } from '../../../src/services/location'
 import { openMaps, openRouteInMaps } from '../../../src/services/navigationLinks'
 import { pilotTracker } from '../../../src/services/pilotTracking'
-import { activeAddresses } from '../../../src/utils/intelText'
+import { activeAddresses, stopMetaLine } from '../../../src/utils/intelText'
 import { generateUuid } from '../../../src/utils/uuid'
 import { StatusPill } from '../../../src/components/intel/StatusPill'
 import { PlanMap } from '../../../src/components/intel/PlanMap'
@@ -30,6 +38,21 @@ import { FreshnessFooter } from '../../../src/components/intel/FreshnessFooter'
 import { EmptyState } from '../../../src/components/ui/EmptyState'
 import { colors, spacing, radius, typography } from '../../../src/theme'
 
+type Offer = NonNullable<VisitPlanItemDto['suggestedOffer']>[number]
+
+// "?" = perguntar sobre o item cortado; "+" = cross-sell (pares compram)
+const offerPrefix = (source: Offer['source']): string =>
+  source === 'ask_about_cut' ? '? ' : source === 'cross_sell' ? '+ ' : ''
+
+function WeekButton({ onPress }: { onPress: () => void }) {
+  return (
+    <TouchableOpacity testID="btn-semana" style={s.weekButton} onPress={onPress} hitSlop={4}>
+      <CalendarDays size={14} color={colors.brand.primary} strokeWidth={1.5} />
+      <Text style={s.weekButtonText}>Semana</Text>
+    </TouchableOpacity>
+  )
+}
+
 export default function RotaScreen() {
   const router = useRouter()
   const user = useAuthStore((s) => s.user)
@@ -38,7 +61,13 @@ export default function RotaScreen() {
   const visits = useVisitMutation()
   const { data: customers } = useClientes()
   const [view, setView] = useState<'lista' | 'mapa'>('lista')
-  const [selectedItem, setSelectedItem] = useState<VisitPlanItemDto | null>(null)
+  // Guarda só o id: depois de um reorder o item em cache muda de posição e o
+  // card do mapa precisa refletir isso (uma cópia do objeto ficaria velha)
+  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const selectedItem = useMemo(
+    () => plan?.items.find((i) => i.id === selectedId) ?? null,
+    [plan, selectedId]
+  )
   // Pino cheio = visita registrada NESTE aparelho (fila de sync, E13b)
   const visitedItemIds = useSyncStore((state) => {
     const ids = new Set<string>()
@@ -105,6 +134,19 @@ export default function RotaScreen() {
     [plan, planPatch]
   )
 
+  // Arrasto (E17): uma única op reorder para o item solto — a posição é entre
+  // os ativos não bloqueados (os bloqueados ficam fora da lista arrastável)
+  const onDragEnd = useCallback(
+    ({ data, from, to }: DragEndParams<VisitPlanItemDto>) => {
+      if (!plan || from === to) return
+      const moved = data[to]
+      if (!moved) return
+      planPatch.apply(plan.id, [makePlanOp({ type: 'reorder', itemId: moved.id, position: to + 1 })])
+      pilotTracker.track({ type: 'PLAN_EDITED', metadata: { ops: 1 } })
+    },
+    [plan, planPatch]
+  )
+
   const removeFromDay = useCallback(
     (item: VisitPlanItemDto) => {
       if (!plan) return
@@ -155,15 +197,32 @@ export default function RotaScreen() {
     [customerIdByKey, router]
   )
 
-  const renderItem = useCallback(
-    ({ item, index }: { item: VisitPlanItemDto; index: number }) => {
+  const openWeek = useCallback(() => router.push('/rota/semana'), [router])
+
+  // Card de parada — `drag` só vem nos ativos (lista arrastável); os
+  // bloqueados são renderizados no rodapé, na seção "Resolver"
+  const renderCard = useCallback(
+    (item: VisitPlanItemDto, index: number, drag?: () => void, isActive = false) => {
       const isBlocked = item.statusAtTime === 'BLOCKED'
       // Visita registrada neste aparelho: o card diz "Visitado" em vez de
       // oferecer "Cheguei" de novo — antes só o pino do mapa mudava.
       const isVisited = visitedItemIds.has(item.id)
+      const meta = stopMetaLine(item)
       return (
-        <View style={s.card} testID={`plan-item-${index + 1}`}>
+        <View style={[s.card, isActive && s.cardDragging]} testID={`plan-item-${index + 1}`}>
           <View style={s.cardHeader}>
+            {drag && (
+              <TouchableOpacity
+                testID={`plan-drag-handle-${index + 1}`}
+                onLongPress={drag}
+                delayLongPress={120}
+                disabled={isActive}
+                hitSlop={8}
+                accessibilityLabel="Arrastar para reordenar"
+              >
+                <GripVertical size={18} color={colors.neutral.placeholder} strokeWidth={1.5} />
+              </TouchableOpacity>
+            )}
             <View style={[s.position, isBlocked && { backgroundColor: colors.status.blocked }]}>
               <Text style={s.positionText}>{isBlocked ? '!' : item.position}</Text>
             </View>
@@ -176,6 +235,7 @@ export default function RotaScreen() {
                   {item.customerAddress}
                 </Text>
               ) : null}
+              {meta ? <Text style={s.meta}>{meta}</Text> : null}
             </View>
             <StatusPill status={item.statusAtTime} />
           </View>
@@ -187,10 +247,14 @@ export default function RotaScreen() {
               {item.suggestedOffer.slice(0, 3).map((offer) => (
                 <View
                   key={offer.productCode}
-                  style={[s.offerChip, offer.source === 'ask_about_cut' && s.offerChipCut]}
+                  style={[
+                    s.offerChip,
+                    offer.source === 'ask_about_cut' && s.offerChipCut,
+                    offer.source === 'cross_sell' && s.offerChipCross,
+                  ]}
                 >
                   <Text style={s.offerText} numberOfLines={1}>
-                    {offer.source === 'ask_about_cut' ? '? ' : ''}
+                    {offerPrefix(offer.source)}
                     {offer.productDesc ?? offer.productCode}
                   </Text>
                 </View>
@@ -268,9 +332,22 @@ export default function RotaScreen() {
     [checkIn, move, openFicha, removeFromDay, router, visitedItemIds]
   )
 
+  const renderDraggable = useCallback(
+    ({ item, drag, isActive, getIndex }: RenderItemParams<VisitPlanItemDto>) => (
+      <ScaleDecorator activeScale={1.02}>
+        {renderCard(item, getIndex() ?? 0, drag, isActive)}
+      </ScaleDecorator>
+    ),
+    [renderCard]
+  )
+
   if (!isLoading && !plan) {
     return (
       <View style={s.container} testID="screen-rota">
+        <View style={s.headerRow}>
+          <WeekButton onPress={openWeek} />
+          <SyncPill />
+        </View>
         <EmptyState
           illustration="orders"
           title="Sem plano para hoje"
@@ -298,7 +375,10 @@ export default function RotaScreen() {
             <Text style={[s.toggleText, view === 'mapa' && s.toggleTextActive]}>Mapa</Text>
           </TouchableOpacity>
         </View>
-        <SyncPill />
+        <View style={s.headerRight}>
+          <WeekButton onPress={openWeek} />
+          <SyncPill />
+        </View>
       </View>
 
       {showCityQuestion && (
@@ -319,8 +399,8 @@ export default function RotaScreen() {
           <PlanMap
             items={plan?.items ?? []}
             visitedItemIds={visitedItemIds}
-            selectedId={selectedItem?.id ?? null}
-            onSelect={setSelectedItem}
+            selectedId={selectedId}
+            onSelect={(item) => setSelectedId(item.id)}
           />
           {unmappedCount(plan?.items ?? []) > 0 && (
             <TouchableOpacity
@@ -358,6 +438,9 @@ export default function RotaScreen() {
                       {selectedItem.customerAddress}
                     </Text>
                   ) : null}
+                  {stopMetaLine(selectedItem) ? (
+                    <Text style={s.meta}>{stopMetaLine(selectedItem)}</Text>
+                  ) : null}
                 </View>
                 <StatusPill status={selectedItem.statusAtTime} />
               </View>
@@ -379,6 +462,40 @@ export default function RotaScreen() {
                   <UserIcon size={14} color={colors.brand.primary} strokeWidth={1.5} />
                   <Text style={s.actionText}>Ficha</Text>
                 </TouchableOpacity>
+                {selectedItem.statusAtTime !== 'BLOCKED' && (
+                  <>
+                    <TouchableOpacity
+                      testID="map-stop-subir"
+                      style={s.action}
+                      disabled={selectedItem.position <= 1}
+                      onPress={() => move(selectedItem, -1)}
+                    >
+                      <ChevronUp
+                        size={14}
+                        color={
+                          selectedItem.position <= 1 ? colors.neutral.disabled : colors.brand.primary
+                        }
+                        strokeWidth={1.5}
+                      />
+                      <Text
+                        style={[
+                          s.actionText,
+                          selectedItem.position <= 1 && { color: colors.neutral.disabled },
+                        ]}
+                      >
+                        Subir
+                      </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      testID="map-stop-descer"
+                      style={s.action}
+                      onPress={() => move(selectedItem, 1)}
+                    >
+                      <ChevronDown size={14} color={colors.brand.primary} strokeWidth={1.5} />
+                      <Text style={s.actionText}>Descer</Text>
+                    </TouchableOpacity>
+                  </>
+                )}
                 <TouchableOpacity
                   style={s.action}
                   onPress={() => {
@@ -388,7 +505,7 @@ export default function RotaScreen() {
                       ])
                       pilotTracker.track({ type: 'PLAN_EDITED', metadata: { ops: 1 } })
                     }
-                    setSelectedItem(null)
+                    setSelectedId(null)
                   }}
                 >
                   <X size={14} color={colors.brand.primary} strokeWidth={1.5} />
@@ -407,35 +524,48 @@ export default function RotaScreen() {
           )}
         </View>
       ) : (
-      <FlatList
-        data={[...active, ...blocked]}
-        keyExtractor={(item) => item.id}
-        renderItem={renderItem}
-        contentContainerStyle={{ gap: spacing.sm, paddingBottom: spacing.xl }}
-        ListHeaderComponent={
-          blocked.length > 0 || active.length > 0 ? (
-            <Text style={s.countLine}>
-              {active.length} visita(s)
-              {blocked.length > 0 ? ` · ${blocked.length} bloqueado(s) para resolver` : ''}
-            </Text>
-          ) : null
-        }
-        ListFooterComponent={
-          <View style={{ gap: spacing.sm }}>
-            {active.length > 1 && (
-              <TouchableOpacity
-                testID="btn-rota-completa"
-                style={s.fullRoute}
-                onPress={() => openRouteInMaps(activeAddresses(plan))}
-              >
-                <Navigation size={14} color={colors.brand.primary} strokeWidth={1.5} />
-                <Text style={s.fullRouteText}>Abrir rota completa no Maps</Text>
-              </TouchableOpacity>
-            )}
-            <FreshnessFooter computedAt={plan?.freshness.lastSyncAt ?? null} />
-          </View>
-        }
-      />
+        // DraggableFlatList: precisa de keyExtractor e não pode ficar dentro
+        // de um ScrollView — a tela é View + lista, como antes
+        <DraggableFlatList
+          data={active}
+          keyExtractor={(item) => item.id}
+          renderItem={renderDraggable}
+          onDragEnd={onDragEnd}
+          containerStyle={{ flex: 1 }}
+          contentContainerStyle={{ gap: spacing.sm, paddingBottom: spacing.xl }}
+          ListHeaderComponent={
+            blocked.length > 0 || active.length > 0 ? (
+              <Text style={s.countLine}>
+                {active.length} visita(s)
+                {blocked.length > 0 ? ` · ${blocked.length} bloqueado(s) para resolver` : ''}
+                {active.length > 1 ? ' · segure a alça para reordenar' : ''}
+              </Text>
+            ) : null
+          }
+          ListFooterComponent={
+            <View style={{ gap: spacing.sm }}>
+              {blocked.length > 0 && (
+                <>
+                  <Text style={s.sectionTitle}>Resolver</Text>
+                  {blocked.map((item, index) => (
+                    <View key={item.id}>{renderCard(item, active.length + index)}</View>
+                  ))}
+                </>
+              )}
+              {active.length > 1 && (
+                <TouchableOpacity
+                  testID="btn-rota-completa"
+                  style={s.fullRoute}
+                  onPress={() => openRouteInMaps(activeAddresses(plan))}
+                >
+                  <Navigation size={14} color={colors.brand.primary} strokeWidth={1.5} />
+                  <Text style={s.fullRouteText}>Abrir rota completa no Maps</Text>
+                </TouchableOpacity>
+              )}
+              <FreshnessFooter computedAt={plan?.freshness.lastSyncAt ?? null} />
+            </View>
+          }
+        />
       )}
     </View>
   )
@@ -498,6 +628,21 @@ const s = StyleSheet.create({
     justifyContent: 'space-between',
     marginBottom: spacing.md,
   },
+  headerRight: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  weekButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    backgroundColor: colors.brand.tint,
+    borderRadius: radius.full,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+  },
+  weekButtonText: {
+    fontFamily: typography.fontFamily.bodySemibold,
+    fontSize: typography.size.sm,
+    color: colors.brand.primary,
+  },
   toggle: {
     flexDirection: 'row',
     backgroundColor: colors.neutral.subtle,
@@ -544,6 +689,12 @@ const s = StyleSheet.create({
     color: colors.neutral.textSub,
     marginBottom: spacing.xs,
   },
+  sectionTitle: {
+    fontFamily: typography.fontFamily.bodySemibold,
+    fontSize: typography.size.sm,
+    color: colors.neutral.textSub,
+    marginTop: spacing.sm,
+  },
   card: {
     backgroundColor: colors.neutral.white,
     borderRadius: radius.lg,
@@ -552,6 +703,7 @@ const s = StyleSheet.create({
     padding: spacing.md,
     gap: spacing.sm,
   },
+  cardDragging: { borderColor: colors.brand.primary },
   cardHeader: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   position: {
     width: 26,
@@ -576,6 +728,12 @@ const s = StyleSheet.create({
     fontSize: typography.size.xs,
     color: colors.neutral.textSub,
   },
+  meta: {
+    fontFamily: typography.fontFamily.body,
+    fontSize: typography.size.xs,
+    color: colors.neutral.placeholder,
+    marginTop: 2,
+  },
   reason: {
     fontFamily: typography.fontFamily.body,
     fontSize: typography.size.sm,
@@ -591,6 +749,7 @@ const s = StyleSheet.create({
     maxWidth: 150,
   },
   offerChipCut: { backgroundColor: colors.semantic.warning + '1F' },
+  offerChipCross: { backgroundColor: colors.semantic.successLight },
   offerText: {
     fontFamily: typography.fontFamily.body,
     fontSize: typography.size.xs,
