@@ -42,6 +42,28 @@ apenas para `intel.admin`/SUPERADMIN, com o aviso de "vendedores sem gerente".
 Regra isolada em `manager/manager.service.ts:resolveTeamScope` (painel) e
 `users/data-scope.ts` (clientes/pedidos do app) — puras e testadas.
 
+## Fase 2 — rota, semana, carteira e diagnóstico (13/09/2026)
+
+Tudo continua puro em `engine/` e testado com fixture; as rotas só carregam e montam.
+
+| Entrega | Onde | O que faz |
+| --- | --- | --- |
+| E16 ordem por distância | `engine/routing.ts` | Vizinho-mais-próximo com Haversine e fator de tortuosidade urbana (1,3×). Preenche `distFromPrevM`, `etaMin` e `plannedTime` de cada parada. Janelas de atendimento (`intel_customer_windows`, `PUT /intel/app/customers/:code/:loja/windows`) entram como restrição suave: quem ainda não abriu cede a vez; sem alternativa, a hora prevista espera a janela. Sem coordenada → fim da lista, sem hora. Bloqueados nunca entram na rota. Quando o vendedor reordena, `persistPlanEdit` reanota os números sem mexer na ordem dele. Desliga por premissa (`route_by_distance=false`: mantém a ordem do ranking, só com as horas). |
+| E17 arrasto | app | Reordenar por arrasto na lista do Plano do dia; na API é a mesma op `reorder`. |
+| E18 semana | `engine.service.ts` | Plano `kind=WEEK` com `date` = segunda-feira e `plannedDate` em cada item: dia 1 = o plano do dia, os seguintes = ranking do que sobrou, um dia por vez. `GET /intel/app/plan?kind=week`; op `moveToDay` (só na semana, dentro dela, de hoje em diante). Plano da semana `EDITED` não é regerado, e as paradas que o vendedor moveu para o dia entram na frente do plano do dia seguinte (`forcedForToday`). Texto do agente no job `PLAN` (prompt `week`). |
+| E19 carteira | `engine/rfm.ts` | Quintis R/F/M dentro da carteira do vendedor (só com ≥ 30 clientes que compraram; senão tudo nulo) e segmento (`CHAMPION`…`LOST`). Cross-sell tenant-wide: pares = `segment` do cadastro ou, sem ele, o segmento RFM; produto entra quando ≥ `cross_sell_min_pct`% dos pares o compram e o cliente nunca comprou (grupos < 5 não sugerem). Vai para `CustomerSignal.crossSell`, para o `signalsSnapshot` e para o `suggestedOffer` (`source: 'cross_sell'`, até 2). `GET /intel/app/portfolio` com texto do agente (prompt `portfolio`, cache diário). |
+| E20 mapa da equipe | `manager/team-map.ts` | `GET /intel/manager/team-map?date=`: paradas do dia com coordenada por vendedor, `visited` pelo check-in e o último check-in com GPS. Painel: Leaflet + tiles do OpenStreetMap (atribuição obrigatória; para volume alto, trocar o provedor de tiles). |
+| E21 onde estou perdendo | `engine/decomposition.ts` | `GET /intel/manager/losses?date=&baselineMonths=&vendorCode=`: período atual (1º do mês → data) contra a média dos N meses fechados anteriores, normalizada pelo tamanho do período. Componentes `STOPPED` / `REDUCED` (queda ≥ 20 %) / `PRODUCT_DROP` / `GAINED`. "Pôr no plano" reaproveita `POST /intel/manager/plan-items`. Texto do agente (prompt `losses`, cache por recorte/dia). |
+| E22 estoque ao vivo | `app/stock.routes.ts` | `GET /intel/app/stock/:productCode`: contrato `STOCK` publicado → consulta ao vivo (8 s, cache 10 min, soma das filiais); sem contrato ou com falha → `Product.saldo` marcado `source: 'sync'`. Config self-service (`/configuracoes`, `/vendedores` no painel) usa as rotas existentes de config e usuários — `intel.admin` já nasce com todo ADMIN. |
+
+Premissas novas (`DEFAULT_INTEL_PARAMETERS`): `route_by_distance`, `day_start_hour`,
+`visit_minutes`, `avg_speed_kmh` (moto ×1,2; a pé 5 km/h) e `cross_sell_min_pct`.
+`User.vehicle` passa a valer no cálculo do deslocamento.
+
+Smoke local da fase 2: `INTEL_SQL_ADAPTER=mock INTEL_GEOCODER=mock npm run intel:smoke`
+gera o plano do dia já roteirizado; RFM só aparece com carteira ≥ 30 e o plano da
+semana só de segunda a sexta (domingo não há dias úteis restantes).
+
 ## Jobs
 
 Scheduler in-process (`jobs/scheduler.ts`), ticker de 1 minuto, lock persistido
@@ -181,3 +203,8 @@ Se uma migration falhar em produção:
   `customers`/`products`/`orders`) que existiam no schema e em produção mas não nas migrations.
   Drift levantado com `migrate diff` contra banco só-de-migrations; testes: banco limpo sem
   drift residual, reaplicação idempotente (NOTICE ... skipping).
+- **Fase 2 (13/09/2026)** — `20260914014147_intel_phase2_windows_week`: enum `WindowSource`, tabela
+  `intel_customer_windows` (janela de atendimento por cliente e dia da semana, unique por
+  empresa+cliente+loja+dia) e coluna `intel_visit_plan_items.plannedDate` (dia da parada no plano
+  da semana; nula no plano do dia). Só adiciona — sem rollback de dados. Gerada com
+  `migrate dev --create-only` contra Postgres local e aplicada no smoke.

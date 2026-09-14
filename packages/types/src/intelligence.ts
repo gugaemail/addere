@@ -117,6 +117,12 @@ export const DEFAULT_INTEL_PARAMETERS = {
   weight_risk: 25,
   visited_cooldown_days: 7, // D8a — parametrizável por empresa
   reconciliation_tolerance_pct: 2,
+  // Fase 2 — roteirização (E16) e cross-sell (E19)
+  route_by_distance: true, // ordena as paradas por vizinho-mais-próximo (senão, ordem do ranking)
+  day_start_hour: 8, // hora (BRT) da primeira visita — base da hora prevista
+  visit_minutes: 30, // duração média da visita, para a hora prevista das seguintes
+  avg_speed_kmh: 30, // deslocamento urbano de carro (moto ×1.2; a pé 5 km/h)
+  cross_sell_min_pct: 40, // produto entra no cross-sell quando ≥ N% dos pares o compram
 } as const
 
 export type IntelParameterKey = keyof typeof DEFAULT_INTEL_PARAMETERS
@@ -168,7 +174,20 @@ export interface SignalsSnapshot {
   cutMix: { productCode: string; productDesc: string | null }[]
   openTitles: { count: number; totalBalance: string; maxDaysOverdue: number | null }
   reasons: string[]
+  // Fase 2 (E19) — opcionais: snapshots gravados antes da fase não os têm
+  rfmSegment?: RfmSegment | null
+  crossSell?: { productCode: string; productDesc: string | null; peersPct: number }[]
 }
+
+// Segmento RFM (E19) — quintis de recência, frequência e valor dentro da carteira
+export type RfmSegment =
+  | 'CHAMPION' // compra muito, sempre e faz pouco tempo
+  | 'LOYAL' // frequência e valor altos, recência mediana
+  | 'PROMISING' // recente, ainda com pouca frequência
+  | 'NEED_ATTENTION' // tudo mediano — começa a escorregar
+  | 'AT_RISK' // valia muito e sumiu
+  | 'HIBERNATING' // pouco e há muito tempo
+  | 'LOST' // o pior dos três
 
 export interface VisitPlanItemDto {
   id: string
@@ -181,14 +200,22 @@ export interface VisitPlanItemDto {
   statusAtTime: CustomerStatus
   shortReason: string | null
   suggestedOffer:
-    { productCode: string; productDesc: string | null; source: 'usual' | 'ask_about_cut' }[] | null
+    | {
+        productCode: string
+        productDesc: string | null
+        source: 'usual' | 'ask_about_cut' | 'cross_sell'
+      }[]
+    | null
   expectedAmount: string | null
   origin: PlanItemOrigin
   removedAt: string | null
   signals: SignalsSnapshot | null
   lat: number | null
   lng: number | null
-  plannedTime: string | null
+  plannedTime: string | null // "08:30" — hora prevista (E16); null sem roteirização
+  distFromPrevM: number | null // metros desde a parada anterior (E16)
+  etaMin: number | null // minutos de deslocamento desde a parada anterior (E16)
+  plannedDate: string | null // 'YYYY-MM-DD' — só no plano semanal (E18)
 }
 
 export interface VisitPlanDto {
@@ -227,6 +254,45 @@ export interface CustomerSignalListItem {
   daysSinceLastPurchase: number | null
   avgTicket: string | null
   reason: string | null
+  // Fase 2 (E19) — Carteira
+  cycleDays: number | null
+  orders12m: number
+  trendPct: number | null
+  rfmSegment: RfmSegment | null
+  city: string | null
+  crossSellCount: number
+}
+
+// Carteira do vendedor (E19): resumo + lista + texto do agente (fallback só-motor)
+export interface PortfolioDto {
+  total: number
+  byStatus: Partial<Record<CustomerStatus, number>>
+  byRfm: Partial<Record<RfmSegment, number>>
+  /** null quando a carteira tem menos de 30 clientes — quintil não faz sentido */
+  rfmAvailable: boolean
+  lateAmount: string // Σ ticket×prob dos atrasados+risco (o que dá para recuperar)
+  items: CustomerSignalListItem[]
+  text: string | null
+  freshness: { lastSyncAt: string | null; stale: boolean }
+}
+
+// Janela de atendimento do cliente (E16)
+export type WindowSource = 'CADASTRO' | 'SELLER' | 'MANAGER'
+
+export interface CustomerWindowDto {
+  weekday: number // 0=dom … 6=sáb
+  startTime: string // "08:00"
+  endTime: string // "12:00"
+  source: WindowSource
+}
+
+// Estoque ao vivo (E22): contrato STOCK quando publicado; senão o saldo do sync
+export interface StockDto {
+  productCode: string
+  saldo: string
+  local: string | null
+  source: 'live' | 'sync'
+  checkedAt: string
 }
 
 export interface CustomerMessageDto {
@@ -270,6 +336,8 @@ export type PlanPatchOp =
   | { opId: string; type: 'restore'; itemId: string }
   | { opId: string; type: 'skip'; itemId: string }
   | { opId: string; type: 'setGrouping'; grouping: string }
+  // Plano semanal (E18): muda o dia da parada ('YYYY-MM-DD' dentro da semana)
+  | { opId: string; type: 'moveToDay'; itemId: string; date: string }
 
 // W1 — Equipe em campo (E8/E11)
 export interface TeamSellerCard {
@@ -324,5 +392,82 @@ export interface ManagerHomeDto {
   }
   today: { ymd: string; planned: number; done: number }
   sellers: ManagerHomeSellerDto[]
+  lastSyncAt: string | null
+}
+
+// ═══ Fase 2 — painel do gerente ═══
+
+// Mapa da equipe (E20): paradas do dia com coordenada + último check-in
+export interface TeamMapStopDto {
+  itemId: string
+  position: number
+  customerCode: string
+  loja: string
+  customerName: string
+  status: CustomerStatus
+  lat: number
+  lng: number
+  plannedTime: string | null
+  visited: boolean // check-in registrado no item
+}
+
+export interface TeamMapSellerDto {
+  userId: string
+  name: string
+  vendorCode: string
+  grouping: string | null
+  stops: TeamMapStopDto[]
+  withoutPin: number // paradas do plano sem coordenada
+  lastCheckIn: { lat: number; lng: number; at: string; customerName: string } | null
+}
+
+export interface TeamMapDto {
+  date: string // 'YYYY-MM-DD'
+  sellers: TeamMapSellerDto[]
+  lastSyncAt: string | null
+}
+
+// Onde estou perdendo (E21): decomposição da queda de receita no período
+export type LossKind =
+  | 'STOPPED' // clientes que compravam e não compram mais
+  | 'REDUCED' // clientes ativos comprando menos
+  | 'PRODUCT_DROP' // produtos em queda
+  | 'GAINED' // clientes novos/recuperados (positivo)
+
+export interface LossComponentDto {
+  kind: LossKind
+  amount: string // negativo = perda
+  count: number
+}
+
+export interface LossCustomerDto {
+  customerCode: string
+  loja: string
+  customerName: string
+  vendorCode: string | null
+  status: CustomerStatus | null
+  baselineAmount: string // média mensal do período-base
+  currentAmount: string // no período atual
+  diffAmount: string // current − baseline (negativo = perda)
+  reason: string
+  inPlanToday: boolean
+}
+
+export interface LossProductDto {
+  productCode: string
+  productDesc: string | null
+  baselineAmount: string
+  currentAmount: string
+  diffPct: number | null
+}
+
+export interface LossesReportDto {
+  period: { fromYmd: string; toYmd: string; baselineMonths: number }
+  vendorCode: string | null // null = equipe inteira
+  totals: { baselineAmount: string; currentAmount: string; diffAmount: string; diffPct: number | null }
+  components: LossComponentDto[]
+  customers: LossCustomerDto[] // maiores perdas primeiro
+  products: LossProductDto[] // maiores quedas primeiro
+  text: string | null // resumo do agente (fallback só-motor = null)
   lastSyncAt: string | null
 }

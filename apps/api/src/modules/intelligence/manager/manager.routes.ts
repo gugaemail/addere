@@ -15,6 +15,8 @@ import {
   type TeamScope,
 } from './manager.service'
 import { compactYmd, ymdToUtcDate } from './range'
+import { buildTeamMapForDay } from './team-map.service'
+import { buildLossesReport } from './losses.service'
 
 const DEFAULT_LOJA = '01'
 
@@ -26,6 +28,14 @@ const teamQuerySchema = z.object({
 })
 
 const pilotQuerySchema = z.object({ from: isoDate, to: isoDate })
+
+const mapQuerySchema = z.object({ date: isoDate.optional() })
+
+const lossesQuerySchema = z.object({
+  date: isoDate.optional(),
+  baselineMonths: z.coerce.number().int().min(1).max(12).default(3),
+  vendorCode: z.string().min(1).max(20).optional(),
+})
 
 const planItemSchema = z
   .object({
@@ -70,6 +80,44 @@ export default async function managerRoutes(app: FastifyInstance) {
     const company = await resolveTenant(request, reply, 'query')
     if (!company) return
     return reply.send(await buildManagerHome(company.id, request.user.sub))
+  })
+
+  // GET /intel/manager/team-map?date= — Mapa da equipe (E20): paradas do dia e último check-in
+  app.get('/team-map', { preHandler: [guard] }, async (request, reply) => {
+    const company = await resolveTenant(request, reply, 'query')
+    if (!company) return
+    const query = mapQuerySchema.parse(request.query)
+    const anchorYmd = query.date ? compactYmd(query.date) : ymdSaoPaulo(new Date())
+    const scope = await scopeFor(request)
+    return reply.send(await buildTeamMapForDay(company.id, scope, anchorYmd))
+  })
+
+  // GET /intel/manager/losses?date=&baselineMonths=&vendorCode= — Onde estou perdendo (E21)
+  app.get('/losses', { preHandler: [guard] }, async (request, reply) => {
+    const company = await resolveTenant(request, reply, 'query')
+    if (!company) return
+    const query = lossesQuerySchema.parse(request.query)
+    const anchorYmd = query.date ? compactYmd(query.date) : ymdSaoPaulo(new Date())
+    const scope = await scopeFor(request)
+
+    // Gerente só pergunta pelos vendedores dele — vendedor de fora → 403
+    if (query.vendorCode && scope.managerId) {
+      const seller = await prisma.user.findFirst({
+        where: { companyId: company.id, active: true, idVendProt: query.vendorCode },
+        select: { managerId: true },
+      })
+      if (!seller || seller.managerId !== scope.managerId) {
+        return reply.status(403).send({ message: 'Este vendedor não é da sua equipe' })
+      }
+    }
+
+    return reply.send(
+      await buildLossesReport(company.id, scope, {
+        anchorYmd,
+        baselineMonths: query.baselineMonths,
+        vendorCode: query.vendorCode ?? null,
+      })
+    )
   })
 
   // GET /intel/manager/pilot-metrics?from=&to= — as 3 métricas do dry-run

@@ -1,12 +1,16 @@
 // Edição do plano pelo vendedor (E7) — puro e IDEMPOTENTE por construção:
 // reaplicar o mesmo lote (retry offline) produz o mesmo estado final.
 // opId serve para dedup dentro do lote e telemetria (editar é sinal — doc §4.3).
+// Plano da semana (E18): cada item carrega plannedDate ('YYYY-MM-DD'); a op
+// moveToDay troca o dia e a normalização ordena por (dia, posição).
 import type { PlanPatchOp } from '@addere/types'
 
 export interface PlanItemState {
   id: string
   position: number
   removed: boolean
+  /** Só no plano semanal; null no plano do dia */
+  plannedDate?: string | null
 }
 
 export interface PlanState {
@@ -21,10 +25,14 @@ export interface ApplyResult {
   edited: boolean // algo mudou → plano vira EDITED
 }
 
+const byDayThenPosition = (a: PlanItemState, b: PlanItemState) =>
+  (a.plannedDate ?? '').localeCompare(b.plannedDate ?? '') || a.position - b.position
+
 function normalize(items: PlanItemState[]): PlanItemState[] {
-  // Reposiciona 1..n os ativos (ordem estável), removidos ao final mantendo posição relativa
-  const active = items.filter((i) => !i.removed).sort((a, b) => a.position - b.position)
-  const removed = items.filter((i) => i.removed).sort((a, b) => a.position - b.position)
+  // Reposiciona 1..n os ativos (ordem estável por dia e posição), removidos ao
+  // final mantendo posição relativa
+  const active = items.filter((i) => !i.removed).sort(byDayThenPosition)
+  const removed = items.filter((i) => i.removed).sort(byDayThenPosition)
   const result = [
     ...active.map((item, index) => ({ ...item, position: index + 1 })),
     ...removed.map((item, index) => ({ ...item, position: active.length + index + 1 })),
@@ -73,12 +81,22 @@ export function applyPlanOps(initial: PlanState, ops: PlanPatchOp[]): ApplyResul
         item.removed = false
         const others = state.items
           .filter((i) => !i.removed && i.id !== item.id)
-          .sort((a, b) => a.position - b.position)
+          .sort(byDayThenPosition)
         const target = Math.max(1, Math.min(op.position, others.length + 1))
         others.splice(target - 1, 0, item)
         others.forEach((i, index) => {
           i.position = index + 1
         })
+        break
+      }
+      case 'moveToDay': {
+        // Vai para o fim do dia de destino (a normalização reindexa por dia)
+        item.removed = false
+        item.plannedDate = op.date
+        const last = state.items
+          .filter((i) => !i.removed && i.id !== item.id)
+          .reduce((max, i) => Math.max(max, i.position), 0)
+        item.position = last + 1
         break
       }
     }

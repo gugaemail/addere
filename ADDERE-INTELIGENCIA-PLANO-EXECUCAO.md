@@ -453,13 +453,18 @@ Generalizar `syncEngine` por tipo mantendo AsyncStorage; `expo-sqlite` só se o 
 | E       | Entrega                               | Notas                                                                                                                                                         |
 | ------- | ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | ~~E15~~ | ~~Geocodificação~~                    | **Movida para a F1** (E15-F1) — D9.                                                                                                                           |
-| E16     | Ordem por distância                   | `engine/routing.ts` (vizinho-mais-próximo, Haversine, puro); `distFromPrevM`, `etaMin`, `plannedTime` por veículo; `CustomerWindow`; `hora_prevista` no card. |
-| E17     | Drag-and-drop real de paradas         | reordenar por arrasto na lista e no mapa (mapa em si já saiu na F1/E13b).                                                                                     |
-| E18     | Semana                                | `VisitPlan kind=WEEK`; `rota/semana.tsx`; prompt Semana; mover entre dias.                                                                                    |
-| E19     | Carteira + RFM + cross-sell           | quintis (≥ 30 clientes); `rota/carteira.tsx` (reusa `customers/signals`); prompt Carteira; CTA "só atrasados".                                                |
-| E20     | W1 com mapa da equipe                 | MapLibre + OSM (CSP `next.config.mjs`).                                                                                                                       |
-| E21     | W2 Onde estou perdendo                | `engine/decomposition.ts` (puro); lista; produtos em queda; "Pôr no plano"; **prompt `losses`** + self-check.                                                 |
-| E22     | Estoque ao vivo + config self-service | `GET /intel/app/stock/:productCode` (contrato `STOCK`, fallback `Product.saldo`); `/configuracoes` e `/vendedores` do ADMIN.                                  |
+| E16     | Ordem por distância                   | ✅ 13/09/2026 — `engine/routing.ts` (vizinho-mais-próximo, Haversine × 1,3 de tortuosidade, puro); `distFromPrevM`, `etaMin`, `plannedTime` por `User.vehicle`; `CustomerWindow` (`intel_customer_windows`, editada pelo vendedor na Ficha) como restrição suave; reanotação ao reordenar; premissas `route_by_distance`, `day_start_hour`, `visit_minutes`, `avg_speed_kmh`. |
+| E17     | Drag-and-drop real de paradas         | ✅ 13/09/2026 — arrasto na lista (`react-native-draggable-flatlist`) → op `reorder`; no mapa, Subir/Descer no card da parada (arrastar pino não faz sentido).                                                 |
+| E18     | Semana                                | ✅ 13/09/2026 — `VisitPlan kind=WEEK` (date = segunda; `plannedDate` por item); `GET /plan?kind=week`; op `moveToDay`; `rota/semana.tsx`; prompt `week` no job PLAN; semana `EDITED` alimenta o plano do dia seguinte (`forcedForToday`). |
+| E19     | Carteira + RFM + cross-sell           | ✅ 13/09/2026 — `engine/rfm.ts` (quintis com ≥ 30 clientes; cross-sell por segmento do cadastro ou RFM, ≥ `cross_sell_min_pct`%); `GET /intel/app/portfolio` + prompt `portfolio`; `rota/carteira.tsx` com CTA "Só atrasados"; `source: 'cross_sell'` no mix sugerido. |
+| E20     | W1 com mapa da equipe                 | ✅ 13/09/2026 — `GET /intel/manager/team-map`; painel com **Leaflet + OSM** (em vez de MapLibre: tiles por `<img>` passam no CSP `img-src https:` sem mexer no `next.config.mjs`).                              |
+| E21     | W2 Onde estou perdendo                | ✅ 13/09/2026 — `engine/decomposition.ts` (STOPPED / REDUCED ≥ 20 % / PRODUCT_DROP / GAINED, base normalizada); `GET /intel/manager/losses`; `/inteligencia/perdas` com "Pôr no plano"; prompt `losses` + self-check. |
+| E22     | Estoque ao vivo + config self-service | ✅ 13/09/2026 — `GET /intel/app/stock/:productCode` (STOCK ao vivo, 8 s, cache 10 min; fallback `Product.saldo` marcado `sync`); `/configuracoes` (config + aceite LGPD) e `/vendedores` do ADMIN sobre rotas existentes. |
+
+Estado em 13/09/2026: Fases 0 (o que depende de código), 1 e 2 implementadas na branch
+`release/fases-0-1-2`. Pendências externas da Fase 0 seguem com o responsável: empresa piloto
+(E0-2), `apiMetaVend` para meses anteriores (E0-3), validação das telas com 2 vendedores
+(E0-5), `SKILL.md` refinado (E0-8) e a chave do Google Maps do Android (E0-10).
 
 ### Fase 3 — fechar o ciclo
 

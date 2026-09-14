@@ -13,6 +13,7 @@ import appCustomersRoutes from './app/customers.routes'
 import messagesRoutes from './app/messages.routes'
 import visitsRoutes from './app/visits.routes'
 import feedbackRoutes from './app/feedback.routes'
+import stockRoutes from './app/stock.routes'
 import managerRoutes from './manager/manager.routes'
 
 export default async function intelligenceRoutes(app: FastifyInstance) {
@@ -28,6 +29,7 @@ export default async function intelligenceRoutes(app: FastifyInstance) {
   await app.register(messagesRoutes, { prefix: '/app' })
   await app.register(visitsRoutes, { prefix: '/app' })
   await app.register(feedbackRoutes, { prefix: '/app' })
-  // Rotas do gerente (E8) — recorte pela hierarquia D3b
+  await app.register(stockRoutes, { prefix: '/app' }) // estoque ao vivo (E22)
+  // Rotas do gerente (E8) — recorte pela hierarquia D3b; mapa (E20) e perdas (E21)
   await app.register(managerRoutes, { prefix: '/manager' })
 }

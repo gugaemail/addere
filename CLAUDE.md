@@ -189,6 +189,7 @@ EXPO_PUBLIC_API_URL
 | 9    | Camada de Inteligência (E1–E13b, E15)  | ✅ 100%     |
 | 9b   | Piloto: onboarding, eval, docs (E14a)  | ✅ 100%     |
 | 9c   | Build EAS e dry-run (E14b)             | ⏳ pendente |
+| 9d   | Fase 2: rota por distância, arrasto, semana, carteira/RFM, mapa da equipe, perdas, estoque ao vivo (E16–E22) | ✅ 100% (13/09/2026) |
 
 ### Fase 7 — Modo offline (estado atual)
 

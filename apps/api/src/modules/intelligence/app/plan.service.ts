@@ -1,9 +1,20 @@
 // Montagem dos DTOs do plano/home do vendedor (E7).
+// Fase 2: plano da semana (kind WEEK, itens com plannedDate — E18) e
+// hora prevista recalculada quando o vendedor reordena (E16).
 import { prisma } from '@addere/db'
-import type { Prisma, VisitPlan, VisitPlanItem } from '@prisma/client'
+import type { PlanKind, Prisma, Vehicle, VisitPlan, VisitPlanItem } from '@prisma/client'
 import type { SignalsSnapshot, VisitPlanDto, VisitPlanItemDto } from '@addere/types'
 import { DEFAULT_INTEL_PARAMETERS } from '@addere/types'
-import { businessDaysRemaining, ymdSaoPaulo } from '../engine/business-days'
+import {
+  businessDaysRemaining,
+  dateToYmdUtc,
+  mondayOf,
+  weekdayOf,
+  ymdSaoPaulo,
+  ymdToDate,
+} from '../engine/business-days'
+import { resolveParameters, type ParameterOverride } from '../engine/parameters'
+import { annotateSequence, clockToMinutes, type RoutableStop } from '../engine/routing'
 
 const STALE_HOURS = 26 // sem sync há mais de ~1 dia → pill de atenção
 
@@ -21,10 +32,17 @@ export async function getFreshness(companyId: string) {
 }
 
 export function todayPlanDate(now: Date = new Date()): Date {
-  const today = ymdSaoPaulo(now)
-  return new Date(
-    Date.UTC(Number(today.slice(0, 4)), Number(today.slice(4, 6)) - 1, Number(today.slice(6, 8)))
-  )
+  return ymdToDate(ymdSaoPaulo(now))
+}
+
+/** Segunda-feira (meia-noite UTC) da semana que contém o dia — chave do plano WEEK. */
+export function weekPlanDate(date: Date = new Date()): Date {
+  return ymdToDate(mondayOf(ymdSaoPaulo(date)))
+}
+
+/** Idem, a partir de um dia civil já em UTC (ex.: o `date` da query). */
+export function weekPlanDateOf(day: Date): Date {
+  return ymdToDate(mondayOf(dateToYmdUtc(day)))
 }
 
 async function buildGoal(companyId: string, vendorCode: string) {
@@ -103,7 +121,10 @@ export async function buildPlanDto(
         signals: (item.signalsSnapshot ?? null) as SignalsSnapshot | null,
         lat: item.lat === null ? null : Number(item.lat),
         lng: item.lng === null ? null : Number(item.lng),
-        plannedTime: item.plannedTime,
+        plannedTime: item.plannedTime ?? null,
+        distFromPrevM: item.distFromPrevM ?? null,
+        etaMin: item.etaMin ?? null,
+        plannedDate: item.plannedDate ? item.plannedDate.toISOString().slice(0, 10) : null,
       }
     })
 
@@ -125,32 +146,124 @@ export async function buildPlanDto(
 export async function getPlanForDate(
   companyId: string,
   vendorCode: string,
-  date: Date
+  date: Date,
+  kind: PlanKind = 'DAY'
 ): Promise<PlanWithItems | null> {
   return prisma.visitPlan.findUnique({
-    where: { companyId_vendorCode_date_kind: { companyId, vendorCode, date, kind: 'DAY' } },
+    where: { companyId_vendorCode_date_kind: { companyId, vendorCode, date, kind } },
     include: { items: { orderBy: { position: 'asc' } } },
   }) as Promise<PlanWithItems | null>
 }
 
+export interface PersistItem {
+  id: string
+  position: number
+  removed: boolean
+  plannedDate?: string | null
+}
+
+/**
+ * Recalcula distância/deslocamento/hora prevista da ordem que o vendedor
+ * decidiu (E16): a sequência é dele, os números são do motor. Sem coordenadas
+ * nos itens (empresa sem geocodificação), devolve tudo nulo — nada a anotar.
+ */
+async function reannotate(
+  plan: PlanWithItems,
+  ordered: PersistItem[]
+): Promise<Map<string, { distFromPrevM: number | null; etaMin: number | null; plannedTime: string | null }>> {
+  const result = new Map<string, { distFromPrevM: number | null; etaMin: number | null; plannedTime: string | null }>()
+  const byId = new Map(plan.items.map((i) => [i.id, i]))
+  const active = ordered.filter((i) => !i.removed && byId.has(i.id))
+  if (!active.some((i) => byId.get(i.id)?.lat !== null && byId.get(i.id)?.lat !== undefined)) {
+    return result
+  }
+
+  const [overrides, seller, windows] = await Promise.all([
+    prisma.intelParameter.findMany({
+      where: { companyId: plan.companyId },
+      select: { key: true, value: true, segment: true },
+    }),
+    prisma.user.findFirst({
+      where: { companyId: plan.companyId, idVendProt: plan.vendorCode, active: true },
+      select: { vehicle: true },
+    }),
+    prisma.customerWindow.findMany({
+      where: { companyId: plan.companyId, customerCode: { in: plan.items.map((i) => i.customerCode) } },
+      select: { customerCode: true, loja: true, weekday: true, startTime: true, endTime: true },
+    }),
+  ])
+  const params = resolveParameters(overrides as ParameterOverride[])
+  const opts = {
+    dayStartHour: params.day_start_hour,
+    visitMinutes: params.visit_minutes,
+    avgSpeedKmh: params.avg_speed_kmh,
+    vehicle: (seller?.vehicle ?? null) as Vehicle | null,
+  }
+
+  // Um dia por vez: no plano da semana cada dia recomeça às day_start_hour
+  const days = new Map<string, PersistItem[]>()
+  for (const item of active) {
+    const day = item.plannedDate ?? (byId.get(item.id)?.plannedDate?.toISOString().slice(0, 10) ?? '')
+    const list = days.get(day) ?? []
+    list.push(item)
+    days.set(day, list)
+  }
+
+  for (const [day, items] of days) {
+    const weekday = day ? weekdayOf(day.replace(/-/g, '')) : weekdayOf(dateToYmdUtc(plan.date))
+    const stops: RoutableStop<string>[] = items
+      .sort((a, b) => a.position - b.position)
+      .map((item) => {
+        const row = byId.get(item.id) as VisitPlanItem
+        const rowWindows = windows
+          .filter((w) => w.customerCode === row.customerCode && w.loja === row.loja && w.weekday === weekday)
+          .map((w) => ({ startMin: clockToMinutes(w.startTime) ?? 0, endMin: clockToMinutes(w.endTime) ?? 0 }))
+          .filter((w) => w.endMin > w.startMin)
+        // Bloqueados não entram na rota (seção "resolver", sem hora)
+        const blocked = row.statusAtTime === 'BLOCKED'
+        return {
+          key: item.id,
+          lat: blocked || row.lat === null ? null : Number(row.lat),
+          lng: blocked || row.lng === null ? null : Number(row.lng),
+          windows: rowWindows,
+          payload: item.id,
+        }
+      })
+    for (const stop of annotateSequence(stops, opts)) {
+      result.set(stop.key, {
+        distFromPrevM: stop.distFromPrevM,
+        etaMin: stop.etaMin,
+        plannedTime: stop.plannedTime,
+      })
+    }
+  }
+  return result
+}
+
 export async function persistPlanEdit(
-  planId: string,
+  plan: PlanWithItems,
   grouping: string | null,
-  items: { id: string; position: number; removed: boolean }[],
+  items: PersistItem[],
   edited: boolean
 ): Promise<void> {
-  const updates: Prisma.PrismaPromise<unknown>[] = items.map((item) =>
-    prisma.visitPlanItem.update({
+  const annotations = await reannotate(plan, items)
+  const updates: Prisma.PrismaPromise<unknown>[] = items.map((item) => {
+    const geo = annotations.get(item.id)
+    return prisma.visitPlanItem.update({
       where: { id: item.id },
       data: {
         position: item.position,
         removedAt: item.removed ? new Date() : null,
+        ...(item.plannedDate !== undefined
+          ? { plannedDate: item.plannedDate ? ymdToDate(item.plannedDate.replace(/-/g, '')) : null }
+          : {}),
+        ...(geo ?? (item.removed ? {} : {})),
       },
     })
-  )
+  })
   updates.push(
     prisma.visitPlan.update({
-      where: { id: planId },
+      where: { id: plan.id },
       data: { grouping, ...(edited ? { status: 'EDITED' } : {}) },
     })
   )

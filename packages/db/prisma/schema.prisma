@@ -108,6 +108,7 @@ model Company {
   intelLlmCache         IntelLlmCache[]
   evalCases             EvalCase[]
   geoAddresses          GeoAddress[]
+  customerWindows       CustomerWindow[]
 
   @@map("companies")
 }
@@ -897,12 +898,14 @@ model VisitPlanItem {
   removedAt       DateTime? // SideEffect: tirado do dia (editar é sinal)
   movedToPlanId   String?
 
-  // Preenchidos quando há geocodificação (E15-F1); ordenação por distância = F2
+  // Preenchidos quando há geocodificação (E15-F1); ordem por distância (E16)
   lat           Decimal? @db.Decimal(9, 6)
   lng           Decimal? @db.Decimal(9, 6)
   distFromPrevM Int?
   etaMin        Int?
   plannedTime   String? // "08:30"
+  // Plano semanal (E18): dia civil da parada; null nos planos do dia
+  plannedDate   DateTime? @db.Date
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1058,4 +1061,35 @@ model GeoAddress {
 
   @@id([companyId, customerCode, loja])
   @@map("intel_geo_addresses")
+}
+
+// ─────────────────────────────────────────
+// CustomerWindow — janela de atendimento do cliente (cfg_janela_cliente; E16)
+// weekday 0=dom … 6=sáb; horários "HH:MM" no fuso America/Sao_Paulo
+// ─────────────────────────────────────────
+
+enum WindowSource {
+  CADASTRO // cadastro do cliente (admin)
+  SELLER // vendedor ajustou no app
+  MANAGER // gerente ajustou no painel
+}
+
+model CustomerWindow {
+  id           String       @id @default(uuid())
+  customerCode String
+  loja         String
+  weekday      Int          @db.SmallInt
+  startTime    String // "08:00"
+  endTime      String // "12:00"
+  source       WindowSource @default(SELLER)
+  changedBy    String? // userId
+
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([companyId, customerCode, loja, weekday])
+  @@map("intel_customer_windows")
 }

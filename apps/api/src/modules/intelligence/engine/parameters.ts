@@ -18,6 +18,12 @@ export interface EngineParameters {
   weight_risk: number
   visited_cooldown_days: number
   reconciliation_tolerance_pct: number
+  // Fase 2 (E16/E19)
+  route_by_distance: boolean
+  day_start_hour: number
+  visit_minutes: number
+  avg_speed_kmh: number
+  cross_sell_min_pct: number
 }
 
 export interface ParameterOverride {
@@ -31,6 +37,8 @@ function coerce(key: keyof EngineParameters, value: unknown): number | string | 
   if (typeof fallback === 'boolean') return typeof value === 'boolean' ? value : null
   if (key === 'group_by') return value === 'city' || value === 'district' ? value : null
   const n = typeof value === 'number' ? value : Number(value)
+  // day_start_hour aceita 0 (meia-noite); os demais precisam ser positivos
+  if (key === 'day_start_hour') return Number.isFinite(n) && n >= 0 && n <= 23 ? n : null
   return Number.isFinite(n) && n > 0 ? n : null
 }
 

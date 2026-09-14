@@ -73,3 +73,35 @@ describe('applyPlanOps', () => {
     expect(r.edited).toBe(false)
   })
 })
+
+describe('applyPlanOps — plano da semana (E18)', () => {
+  const week = (): PlanState => ({
+    grouping: null,
+    items: [
+      { id: 'a', position: 1, removed: false, plannedDate: '2026-09-14' },
+      { id: 'b', position: 2, removed: false, plannedDate: '2026-09-14' },
+      { id: 'c', position: 3, removed: false, plannedDate: '2026-09-15' },
+    ],
+  })
+
+  it('moveToDay leva o item para o fim do dia de destino e reindexa por dia', () => {
+    const r = applyPlanOps(week(), [{ opId: '1', type: 'moveToDay', itemId: 'a', date: '2026-09-15' }])
+    const byId = new Map(r.state.items.map((i) => [i.id, i]))
+    expect(byId.get('a')).toMatchObject({ plannedDate: '2026-09-15', position: 3 })
+    expect(byId.get('b')).toMatchObject({ plannedDate: '2026-09-14', position: 1 })
+    expect(byId.get('c')).toMatchObject({ plannedDate: '2026-09-15', position: 2 })
+    expect(r.edited).toBe(true)
+  })
+
+  it('mover para o mesmo dia não conta como edição de dia, mas muda a ordem', () => {
+    const r = applyPlanOps(week(), [{ opId: '1', type: 'moveToDay', itemId: 'a', date: '2026-09-14' }])
+    expect(r.state.items.map((i) => i.id)).toEqual(['b', 'a', 'c'])
+  })
+
+  it('reaplicar o mesmo lote de moveToDay é idempotente', () => {
+    const ops = [{ opId: 'm1', type: 'moveToDay' as const, itemId: 'c', date: '2026-09-14' }]
+    const once = applyPlanOps(week(), ops)
+    const twice = applyPlanOps(once.state, ops)
+    expect(twice.state).toEqual(once.state)
+  })
+})
