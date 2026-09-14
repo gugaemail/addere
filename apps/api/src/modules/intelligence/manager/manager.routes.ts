@@ -11,7 +11,6 @@ import {
   buildManagerHome,
   buildPilotReport,
   buildTeam,
-  countManagers,
   resolveTeamScope,
   type TeamScope,
 } from './manager.service'
@@ -39,8 +38,8 @@ const planItemSchema = z
   })
   .strict()
 
-/** O gerente vê a empresa inteira quando é intel.admin/SUPERADMIN (D3b). */
-async function scopeFor(request: FastifyRequest, companyId: string): Promise<TeamScope> {
+/** Só intel.admin/SUPERADMIN veem a empresa inteira; o gerente, a sua equipe (D3b). */
+async function scopeFor(request: FastifyRequest): Promise<TeamScope> {
   const isSuperAdmin = request.user.role === 'SUPERADMIN'
   const permissions = isSuperAdmin
     ? new Set<string>()
@@ -48,7 +47,6 @@ async function scopeFor(request: FastifyRequest, companyId: string): Promise<Tea
   return resolveTeamScope({
     viewerId: request.user.sub,
     isAdmin: isSuperAdmin || permissions.has('intel.admin'),
-    managerCount: await countManagers(companyId),
   })
 }
 
@@ -62,7 +60,7 @@ export default async function managerRoutes(app: FastifyInstance) {
     const query = teamQuerySchema.parse(request.query)
 
     const anchorYmd = query.date ? compactYmd(query.date) : ymdSaoPaulo(new Date())
-    const scope = await scopeFor(request, company.id)
+    const scope = await scopeFor(request)
     return reply.send(await buildTeam(company.id, scope, anchorYmd, query.range))
   })
 
@@ -86,7 +84,7 @@ export default async function managerRoutes(app: FastifyInstance) {
       return reply.status(400).send({ message: 'A data inicial não pode ser depois da final' })
     }
 
-    const scope = await scopeFor(request, company.id)
+    const scope = await scopeFor(request)
     return reply.send(await buildPilotReport(company.id, scope, fromYmd, toYmd))
   })
 
@@ -105,7 +103,7 @@ export default async function managerRoutes(app: FastifyInstance) {
     }
 
     // O gerente com recorte próprio não mexe no plano de quem não é dele
-    const scope = await scopeFor(request, company.id)
+    const scope = await scopeFor(request)
     if (scope.managerId && seller.managerId !== scope.managerId) {
       return reply.status(403).send({ message: 'Este vendedor não é da sua equipe' })
     }

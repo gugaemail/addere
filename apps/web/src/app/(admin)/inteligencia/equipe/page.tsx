@@ -29,7 +29,10 @@ const RANGE_TABS = [
 ]
 
 export default function EquipePage() {
-  const { isSuperAdmin } = useAuth()
+  const { isSuperAdmin, isAdmin, hasPermission } = useAuth()
+  // Gerente vê só os vendedores associados a ele (D3b): equipe vazia, para
+  // ele, é falta de associação — não de código Protheus
+  const seesWholeCompany = isSuperAdmin || isAdmin || hasPermission('intel.admin')
   const { companyId } = useCompanyContext()
   const [range, setRange] = useState<TeamRange>('day')
   const [date, setDate] = useState(() => todayInSaoPaulo())
@@ -126,8 +129,9 @@ export default function EquipePage() {
           {data.sellers.length === 0 ? (
             <Card>
               <p className="text-sm text-[var(--text-secondary)]">
-                Nenhum vendedor com código Protheus nesta equipe. Cadastre o código do vendedor para
-                ele entrar no plano e aparecer aqui.
+                {seesWholeCompany
+                  ? 'Nenhum vendedor com código Protheus nesta empresa. Cadastre o código do vendedor para ele entrar no plano e aparecer aqui.'
+                  : 'Nenhum vendedor associado a você. Peça ao administrador para definir você como gerente na ficha de cada vendedor (cadastro de usuários).'}
               </p>
             </Card>
           ) : (
