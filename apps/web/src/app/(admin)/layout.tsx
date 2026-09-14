@@ -11,9 +11,12 @@ import {
   Database,
   LogOut,
   Moon,
+  Route,
+  Settings,
   SlidersHorizontal,
   Sparkles,
   Sun,
+  TrendingDown,
   Users,
   type LucideIcon,
 } from 'lucide-react'
@@ -76,6 +79,14 @@ const NAV_GROUPS: NavGroup[] = [
         requires: { permission: ['intel.admin', 'intel.manager'], orAdmin: true },
       },
       {
+        // Fase 2 (E21) — mesmo gating da Equipe: intel.admin ou intel.manager
+        href: '/inteligencia/perdas',
+        label: 'Onde estou perdendo',
+        match: (p) => p.startsWith('/inteligencia/perdas'),
+        icon: TrendingDown,
+        requires: { permission: ['intel.admin', 'intel.manager'], orAdmin: true },
+      },
+      {
         href: '/inteligencia/consultas',
         label: 'Consultas',
         match: (p) => p.startsWith('/inteligencia/consultas'),
@@ -101,6 +112,22 @@ const NAV_GROUPS: NavGroup[] = [
   {
     title: 'Empresa',
     items: [
+      // Self-service do ADMIN (E22): ficha dos vendedores e configuração da
+      // Inteligência sem depender do SUPERADMIN
+      {
+        href: '/vendedores',
+        label: 'Vendedores',
+        match: (p) => p.startsWith('/vendedores'),
+        icon: Route,
+        requires: 'admin',
+      },
+      {
+        href: '/configuracoes',
+        label: 'Configurações',
+        match: (p) => p.startsWith('/configuracoes'),
+        icon: Settings,
+        requires: 'admin',
+      },
       {
         href: '/dashboard',
         label: 'Empresas',

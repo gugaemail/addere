@@ -30,6 +30,8 @@ interface ParamMeta {
   kind: 'number' | 'select' | 'switch'
   options?: { value: string; label: string }[]
   step?: string
+  min?: number
+  max?: number
 }
 
 const BLOCKS: { title: string; subtitle: string; params: ParamMeta[] }[] = [
@@ -72,6 +74,18 @@ const BLOCKS: { title: string; subtitle: string; params: ParamMeta[] }[] = [
       { key: 'weight_urgency', label: 'Urgência (atraso no ciclo)', kind: 'number' },
       { key: 'weight_risk', label: 'Risco (título vencido / crédito)', kind: 'number' },
       { key: 'reconciliation_tolerance_pct', label: 'Tolerância da reconciliação (%)', kind: 'number', step: '0.5', hint: 'usada na tela de Consultas' },
+    ],
+  },
+  {
+    // Fase 2 — roteirização (E16) e cross-sell (E19)
+    title: 'Roteirização e cross-sell',
+    subtitle: 'Ordem das paradas, hora prevista de cada visita e sugestão de produtos',
+    params: [
+      { key: 'route_by_distance', label: 'Ordenar paradas por distância', kind: 'switch', hint: 'desligado: ordem do ranking' },
+      { key: 'day_start_hour', label: 'Primeira visita às (hora)', kind: 'number', min: 0, max: 23, hint: 'base da hora prevista' },
+      { key: 'visit_minutes', label: 'Duração média da visita (min)', kind: 'number', min: 1 },
+      { key: 'avg_speed_kmh', label: 'Velocidade média de carro (km/h)', kind: 'number', min: 1, hint: 'moto ×1,2; a pé 5 km/h' },
+      { key: 'cross_sell_min_pct', label: 'Cross-sell: produto sugerido quando ≥ N% dos pares compram', kind: 'number', min: 1, max: 100 },
     ],
   },
 ]
@@ -243,6 +257,8 @@ export default function PremissasPage() {
                   label={meta.label}
                   type="number"
                   step={meta.step}
+                  min={meta.min}
+                  max={meta.max}
                   value={String(value ?? '')}
                   onChange={(e) => {
                     const n = e.target.value === '' ? '' : Number(e.target.value)

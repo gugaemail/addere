@@ -71,4 +71,24 @@ describe('filterNavGroups', () => {
   it('sem permissão nenhuma, lista vazia', () => {
     expect(filterNavGroups(groups, ctx())).toEqual([])
   })
+
+  // Fase 2 (E22): o grupo Empresa passou a misturar itens 'admin' (Vendedores,
+  // Configurações) com os 'superadmin' (Empresas, Piloto) — o ADMIN vê o
+  // grupo só com os seus, e o gerente continua sem ver o grupo
+  it('grupo misto admin/superadmin: ADMIN vê só os itens admin', () => {
+    const mixed = [
+      {
+        title: 'Empresa',
+        items: [
+          { href: '/vendedores', requires: 'admin' as const },
+          { href: '/configuracoes', requires: 'admin' as const },
+          { href: '/dashboard', requires: 'superadmin' as const },
+        ],
+      },
+    ]
+    const admin = filterNavGroups(mixed, ctx({ isAdmin: true }))
+    expect(admin[0].items.map((i) => i.href)).toEqual(['/vendedores', '/configuracoes'])
+    expect(filterNavGroups(mixed, ctx({ isSuperAdmin: true }))[0].items).toHaveLength(3)
+    expect(filterNavGroups(mixed, ctx({ hasPermission: (k) => k === 'intel.manager' }))).toEqual([])
+  })
 })

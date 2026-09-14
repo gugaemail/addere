@@ -2,18 +2,31 @@
 
 // W1 · Equipe em campo (E11): cabeçalho com data/em rota/frescor, toggle
 // Hoje/Semana/Mês, 4 KPIs, card por vendedor e alertas determinísticos.
-// O mapa da equipe é fase 2 (D9) — aqui fica só o lugar dele.
+// O mapa da equipe (E20, fase 2) fica no fim e só existe no recorte do dia.
 import { useMemo, useState } from 'react'
-import { AlertTriangle, CalendarCheck, CheckCircle2, Map, ShoppingCart, Users } from 'lucide-react'
+import dynamic from 'next/dynamic'
+import Link from 'next/link'
+import {
+  AlertTriangle,
+  ArrowUpRight,
+  CalendarCheck,
+  CheckCircle2,
+  Map,
+  ShoppingCart,
+  TrendingDown,
+  Users,
+} from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { useCompanyContext } from '@/contexts/CompanyContext'
 import {
+  useTeamMap,
   useTeamReport,
   type TeamAlert,
   type TeamRange,
   type TeamSellerCard,
 } from '@/hooks/useIntel'
 import { needsActiveCompany, pctLabel, rangeLabel, todayInSaoPaulo } from '@/lib/intel-helpers'
+import { filterMapSellers, mapBounds, withoutPinLabel, withoutPinRows } from '@/lib/team-map'
 import { SelectCompanyNotice } from '@/components/intel/SelectCompanyNotice'
 import { Badge } from '@/components/ui/Badge'
 import { Card } from '@/components/ui/Card'
@@ -22,10 +35,29 @@ import { KpiCard } from '@/components/ui/KpiCard'
 import { Spinner } from '@/components/ui/Spinner'
 import { Tabs } from '@/components/ui/Tabs'
 
+// O Leaflet lê window ao ser importado: o mapa só entra no bundle do cliente
+const TeamMap = dynamic(() => import('@/components/intel/TeamMap'), {
+  ssr: false,
+  loading: () => (
+    <div className="flex h-full items-center justify-center">
+      <Spinner />
+    </div>
+  ),
+})
+
 const RANGE_TABS = [
   { key: 'day', label: 'Hoje' },
   { key: 'week', label: 'Semana' },
   { key: 'month', label: 'Mês' },
+]
+
+// Legenda do mapa — as mesmas cores fixas do StatusPill (tokens status.*)
+const MAP_LEGEND = [
+  { label: 'No ciclo', className: 'bg-status-onCycle' },
+  { label: 'Atrasado', className: 'bg-status-late' },
+  { label: 'Em risco', className: 'bg-status-atRisk' },
+  { label: 'Bloqueado', className: 'bg-status-blocked' },
+  { label: 'Novo', className: 'bg-status-new' },
 ]
 
 export default function EquipePage() {
@@ -61,7 +93,15 @@ export default function EquipePage() {
             {data ? rangeLabel(data.range) : '—'} · {onRoute} em rota
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
+          <Link
+            href="/inteligencia/perdas"
+            className="inline-flex items-center gap-1 text-sm font-medium text-brand hover:underline"
+          >
+            <TrendingDown size={14} strokeWidth={1.5} aria-hidden />
+            Onde estou perdendo
+            <ArrowUpRight size={14} strokeWidth={1.5} aria-hidden />
+          </Link>
           {data && <FreshnessBadge updatedAt={data.lastSyncAt} />}
           <input
             type="date"
@@ -147,18 +187,110 @@ export default function EquipePage() {
             </div>
           )}
 
-          <Card className="flex items-center gap-3 border-dashed">
-            <Map size={18} strokeWidth={1.5} className="text-[var(--text-muted)]" aria-hidden />
-            <div>
-              <p className="text-sm font-medium text-[var(--text-primary)]">Mapa da equipe</p>
-              <p className="text-xs text-[var(--text-muted)]">
-                Chega na fase 2, junto com &quot;Onde estou perdendo&quot;.
-              </p>
-            </div>
-          </Card>
+          {range === 'day' ? (
+            <TeamMapSection date={date} />
+          ) : (
+            <Card className="flex items-center gap-3 border-dashed">
+              <Map size={18} strokeWidth={1.5} className="text-[var(--text-muted)]" aria-hidden />
+              <div>
+                <p className="text-sm font-medium text-[var(--text-primary)]">Mapa da equipe</p>
+                <p className="text-xs text-[var(--text-muted)]">
+                  O mapa mostra o dia; escolha Hoje.
+                </p>
+              </div>
+            </Card>
+          )}
         </>
       )}
     </div>
+  )
+}
+
+// Mapa do dia (E20): filtro por vendedor, contador de paradas sem posição e
+// o Leaflet dentro de um contexto de empilhamento próprio (`isolate`) — os
+// controles do mapa têm z-index 1000 e passariam por cima de toasts e modais.
+function TeamMapSection({ date }: { date: string }) {
+  const { data, isLoading } = useTeamMap(date)
+  const [vendorCode, setVendorCode] = useState('')
+
+  const sellers = useMemo(() => data?.sellers ?? [], [data])
+  const visible = useMemo(() => filterMapSellers(sellers, vendorCode), [sellers, vendorCode])
+  const missing = useMemo(() => withoutPinRows(visible), [visible])
+  const hasPins = useMemo(() => mapBounds(visible) !== null, [visible])
+
+  return (
+    <Card className="space-y-3">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="flex items-start gap-3">
+          <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-brand/10">
+            <Map size={18} strokeWidth={1.5} className="text-brand" aria-hidden />
+          </span>
+          <div>
+            <h2 className="text-sm font-semibold text-[var(--text-primary)]">Mapa da equipe</h2>
+            <p className="text-xs text-[var(--text-muted)]">
+              Paradas do dia na cor do status — cheias quando visitadas — e o último check-in de
+              cada vendedor.
+            </p>
+          </div>
+        </div>
+        <select
+          aria-label="Vendedor no mapa"
+          value={vendorCode}
+          onChange={(e) => setVendorCode(e.target.value)}
+          className="rounded-lg border border-[var(--border)] bg-[var(--bg-surface)] px-3 py-1.5 text-sm text-[var(--text-primary)]"
+        >
+          <option value="">Todos os vendedores</option>
+          {sellers.map((seller) => (
+            <option key={seller.userId} value={seller.vendorCode}>
+              {seller.name}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {missing.length > 0 && (
+        <ul className="flex flex-wrap gap-2">
+          {missing.map((row) => (
+            <li key={row.userId}>
+              <Badge variant="warning">
+                {row.name}: {withoutPinLabel(row.withoutPin)}
+              </Badge>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <div className="relative isolate z-0 h-[420px] overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--bg-subtle)]">
+        {isLoading ? (
+          <div className="flex h-full items-center justify-center">
+            <Spinner />
+          </div>
+        ) : hasPins ? (
+          <TeamMap sellers={visible} />
+        ) : (
+          <div className="flex h-full items-center justify-center px-6 text-center">
+            <p className="text-sm text-[var(--text-muted)]">
+              {sellers.length === 0
+                ? 'Nenhum plano gerado para este dia.'
+                : 'Nenhuma parada com posição neste dia — veja a geocodificação em Saúde dos dados.'}
+            </p>
+          </div>
+        )}
+      </div>
+
+      <ul className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-[var(--text-muted)]">
+        {MAP_LEGEND.map((item) => (
+          <li key={item.label} className="flex items-center gap-1.5">
+            <span className={`inline-block h-2.5 w-2.5 rounded-full ${item.className}`} aria-hidden />
+            {item.label}
+          </li>
+        ))}
+        <li className="flex items-center gap-1.5">
+          <span className="inline-block h-2.5 w-2.5 rounded-full bg-brand" aria-hidden />
+          Último check-in
+        </li>
+      </ul>
+    </Card>
   )
 }
 
