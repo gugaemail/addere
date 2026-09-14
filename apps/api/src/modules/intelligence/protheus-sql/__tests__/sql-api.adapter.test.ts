@@ -59,7 +59,29 @@ describe('mapColumnarPage', () => {
       >,
       cfg
     )
-    expect(rows).toEqual([{ D2_COD: 'CFD30', '202601': 25147.22 }])
+    expect(rows).toEqual([{ d2_cod: 'CFD30', '202601': 25147.22 }])
+  })
+
+  it('normaliza os nomes de coluna para minúsculas (o WSQUERY real devolve MAIÚSCULAS)', () => {
+    const rows = mapColumnarPage(
+      {
+        success: true,
+        columns: [{ name: 'PEDIDO' }, { name: 'ITEM' }, { name: 'VALOR' }],
+        items: [
+          { PEDIDO: '0000200811', ITEM: '01', VALOR: 1046.4, Cliente_Cod: '003086' },
+          { PEDIDO: '0000200811', ITEM: '02', VALOR: 3872.265, Cliente_Cod: '003086' },
+        ],
+      },
+      cfg
+    )
+    expect(rows).toEqual([
+      { pedido: '0000200811', item: '01', valor: 1046.4, cliente_cod: '003086' },
+      { pedido: '0000200811', item: '02', valor: 3872.265, cliente_cod: '003086' },
+    ])
+    // Colunar (linhas como arrays) também sai em minúsculas
+    expect(
+      mapColumnarPage({ columns: ['PEDIDO', { name: 'VALOR' }], items: [['P1', 10]] }, cfg)
+    ).toEqual([{ pedido: 'P1', valor: 10 }])
   })
 
   it('mapeia resposta colunar (colunas como strings, linhas como arrays)', () => {

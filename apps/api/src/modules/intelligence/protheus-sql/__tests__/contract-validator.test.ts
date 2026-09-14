@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { validateResultAgainstContract } from '../contract-validator'
 import { QUERY_CONTRACTS } from '../contracts'
+import { mapColumnarPage } from '../sql-api.adapter'
 
 const SALES = QUERY_CONTRACTS.SALES
 
@@ -66,5 +67,30 @@ describe('contract-validator', () => {
   it('colunas opcionais vazias não reprovam tipos', () => {
     const r = validateResultAgainstContract(SALES, [{ ...okRow, grupo_produto: '' }])
     expect(r.checks.find((c) => c.key === 'column_types')?.ok).toBe(true)
+  })
+})
+
+// Regressão (14/09/2026): com a resposta real do WSQUERY em MAIÚSCULAS, as
+// checagens de vendas liam colunas vazias — "88 linhas duplicadas" e
+// "1 pedido/1 cliente" falsos. O adapter normaliza; aqui, ponta a ponta.
+describe('prévia de vendas com a resposta real do WSQUERY', () => {
+  it('não acusa duplicidade nem fan-out quando o endpoint manda colunas em maiúsculas', () => {
+    const base = { DATA: '20260908', CLIENTE_LOJA: '01', QUANTIDADE: 1, VALOR: 10 }
+    const rows = mapColumnarPage(
+      {
+        items: [
+          { ...base, PEDIDO: '0000200811', ITEM: '01', CLIENTE_COD: '003086', VENDEDOR_COD: '137', PRODUTO_COD: 'E009G280C300' },
+          { ...base, PEDIDO: '0000200811', ITEM: '02', CLIENTE_COD: '003086', VENDEDOR_COD: '137', PRODUTO_COD: 'CFFR41' },
+          { ...base, PEDIDO: '0000200821', ITEM: '01', CLIENTE_COD: '003022', VENDEDOR_COD: '113', PRODUTO_COD: 'CFFE44' },
+          { ...base, PEDIDO: '0000200821', ITEM: '02', CLIENTE_COD: '003022', VENDEDOR_COD: '113', PRODUTO_COD: 'CFFE44' },
+        ],
+      },
+      { columnsField: 'columns', rowsField: 'items' }
+    )
+    const result = validateResultAgainstContract(SALES, rows)
+    expect(result.stats).toMatchObject({ rows: 4, distinctOrders: 2, distinctCustomers: 2, duplicateKeys: 0 })
+    expect(result.checks.find((c) => c.key === 'duplicate_keys')?.ok).toBe(true)
+    expect(result.checks.find((c) => c.key === 'fan_out')?.ok).toBe(true)
+    expect(result.ok).toBe(true)
   })
 })

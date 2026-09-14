@@ -89,6 +89,20 @@ export function resolveSqlApiConfig(syncConfig: unknown): SqlApiConfig {
  * - contrato real: { columns: [{name,type}...], items: [{col: valor}, ...] }
  * - colunar: { columns: ['a','b'] | [{name:'a'}...], items: [[1,2], ...] }
  */
+/**
+ * Nomes de coluna sempre em minúsculas. O WSQUERY real devolve os aliases em
+ * MAIÚSCULAS (PEDIDO, VALOR…), o contrato e o mock usam minúsculas — e parte
+ * dos consumidores (checagens da prévia, reconciliação) lê pelo nome exato.
+ * Normalizar aqui, no único ponto que fala com o Protheus, vale para todos.
+ */
+function lowerKeys(row: Record<string, unknown>): SqlRow {
+  const out: SqlRow = {}
+  for (const [key, value] of Object.entries(row)) {
+    out[key.toLowerCase()] = value === undefined ? null : (value as string | number | null)
+  }
+  return out
+}
+
 export function mapColumnarPage(
   raw: Record<string, unknown>,
   cfg: Pick<SqlApiConfig, 'columnsField' | 'rowsField'>
@@ -98,15 +112,16 @@ export function mapColumnarPage(
 
   if (rowsRaw.length > 0 && !Array.isArray(rowsRaw[0])) {
     // contrato real: items já vem como objetos { coluna: valor }
-    return rowsRaw as SqlRow[]
+    return (rowsRaw as Record<string, unknown>[]).map(lowerKeys)
   }
 
   const columnsRaw = raw[cfg.columnsField]
   if (!Array.isArray(columnsRaw)) return []
   const columns = columnsRaw.map((c) =>
-    typeof c === 'string'
+    (typeof c === 'string'
       ? c
       : String((c as Record<string, unknown>).name ?? (c as Record<string, unknown>).nome ?? '')
+    ).toLowerCase()
   )
 
   return (rowsRaw as unknown[][]).map((line) => {
