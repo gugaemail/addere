@@ -18,6 +18,13 @@ import {
 import type { QueryPreviewResult, ReconciliationResult } from '@addere/types'
 import { getApiErrorMessage } from '@/lib/api'
 import { backfillProgress, brl, formatDiffPct, periodLabel } from '@/lib/intel-helpers'
+import {
+  initialEditorSql,
+  isBrokenSql,
+  matchingReference,
+  normalizeReferenceSql,
+  referenceButtonLabel,
+} from '@/lib/query-reference'
 import { useAuth } from '@/contexts/AuthContext'
 import {
   useBackfillQuery,
@@ -71,8 +78,9 @@ export default function ConsultaPage() {
 
   const { data, isLoading } = useIntelQueries()
   const contract = data?.contracts.find((c) => c.name === contractName)
+  const references = useMemo(() => normalizeReferenceSql(contract?.referenceSql), [contract])
 
-  // Editor local — semeado do rascunho salvo (ou do SQL de referência)
+  // Editor local — semeado do rascunho salvo (ou da primeira referência)
   const [tab, setTab] = useState('sql')
   const [sql, setSql] = useState('')
   const [definition, setDefinition] = useState('')
@@ -82,13 +90,13 @@ export default function ConsultaPage() {
 
   useEffect(() => {
     if (!contract || seededFor === contract.name) return
-    setSql(contract.query?.sql ?? contract.referenceSql)
+    setSql(initialEditorSql(contract.query?.sql, references))
     setDefinition(contract.query?.definition ?? '')
     setExclusions(contract.query?.exclusions ?? '')
     setGotchas(contract.query?.gotchas ?? '')
     setSeededFor(contract.name)
     setTab('sql')
-  }, [contract, seededFor])
+  }, [contract, references, seededFor])
 
   // Slug inválido → contrato principal
   useEffect(() => {
@@ -144,11 +152,17 @@ export default function ConsultaPage() {
 
   const query = contract.query
   const contractLabel = contract.labelPt
+  // Rascunho gravado pelo defeito antigo ("[object Object],…"): o editor abre
+  // com a referência e a tela pede para salvar de novo
+  const brokenDraft = isBrokenSql(query?.sql)
+  const loadedReference = matchingReference(sql, references)
   const dirty =
-    sql !== (query?.sql ?? contract.referenceSql) ||
+    sql !== (brokenDraft ? '' : (query?.sql ?? references[0]?.sql ?? '')) ||
     definition !== (query?.definition ?? '') ||
     exclusions !== (query?.exclusions ?? '') ||
     gotchas !== (query?.gotchas ?? '')
+  // Nada salvo ainda: dá para salvar a referência como veio, sem editar
+  const canSave = dirty || !query
   const canPublish =
     canEdit && query && !query.published && query.validatedAt && query.reconciliationDiffPct !== null
 
@@ -287,6 +301,27 @@ export default function ConsultaPage() {
 
       {tab === 'sql' && (
         <div className="space-y-4">
+          {brokenDraft && (
+            <div className="flex items-start gap-2.5 rounded-xl border border-warning/30 bg-warning/10 px-4 py-3 text-sm text-[var(--text-primary)]">
+              <AlertTriangle size={16} strokeWidth={1.5} className="mt-0.5 shrink-0 text-warning" aria-hidden />
+              <span>
+                O rascunho salvo não tinha SQL válido. O editor abriu com a referência: ajuste e salve o
+                rascunho de novo.
+              </span>
+            </div>
+          )}
+          {references.length > 1 && (
+            <p className="text-xs text-[var(--text-secondary)]">
+              Há {references.length} referências para esta consulta. Use a que corresponde ao número oficial
+              que você vai informar na reconciliação.
+              {loadedReference >= 0 && (
+                <>
+                  {' '}
+                  No editor: <b className="text-[var(--text-primary)]">{references[loadedReference].label}</b>.
+                </>
+              )}
+            </p>
+          )}
           <Textarea
             label={`SQL — ${contract.labelPt}`}
             mono
@@ -301,16 +336,21 @@ export default function ConsultaPage() {
           <div className="flex flex-wrap items-center gap-3">
             {canEdit && (
               <>
-                <Button onClick={handleSaveDraft} disabled={saveDraft.isPending || !dirty}>
+                <Button onClick={handleSaveDraft} disabled={saveDraft.isPending || !canSave}>
                   {saveDraft.isPending ? 'Salvando…' : 'Salvar rascunho'}
                 </Button>
-                <Button
-                  variant="secondary"
-                  onClick={() => setSql(contract.referenceSql)}
-                  disabled={sql === contract.referenceSql}
-                >
-                  Usar SQL de referência
-                </Button>
+                {/* Um botão por referência; desabilita o que já está no editor */}
+                {references.map((ref, index) => (
+                  <Button
+                    key={ref.label}
+                    variant="secondary"
+                    onClick={() => setSql(ref.sql)}
+                    disabled={loadedReference === index}
+                    title={loadedReference === index ? 'Esta referência já está no editor' : undefined}
+                  >
+                    {referenceButtonLabel(ref, references.length)}
+                  </Button>
+                ))}
               </>
             )}
             <span className="text-xs text-[var(--text-secondary)]">
@@ -350,7 +390,7 @@ export default function ConsultaPage() {
             hint="Ex.: D2_TOTAL já vem com desconto aplicado"
           />
           {canEdit && (
-            <Button onClick={handleSaveDraft} disabled={saveDraft.isPending || !dirty}>
+            <Button onClick={handleSaveDraft} disabled={saveDraft.isPending || !canSave}>
               {saveDraft.isPending ? 'Salvando…' : 'Salvar rascunho'}
             </Button>
           )}

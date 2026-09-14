@@ -16,6 +16,7 @@ import type {
   TeamMapDto,
 } from '@addere/types'
 import { api } from '@/lib/api'
+import type { ReferenceSqlOption } from '@/lib/query-reference'
 import { useAuth } from '@/contexts/AuthContext'
 import { useCompanyContext } from '@/contexts/CompanyContext'
 
@@ -72,7 +73,8 @@ export interface QueryContractDto {
   requiredPlaceholders: string[]
   optionalPlaceholders: string[]
   columns: { name: string; required: boolean; kind: string }[]
-  referenceSql: string
+  // Lista: vendas tem duas referências (faturamento e pedidos) — ver lib/query-reference
+  referenceSql: ReferenceSqlOption[]
   helpText: string
   status: 'missing' | 'draft' | 'published'
   query: IntelQueryDto | null
