@@ -28,6 +28,7 @@ import {
 import { useAuth } from '@/contexts/AuthContext'
 import {
   useBackfillQuery,
+  useIntelCompanyParam,
   useIntelQueries,
   useJobsStatus,
   usePreviewQuery,
@@ -45,6 +46,7 @@ import { FormField } from '@/components/ui/FormField'
 import { useCompanyContext } from '@/contexts/CompanyContext'
 import { needsActiveCompany } from '@/lib/intel-helpers'
 import { SelectCompanyNotice } from '@/components/intel/SelectCompanyNotice'
+import { ReconciliationAuditPanel } from '@/components/intel/ReconciliationAuditPanel'
 
 // URL em português ↔ nome do contrato na API
 const SLUG_TO_NAME: Record<string, string> = {
@@ -103,6 +105,8 @@ export default function ConsultaPage() {
     if (!contractName) router.replace('/inteligencia/consultas/vendas')
   }, [contractName, router])
 
+  // Só SUPERADMIN manda companyId (a exportação do CSV usa o mesmo tenant)
+  const companyParam = useIntelCompanyParam()
   const saveDraft = useSaveQueryDraft(contractName ?? '')
   const preview = usePreviewQuery(contractName ?? '')
   const reconcile = useReconcileQuery(contractName ?? '')
@@ -466,12 +470,20 @@ export default function ConsultaPage() {
                       </b>{' '}
                       em {periodLabel(reconResult.period)}
                     </p>
-                    {!reconResult.withinTolerance && reconResult.probableCauses.length > 0 && (
+                    {reconResult.probableCauses.length > 0 && (
                       <ul className="list-disc pl-5 text-xs text-[var(--text-secondary)]">
                         {reconResult.probableCauses.map((cause) => (
                           <li key={cause}>{cause}</li>
                         ))}
                       </ul>
+                    )}
+                    {reconResult.audit && contractName && (
+                      <ReconciliationAuditPanel
+                        audit={reconResult.audit}
+                        contractName={contractName}
+                        period={reconResult.period}
+                        companyParam={companyParam}
+                      />
                     )}
                   </>
                 ) : (

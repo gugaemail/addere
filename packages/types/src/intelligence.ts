@@ -58,7 +58,29 @@ export interface ReconciliationResult {
   calcAmount: string
   diffPct: number
   withinTolerance: boolean
-  probableCauses: string[] // ordenadas por heurística
+  probableCauses: string[] // concretas (detectadas nos dados) primeiro, depois as genéricas
+  /** Como o Addere chegou ao calcAmount — para refazer a conta fora do Addere */
+  audit?: ReconciliationAudit
+}
+
+export interface ReconciliationAudit {
+  source: 'protheus' | 'mock' // mock = dados sintéticos, nada veio do ERP
+  endpointHost: string | null // host do endpoint SQL, sem caminho nem credencial
+  executedSql: string // SQL com os placeholders já substituídos
+  window: { dataIni: string; dataFim: string } // YYYYMMDD
+  branches: string[] // códigos usados em {{FILIAL}}
+  rows: number
+  pages: number
+  pageSize: number | null
+  truncated: boolean
+  duplicateRows: number // linhas idênticas em todas as colunas
+  duplicateKeys: number // pedido+item+produto repetidos (vendas)
+  invalidValues: number // "valor" que não virou número (fica fora da soma)
+  distinctOrders: number | null
+  byDay: { date: string; rows: number; amount: string }[]
+  branchColumn: string | null // coluna de filial encontrada no resultado, se houver
+  byBranch: { branch: string; rows: number; amount: string }[]
+  summary: string
 }
 
 // ─── Jobs e saúde (W4) ───

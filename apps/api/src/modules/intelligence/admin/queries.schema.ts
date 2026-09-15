@@ -24,4 +24,10 @@ export const reconcileSchema = z.object({
 })
 export type ReconcileInput = z.infer<typeof reconcileSchema>
 
+// Exportação das linhas do mês reconciliado (CSV) — mesmo período, sem valor oficial
+export const reconcileExportSchema = z.object({
+  companyId,
+  period: reconcileSchema.shape.period,
+})
+
 export const publishSchema = z.object({ companyId })
