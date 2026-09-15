@@ -2,7 +2,7 @@
 // Cada empresa preenche o SELECT que responde ao contrato no Protheus dela;
 // as colunas são os aliases obrigatórios em português (o agente nunca vê SQL).
 
-import type { IntelQueryName, IntelQueryScope } from '@addere/types'
+import type { IntelQueryName, IntelQueryScope, ReconciliationSpec } from '@addere/types'
 import type { PlaceholderName } from './placeholders'
 
 export type ContractFrequency = 'DAILY' | 'REFRESH' | 'WEEKLY' | 'ON_DEMAND'
@@ -30,6 +30,8 @@ export interface QueryContract {
   columns: ContractColumn[]
   referenceSql: ReferenceSql[]
   helpText: string
+  /** Como a consulta é comparada com o número oficial antes de publicar */
+  reconciliation: ReconciliationSpec
 }
 
 const col = (name: string, required: boolean, kind: ContractColumn['kind']): ContractColumn => ({
@@ -76,6 +78,16 @@ WHERE D_E_L_E_T_ = ' ' AND A1_FILIAL IN ({{FILIAL}})`,
     ],
     helpText:
       'Enriquece o cadastro sincronizado via apiCliente com limite de crédito, segmento e última compra. A fronteira de segurança é o endpoint do Protheus (só aceita SELECT) — confirme com o consultor o usuário de banco somente-leitura.',
+    reconciliation: {
+      kind: 'COUNT_SNAPSHOT',
+      column: null,
+      unit: 'count',
+      label: 'Quantidade de clientes no cadastro',
+      hint: 'Quantos clientes o cadastro do Protheus (SA1) tem hoje, com os mesmos filtros da consulta: filiais, bloqueados e lojas.',
+      dateColumn: null,
+      dateGranularity: null,
+      keyColumns: ['cliente_cod', 'cliente_loja'],
+    },
   },
 
   SALES: {
@@ -126,6 +138,16 @@ WHERE C6.D_E_L_E_T_=' ' AND C6_BLQ<>'R' AND C6_FILIAL IN ({{FILIAL}})
     ],
     helpText:
       'Confirme que a consulta EXCLUI devoluções, bonificações e remessas (verifique F4_DUPLIC e os TES usados). A coluna opcional "item" (D2_ITEM/C6_ITEM) evita colapsar o mesmo produto repetido no pedido. Reconciliação contra o faturamento oficial é obrigatória antes de publicar.',
+    reconciliation: {
+      kind: 'SUM_MONTH',
+      column: 'valor',
+      unit: 'currency',
+      label: 'Valor oficial do mês (R$)',
+      hint: 'Compare um mês fechado com o total que o financeiro considera correto (faturamento ou vendido, conforme a referência usada).',
+      dateColumn: 'data',
+      dateGranularity: 'day',
+      keyColumns: ['pedido', 'item', 'produto_cod'],
+    },
   },
 
   OPEN_TITLES: {
@@ -156,6 +178,16 @@ WHERE D_E_L_E_T_=' ' AND E1_FILIAL IN ({{FILIAL}}) AND E1_SALDO > 0
     ],
     helpText:
       'Só títulos com saldo > 0. Excluir tipos que não são cobrança (NCC, RA, AB-, PA). Gera o status Bloqueado quando vencido além do parâmetro da empresa.',
+    reconciliation: {
+      kind: 'SUM_SNAPSHOT',
+      column: 'valor_saldo',
+      unit: 'currency',
+      label: 'Total a receber em aberto hoje (R$)',
+      hint: 'Compare com o total do relatório de títulos a receber em aberto do financeiro, na posição de hoje — não é de um mês: é o saldo que existe agora.',
+      dateColumn: 'vencimento',
+      dateGranularity: 'month',
+      keyColumns: ['titulo', 'cliente_cod', 'cliente_loja', 'vencimento'],
+    },
   },
 
   PRODUCTS: {
@@ -184,6 +216,16 @@ WHERE D_E_L_E_T_=' '`,
     ],
     helpText:
       'Enriquece o catálogo sincronizado via apiPord com o grupo (base do cross-sell na fase 2).',
+    reconciliation: {
+      kind: 'COUNT_SNAPSHOT',
+      column: null,
+      unit: 'count',
+      label: 'Quantidade de produtos no cadastro',
+      hint: 'Quantos produtos o cadastro do Protheus (SB1) tem hoje, com os mesmos filtros da consulta (ativos, tipos).',
+      dateColumn: null,
+      dateGranularity: null,
+      keyColumns: ['produto_cod'],
+    },
   },
 
   STOCK: {
@@ -209,6 +251,16 @@ WHERE D_E_L_E_T_=' ' AND B2_COD = {{PRODUTO}} AND B2_FILIAL IN ({{FILIAL}})`,
     ],
     helpText:
       'Consulta ao vivo, fora do sync — aparece no app como "confirme disponibilidade" (fase 2; na fase 1 o app usa o saldo do sync de produtos).',
+    reconciliation: {
+      kind: 'NONE',
+      column: null,
+      unit: null,
+      label: '',
+      hint: 'O estoque é consultado produto a produto na hora da visita — não existe um total para comparar. Basta a prévia verde para publicar.',
+      dateColumn: null,
+      dateGranularity: null,
+      keyColumns: ['produto_cod', 'local'],
+    },
   },
 }
 

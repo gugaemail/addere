@@ -2,15 +2,22 @@
 
 // "Como o Addere chegou a esse valor" (W3): quem cadastra a consulta precisa
 // refazer a conta fora do Addere. Mostra o SQL exatamente como foi executado,
-// linhas e páginas recebidas, filiais, a soma por dia (e por filial) e baixa as
-// mesmas linhas em CSV para comparar no Excel com o relatório do Protheus.
+// linhas e páginas recebidas, filiais, o total agrupado por data (dia em vendas,
+// mês de vencimento em títulos) e por filial, e baixa as mesmas linhas em CSV
+// para comparar no Excel com o relatório do Protheus.
 import { useState } from 'react'
 import { toast } from 'sonner'
 import { Check, Copy, Download } from 'lucide-react'
 import type { ReconciliationAudit } from '@addere/types'
 import { api, getApiErrorMessage } from '@/lib/api'
-import { brl } from '@/lib/intel-helpers'
-import { auditFlags, auditSummaryLine, sumAmounts, ymdLabel } from '@/lib/reconciliation'
+import {
+  auditFlags,
+  auditSummaryLine,
+  dateGroupTitle,
+  formatMetric,
+  sumAmounts,
+  ymdLabel,
+} from '@/lib/reconciliation'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { Table, type Column } from '@/components/ui/Table'
@@ -18,7 +25,8 @@ import { Table, type Column } from '@/components/ui/Table'
 interface Props {
   audit: ReconciliationAudit
   contractName: string
-  period: string // YYYYMM
+  /** YYYYMM só quando o contrato reconcilia mês fechado; senão a posição de hoje */
+  period?: string
   companyParam: { companyId?: string }
 }
 
@@ -29,7 +37,11 @@ export function ReconciliationAuditPanel({ audit, contractName, period, companyP
   const [copied, setCopied] = useState(false)
   const [downloading, setDownloading] = useState(false)
   const flags = auditFlags(audit)
-  const dayTotal = sumAmounts(audit.byDay)
+  const isCount = audit.unit === 'count'
+  const groupTitle = dateGroupTitle(audit)
+  const groupTotal = isCount
+    ? audit.byDay.reduce((sum, d) => sum + d.rows, 0)
+    : sumAmounts(audit.byDay)
 
   async function copySql() {
     try {
@@ -46,11 +58,11 @@ export function ReconciliationAuditPanel({ audit, contractName, period, companyP
     try {
       const response = await api.post(
         `/intel/admin/queries/${contractName}/reconcile/export`,
-        { period, ...companyParam },
+        { ...(period ? { period } : {}), ...companyParam },
         { responseType: 'blob' }
       )
       const disposition = String(response.headers['content-disposition'] ?? '')
-      const filename = /filename="([^"]+)"/.exec(disposition)?.[1] ?? `consulta-${period}.csv`
+      const filename = /filename="([^"]+)"/.exec(disposition)?.[1] ?? 'consulta.csv'
       const url = URL.createObjectURL(response.data as Blob)
       const link = document.createElement('a')
       link.href = url
@@ -65,14 +77,36 @@ export function ReconciliationAuditPanel({ audit, contractName, period, companyP
   }
 
   const dayColumns: Column<DayRow>[] = [
-    { key: 'date', header: 'Dia', render: (d) => ymdLabel(d.date) },
+    {
+      key: 'date',
+      header: audit.dateGranularity === 'month' ? 'Mês' : 'Dia',
+      render: (d) => ymdLabel(d.date),
+    },
     { key: 'rows', header: 'Linhas', render: (d) => d.rows, className: 'text-right' },
-    { key: 'amount', header: 'Valor', render: (d) => brl(d.amount), className: 'text-right tabular-nums' },
+    ...(isCount
+      ? []
+      : [
+          {
+            key: 'amount',
+            header: 'Valor',
+            render: (d: DayRow) => formatMetric(d.amount, 'currency'),
+            className: 'text-right tabular-nums',
+          },
+        ]),
   ]
   const branchColumns: Column<BranchRow>[] = [
     { key: 'branch', header: 'Filial', render: (b) => b.branch },
     { key: 'rows', header: 'Linhas', render: (b) => b.rows, className: 'text-right' },
-    { key: 'amount', header: 'Valor', render: (b) => brl(b.amount), className: 'text-right tabular-nums' },
+    ...(isCount
+      ? []
+      : [
+          {
+            key: 'amount',
+            header: 'Valor',
+            render: (b: BranchRow) => formatMetric(b.amount, 'currency'),
+            className: 'text-right tabular-nums',
+          },
+        ]),
   ]
 
   return (
@@ -84,7 +118,9 @@ export function ReconciliationAuditPanel({ audit, contractName, period, companyP
           {audit.endpointHost ? ` · lido de ${audit.endpointHost}` : ''}
         </p>
         <p className="mt-1 text-xs text-[var(--text-secondary)]">
-          Para conferir: rode o SQL abaixo no Protheus e compare dia a dia, ou baixe as linhas que foram somadas.
+          {isCount
+            ? 'O total é a quantidade de linhas que a consulta devolveu. Para conferir: rode o SQL abaixo no Protheus ou baixe as linhas.'
+            : `O total é a soma da coluna ${audit.column ?? 'valor'}. Para conferir: rode o SQL abaixo no Protheus e compare pelos grupos, ou baixe as linhas.`}
         </p>
       </div>
 
@@ -127,10 +163,11 @@ export function ReconciliationAuditPanel({ audit, contractName, period, companyP
         </div>
       )}
 
-      {audit.byDay.length > 0 && (
+      {groupTitle && audit.byDay.length > 0 && (
         <details open={audit.byDay.length <= 31}>
           <summary className="mb-1.5 cursor-pointer text-xs font-medium text-[var(--text-primary)]">
-            Por dia ({audit.byDay.length} dia{audit.byDay.length === 1 ? '' : 's'} · total {brl(dayTotal)})
+            {groupTitle} ({audit.byDay.length} grupo{audit.byDay.length === 1 ? '' : 's'} · total{' '}
+            {formatMetric(groupTotal, audit.unit)})
           </summary>
           <Table columns={dayColumns} data={audit.byDay} rowKey={(d) => d.date} className="max-h-96" />
         </details>

@@ -68,6 +68,25 @@ Smoke local da fase 2: `INTEL_SQL_ADAPTER=mock INTEL_GEOCODER=mock npm run intel
 gera o plano do dia já roteirizado; RFM só aparece com carteira ≥ 30 e o plano da
 semana só de segunda a sexta (domingo não há dias úteis restantes).
 
+## Consultas — reconciliação por contrato (14/09/2026)
+
+Antes de publicar, cada consulta é comparada com um número oficial da empresa. Como
+comparar é declarado no contrato (`reconciliation` em `protheus-sql/contracts.ts`):
+
+| Contrato | Tipo | Métrica | Agrupa por |
+| --- | --- | --- | --- |
+| vendas | `SUM_MONTH` | soma de `valor` num mês fechado | dia (`data`) |
+| títulos em aberto | `SUM_SNAPSHOT` | soma de `valor_saldo` na posição de hoje | mês de `vencimento` |
+| clientes | `COUNT_SNAPSHOT` | quantidade de linhas hoje | — |
+| produtos | `COUNT_SNAPSHOT` | quantidade de linhas hoje | — |
+| estoque ao vivo | `NONE` | não reconcilia: publica só com a prévia ok | — |
+
+A reconciliação devolve `audit` (SQL executado, linhas, páginas, filiais, host do endpoint,
+agrupamentos, chave do contrato repetida, linhas idênticas repetidas, valores inválidos) e
+`POST /intel/admin/queries/:name/reconcile/export` baixa as mesmas linhas em CSV. A lógica
+é pura em `admin/reconciliation-audit.ts`. `reconciliationPeriod` guarda `YYYYMM` (mês)
+ou `YYYYMMDD` (posição do dia).
+
 ## Jobs
 
 Scheduler in-process (`jobs/scheduler.ts`), ticker de 1 minuto, lock persistido

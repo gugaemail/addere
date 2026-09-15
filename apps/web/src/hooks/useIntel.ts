@@ -13,6 +13,7 @@ import type {
   LossesReportDto,
   QueryPreviewResult,
   ReconciliationResult,
+  ReconciliationSpec,
   TeamMapDto,
 } from '@addere/types'
 import { api } from '@/lib/api'
@@ -76,6 +77,8 @@ export interface QueryContractDto {
   // Lista: vendas tem duas referências (faturamento e pedidos) — ver lib/query-reference
   referenceSql: ReferenceSqlOption[]
   helpText: string
+  /** Como a consulta é comparada com o número oficial (mês, posição de hoje, contagem, nenhum) */
+  reconciliation: ReconciliationSpec
   status: 'missing' | 'draft' | 'published'
   query: IntelQueryDto | null
 }
@@ -171,7 +174,8 @@ export function useReconcileQuery(name: string) {
   const params = useIntelCompanyParam()
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (input: { period: string; refAmount: number }) =>
+    // period só para quem reconcilia mês fechado (vendas); os demais usam a posição de hoje
+    mutationFn: (input: { period?: string; refAmount: number }) =>
       api
         .post<ReconciliationResult>(`/intel/admin/queries/${name}/reconcile`, {
           ...input,

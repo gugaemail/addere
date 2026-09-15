@@ -51,9 +51,29 @@ export interface QueryPreviewResult {
   ms: number
 }
 
+// Como cada contrato é reconciliado com o número oficial da empresa
+//  SUM_MONTH      soma de uma coluna num mês fechado (vendas)
+//  SUM_SNAPSHOT   soma de uma coluna na posição de hoje (títulos em aberto)
+//  COUNT_SNAPSHOT quantidade de linhas hoje (clientes, produtos)
+//  NONE           sem total para comparar — publica só com a prévia ok (estoque)
+export type ReconciliationKind = 'SUM_MONTH' | 'SUM_SNAPSHOT' | 'COUNT_SNAPSHOT' | 'NONE'
+
+export interface ReconciliationSpec {
+  kind: ReconciliationKind
+  column: string | null // coluna somada (null para contagem e NONE)
+  unit: 'currency' | 'count' | null
+  label: string // rótulo do campo do número oficial
+  hint: string // de onde tirar o número oficial
+  dateColumn: string | null // agrupamento da auditoria
+  dateGranularity: 'day' | 'month' | null
+  keyColumns: string[] // chave que não pode repetir (JOIN multiplicando)
+}
+
 export interface ReconciliationResult {
   ok: boolean
-  period: string // 'YYYYMM'
+  kind: ReconciliationKind
+  unit: 'currency' | 'count'
+  period: string // 'YYYYMM' (mês fechado) ou 'YYYYMMDD' (posição do dia)
   refAmount: string
   calcAmount: string
   diffPct: number
@@ -67,16 +87,23 @@ export interface ReconciliationAudit {
   source: 'protheus' | 'mock' // mock = dados sintéticos, nada veio do ERP
   endpointHost: string | null // host do endpoint SQL, sem caminho nem credencial
   executedSql: string // SQL com os placeholders já substituídos
-  window: { dataIni: string; dataFim: string } // YYYYMMDD
+  window: { dataIni: string; dataFim: string } | null // YYYYMMDD; null = posição de hoje
   branches: string[] // códigos usados em {{FILIAL}}
   rows: number
   pages: number
   pageSize: number | null
   truncated: boolean
+  kind: ReconciliationKind
+  unit: 'currency' | 'count'
+  column: string | null // coluna somada
+  keyColumns: string[]
   duplicateRows: number // linhas idênticas em todas as colunas
-  duplicateKeys: number // pedido+item+produto repetidos (vendas)
-  invalidValues: number // "valor" que não virou número (fica fora da soma)
-  distinctOrders: number | null
+  duplicateKeys: number // chave do contrato repetida
+  invalidValues: number // valor que não virou número (fica fora da soma)
+  distinctOrders: number | null // só vendas
+  dateColumn: string | null
+  dateGranularity: 'day' | 'month' | null
+  /** Agrupado por dateColumn (dia ou mês); amount vazio na contagem */
   byDay: { date: string; rows: number; amount: string }[]
   branchColumn: string | null // coluna de filial encontrada no resultado, se houver
   byBranch: { branch: string; rows: number; amount: string }[]

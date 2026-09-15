@@ -1,17 +1,21 @@
 // Auditoria da reconciliação (W3) — puro, sem I/O.
 // Quem cadastra a consulta precisa conseguir refazer a conta fora do Addere:
 // o SQL exatamente como foi executado, quantas linhas e páginas voltaram, as
-// filiais do {{FILIAL}}, a soma por dia (e por filial, quando a consulta traz
-// a coluna) e sinais concretos de problema — linhas repetidas entre páginas,
-// resultado cortado, valores que não viraram número.
-import type { IntelQueryName, ReconciliationAudit } from '@addere/types'
+// filiais do {{FILIAL}}, o total agrupado por data (e por filial, quando a
+// consulta traz a coluna) e sinais concretos de problema — linhas repetidas
+// entre páginas, resultado cortado, chave repetida, valores que não viraram número.
+// A métrica vem do contrato: soma de uma coluna (vendas no mês, títulos hoje) ou
+// contagem de linhas (clientes, produtos).
+import type { IntelQueryName, ReconciliationAudit, ReconciliationSpec } from '@addere/types'
 import type { SqlRow } from '../protheus-sql/sql-api.adapter'
 
 export interface AuditInput {
   name: IntelQueryName
+  spec: ReconciliationSpec
   rows: SqlRow[]
   executedSql: string
-  window: { dataIni: string; dataFim: string }
+  /** null = posição de hoje (snapshot) */
+  window: { dataIni: string; dataFim: string } | null
   branches: string[]
   pages: number
   pageSize: number | null
@@ -57,13 +61,24 @@ function fmtBRL(n: number): string {
   return n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 }
 
+function dateKey(raw: unknown, granularity: 'day' | 'month' | null): string {
+  const value = String(raw ?? '').trim()
+  if (!value) return 'sem data'
+  if (granularity === 'month' && /^\d{8}$/.test(value)) return value.slice(0, 6)
+  return value
+}
+
 export function auditReconciliation(input: AuditInput): AuditResult {
-  const byDay = new Map<string, { rows: number; amount: number }>()
+  const { spec } = input
+  const isSum = spec.kind === 'SUM_MONTH' || spec.kind === 'SUM_SNAPSHOT'
+  const unit: 'currency' | 'count' = isSum ? 'currency' : 'count'
+
+  const byDate = new Map<string, { rows: number; amount: number }>()
   const branchColumn =
     input.rows.length > 0 ? (Object.keys(input.rows[0]).find((c) => /filial/i.test(c)) ?? null) : null
   const byBranch = new Map<string, { rows: number; amount: number }>()
   const seenRows = new Set<string>()
-  const seenKeys = new Set<string>()
+  const seenKeys = new Map<string, string>() // chave → fingerprint da primeira linha
   const orders = new Set<string>()
   let duplicateRows = 0
   let duplicateKeys = 0
@@ -71,45 +86,54 @@ export function auditReconciliation(input: AuditInput): AuditResult {
   let total = 0
 
   for (const row of input.rows) {
-    const value = parseAmount(row.valor)
-    if (value === null) invalidValues += 1
-    const amount = value ?? 0
-    total += amount
+    let amount = 0
+    if (isSum && spec.column) {
+      const value = parseAmount(row[spec.column])
+      if (value === null) invalidValues += 1
+      amount = value ?? 0
+      total += amount
+    } else {
+      total += 1
+    }
 
-    const day = String(row.data ?? '').trim() || 'sem data'
-    const dayEntry = byDay.get(day) ?? { rows: 0, amount: 0 }
-    dayEntry.rows += 1
-    dayEntry.amount += amount
-    byDay.set(day, dayEntry)
+    if (spec.dateColumn) {
+      const key = dateKey(row[spec.dateColumn], spec.dateGranularity)
+      const entry = byDate.get(key) ?? { rows: 0, amount: 0 }
+      entry.rows += 1
+      entry.amount += amount
+      byDate.set(key, entry)
+    }
 
     if (branchColumn) {
       const branch = String(row[branchColumn] ?? '').trim() || 'vazia'
-      const branchEntry = byBranch.get(branch) ?? { rows: 0, amount: 0 }
-      branchEntry.rows += 1
-      branchEntry.amount += amount
-      byBranch.set(branch, branchEntry)
+      const entry = byBranch.get(branch) ?? { rows: 0, amount: 0 }
+      entry.rows += 1
+      entry.amount += amount
+      byBranch.set(branch, entry)
     }
 
-    // Linha idêntica em todas as colunas: numa venda com pedido+item isso não
-    // acontece de verdade — é página devolvida duas vezes pelo endpoint
+    // Linha idêntica em todas as colunas: é página devolvida duas vezes pelo endpoint
     const fingerprint = JSON.stringify(Object.keys(row).sort().map((k) => [k, row[k]]))
-    if (seenRows.has(fingerprint)) duplicateRows += 1
+    const identical = seenRows.has(fingerprint)
+    if (identical) duplicateRows += 1
     else seenRows.add(fingerprint)
 
-    if (input.name === 'SALES') {
-      const order = String(row.pedido ?? '')
-      orders.add(order)
-      const key = `${order}|${row.item ?? '00'}|${row.produto_cod ?? ''}`
-      if (seenKeys.has(key)) duplicateKeys += 1
-      else seenKeys.add(key)
+    // Mesma chave do contrato com conteúdo diferente: JOIN multiplicando linhas
+    if (spec.keyColumns.length > 0) {
+      const key = spec.keyColumns.map((c) => String(row[c] ?? '')).join('|')
+      const first = seenKeys.get(key)
+      if (first === undefined) seenKeys.set(key, fingerprint)
+      else if (!identical && first !== fingerprint) duplicateKeys += 1
     }
+
+    if (input.name === 'SALES') orders.add(String(row.pedido ?? ''))
   }
 
-  const calcAmount = round2(total)
+  const calcAmount = isSum ? round2(total) : total
   const toList = (map: Map<string, { rows: number; amount: number }>) =>
     [...map.entries()]
       .sort(([a], [b]) => a.localeCompare(b))
-      .map(([key, v]) => ({ key, rows: v.rows, amount: round2(v.amount).toFixed(2) }))
+      .map(([key, v]) => ({ key, rows: v.rows, amount: isSum ? round2(v.amount).toFixed(2) : '' }))
 
   const concreteCauses: string[] = []
   if (input.source === 'mock') {
@@ -118,32 +142,31 @@ export function auditReconciliation(input: AuditInput): AuditResult {
     )
   }
   if (input.truncated) {
-    concreteCauses.push(
-      `Resultado cortado em ${input.rows.length} linhas — o total está incompleto`
-    )
+    concreteCauses.push(`Resultado cortado em ${input.rows.length} linhas — o total está incompleto`)
   }
   if (duplicateRows > 0) {
     concreteCauses.push(
       `${duplicateRows} linha(s) idêntica(s) repetida(s) — provável página devolvida mais de uma vez pelo endpoint (${input.pages} página(s)${input.pageSize ? ` de até ${input.pageSize} linhas` : ''})`
     )
   }
-  if (duplicateKeys > duplicateRows) {
+  if (duplicateKeys > 0) {
     concreteCauses.push(
-      `${duplicateKeys - duplicateRows} linha(s) com o mesmo pedido+item+produto e valores diferentes — JOIN multiplicando itens`
+      `${duplicateKeys} linha(s) com a mesma chave (${spec.keyColumns.join(' + ')}) e conteúdo diferente — JOIN multiplicando linhas`
     )
   }
   if (input.branches.length > 1) {
     const detail = branchColumn
-      ? 'veja a soma por filial abaixo'
-      : 'inclua a coluna da filial no SELECT para ver a soma de cada uma'
+      ? 'veja o total por filial abaixo'
+      : 'inclua a coluna da filial no SELECT para ver o total de cada uma'
     concreteCauses.push(
-      `A soma inclui ${input.branches.length} filiais (${input.branches.join(', ')}) — se o número oficial é de uma só, ${detail}`
+      `O total inclui ${input.branches.length} filiais (${input.branches.join(', ')}) — se o número oficial é de uma só, ${detail}`
     )
   }
   if (invalidValues > 0) {
     concreteCauses.push(`${invalidValues} valor(es) não numérico(s) foram ignorados na soma`)
   }
 
+  const rowsText = `${input.rows.length} linha(s) em ${input.pages} página(s)`
   return {
     calcAmount,
     concreteCauses,
@@ -157,34 +180,34 @@ export function auditReconciliation(input: AuditInput): AuditResult {
       pages: input.pages,
       pageSize: input.pageSize,
       truncated: input.truncated,
+      kind: spec.kind,
+      unit,
+      column: isSum ? spec.column : null,
+      keyColumns: spec.keyColumns,
       duplicateRows,
       duplicateKeys,
       invalidValues,
       distinctOrders: input.name === 'SALES' ? orders.size : null,
-      byDay: toList(byDay).map((d) => ({ date: d.key, rows: d.rows, amount: d.amount })),
+      dateColumn: spec.dateColumn,
+      dateGranularity: spec.dateGranularity,
+      byDay: toList(byDate).map((d) => ({ date: d.key, rows: d.rows, amount: d.amount })),
       branchColumn,
       byBranch: branchColumn
         ? toList(byBranch).map((b) => ({ branch: b.key, rows: b.rows, amount: b.amount }))
         : [],
-      summary: `${input.rows.length} linha(s) em ${input.pages} página(s), somando ${fmtBRL(calcAmount)}`,
+      summary: isSum ? `${rowsText}, somando ${fmtBRL(calcAmount)}` : rowsText,
     },
   }
 }
 
-// ─── CSV das linhas (o mesmo resultado que foi somado) ───
+// ─── CSV das linhas (o mesmo resultado que foi somado ou contado) ───
 
 const BOM = String.fromCharCode(0xfeff)
 const CRLF = String.fromCharCode(13, 10)
 
 function csvCell(value: unknown): string {
   if (value === null || value === undefined) return ''
-  let text: string
-  if (typeof value === 'number') {
-    // Excel em pt-BR: vírgula decimal
-    text = String(value).replace('.', ',')
-  } else {
-    text = String(value)
-  }
+  const text = typeof value === 'number' ? String(value).replace('.', ',') : String(value)
   return /[;"\n\r]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text
 }
 
