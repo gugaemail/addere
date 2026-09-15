@@ -7,6 +7,7 @@ import {
   queryNameSchema,
   upsertQuerySchema,
   reconcileSchema,
+  reconcileExportSchema,
 } from './queries.schema'
 import { startJobRun } from '../jobs/run-job'
 import { backfillOptions } from '../jobs/backfill'
@@ -15,6 +16,7 @@ import {
   saveDraft,
   previewQuery,
   reconcileQuery,
+  exportReconciliationCsv,
   publishQuery,
 } from './queries.service'
 
@@ -74,6 +76,25 @@ export default async function queriesRoutes(app: FastifyInstance) {
       return reply.send(
         await reconcileQuery(company, name, body.period, body.refAmount, request.user.sub)
       )
+    }
+  )
+
+  // POST /:name/reconcile/export — CSV com as linhas que a reconciliação soma,
+  // para conferir no Excel contra o relatório do Protheus (nada é gravado)
+  app.post(
+    '/:name/reconcile/export',
+    { preHandler: [adminOnly, userRateLimit(3, '1 minute')] },
+    async (request, reply) => {
+      const name = parseName(request, reply)
+      if (!name) return
+      const body = reconcileExportSchema.parse(request.body)
+      const company = await resolveTenant(request, reply, 'body')
+      if (!company) return
+      const { filename, csv } = await exportReconciliationCsv(company, name, body.period)
+      return reply
+        .header('content-type', 'text/csv; charset=utf-8')
+        .header('content-disposition', `attachment; filename="${filename}"`)
+        .send(csv)
     }
   )
 

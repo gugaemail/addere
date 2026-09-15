@@ -19,9 +19,10 @@ import { validateSql } from '../protheus-sql/sql-guard'
 import { substitutePlaceholders, formatDateYmdSaoPaulo } from '../protheus-sql/placeholders'
 import { buildPlaceholderValues } from '../protheus-sql/placeholder-values'
 import { periodWindow, type DateWindow } from '../sync/windows'
-import { getSqlAdapter } from '../protheus-sql/sql-api.adapter'
+import { getSqlAdapter, resolveSqlApiConfig, type SqlRow } from '../protheus-sql/sql-api.adapter'
 import { validateResultAgainstContract } from '../protheus-sql/contract-validator'
 import type { UpsertQueryInput } from './queries.schema'
+import { auditReconciliation, endpointHostOf, rowsToCsv } from './reconciliation-audit'
 
 const PREVIEW_WINDOW_DAYS = 7
 const PREVIEW_TIMEOUT_MS = 30_000
@@ -326,13 +327,20 @@ function probableCauses(diffPct: number, name: IntelQueryName): string[] {
   return causes
 }
 
-export async function reconcileQuery(
-  company: Company,
-  name: IntelQueryName,
-  period: string,
-  refAmount: number,
-  userId: string
-): Promise<ReconciliationResult> {
+interface MonthRun {
+  rows: SqlRow[]
+  executedSql: string
+  window: DateWindow
+  branches: string[]
+  pages: number
+  truncated: boolean
+}
+
+/**
+ * Roda a consulta salva num mês fechado (reconciliação e exportação usam a
+ * mesma rotina, então o CSV traz exatamente as linhas que foram somadas).
+ */
+async function runMonth(company: Company, name: IntelQueryName, period: string): Promise<MonthRun> {
   const contract = QUERY_CONTRACTS[name]
   const latest = await getLatestQuery(company.id, name)
   if (!latest) throw notFound(`Consulta ${contract.labelPt} ainda não configurada`)
@@ -343,11 +351,8 @@ export async function reconcileQuery(
   const month = Number(period.slice(4, 6))
   if (month < 1 || month > 12) throw badRequest('Período inválido (mês fora de 01–12)')
 
-  const { values, errors: valueErrors } = await buildPlaceholderValues(
-    company,
-    contract,
-    periodWindow(period)
-  )
+  const window = periodWindow(period)
+  const { values, errors: valueErrors } = await buildPlaceholderValues(company, contract, window)
   const substituted = substitutePlaceholders(latest.sql, values)
   const errors = [...valueErrors, ...substituted.errors]
   if (errors.length > 0) throw unprocessable(errors.join('; '))
@@ -357,20 +362,46 @@ export async function reconcileQuery(
     queryName: name,
     timeoutMs: RECONCILE_TIMEOUT_MS,
   })
-
-  let calcAmount = 0
-  for (const row of result.rows) {
-    const value = Number(String(row['valor'] ?? '0').replace(',', '.'))
-    if (Number.isFinite(value)) calcAmount += value
+  return {
+    rows: result.rows,
+    executedSql: substituted.sql,
+    window,
+    branches: values.branches ?? [],
+    pages: result.pages,
+    truncated: result.truncated,
   }
-  calcAmount = Math.round(calcAmount * 100) / 100
+}
+
+export async function reconcileQuery(
+  company: Company,
+  name: IntelQueryName,
+  period: string,
+  refAmount: number,
+  userId: string
+): Promise<ReconciliationResult> {
+  const latest = await getLatestQuery(company.id, name)
+  const run = await runMonth(company, name, period)
+
+  const source = env.INTEL_SQL_ADAPTER
+  const { calcAmount, audit, concreteCauses } = auditReconciliation({
+    name,
+    rows: run.rows,
+    executedSql: run.executedSql,
+    window: run.window,
+    branches: run.branches,
+    pages: run.pages,
+    pageSize: source === 'mock' ? null : resolveSqlApiConfig(company.syncConfig).pageSize,
+    truncated: run.truncated,
+    source,
+    endpointHost: source === 'mock' ? null : endpointHostOf(company.apiSql),
+  })
 
   const diffPct = refAmount === 0 ? 0 : Math.round(((calcAmount - refAmount) / refAmount) * 10_000) / 100
   const tolerance = await getTolerancePct(company.id)
   const withinTolerance = Math.abs(diffPct) <= tolerance
 
   await prisma.intelQuery.update({
-    where: { id: latest.id },
+    where: { id: (latest as IntelQuery).id },
     data: {
       reconciliationPeriod: period,
       reconciliationRefAmount: refAmount,
@@ -380,6 +411,11 @@ export async function reconcileQuery(
     },
   })
 
+  // Dados sintéticos nunca "batem" de verdade: mesmo dentro da tolerância, avisa
+  const causes = withinTolerance
+    ? concreteCauses.filter((c) => source === 'mock' && c.includes('sintéticos'))
+    : [...concreteCauses, ...probableCauses(diffPct, name)]
+
   return {
     ok: true,
     period,
@@ -387,8 +423,25 @@ export async function reconcileQuery(
     calcAmount: calcAmount.toFixed(2),
     diffPct,
     withinTolerance,
-    probableCauses: withinTolerance ? [] : probableCauses(diffPct, name),
+    probableCauses: causes,
+    audit,
   }
+}
+
+/** CSV das linhas do mês — as mesmas que a reconciliação somou (sem gravar nada). */
+export async function exportReconciliationCsv(
+  company: Company,
+  name: IntelQueryName,
+  period: string
+): Promise<{ filename: string; csv: string }> {
+  const run = await runMonth(company, name, period)
+  // "títulos em aberto" → "titulos-em-aberto"
+  const slug = QUERY_CONTRACTS[name].labelPt
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .replace(/[^a-z0-9]+/gi, '-')
+    .toLowerCase()
+  return { filename: `${slug}-${period}.csv`, csv: rowsToCsv(run.rows) }
 }
 
 // ─── Publicação (POST /intel/admin/queries/:name/publish) ───

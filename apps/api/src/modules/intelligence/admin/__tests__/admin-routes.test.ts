@@ -264,9 +264,9 @@ describe('POST /intel/admin/queries/:name/preview', () => {
 })
 
 describe('POST /intel/admin/queries/:name/reconcile', () => {
-  it('soma o mês no adapter mock, grava o diff e sugere causas fora da tolerância', async () => {
+  it('soma o mês, grava o diff, devolve a auditoria e aponta causas concretas primeiro', async () => {
     prismaMock.intelQuery.findFirst.mockResolvedValue(fakeQueryRow())
-    prismaMock.branch.findMany.mockResolvedValue([{ idProtheus: '0101' }])
+    prismaMock.branch.findMany.mockResolvedValue([{ idProtheus: '0101' }, { idProtheus: '0102' }])
     const res = await app.inject({
       method: 'POST',
       url: '/intel/admin/queries/SALES/reconcile',
@@ -278,12 +278,46 @@ describe('POST /intel/admin/queries/:name/reconcile', () => {
     expect(body.period).toBe('202607')
     expect(Number(body.calcAmount)).toBeGreaterThan(1)
     expect(body.withinTolerance).toBe(false)
-    expect(body.probableCauses.length).toBeGreaterThan(0)
     expect(prismaMock.intelQuery.update).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({ reconciliationPeriod: '202607' }),
       })
     )
+
+    // Auditoria: dá para refazer a conta fora do Addere
+    const { audit } = body
+    expect(audit.source).toBe('mock')
+    expect(audit.branches).toEqual(['0101', '0102'])
+    expect(audit.executedSql).toContain("'0101','0102'")
+    expect(audit.executedSql).not.toContain('{{')
+    expect(audit.window).toEqual({ dataIni: '20260701', dataFim: '20260731' })
+    expect(audit.rows).toBeGreaterThan(0)
+    const byDaySum = audit.byDay.reduce((sum: number, d: { amount: string }) => sum + Number(d.amount), 0)
+    expect(byDaySum).toBeCloseTo(Number(body.calcAmount), 1)
+
+    // Causas concretas (dados sintéticos, filiais) antes das genéricas
+    expect(body.probableCauses[0]).toMatch(/dados sintéticos/)
+    expect(body.probableCauses.some((c: string) => c.includes('2 filiais'))).toBe(true)
+  })
+
+  it('exporta as linhas do mês em CSV sem gravar reconciliação', async () => {
+    prismaMock.intelQuery.findFirst.mockResolvedValue(fakeQueryRow())
+    prismaMock.branch.findMany.mockResolvedValue([{ idProtheus: '0101' }])
+    const res = await app.inject({
+      method: 'POST',
+      url: '/intel/admin/queries/SALES/reconcile/export',
+      headers: auth('admin-a'),
+      payload: { period: '202607' },
+    })
+    expect(res.statusCode, res.body).toBe(200)
+    expect(res.headers['content-type']).toContain('text/csv')
+    expect(res.headers['content-disposition']).toContain('vendas-202607.csv')
+    const bom = String.fromCharCode(0xfeff)
+    expect(res.body.startsWith(bom)).toBe(true)
+    const lines = res.body.slice(1).split(String.fromCharCode(13, 10))
+    expect(lines[0]).toContain('pedido')
+    expect(lines.length).toBeGreaterThan(1)
+    expect(prismaMock.intelQuery.update).not.toHaveBeenCalled()
   })
 
   it('período mal formado → 400', async () => {
