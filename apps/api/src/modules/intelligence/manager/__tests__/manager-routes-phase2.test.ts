@@ -100,13 +100,23 @@ describe('GET /intel/manager/losses', () => {
     const forbidden = await app.inject({ method: 'GET', url: '/intel/manager/losses', headers: auth('sales-a') })
     expect(forbidden.statusCode).toBe(403)
 
-    prismaMock.user.findFirst.mockResolvedValue({ managerId: 'manager-b' })
+    prismaMock.user.findFirst.mockResolvedValue({ id: 'u9', managerId: 'manager-b' })
     const other = await app.inject({
       method: 'GET',
       url: '/intel/manager/losses?vendorCode=V9',
       headers: auth('manager-a'),
     })
     expect(other.statusCode).toBe(403)
+  })
+
+  it('gerente que vende consulta as próprias perdas pelo código dele', async () => {
+    prismaMock.user.findFirst.mockResolvedValue({ id: 'manager-a', managerId: null })
+    const res = await app.inject({
+      method: 'GET',
+      url: '/intel/manager/losses?vendorCode=123',
+      headers: auth('manager-a'),
+    })
+    expect(res.statusCode).toBe(200)
   })
 
   it('sem vendas devolve relatório vazio com o período certo', async () => {

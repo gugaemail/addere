@@ -4,6 +4,7 @@ import {
   managerNameOf,
   vehicleLabel,
   vendorSetupWarnings,
+  managerCell,
   vendorWarningText,
   vendorsOfCompany,
 } from '../vendors'
@@ -65,6 +66,14 @@ describe('vendorSetupWarnings/vendorWarningText', () => {
     expect(w).toEqual({ withoutManager: 1, withoutVisits: 1 })
   })
 
+  it('gerente que vende com o próprio código não conta como sem gerente', () => {
+    const w = vendorSetupWarnings([
+      user({ id: 'g', managerId: null, intelManager: true, visitsPerDay: 8 }),
+      user({ id: 'v', managerId: 'g', visitsPerDay: 8 }),
+    ])
+    expect(w.withoutManager).toBe(0)
+  })
+
   it('frase junta as duas partes e some quando não há aviso', () => {
     expect(vendorWarningText({ withoutManager: 0, withoutVisits: 0 })).toBeNull()
     expect(vendorWarningText({ withoutManager: 1, withoutVisits: 0 })).toMatch(
@@ -73,6 +82,18 @@ describe('vendorSetupWarnings/vendorWarningText', () => {
     expect(vendorWarningText({ withoutManager: 2, withoutVisits: 3 })).toMatch(
       /^2 vendedores sem gerente e 3 vendedores sem visitas por dia — /
     )
+  })
+})
+
+describe('managerCell', () => {
+  const users = [user({ id: 'g', name: 'Gustavo Gerente', intelManager: true })]
+  it('nome do gerente, "é gerente" para quem gerencia, aviso para os demais', () => {
+    expect(managerCell(users, user({ id: 'v', managerId: 'g' }))).toEqual({ kind: 'name', text: 'Gustavo Gerente' })
+    expect(managerCell(users, user({ id: 'g', managerId: null, intelManager: true }))).toEqual({
+      kind: 'is-manager',
+      text: 'é gerente',
+    })
+    expect(managerCell(users, user({ id: 'x', managerId: null }))).toEqual({ kind: 'missing', text: 'sem gerente' })
   })
 })
 

@@ -121,18 +121,43 @@ describe('GET /intel/manager/team', () => {
     expect(res.statusCode).toBe(400)
   })
 
-  it('gerente: a consulta filtra pelo managerId de quem pediu, mesmo sendo o único', async () => {
+  it('gerente: a consulta filtra pela equipe de quem pediu e inclui ele mesmo (gerente que vende)', async () => {
     prismaMock.user.count.mockResolvedValue(1)
     await app.inject({ method: 'GET', url: '/intel/manager/team', headers: auth('manager-a') })
 
     const where = prismaMock.user.findMany.mock.calls[0][0].where
-    expect(where.managerId).toBe('manager-a')
+    expect(where.OR).toEqual([{ managerId: 'manager-a' }, { id: 'manager-a' }])
+    expect(where.managerId).toBeUndefined()
   })
 
-  it('intel.admin não filtra por managerId — vê a empresa inteira', async () => {
+  it('intel.admin não filtra por gerente — vê a empresa inteira', async () => {
     await app.inject({ method: 'GET', url: '/intel/manager/team', headers: auth('admin-a') })
 
-    expect(prismaMock.user.findMany.mock.calls[0][0].where.managerId).toBeUndefined()
+    const where = prismaMock.user.findMany.mock.calls[0][0].where
+    expect(where.managerId).toBeUndefined()
+    expect(where.OR).toBeUndefined()
+  })
+
+  it('gerente com código de vendedor e sem gerente acima não conta como "sem gerente"', async () => {
+    prismaMock.user.findMany.mockResolvedValue([
+      { id: 'manager-a', name: 'Gustavo Gerente', idVendProt: '123', managerId: null },
+      { id: 'u-ana', name: 'Ana', idVendProt: 'V1', managerId: 'manager-a' },
+      { id: 'u-sem', name: 'Sem Gerente', idVendProt: 'V2', managerId: null },
+    ])
+    // Consulta em lote (userId in [...]) devolve quem tem intel.manager; a por
+    // usuário continua servindo o portão de acesso
+    prismaMock.userPermission.findMany.mockImplementation(
+      async (args: { where: { userId: string | { in: string[] } } }) =>
+        typeof args.where.userId === 'object'
+          ? args.where.userId.in
+              .filter((id) => (PERMISSIONS_BY_SUB[id] ?? []).includes('intel.manager'))
+              .map((userId) => ({ userId }))
+          : (PERMISSIONS_BY_SUB[args.where.userId] ?? []).map((key) => ({ permission: { key } }))
+    )
+    const res = await app.inject({ method: 'GET', url: '/intel/manager/team', headers: auth('admin-a') })
+    expect(res.statusCode).toBe(200)
+    // manager-a tem intel.manager (PERMISSIONS_BY_SUB) — só "Sem Gerente" fica sem gerente
+    expect(res.json().unassignedSellers).toBe(1)
   })
 })
 
@@ -162,9 +187,9 @@ describe('GET /intel/manager/home', () => {
     ])
     expect(body.today).toMatchObject({ planned: 0, done: 0 })
 
-    // Recorte estrito por managerId — a regra do gerente único é só do painel
+    // Recorte pela equipe dele — e ele mesmo, se também vende com o próprio código
     for (const call of prismaMock.user.findMany.mock.calls) {
-      expect(call[0].where.managerId).toBe('manager-a')
+      expect(call[0].where.OR).toEqual([{ managerId: 'manager-a' }, { id: 'manager-a' }])
     }
   })
 
@@ -248,6 +273,21 @@ describe('POST /intel/manager/plan-items', () => {
       payload,
     })
     expect(res.statusCode).toBe(403)
+  })
+
+  it('gerente que vende pode pôr cliente no próprio plano (o vendedor é ele)', async () => {
+    prismaMock.user.findFirst.mockResolvedValue({ id: 'manager-a', managerId: null })
+    prismaMock.customer.findFirst.mockResolvedValue({ id: 'c1' })
+    prismaMock.visitPlan.upsert.mockResolvedValue({ id: 'plan-1' })
+    prismaMock.visitPlanItem.findFirst.mockResolvedValue(null)
+    prismaMock.visitPlanItem.create.mockResolvedValue({ id: 'item-1' })
+    const res = await app.inject({
+      method: 'POST',
+      url: '/intel/manager/plan-items',
+      headers: auth('manager-a'),
+      payload,
+    })
+    expect(res.statusCode).toBe(201)
   })
 
   it('cria o item no fim da fila, com origem MANAGER e o status do sinal', async () => {

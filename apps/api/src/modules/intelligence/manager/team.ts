@@ -20,6 +20,8 @@ export interface SellerFact {
   name: string
   vendorCode: string
   hasManager: boolean
+  /** Gerente que também vende com o próprio código — não precisa de gerente acima */
+  isManager?: boolean
   portfolio: number // clientes ativos na carteira
   positivatedInMonth: number // desses, quantos compraram no mês corrente
 }
@@ -178,6 +180,7 @@ export function buildTeamReport(input: TeamInput): TeamReport {
     },
     sellers,
     alerts,
-    unassignedSellers: input.sellers.filter((s) => !s.hasManager).length,
+    // O gerente que vende não "fica sem gerente": ele é o gerente
+    unassignedSellers: input.sellers.filter((s) => !s.hasManager && !s.isManager).length,
   }
 }

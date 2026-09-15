@@ -35,6 +35,25 @@ export function resolveTeamScope(input: { viewerId: string; isAdmin: boolean }):
   return { managerId: input.viewerId }
 }
 
+/**
+ * Filtro de vendedores do recorte: a equipe do gerente (managerId = ele) e ele
+ * mesmo — o gerente pode vender com o próprio código, e a produção dele conta
+ * na equipe. Sem recorte (admin), a empresa inteira.
+ */
+export function sellerScopeWhere(scope: TeamScope): { OR?: Array<{ managerId: string } | { id: string }> } {
+  return scope.managerId ? { OR: [{ managerId: scope.managerId }, { id: scope.managerId }] } : {}
+}
+
+/** Ids, entre os informados, de quem tem intel.manager. */
+export async function managerIdsAmong(userIds: string[]): Promise<Set<string>> {
+  if (userIds.length === 0) return new Set()
+  const rows = await prisma.userPermission.findMany({
+    where: { userId: { in: userIds }, permission: { key: 'intel.manager' } },
+    select: { userId: true },
+  })
+  return new Set((rows ?? []).map((r) => r.userId))
+}
+
 function customerKey(row: { customerCode: string; loja: string }): string {
   return `${row.customerCode}|${row.loja}`
 }
@@ -45,7 +64,7 @@ async function loadSellers(companyId: string, scope: TeamScope) {
       companyId,
       active: true,
       idVendProt: { not: null },
-      ...(scope.managerId ? { managerId: scope.managerId } : {}),
+      ...sellerScopeWhere(scope),
     },
     select: { id: true, name: true, idVendProt: true, managerId: true },
     orderBy: { name: 'asc' },
@@ -187,12 +206,13 @@ export async function buildTeam(
     })
   }
 
-  const [portfolio, plans, visits, minVisits, freshness] = await Promise.all([
+  const [portfolio, plans, visits, minVisits, freshness, managers] = await Promise.all([
     loadPortfolio(companyId, vendorCodes, anchorYmd.slice(0, 6)),
     loadPlans(companyId, vendorCodes, window),
     loadVisits(companyId, vendorCodes, window),
     resolveMinVisits(companyId, range),
     getFreshness(companyId),
+    managerIdsAmong(sellers.map((s) => s.id)),
   ])
 
   const sellerFacts: SellerFact[] = sellers.map((seller) => {
@@ -203,6 +223,7 @@ export async function buildTeam(
       name: seller.name,
       vendorCode: code,
       hasManager: seller.managerId !== null,
+      isManager: managers.has(seller.id),
       portfolio: entry.total,
       positivatedInMonth: entry.positivated,
     }

@@ -14,7 +14,7 @@ import { useUsers } from '@/hooks/useUsers'
 import { needsActiveCompany } from '@/lib/intel-helpers'
 import { managerOptions } from '@/lib/user-scope'
 import {
-  managerNameOf,
+  managerCell,
   vehicleLabel,
   vendorSetupWarnings,
   vendorWarningText,
@@ -102,12 +102,14 @@ export default function VendedoresPage() {
     {
       key: 'manager',
       header: 'Gerente',
-      render: (u) =>
-        u.managerId ? (
-          managerNameOf(allUsers, u.managerId)
-        ) : (
-          <span className="text-warning">sem gerente</span>
-        ),
+      render: (u) => {
+        const cell = managerCell(allUsers, u)
+        if (cell.kind === 'missing') return <span className="text-warning">{cell.text}</span>
+        if (cell.kind === 'is-manager') {
+          return <span className="text-[var(--text-muted)]">{cell.text}</span>
+        }
+        return cell.text
+      },
     },
     {
       key: 'actions',

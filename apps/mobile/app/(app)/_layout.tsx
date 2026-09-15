@@ -19,7 +19,7 @@ import {
 import { FeedbackPrompt } from '../../src/components/FeedbackPrompt'
 import { colors, spacing, typography } from '../../src/theme'
 import { useIntelEnabled } from '../../src/hooks/useIntelEnabled'
-import { useIsManager } from '../../src/hooks/useProfile'
+import { useHasVendorCode, useIsManager } from '../../src/hooks/useProfile'
 
 export default function AppLayout() {
   const [showOnboarding, setShowOnboarding] = useState(false)
@@ -28,6 +28,9 @@ export default function AppLayout() {
   // Gerente (intel.manager sem carteira): a home vira Equipe e a Rota some —
   // ele não tem plano; Clientes e Pedidos mostram os da equipe (recorte na API)
   const isManager = useIsManager()
+  // Gerente que também vende com o próprio código tem plano do dia: a Rota volta
+  const hasVendorCode = useHasVendorCode()
+  const showRota = intelEnabled && (!isManager || hasVendorCode)
   const home = isManager
     ? { testID: 'tab-equipe', title: 'Equipe', Icon: UsersRound }
     : intelEnabled
@@ -70,11 +73,11 @@ export default function AppLayout() {
             tabBarIcon: ({ color }) => <home.Icon size={22} color={color} strokeWidth={1.5} />,
           }}
         />
-        {/* Rota (D11): oculta quando a Inteligência está desligada — e para o gerente */}
+        {/* Rota (D11): oculta com a Inteligência desligada e para o gerente sem código de vendedor */}
         <Tabs.Screen
           name="rota"
           options={{
-            href: intelEnabled && !isManager ? undefined : null,
+            href: showRota ? undefined : null,
             tabBarButtonTestID: 'tab-rota',
             title: 'Rota',
             headerShown: false,

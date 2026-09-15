@@ -4,7 +4,7 @@ import { prisma } from '@addere/db'
 import type { TeamMapDto } from '@addere/types'
 import { getFreshness } from '../app/plan.service'
 import { buildTeamMap } from './team-map'
-import type { TeamScope } from './manager.service'
+import { sellerScopeWhere, type TeamScope } from './manager.service'
 import { addDays, ymdToUtcDate } from './range'
 import { ymdSaoPaulo } from '../engine/business-days'
 
@@ -19,7 +19,7 @@ export async function buildTeamMapForDay(
       companyId,
       active: true,
       idVendProt: { not: null },
-      ...(scope.managerId ? { managerId: scope.managerId } : {}),
+      ...sellerScopeWhere(scope),
     },
     select: { id: true, name: true, idVendProt: true },
     orderBy: { name: 'asc' },
