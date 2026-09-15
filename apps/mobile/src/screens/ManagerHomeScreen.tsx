@@ -1,11 +1,15 @@
 // Home do gerente no app (decisão 1 do teste geral): meta do mês da equipe —
 // a soma das metas dos vendedores associados a ele — e as visitas de hoje,
-// vendedor por vendedor. O gerente não tem plano nem carteira: a aba Rota
-// fica escondida e Clientes/Pedidos mostram os da equipe (recorte na API).
-import { View, Text, ScrollView, StyleSheet, RefreshControl } from 'react-native'
+// vendedor por vendedor. Clientes/Pedidos mostram os da equipe (recorte na API).
+// O gerente que também vende com o próprio código entra na própria equipe e
+// ganha os atalhos do vendedor: plano do dia, semana e carteira.
+import { View, Text, ScrollView, StyleSheet, RefreshControl, TouchableOpacity } from 'react-native'
+import { useRouter } from 'expo-router'
+import { CalendarDays, ChevronRight, Map as MapIcon, Users } from 'lucide-react-native'
 import type { ManagerHomeSellerDto } from '@addere/types'
 import { useAuthStore } from '../store/auth.store'
 import { useManagerHome } from '../hooks/useManager'
+import { useHasVendorCode } from '../hooks/useProfile'
 import { Card } from '../components/ui/Card'
 import { EmptyState } from '../components/ui/EmptyState'
 import { FreshnessFooter } from '../components/intel/FreshnessFooter'
@@ -60,6 +64,8 @@ function SellerCard({ seller }: { seller: ManagerHomeSellerDto }) {
 export function ManagerHomeScreen() {
   const user = useAuthStore((s) => s.user)
   const { data, isLoading, isError, refetch, isRefetching } = useManagerHome()
+  const router = useRouter()
+  const hasVendorCode = useHasVendorCode()
 
   const firstName = user?.name?.split(' ')[0] ?? ''
   const goal = data?.goal
@@ -122,6 +128,30 @@ export function ManagerHomeScreen() {
           <Text style={s.smallLabel}>na equipe</Text>
         </View>
       </View>
+
+      {/* Gerente que vende: os mesmos atalhos da Hoje do vendedor */}
+      {hasVendorCode && (
+        <View style={s.shortcuts} testID="manager-own-shortcuts">
+          <Text style={s.sectionTitle}>Suas vendas</Text>
+          {[
+            { testID: 'atalho-meu-plano', label: 'Meu plano do dia', Icon: MapIcon, path: '/rota' },
+            { testID: 'atalho-semana', label: 'Plano da semana', Icon: CalendarDays, path: '/rota/semana' },
+            { testID: 'atalho-carteira', label: 'Minha carteira', Icon: Users, path: '/rota/carteira' },
+          ].map(({ testID, label, Icon, path }) => (
+            <TouchableOpacity
+              key={testID}
+              testID={testID}
+              style={s.shortcut}
+              activeOpacity={0.85}
+              onPress={() => router.push(path as never)}
+            >
+              <Icon size={16} color={colors.brand.primary} strokeWidth={1.5} />
+              <Text style={s.shortcutText}>{label}</Text>
+              <ChevronRight size={16} color={colors.neutral.placeholder} strokeWidth={1.5} />
+            </TouchableOpacity>
+          ))}
+        </View>
+      )}
 
       <Text style={s.sectionTitle}>Por vendedor</Text>
       {!isLoading && data && sellers.length === 0 ? (
@@ -220,6 +250,24 @@ const s = StyleSheet.create({
     fontSize: typography.size.md,
     color: colors.brand.dark,
     marginTop: spacing.sm,
+  },
+  shortcuts: { gap: spacing.sm },
+  shortcut: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    backgroundColor: colors.neutral.white,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.neutral.border,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.md,
+  },
+  shortcutText: {
+    flex: 1,
+    fontFamily: typography.fontFamily.bodySemibold,
+    fontSize: typography.size.sm,
+    color: colors.neutral.text,
   },
   sellerName: {
     fontFamily: typography.fontFamily.sansSemibold,

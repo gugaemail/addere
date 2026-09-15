@@ -39,6 +39,10 @@ Visibilidade da equipe (D3b, revista em 26/08/2026): o gerente vê só os
 vendedores com `managerId = seu id` — no painel (Equipe em campo, métricas do
 piloto) e no app (aba Equipe, clientes e pedidos); quem está sem gerente aparece
 apenas para `intel.admin`/SUPERADMIN, com o aviso de "vendedores sem gerente".
+Gerente que também vende (14/09/2026): com código de vendedor, ele entra no próprio
+recorte (`sellerScopeWhere`: equipe dele + ele mesmo) — na Equipe em campo, no mapa, nas
+perdas e na meta somada —, pode pôr cliente no próprio plano e não conta como "sem
+gerente". No app, a aba Rota volta para ele e a tela Equipe ganha os atalhos do vendedor.
 Regra isolada em `manager/manager.service.ts:resolveTeamScope` (painel) e
 `users/data-scope.ts` (clientes/pedidos do app) — puras e testadas.
 

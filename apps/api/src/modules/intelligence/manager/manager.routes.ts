@@ -104,9 +104,10 @@ export default async function managerRoutes(app: FastifyInstance) {
     if (query.vendorCode && scope.managerId) {
       const seller = await prisma.user.findFirst({
         where: { companyId: company.id, active: true, idVendProt: query.vendorCode },
-        select: { managerId: true },
+        select: { id: true, managerId: true },
       })
-      if (!seller || seller.managerId !== scope.managerId) {
+      const mine = seller && (seller.managerId === scope.managerId || seller.id === scope.managerId)
+      if (!mine) {
         return reply.status(403).send({ message: 'Este vendedor não é da sua equipe' })
       }
     }
@@ -152,7 +153,7 @@ export default async function managerRoutes(app: FastifyInstance) {
 
     // O gerente com recorte próprio não mexe no plano de quem não é dele
     const scope = await scopeFor(request)
-    if (scope.managerId && seller.managerId !== scope.managerId) {
+    if (scope.managerId && seller.managerId !== scope.managerId && seller.id !== scope.managerId) {
       return reply.status(403).send({ message: 'Este vendedor não é da sua equipe' })
     }
 

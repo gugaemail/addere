@@ -31,13 +31,29 @@ export interface VendorSetupWarnings {
   withoutVisits: number
 }
 
-/** Conta só os ativos — vendedor desativado não entra na equipe nem no plano. */
+/**
+ * Conta só os ativos — vendedor desativado não entra na equipe nem no plano.
+ * Gerente que também vende com o próprio código não conta como "sem gerente":
+ * ele é o gerente.
+ */
 export function vendorSetupWarnings(vendors: UserPublic[]): VendorSetupWarnings {
   const active = vendors.filter((v) => v.active)
   return {
-    withoutManager: active.filter((v) => !v.managerId).length,
+    withoutManager: active.filter((v) => !v.managerId && !v.intelManager).length,
     withoutVisits: active.filter((v) => !v.visitsPerDay).length,
   }
+}
+
+export type ManagerCell =
+  | { kind: 'name'; text: string }
+  | { kind: 'is-manager'; text: string }
+  | { kind: 'missing'; text: string }
+
+/** Coluna Gerente: nome do gerente; "é gerente" para quem gerencia; senão o aviso. */
+export function managerCell(users: UserPublic[], vendor: UserPublic): ManagerCell {
+  if (vendor.managerId) return { kind: 'name', text: managerNameOf(users, vendor.managerId) }
+  if (vendor.intelManager) return { kind: 'is-manager', text: 'é gerente' }
+  return { kind: 'missing', text: 'sem gerente' }
 }
 
 function vendorCount(n: number): string {
