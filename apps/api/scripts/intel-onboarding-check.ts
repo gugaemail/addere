@@ -77,10 +77,10 @@ async function main() {
     detail: missing.length === 0 ? 'todos publicados' : `faltam: ${missing.join(', ')}`,
   })
 
-  // Reconciliar é comparar valor com o relatório do ERP: só faz sentido em
-  // contrato que traz a coluna `valor` — reconcileQuery recusa os demais.
+  // Cada contrato declara como reconcilia (vendas por mês, títulos pelo saldo de
+  // hoje, clientes e produtos por quantidade); só o estoque (NONE) fica de fora.
   const reconcilable = new Set(
-    contracts.filter((c) => c.columns.some((col) => col.name === 'valor')).map((c) => c.name)
+    contracts.filter((c) => c.reconciliation.kind !== 'NONE').map((c) => c.name)
   )
   const unreconciled = queries
     .filter((q) => q.published && reconcilable.has(q.name) && q.reconciliationDiffPct === null)
@@ -90,7 +90,7 @@ async function main() {
     label: `Reconciliação conferida (${[...reconcilable].length - unreconciled.length}/${[...reconcilable].length})`,
     detail:
       unreconciled.length === 0
-        ? 'os contratos com valor batem com o relatório do ERP'
+        ? 'os contratos batem com o número oficial do ERP'
         : `sem reconciliação: ${unreconciled.join(', ')} — rode em Consultas`,
   })
 

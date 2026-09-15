@@ -595,7 +595,7 @@ model IntelQuery {
   validatedBy String?
 
   // Reconciliação obrigatória antes de publicar
-  reconciliationPeriod     String? // 'YYYYMM'
+  reconciliationPeriod     String? // 'YYYYMM' (mês fechado) ou 'YYYYMMDD' (posição do dia)
   reconciliationRefAmount  Decimal? @db.Decimal(14, 2) // valor oficial informado pelo admin
   reconciliationCalcAmount Decimal? @db.Decimal(14, 2) // soma desta consulta no período
   reconciliationDiffPct    Decimal? @db.Decimal(6, 2)

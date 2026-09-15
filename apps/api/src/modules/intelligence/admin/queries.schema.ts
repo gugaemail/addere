@@ -17,9 +17,11 @@ export type UpsertQueryInput = z.infer<typeof upsertQuerySchema>
 
 export const previewSchema = z.object({ companyId })
 
+// period só é exigido por quem reconcilia mês fechado (vendas) — títulos,
+// clientes e produtos comparam a posição de hoje; o serviço valida pelo contrato
 export const reconcileSchema = z.object({
   companyId,
-  period: z.string().regex(/^\d{6}$/, 'Período deve ser YYYYMM'),
+  period: z.string().regex(/^\d{6}$/, 'Período deve ser YYYYMM').optional(),
   refAmount: z.number().positive('Valor de referência deve ser positivo'),
 })
 export type ReconcileInput = z.infer<typeof reconcileSchema>

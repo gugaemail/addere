@@ -6,6 +6,7 @@ import {
   rowsToCsv,
   type AuditInput,
 } from '../reconciliation-audit'
+import { QUERY_CONTRACTS } from '../../protheus-sql/contracts'
 
 const row = (pedido: string, item: string, data: string, valor: unknown, extra: Record<string, unknown> = {}) => ({
   pedido,
@@ -20,6 +21,7 @@ const row = (pedido: string, item: string, data: string, valor: unknown, extra: 
 
 const input = (over: Partial<AuditInput> = {}): AuditInput => ({
   name: 'SALES',
+  spec: QUERY_CONTRACTS.SALES.reconciliation,
   rows: [row('A1', '01', '20260105', 100), row('A1', '02', '20260105', 50.5), row('B2', '01', '20260107', 1000)],
   executedSql: "SELECT ... WHERE D2_FILIAL IN ('0101') AND D2_EMISSAO BETWEEN '20260101' AND '20260131'",
   window: { dataIni: '20260101', dataFim: '20260131' },
@@ -116,7 +118,7 @@ describe('auditReconciliation', () => {
       { branch: '0101', rows: 1, amount: '100.00' },
       { branch: '0102', rows: 1, amount: '300.00' },
     ])
-    expect(withColumn.concreteCauses[0]).toMatch(/2 filiais \(0101, 0102\).*soma por filial/)
+    expect(withColumn.concreteCauses[0]).toMatch(/2 filiais \(0101, 0102\).*total por filial/)
 
     const without = auditReconciliation(input({ branches: ['0101', '0102'] }))
     expect(without.concreteCauses[0]).toMatch(/inclua a coluna da filial/)

@@ -44,8 +44,11 @@ export function backfillProgress(metadata: unknown): BackfillProgress | null {
 }
 
 // ─── Período YYYYMM → MM/YYYY ───
+/** 'YYYYMM' → '07/2026' (mês fechado); 'YYYYMMDD' → '14/09/2026' (posição do dia) */
 export function periodLabel(period: string | null | undefined): string {
-  if (!period || !/^\d{6}$/.test(period)) return '—'
+  if (!period) return '—'
+  if (/^\d{8}$/.test(period)) return `${period.slice(6, 8)}/${period.slice(4, 6)}/${period.slice(0, 4)}`
+  if (!/^\d{6}$/.test(period)) return '—'
   return `${period.slice(4)}/${period.slice(0, 4)}`
 }
 

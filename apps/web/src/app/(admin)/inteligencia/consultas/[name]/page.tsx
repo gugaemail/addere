@@ -17,7 +17,8 @@ import {
 } from 'lucide-react'
 import type { QueryPreviewResult, ReconciliationResult } from '@addere/types'
 import { getApiErrorMessage } from '@/lib/api'
-import { backfillProgress, brl, formatDiffPct, periodLabel } from '@/lib/intel-helpers'
+import { backfillProgress, formatDiffPct, periodLabel } from '@/lib/intel-helpers'
+import { formatMetric, parseOfficialNumber, reconciliationCopy } from '@/lib/reconciliation'
 import {
   initialEditorSql,
   isBrokenSql,
@@ -96,6 +97,11 @@ export default function ConsultaPage() {
     setDefinition(contract.query?.definition ?? '')
     setExclusions(contract.query?.exclusions ?? '')
     setGotchas(contract.query?.gotchas ?? '')
+    // Trocar de consulta pelos chips mantém a página montada: sem limpar, o
+    // resultado da reconciliação de vendas aparecia na tela de títulos
+    setReconResult(null)
+    setRefAmount('')
+    setPeriod('')
     setSeededFor(contract.name)
     setTab('sql')
   }, [contract, references, seededFor])
@@ -167,8 +173,16 @@ export default function ConsultaPage() {
     gotchas !== (query?.gotchas ?? '')
   // Nada salvo ainda: dá para salvar a referência como veio, sem editar
   const canSave = dirty || !query
+  // Como este contrato reconcilia (vendas: mês; títulos: saldo de hoje; clientes e
+  // produtos: quantidade; estoque: não reconcilia)
+  const reconCopy = reconciliationCopy(contract.reconciliation)
+  const reconUnit = contract.reconciliation.unit ?? 'currency'
   const canPublish =
-    canEdit && query && !query.published && query.validatedAt && query.reconciliationDiffPct !== null
+    canEdit &&
+    query &&
+    !query.published &&
+    query.validatedAt &&
+    (!reconCopy.applies || query.reconciliationDiffPct !== null)
 
   async function handleSaveDraft() {
     try {
@@ -190,10 +204,15 @@ export default function ConsultaPage() {
   }
 
   async function handleReconcile() {
-    const yyyymm = period.replace('-', '')
-    const amount = Number(refAmount.replace(/\./g, '').replace(',', '.'))
-    if (!/^\d{6}$/.test(yyyymm)) return toast.error('Informe o mês da reconciliação')
-    if (!Number.isFinite(amount) || amount <= 0) return toast.error('Informe o valor oficial do mês')
+    const amount = parseOfficialNumber(refAmount, reconUnit)
+    let yyyymm: string | undefined
+    if (reconCopy.needsMonth) {
+      yyyymm = period.replace('-', '')
+      if (!/^\d{6}$/.test(yyyymm)) return toast.error('Informe o mês da reconciliação')
+    }
+    if (amount === null || amount <= 0) {
+      return toast.error(reconUnit === 'count' ? 'Informe a quantidade oficial' : 'Informe o valor oficial')
+    }
     try {
       const result = await reconcile.mutateAsync({ period: yyyymm, refAmount: amount })
       setReconResult(result)
@@ -292,7 +311,7 @@ export default function ConsultaPage() {
               reconciliação:{' '}
               {query.reconciliationDiffPct !== null
                 ? `${formatDiffPct(query.reconciliationDiffPct)} em ${periodLabel(query.reconciliationPeriod)}`
-                : 'pendente'}
+                : reconCopy.pendingText}
             </span>
           </>
         ) : (
@@ -428,43 +447,46 @@ export default function ConsultaPage() {
             )}
           </section>
 
-          {/* Passo 2 — reconciliação */}
+          {/* Passo 2 — reconciliação (conforme o contrato) */}
           <section className="rounded-xl border border-[var(--border)] bg-[var(--bg-surface)] p-4">
             <h3 className="text-sm font-semibold text-[var(--text-primary)]">2 · Reconciliação com o número oficial</h3>
-            <p className="text-xs text-[var(--text-secondary)]">
-              Compare um mês fechado com o total que o financeiro considera correto.
-            </p>
-            <div className="mt-3 flex flex-wrap items-end gap-3">
-              <FormField
-                label="Mês"
-                type="month"
-                value={period}
-                onChange={(e) => setPeriod(e.target.value)}
-                disabled={!canEdit}
-                className="w-40"
-              />
-              <FormField
-                label="Valor oficial (R$)"
-                type="text"
-                inputMode="decimal"
-                placeholder="1.234.567,89"
-                value={refAmount}
-                onChange={(e) => setRefAmount(e.target.value)}
-                disabled={!canEdit}
-                className="w-44"
-              />
-              {canEdit && (
-                <Button variant="secondary" onClick={handleReconcile} disabled={reconcile.isPending || !query || dirty}>
-                  {reconcile.isPending ? 'Comparando…' : 'Comparar'}
-                </Button>
-              )}
-            </div>
-            {(reconResult || query?.reconciliationDiffPct !== null) && (
+            <p className="text-xs text-[var(--text-secondary)]">{contract.reconciliation.hint}</p>
+            {reconCopy.applies && (
+              <div className="mt-3 flex flex-wrap items-end gap-3">
+                {reconCopy.needsMonth && (
+                  <FormField
+                    label="Mês"
+                    type="month"
+                    value={period}
+                    onChange={(e) => setPeriod(e.target.value)}
+                    disabled={!canEdit}
+                    className="w-40"
+                  />
+                )}
+                <FormField
+                  label={contract.reconciliation.label}
+                  type="text"
+                  inputMode={reconUnit === 'count' ? 'numeric' : 'decimal'}
+                  placeholder={reconCopy.placeholder}
+                  value={refAmount}
+                  onChange={(e) => setRefAmount(e.target.value)}
+                  disabled={!canEdit}
+                  className="w-56"
+                />
+                {canEdit && (
+                  <Button variant="secondary" onClick={handleReconcile} disabled={reconcile.isPending || !query || dirty}>
+                    {reconcile.isPending ? 'Comparando…' : 'Comparar'}
+                  </Button>
+                )}
+              </div>
+            )}
+            {reconCopy.applies && (reconResult || query?.reconciliationDiffPct !== null) && (
               <div className="mt-3 space-y-1.5 rounded-lg bg-[var(--bg-page)] px-3 py-2.5 text-sm">
                 {reconResult ? (
                   <>
                     <p className="text-[var(--text-primary)]">
-                      Addere {brl(reconResult.calcAmount)} × oficial {brl(reconResult.refAmount)} →{' '}
+                      Addere {formatMetric(reconResult.calcAmount, reconResult.unit)} × oficial{' '}
+                      {formatMetric(reconResult.refAmount, reconResult.unit)} →{' '}
                       <b className={reconResult.withinTolerance ? 'text-success' : 'text-danger'}>
                         {formatDiffPct(reconResult.diffPct)}
                       </b>{' '}
@@ -481,7 +503,7 @@ export default function ConsultaPage() {
                       <ReconciliationAuditPanel
                         audit={reconResult.audit}
                         contractName={contractName}
-                        period={reconResult.period}
+                        period={reconCopy.needsMonth ? reconResult.period : undefined}
                         companyParam={companyParam}
                       />
                     )}
@@ -502,7 +524,7 @@ export default function ConsultaPage() {
               <div>
                 <h3 className="text-sm font-semibold text-[var(--text-primary)]">3 · Publicar</h3>
                 <p className="text-xs text-[var(--text-secondary)]">
-                  Libera a versão para o sync noturno. Exige prévia ok + reconciliação dentro da tolerância.
+                  Libera a versão para o sync noturno. {reconCopy.publishRequirement}
                 </p>
               </div>
               {canEdit &&
@@ -520,13 +542,17 @@ export default function ConsultaPage() {
           </section>
 
           {/* Passo 4 — carga inicial (P5) */}
-          {query?.published && canEdit && (
+          {query?.published && canEdit && contract.frequency !== 'ON_DEMAND' && (
             <section className="rounded-xl border border-[var(--border)] bg-[var(--bg-surface)] p-4">
               <div className="flex items-center justify-between gap-3">
                 <div>
-                  <h3 className="text-sm font-semibold text-[var(--text-primary)]">4 · Carga inicial (13 meses)</h3>
+                  <h3 className="text-sm font-semibold text-[var(--text-primary)]">
+                    4 · Carga inicial{reconCopy.needsMonth ? ' (13 meses)' : ''}
+                  </h3>
                   <p className="text-xs text-[var(--text-secondary)]">
-                    Traz o histórico completo em janelas mensais. Rode fora do horário comercial.
+                    {reconCopy.needsMonth
+                      ? 'Traz o histórico completo em janelas mensais. Rode fora do horário comercial.'
+                      : 'Traz a posição completa agora, sem esperar o sync noturno.'}
                   </p>
                 </div>
                 <Button variant="secondary" onClick={handleBackfill} disabled={backfill.isPending || backfillRunning}>

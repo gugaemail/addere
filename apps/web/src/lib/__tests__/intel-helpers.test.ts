@@ -64,6 +64,7 @@ describe('backfillProgress', () => {
 describe('periodLabel/brl/parseCities', () => {
   it('YYYYMM → MM/YYYY', () => {
     expect(periodLabel('202607')).toBe('07/2026')
+    expect(periodLabel('20260914')).toBe('14/09/2026')
     expect(periodLabel('abc')).toBe('—')
     expect(periodLabel(null)).toBe('—')
   })

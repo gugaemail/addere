@@ -106,6 +106,7 @@ export async function listQueries(company: Company) {
       columns: contract.columns,
       referenceSql: contract.referenceSql,
       helpText: contract.helpText,
+      reconciliation: contract.reconciliation,
       status,
       query: latest
         ? toQueryDto(latest, latest.validatedBy ? (names.get(latest.validatedBy) ?? null) : null)
@@ -307,52 +308,108 @@ async function getTolerancePct(companyId: string): Promise<number> {
 
 function probableCauses(diffPct: number, name: IntelQueryName): string[] {
   if (Math.abs(diffPct) < 0.005) return []
-  const causes: string[] = []
-  if (diffPct < 0) {
-    causes.push(
-      'Alguma filial ficou fora do filtro {{FILIAL}} (confira as filiais ativas cadastradas)',
-      'A consulta exclui CFOPs que o número oficial considera (bonificação, remessa)',
-      'Janela de datas por emissão × faturamento (D2_EMISSAO vs F2_EMISSAO)'
-    )
-  } else {
-    causes.push(
-      'Devoluções não estão sendo abatidas (D2_QTDEDEV / CFOPs de devolução)',
-      'Notas canceladas entrando na soma (conferir D_E_L_E_T_ nas tabelas do JOIN)',
-      'JOIN multiplicando itens (fan-out) — confira as chaves com a prévia'
-    )
+  const over = diffPct > 0
+  switch (name) {
+    case 'SALES':
+      return over
+        ? [
+            'Devoluções não estão sendo abatidas (D2_QTDEDEV / CFOPs de devolução)',
+            'Notas canceladas entrando na soma (conferir D_E_L_E_T_ nas tabelas do JOIN)',
+            'JOIN multiplicando itens (fan-out) — confira as chaves com a prévia',
+            'O número oficial pode excluir outras séries/tipos de nota',
+          ]
+        : [
+            'Alguma filial ficou fora do filtro {{FILIAL}} (confira as filiais ativas cadastradas)',
+            'A consulta exclui CFOPs que o número oficial considera (bonificação, remessa)',
+            'Janela de datas por emissão × faturamento (D2_EMISSAO vs F2_EMISSAO)',
+            'O número oficial pode incluir outras séries/tipos de nota',
+          ]
+    case 'OPEN_TITLES':
+      return over
+        ? [
+            'Tipos que não são cobrança entrando na soma (NCC, RA, AB-, PA, PR)',
+            'Soma de E1_VALOR em vez de E1_SALDO (títulos com baixa parcial contam inteiros)',
+            'Títulos excluídos ou de outras filiais (D_E_L_E_T_ / {{FILIAL}})',
+          ]
+        : [
+            'Alguma filial ficou fora do filtro {{FILIAL}}',
+            'O relatório oficial inclui tipos que a consulta exclui',
+            'Títulos baixados depois da emissão do relatório — compare na mesma data e hora',
+          ]
+    case 'CUSTOMERS':
+      return over
+        ? [
+            'Clientes bloqueados (A1_MSBLQL = 1) ou excluídos entrando na contagem',
+            'Cada loja conta como uma linha — o número oficial pode contar só o código',
+            'Clientes de outras filiais (A1_FILIAL compartilhado × exclusivo)',
+          ]
+        : [
+            'A consulta filtra clientes que o cadastro oficial conta (bloqueados, sem vendedor)',
+            'Alguma filial ficou fora do filtro {{FILIAL}}',
+          ]
+    case 'PRODUCTS':
+      return over
+        ? [
+            'Produtos bloqueados (B1_MSBLQL = 1) ou excluídos entrando na contagem',
+            'Tipos que não são de venda (MP, MO, serviço) entrando na contagem',
+          ]
+        : ['A consulta filtra produtos que o cadastro oficial conta (tipos, bloqueados, grupos)']
+    default:
+      return []
   }
-  if (name === 'SALES') {
-    causes.push('O número oficial pode incluir outras séries/tipos de nota')
-  }
-  return causes
 }
 
-interface MonthRun {
+interface ReconciliationRun {
   rows: SqlRow[]
   executedSql: string
-  window: DateWindow
+  /** null = posição de hoje */
+  window: DateWindow | null
+  /** YYYYMM (mês fechado) ou YYYYMMDD (posição do dia) */
+  period: string
   branches: string[]
   pages: number
   truncated: boolean
 }
 
 /**
- * Roda a consulta salva num mês fechado (reconciliação e exportação usam a
- * mesma rotina, então o CSV traz exatamente as linhas que foram somadas).
+ * Roda a consulta salva do jeito que o contrato reconcilia: mês fechado para
+ * vendas, posição de hoje para títulos, clientes e produtos. Reconciliação e
+ * exportação usam a mesma rotina — o CSV traz exatamente as linhas comparadas.
  */
-async function runMonth(company: Company, name: IntelQueryName, period: string): Promise<MonthRun> {
+async function runForReconciliation(
+  company: Company,
+  name: IntelQueryName,
+  period: string | undefined
+): Promise<ReconciliationRun> {
   const contract = QUERY_CONTRACTS[name]
+  const spec = contract.reconciliation
   const latest = await getLatestQuery(company.id, name)
   if (!latest) throw notFound(`Consulta ${contract.labelPt} ainda não configurada`)
-  if (!contract.columns.some((c) => c.name === 'valor')) {
-    throw unprocessable(`Reconciliação exige a coluna "valor" — contrato ${contract.labelPt} não a possui`)
+  if (spec.kind === 'NONE') {
+    throw badRequest(
+      `A consulta de ${contract.labelPt} não tem total para comparar — basta a prévia ok para publicar`
+    )
   }
 
-  const month = Number(period.slice(4, 6))
-  if (month < 1 || month > 12) throw badRequest('Período inválido (mês fora de 01–12)')
+  let window: DateWindow | null = null
+  let effectivePeriod: string
+  if (spec.kind === 'SUM_MONTH') {
+    if (!period) throw badRequest('Informe o mês fechado da reconciliação (YYYYMM)')
+    const month = Number(period.slice(4, 6))
+    if (month < 1 || month > 12) throw badRequest('Período inválido (mês fora de 01–12)')
+    window = periodWindow(period)
+    effectivePeriod = period
+  } else {
+    effectivePeriod = formatDateYmdSaoPaulo(new Date())
+  }
 
-  const window = periodWindow(period)
-  const { values, errors: valueErrors } = await buildPlaceholderValues(company, contract, window)
+  // Contratos sem datas também passam uma janela (o builder exige): o dia de hoje
+  const placeholderWindow = window ?? { dataIni: effectivePeriod, dataFim: effectivePeriod }
+  const { values, errors: valueErrors } = await buildPlaceholderValues(
+    company,
+    contract,
+    placeholderWindow
+  )
   const substituted = substitutePlaceholders(latest.sql, values)
   const errors = [...valueErrors, ...substituted.errors]
   if (errors.length > 0) throw unprocessable(errors.join('; '))
@@ -366,6 +423,7 @@ async function runMonth(company: Company, name: IntelQueryName, period: string):
     rows: result.rows,
     executedSql: substituted.sql,
     window,
+    period: effectivePeriod,
     branches: values.branches ?? [],
     pages: result.pages,
     truncated: result.truncated,
@@ -375,16 +433,18 @@ async function runMonth(company: Company, name: IntelQueryName, period: string):
 export async function reconcileQuery(
   company: Company,
   name: IntelQueryName,
-  period: string,
+  period: string | undefined,
   refAmount: number,
   userId: string
 ): Promise<ReconciliationResult> {
-  const latest = await getLatestQuery(company.id, name)
-  const run = await runMonth(company, name, period)
+  const spec = QUERY_CONTRACTS[name].reconciliation
+  const run = await runForReconciliation(company, name, period)
+  const latest = (await getLatestQuery(company.id, name)) as IntelQuery
 
   const source = env.INTEL_SQL_ADAPTER
   const { calcAmount, audit, concreteCauses } = auditReconciliation({
     name,
+    spec,
     rows: run.rows,
     executedSql: run.executedSql,
     window: run.window,
@@ -396,14 +456,15 @@ export async function reconcileQuery(
     endpointHost: source === 'mock' ? null : endpointHostOf(company.apiSql),
   })
 
-  const diffPct = refAmount === 0 ? 0 : Math.round(((calcAmount - refAmount) / refAmount) * 10_000) / 100
+  const diffPct =
+    refAmount === 0 ? 0 : Math.round(((calcAmount - refAmount) / refAmount) * 10_000) / 100
   const tolerance = await getTolerancePct(company.id)
   const withinTolerance = Math.abs(diffPct) <= tolerance
 
   await prisma.intelQuery.update({
-    where: { id: (latest as IntelQuery).id },
+    where: { id: latest.id },
     data: {
-      reconciliationPeriod: period,
+      reconciliationPeriod: run.period,
       reconciliationRefAmount: refAmount,
       reconciliationCalcAmount: calcAmount,
       reconciliationDiffPct: diffPct,
@@ -418,7 +479,9 @@ export async function reconcileQuery(
 
   return {
     ok: true,
-    period,
+    kind: spec.kind,
+    unit: audit.unit,
+    period: run.period,
     refAmount: refAmount.toFixed(2),
     calcAmount: calcAmount.toFixed(2),
     diffPct,
@@ -428,20 +491,20 @@ export async function reconcileQuery(
   }
 }
 
-/** CSV das linhas do mês — as mesmas que a reconciliação somou (sem gravar nada). */
+/** CSV das linhas comparadas — as mesmas da reconciliação (sem gravar nada). */
 export async function exportReconciliationCsv(
   company: Company,
   name: IntelQueryName,
-  period: string
+  period: string | undefined
 ): Promise<{ filename: string; csv: string }> {
-  const run = await runMonth(company, name, period)
+  const run = await runForReconciliation(company, name, period)
   // "títulos em aberto" → "titulos-em-aberto"
   const slug = QUERY_CONTRACTS[name].labelPt
     .normalize('NFD')
     .replace(/\p{Diacritic}/gu, '')
     .replace(/[^a-z0-9]+/gi, '-')
     .toLowerCase()
-  return { filename: `${slug}-${period}.csv`, csv: rowsToCsv(run.rows) }
+  return { filename: `${slug}-${run.period}.csv`, csv: rowsToCsv(run.rows) }
 }
 
 // ─── Publicação (POST /intel/admin/queries/:name/publish) ───
@@ -455,15 +518,23 @@ export async function publishQuery(company: Company, name: IntelQueryName, userI
     throw unprocessable('Rode a prévia com todos os checks verdes antes de publicar')
   }
 
-  const tolerance = await getTolerancePct(company.id)
-  const diffPct = latest.reconciliationDiffPct === null ? null : Number(latest.reconciliationDiffPct)
-  if (diffPct === null) {
-    throw unprocessable('Faça a reconciliação de um mês fechado antes de publicar')
-  }
-  if (Math.abs(diffPct) > tolerance) {
-    throw unprocessable(
-      `Diferença da reconciliação (${diffPct.toFixed(2)}%) acima da tolerância (${tolerance}%)`
-    )
+  // Estoque ao vivo não tem total para comparar: a prévia verde basta
+  if (contract.reconciliation.kind !== 'NONE') {
+    const tolerance = await getTolerancePct(company.id)
+    const diffPct =
+      latest.reconciliationDiffPct === null ? null : Number(latest.reconciliationDiffPct)
+    if (diffPct === null) {
+      throw unprocessable(
+        contract.reconciliation.kind === 'SUM_MONTH'
+          ? 'Faça a reconciliação de um mês fechado antes de publicar'
+          : 'Faça a reconciliação com o número oficial de hoje antes de publicar'
+      )
+    }
+    if (Math.abs(diffPct) > tolerance) {
+      throw unprocessable(
+        `Diferença da reconciliação (${diffPct.toFixed(2)}%) acima da tolerância (${tolerance}%)`
+      )
+    }
   }
 
   const [, published] = await prisma.$transaction([
