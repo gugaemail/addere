@@ -10,6 +10,10 @@ services:
     startCommand: node apps/api/dist/server.js
     healthCheckPath: /health
     envVars:
+      # Sem isto o Render instala o Node padrao do dia do build - o runtime de
+      # producao podia mudar sozinho. Mantenha igual ao node-version do ci.yml.
+      - key: NODE_VERSION
+        value: '26'
       - key: NODE_ENV
         value: production
       - key: PORT
@@ -40,6 +44,10 @@ services:
     startCommand: node apps/api/dist/server.js
     healthCheckPath: /health
     envVars:
+      # Sem isto o Render instala o Node padrao do dia do build - o runtime de
+      # producao podia mudar sozinho. Mantenha igual ao node-version do ci.yml.
+      - key: NODE_VERSION
+        value: '26'
       - key: NODE_ENV
         value: production
       - key: PORT

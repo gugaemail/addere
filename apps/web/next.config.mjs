@@ -47,8 +47,12 @@ const nextConfig = {
 
 export default withSentryConfig(nextConfig, {
   silent: true,
-  org: 'addere',
-  project: 'addere-web',
+  // Opção fixa aqui vence a variável de ambiente, então errar o slug é silencioso:
+  // com `silent: true` o upload falha e o build termina verde. A org é
+  // `gh-engenharia` (era 'addere', que não existe). Os defaults cobrem build
+  // local; na Vercel as duas vêm do ambiente.
+  org: process.env.SENTRY_ORG ?? 'gh-engenharia',
+  project: process.env.SENTRY_PROJECT ?? 'addere-web',
   widenClientFileUpload: true,
   tunnelRoute: '/monitoring',
   hideSourceMaps: true,

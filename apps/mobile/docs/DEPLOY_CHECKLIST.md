@@ -7,19 +7,67 @@
 - [ ] `npm run type-check` sem erros
 - [ ] `npm test -- --watchAll=false` todos passando
 - [ ] Nenhum `console.log` com dados de pedido ou PII
-- [ ] Variáveis de ambiente de produção configuradas no EAS secrets
+- [ ] `npx expo-doctor` sem regressão (2 falhas são esperadas: `metro.config` e
+      `react` duplicado — as duas faces do mesmo ajuste de monorepo, ver o
+      comentário em `metro.config.js`)
+- [ ] `eas env:list production` mostra as cinco variáveis da tabela abaixo
+
+### Variáveis do ambiente `production` no EAS
+
+O que **não** entra aqui: `EXPO_PUBLIC_APP_ENV`, `EXPO_PUBLIC_API_URL` e
+`EXPO_PUBLIC_APP_VERSION` já estão fixos no perfil `production` do `eas.json`,
+onde ficam versionados e auditáveis.
+
+| Variável                      | Visibilidade | Sem ela                                          |
+| ----------------------------- | ------------ | ------------------------------------------------ |
+| `GOOGLE_MAPS_ANDROID_API_KEY` | sensitive    | mapa cinza na Rota (Android usa PROVIDER_GOOGLE) |
+| `EXPO_PUBLIC_SENTRY_DSN`      | sensitive    | nenhum erro chega no dashboard                   |
+| `SENTRY_ORG`                  | plaintext    | source map não sobe                              |
+| `SENTRY_PROJECT`              | plaintext    | source map não sobe                              |
+| `SENTRY_AUTH_TOKEN`           | secret       | source map não sobe                              |
+
+### Credenciais de envio (onde cada uma mora)
+
+Nenhuma delas é arquivo no disco. Ficam no servidor do EAS, em
+`expo.dev/accounts/gugaemail/projects/addere/credentials`.
+
+| Plataforma | Credencial                  | Observação                                                                                                                                                 |
+| ---------- | --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Android    | Keystore de upload          | gerenciado pelo EAS; quem assina o APK que chega no aparelho é o Play App Signing, não ele                                                                 |
+| Android    | Google service account key  | `eas-submit@addere-509602.iam.gserviceaccount.com`, com acesso **só ao app Addere** e sem permissão de produção — promover é clique humano no Play Console |
+| iOS        | Distribuição + provisioning | gerenciados pelo EAS; `appleId`/`appleTeamId`/`ascAppId` ficam no `eas.json`                                                                               |
+
+O `eas.json` **não** aponta para `serviceAccountKeyPath`: com um caminho de
+arquivo ali, o `eas submit` ignora a chave do servidor e falha se o arquivo não
+existir. `apps/mobile/google-service-account.json` segue no `.gitignore` só como
+rede de proteção para quem baixar o JSON por engano.
 
 ### Versão
 
-- [ ] `app.config.js` version e `EXPO_PUBLIC_APP_VERSION` atualizados
+O `version` do app vem de `EXPO_PUBLIC_APP_VERSION`; o `app.config.js` só guarda
+o fallback. Para o build de loja o valor está no perfil `production` do
+`eas.json` — é lá que se sobe a versão, não no `app.config.js`.
+
+- [ ] `EXPO_PUBLIC_APP_VERSION` do perfil `production` (`eas.json`) na versão nova
+- [ ] `versionCode` (Android) e `buildNumber` (iOS) **não** editados à mão — o
+      `appVersionSource: "remote"` + `autoIncrement` deixa isso com o EAS.
+      Conferir o ponto de partida com `eas build:version:get -p <plataforma>`
 - [ ] Tag git criada: `git tag v1.x.x`
 - [ ] CHANGELOG.md atualizado via `./scripts/release-notes.sh v1.x.x`
 
 ### Sentry
 
-- [ ] DSN de produção configurado no EAS secret `EXPO_PUBLIC_SENTRY_DSN`
-- [ ] Testar que erros aparecem no dashboard Sentry após build
-- [ ] Source maps configurados no build de produção
+Um build de produção sem source map devolve stack de bytecode Hermes minificado:
+você fica sabendo que quebrou, não onde. Por isso o perfil `production` do
+`eas.json` **não** define `SENTRY_DISABLE_AUTO_UPLOAD` (development e preview
+definem, porque lá o upload só gastaria cota).
+
+- [ ] `EXPO_PUBLIC_SENTRY_DSN`, `SENTRY_ORG`, `SENTRY_PROJECT` e
+      `SENTRY_AUTH_TOKEN` no ambiente `production` do EAS
+- [ ] No log do build, confirmar que o passo do `sentry-cli` subiu os source maps
+      — sem o token ele passa batido e o build termina verde mesmo assim
+- [ ] Forçar um erro no aparelho e conferir no dashboard que a stack aponta para
+      o arquivo `.tsx` certo, não para `index.android.bundle`
 
 ### Localização (E12/D10)
 

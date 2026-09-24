@@ -28,8 +28,8 @@
       "autoIncrement": true,
       "env": {
         "EXPO_PUBLIC_APP_ENV": "production",
-        "EXPO_PUBLIC_API_URL": "https://addere-api.onrender.com",
-        "SENTRY_DISABLE_AUTO_UPLOAD": "true"
+        "EXPO_PUBLIC_API_URL": "https://api.addere.com.br",
+        "EXPO_PUBLIC_APP_VERSION": "1.1.0"
       },
       "channel": "production"
     }
@@ -42,7 +42,6 @@
         "ascAppId": "6803013404"
       },
       "android": {
-        "serviceAccountKeyPath": "./google-service-account.json",
         "track": "internal"
       }
     }

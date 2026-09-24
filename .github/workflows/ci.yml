@@ -16,7 +16,11 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          # Igual ao NODE_VERSION do Render (render.yaml). Produção rodava um Node
+          # major que a CI nunca testou: o Render instala o padrão do dia quando a
+          # versão não é fixada, então o runtime podia trocar sozinho num deploy
+          # sem nenhuma mudança de código.
+          node-version: '26'
           cache: 'npm'
 
       - name: Instalar dependências
