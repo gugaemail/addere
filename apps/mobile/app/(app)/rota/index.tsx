@@ -399,7 +399,6 @@ export default function RotaScreen() {
           <PlanMap
             items={plan?.items ?? []}
             visitedItemIds={visitedItemIds}
-            selectedId={selectedId}
             onSelect={(item) => setSelectedId(item.id)}
           />
           {unmappedCount(plan?.items ?? []) > 0 && (
