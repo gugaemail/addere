@@ -26,6 +26,22 @@ onde ficam versionados e auditáveis.
 | `SENTRY_PROJECT`              | plaintext    | source map não sobe                              |
 | `SENTRY_AUTH_TOKEN`           | secret       | source map não sobe                              |
 
+### Credenciais de envio (onde cada uma mora)
+
+Nenhuma delas é arquivo no disco. Ficam no servidor do EAS, em
+`expo.dev/accounts/gugaemail/projects/addere/credentials`.
+
+| Plataforma | Credencial                  | Observação                                                                                                                                                 |
+| ---------- | --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Android    | Keystore de upload          | gerenciado pelo EAS; quem assina o APK que chega no aparelho é o Play App Signing, não ele                                                                 |
+| Android    | Google service account key  | `eas-submit@addere-509602.iam.gserviceaccount.com`, com acesso **só ao app Addere** e sem permissão de produção — promover é clique humano no Play Console |
+| iOS        | Distribuição + provisioning | gerenciados pelo EAS; `appleId`/`appleTeamId`/`ascAppId` ficam no `eas.json`                                                                               |
+
+O `eas.json` **não** aponta para `serviceAccountKeyPath`: com um caminho de
+arquivo ali, o `eas submit` ignora a chave do servidor e falha se o arquivo não
+existir. `apps/mobile/google-service-account.json` segue no `.gitignore` só como
+rede de proteção para quem baixar o JSON por engano.
+
 ### Versão
 
 O `version` do app vem de `EXPO_PUBLIC_APP_VERSION`; o `app.config.js` só guarda
