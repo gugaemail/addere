@@ -8,6 +8,7 @@ vi.mock('@addere/db', async () => (await import('../../../../test-utils/prisma-m
 
 import { prismaMock, resetPrismaMock } from '../../../../test-utils/prisma-mock'
 import { buildApp } from '../../../../app'
+import { reconciliationDiffPct } from '../queries.service'
 
 const COMPANY_A = '11111111-1111-4111-8111-111111111111'
 const ADMINS = ['adm-1', 'adm-2', 'adm-3', 'adm-4', 'adm-5', 'adm-6', 'adm-7']
@@ -141,6 +142,28 @@ describe('reconciliação por contrato', () => {
     })
     expect(res.statusCode, res.body).toBe(200)
     expect(res.headers['content-disposition']).toMatch(/titulos-em-aberto-\d{8}\.csv/)
+  })
+})
+
+describe('percentual da reconciliação', () => {
+  // Teto da coluna reconciliationDiffPct: DECIMAL(12,2)
+  const MAX = 9_999_999_999.99
+
+  it('diferença comum vem com duas casas', () => {
+    expect(reconciliationDiffPct(110, 100)).toBe(10)
+    expect(reconciliationDiffPct(63_707.07, 63_707.07)).toBe(0)
+  })
+
+  it('total do ERP muito acima do oficial passa de 9999% — o que estourava DECIMAL(6,2)', () => {
+    const pct = reconciliationDiffPct(6_500_000, 63_707.07)
+    expect(pct).toBeGreaterThan(9_999.99)
+    expect(Math.abs(pct)).toBeLessThanOrEqual(MAX)
+  })
+
+  it('oficial irrisório não gera valor fora da coluna', () => {
+    expect(reconciliationDiffPct(1e15, 0.01)).toBe(MAX)
+    // divisão que estoura o double cai no teto, nunca em Infinity
+    expect(reconciliationDiffPct(1e300, 5e-324)).toBe(MAX)
   })
 })
 

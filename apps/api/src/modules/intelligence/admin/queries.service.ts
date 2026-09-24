@@ -31,6 +31,21 @@ const PREVIEW_MAX_ROWS = 200 // busca 1 página; a resposta corta em 50
 const PREVIEW_RESPONSE_ROWS = 50
 const RECONCILE_TIMEOUT_MS = 120_000
 
+// Teto do percentual gravado (coluna DECIMAL(12,2)). Quando o número oficial
+// digitado está errado por ordem de grandeza, a diferença passa de mil por cento
+// — sem travar aqui o UPDATE estoura com overflow numérico e a tela recebe 500
+// em vez da diferença. Acima desse teto o número já não informa nada além de
+// "não tem relação com o oficial".
+const DIFF_PCT_MAX = 9_999_999_999.99
+
+/** Diferença percentual entre o total calculado e o oficial, limitada à coluna. */
+export function reconciliationDiffPct(calcAmount: number, refAmount: number): number {
+  if (refAmount === 0) return 0
+  const pct = Math.round(((calcAmount - refAmount) / refAmount) * 10_000) / 100
+  if (!Number.isFinite(pct)) return calcAmount >= refAmount ? DIFF_PCT_MAX : -DIFF_PCT_MAX
+  return Math.min(DIFF_PCT_MAX, Math.max(-DIFF_PCT_MAX, pct))
+}
+
 // ─── Mapeamento para DTO ───
 
 export function toQueryDto(row: IntelQuery, validatedByName: string | null = null): IntelQueryDto {
@@ -456,8 +471,7 @@ export async function reconcileQuery(
     endpointHost: source === 'mock' ? null : endpointHostOf(company.apiSql),
   })
 
-  const diffPct =
-    refAmount === 0 ? 0 : Math.round(((calcAmount - refAmount) / refAmount) * 10_000) / 100
+  const diffPct = reconciliationDiffPct(calcAmount, refAmount)
   const tolerance = await getTolerancePct(company.id)
   const withinTolerance = Math.abs(diffPct) <= tolerance
 
