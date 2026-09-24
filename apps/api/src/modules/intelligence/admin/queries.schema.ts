@@ -22,7 +22,11 @@ export const previewSchema = z.object({ companyId })
 export const reconcileSchema = z.object({
   companyId,
   period: z.string().regex(/^\d{6}$/, 'Período deve ser YYYYMM').optional(),
-  refAmount: z.number().positive('Valor de referência deve ser positivo'),
+  // Teto = DECIMAL(14,2) da coluna: erro de digitação vira 400 legível, não 500
+  refAmount: z
+    .number()
+    .positive('Valor de referência deve ser positivo')
+    .max(999_999_999_999.99, 'Valor de referência grande demais'),
 })
 export type ReconcileInput = z.infer<typeof reconcileSchema>
 
