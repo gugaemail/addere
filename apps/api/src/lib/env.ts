@@ -23,6 +23,10 @@ const envSchema = z.object({
   // Geocodificação (E15-F1, decisão D14a) — Nominatim agora; Google via stub
   INTEL_GEOCODER: z.enum(['nominatim', 'google', 'mock']).default('nominatim'),
   GOOGLE_GEOCODING_API_KEY: z.string().optional(),
+  // Teto de enderecos por execucao do job GEO. 300 cabe no noturno a 1 req/s
+  // do Nominatim; com Google (sem esse limite) da para subir e fazer a carga
+  // inicial de uma base inteira numa noite so.
+  INTEL_GEO_MAX_PER_RUN: z.coerce.number().int().positive().max(20_000).default(300),
   WEB_URL: z.string().url().optional(),
 })
 

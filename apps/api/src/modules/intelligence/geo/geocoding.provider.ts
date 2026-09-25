@@ -16,6 +16,8 @@ export interface GeoResult {
   lat: number
   lng: number
   precision: GeoPrecision
+  /** Quem respondeu de fato — o fallback pode nao ser o provider principal */
+  source?: string
 }
 
 export interface GeocodingProvider {
@@ -175,23 +177,100 @@ export class NominatimProvider implements GeocodingProvider {
   }
 }
 
-// ─── Google Geocoding — stub documentado (D14a) ───
-// Para ativar: contratar billing no Google Cloud, criar GOOGLE_GEOCODING_API_KEY
-// e trocar INTEL_GEOCODER=google. Implementação prevista:
-//   GET https://maps.googleapis.com/maps/api/geocode/json?address=<q>&region=br&key=<key>
-//   Mapeamento de precisão (geometry.location_type):
-//     ROOFTOP → ROOFTOP · RANGE_INTERPOLATED/GEOMETRIC_CENTER → STREET ·
-//     APPROXIMATE → CEP ou CITY conforme types (postal_code → CEP; locality → CITY)
+// ─── Google Geocoding ───
+// Resolve endereço brasileiro incompleto muito melhor que o Nominatim: o
+// cadastro do ERP vem com "VIA ANHANGUERA, SN", sem número nem bairro, e o
+// Nominatim acertou 40% numa base real (99 de 247 em 09/2026).
+//
+// A chave NAO pode ser a mesma do mapa do app: aquela e restrita por
+// (package, SHA-1) e uma chamada de servidor volta REQUEST_DENIED. Crie uma
+// chave separada, restrita por IP ou sem restricao de aplicativo, e limitada a
+// Geocoding API.
+const GOOGLE_URL = 'https://maps.googleapis.com/maps/api/geocode/json'
+
+interface GoogleResult {
+  geometry?: { location?: { lat?: number; lng?: number }; location_type?: string }
+  types?: string[]
+}
+
+/** location_type do Google → GeoPrecision; APPROXIMATE cai em CEP ou CITY. */
+export function precisionFromGoogle(result: GoogleResult): GeoPrecision {
+  const locationType = result.geometry?.location_type
+  if (locationType === 'ROOFTOP') return 'ROOFTOP'
+  if (locationType === 'RANGE_INTERPOLATED' || locationType === 'GEOMETRIC_CENTER') return 'STREET'
+  const types = result.types ?? []
+  if (types.includes('postal_code')) return 'CEP'
+  return 'CITY'
+}
+
+/**
+ * O Google devolve HTTP 200 com o erro no corpo. ZERO_RESULTS e "nao achou"
+ * (null, vira cache); o resto lanca, para nao gravar cache de falha nossa como
+ * se fosse endereco inexistente.
+ */
+export function parseGoogleResponse(raw: unknown): GeoResult | null {
+  const body = (raw ?? {}) as { status?: string; results?: GoogleResult[]; error_message?: string }
+  if (body.status === 'ZERO_RESULTS') return null
+  if (body.status !== 'OK') {
+    const detail = body.error_message ? `: ${body.error_message}` : ''
+    throw new Error(`Google Geocoding status ${body.status ?? 'desconhecido'}${detail}`)
+  }
+  const first = body.results?.[0]
+  if (!first) return null
+  const lat = Number(first.geometry?.location?.lat)
+  const lng = Number(first.geometry?.location?.lng)
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null
+  return { lat, lng, precision: precisionFromGoogle(first), source: 'google' }
+}
+
 export class GoogleProvider implements GeocodingProvider {
   readonly source = 'google'
 
-  constructor(private readonly apiKey: string | undefined) {}
+  constructor(
+    private readonly apiKey: string | undefined,
+    private readonly fetchFn: typeof fetch = fetch
+  ) {}
 
-  async geocode(_normalizedAddress: string): Promise<GeoResult | null> {
+  async geocode(normalizedAddress: string): Promise<GeoResult | null> {
     if (!this.apiKey) {
       throw new Error('GOOGLE_GEOCODING_API_KEY ausente — configure a chave ou use INTEL_GEOCODER=nominatim')
     }
-    throw new Error('GoogleProvider é um stub (D14a) — implementar a chamada antes de usar INTEL_GEOCODER=google')
+    const url = new URL(GOOGLE_URL)
+    url.searchParams.set('address', normalizedAddress)
+    url.searchParams.set('region', 'br')
+    url.searchParams.set('language', 'pt-BR')
+    url.searchParams.set('key', this.apiKey)
+    const response = await this.fetchFn(url, { signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) })
+    // A URL carrega a chave: nunca entra em mensagem de erro
+    if (!response.ok) throw new Error(`Google Geocoding respondeu HTTP ${response.status}`)
+    return parseGoogleResponse(await response.json())
+  }
+}
+
+// ─── Fallback entre providers ───
+// Falha do principal (cota, rede, chave recusada) nao pode deixar o tenant sem
+// nenhuma coordenada. "Nao encontrou" tambem tenta o secundario: sao bases de
+// dados diferentes. O `source` do resultado diz quem respondeu, entao provider
+// principal quebrado aparece em intel_geo_addresses em vez de passar batido.
+export class FallbackGeocodingProvider implements GeocodingProvider {
+  readonly source: string
+
+  constructor(
+    private readonly primary: GeocodingProvider,
+    private readonly secondary: GeocodingProvider
+  ) {
+    this.source = primary.source
+  }
+
+  async geocode(normalizedAddress: string): Promise<GeoResult | null> {
+    try {
+      const hit = await this.primary.geocode(normalizedAddress)
+      if (hit) return { ...hit, source: hit.source ?? this.primary.source }
+    } catch {
+      // segue para o secundario — o erro do principal nao interessa aqui
+    }
+    const fallback = await this.secondary.geocode(normalizedAddress)
+    return fallback ? { ...fallback, source: fallback.source ?? this.secondary.source } : null
   }
 }
 
@@ -209,10 +288,22 @@ export class MockGeocodingProvider implements GeocodingProvider {
   }
 }
 
+/** Erro que vale nova tentativa: cota, indisponibilidade e timeout sao passageiros. */
+export function isRetryableGeoError(err: unknown): boolean {
+  const message = (err as Error)?.message ?? ''
+  return /HTTP (429|5\d\d)\b|OVER_QUERY_LIMIT|UNKNOWN_ERROR|timed? ?out|aborted/i.test(message)
+}
+
 export function getGeocodingProvider(
   name: 'nominatim' | 'google' | 'mock' = env.INTEL_GEOCODER
 ): GeocodingProvider {
   if (name === 'mock') return new MockGeocodingProvider()
-  if (name === 'google') return new GoogleProvider(env.GOOGLE_GEOCODING_API_KEY)
+  if (name === 'google') {
+    const google = new GoogleProvider(env.GOOGLE_GEOCODING_API_KEY)
+    // Sem chave nao ha fallback: o erro precisa aparecer, senao um INTEL_GEOCODER
+    // =google mal configurado rodaria em Nominatim para sempre, em silencio.
+    if (!env.GOOGLE_GEOCODING_API_KEY) return google
+    return new FallbackGeocodingProvider(google, new NominatimProvider())
+  }
   return new NominatimProvider()
 }
