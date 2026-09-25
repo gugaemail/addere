@@ -6,21 +6,21 @@ import { promises as dns } from 'dns'
 
 const BLOCKED_HOSTS = new Set([
   'localhost',
-  'metadata.internal',       // GCP
-  '169.254.169.254',         // AWS/Azure/GCP IMDS
+  'metadata.internal', // GCP
+  '169.254.169.254', // AWS/Azure/GCP IMDS
   '[::1]',
 ])
 
 // Prefixos de IP privado/reservado em notação decimal
 const PRIVATE_IP_PATTERNS = [
-  /^127\./,                  // loopback
-  /^10\./,                   // RFC 1918
-  /^192\.168\./,             // RFC 1918
+  /^127\./, // loopback
+  /^10\./, // RFC 1918
+  /^192\.168\./, // RFC 1918
   /^172\.(1[6-9]|2\d|3[01])\./, // RFC 1918 172.16–172.31
-  /^169\.254\./,             // link-local / IMDS
-  /^::1$/,                   // IPv6 loopback
-  /^fc00:/,                  // IPv6 unique local
-  /^fd/,                     // IPv6 unique local
+  /^169\.254\./, // link-local / IMDS
+  /^::1$/, // IPv6 loopback
+  /^fc00:/, // IPv6 unique local
+  /^fd/, // IPv6 unique local
 ]
 
 function isBlockedAddress(addr: string): boolean {

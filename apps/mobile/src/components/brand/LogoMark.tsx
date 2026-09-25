@@ -1,10 +1,11 @@
 import React from 'react'
 import Svg, { Defs, LinearGradient, Stop, Rect } from 'react-native-svg'
+import { colors } from '../../theme/colors'
 
 type Variant = 'light' | 'dark'
 
 interface LogoMarkProps {
-  size?:    number
+  size?: number
   variant?: Variant
 }
 
@@ -12,22 +13,22 @@ export function LogoMark({ size = 40, variant = 'light' }: LogoMarkProps) {
   const isDark = variant === 'dark'
 
   // Vertical bar: cyan (top) → navy (bottom)
-  const vTop    = isDark ? '#4DD4FF' : '#29BEFF'
-  const vBottom = isDark ? '#1B4FA8' : '#0D1B3E'
+  const vTop = isDark ? colors.logo.cyanBright : colors.brand.accent
+  const vBottom = isDark ? colors.brand.primary : colors.logo.navyDeep
 
   // Horizontal bar: steel-blue (left) → navy (right)
-  const hLeft  = isDark ? '#2288CC' : '#1A7DC4'
-  const hRight = isDark ? '#1B3A7A' : '#0D1B3E'
+  const hLeft = isDark ? colors.logo.steelDark : colors.logo.steelBlue
+  const hRight = isDark ? colors.logo.navyMuted : colors.logo.navyDeep
 
   return (
     <Svg width={size} height={size} viewBox="0 0 100 100">
       <Defs>
         <LinearGradient id="lm-v" x1="0" y1="0" x2="0" y2="1">
-          <Stop offset="0" stopColor={vTop}    />
+          <Stop offset="0" stopColor={vTop} />
           <Stop offset="1" stopColor={vBottom} />
         </LinearGradient>
         <LinearGradient id="lm-h" x1="0" y1="0" x2="1" y2="0">
-          <Stop offset="0" stopColor={hLeft}  />
+          <Stop offset="0" stopColor={hLeft} />
           <Stop offset="1" stopColor={hRight} />
         </LinearGradient>
       </Defs>

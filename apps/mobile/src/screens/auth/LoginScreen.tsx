@@ -2,29 +2,27 @@ import { useState, useEffect } from 'react'
 import {
   View,
   Text,
-  TouchableOpacity,
   StyleSheet,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
   Alert,
-  ActivityIndicator,
 } from 'react-native'
 import { useRouter } from 'expo-router'
 import { z } from 'zod'
 import AsyncStorage from '@react-native-async-storage/async-storage'
-import * as SecureStore from 'expo-secure-store'
 import * as LocalAuthentication from 'expo-local-authentication'
-import axios from 'axios'
 import { useLogin, BIOMETRIC_KEY } from '../../hooks/useAuth'
-import { useAuthStore, REFRESH_TOKEN_KEY } from '../../store/auth.store'
+import { useAuthStore } from '../../store/auth.store'
 import { useCompanyStore } from '../../store/company.store'
 import { api } from '../../lib/api'
-import { env } from '../../config/env'
 import { LogoMark } from '../../components/brand/LogoMark'
+import { getApiErrorMessage } from '../../lib/errors'
 import { Input } from '../../components/ui/Input'
-import { Button } from '../../components/ui/Button'
-import type { CompanyFieldConfig, SyncSchedule } from '@addere/types'
+import { Button, buttonForeground } from '../../components/ui/Button'
+import { Fingerprint } from 'lucide-react-native'
+import { colors, spacing, radius, typography } from '../../theme'
+import type { CompanyFieldConfig, SyncSchedule, UserPublic } from '@addere/types'
 
 const schema = z.object({
   email: z.string().email('Email inválido'),
@@ -35,13 +33,13 @@ export function LoginScreen() {
   const router = useRouter()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [validationError, setValidationError] = useState<string | null>(null)
+  const [fieldErrors, setFieldErrors] = useState<{ email?: string; password?: string }>({})
   const [showBiometric, setShowBiometric] = useState(false)
   const [biometricLoading, setBiometricLoading] = useState(false)
 
   const { mutate: login, isPending, error } = useLogin()
   const setAuth = useAuthStore((s) => s.setAuth)
-  const setFieldConfig  = useCompanyStore((s) => s.setFieldConfig)
+  const setFieldConfig = useCompanyStore((s) => s.setFieldConfig)
   const setSyncSchedule = useCompanyStore((s) => s.setSyncSchedule)
 
   useEffect(() => {
@@ -49,7 +47,7 @@ export function LoginScreen() {
       const enabled = await AsyncStorage.getItem(BIOMETRIC_KEY)
       if (enabled !== 'true') return
       const hasHardware = await LocalAuthentication.hasHardwareAsync()
-      const isEnrolled  = await LocalAuthentication.isEnrolledAsync()
+      const isEnrolled = await LocalAuthentication.isEnrolledAsync()
       if (hasHardware && isEnrolled) setShowBiometric(true)
     }
     checkBiometric()
@@ -63,44 +61,29 @@ export function LoginScreen() {
         cancelLabel: 'Usar e-mail e senha',
         disableDeviceFallback: false,
       })
-      if (!result.success) { setBiometricLoading(false); return }
-
-      // Tenta cookie primeiro; se falhar (RN não persiste cookie), usa token do SecureStore
-      const storedRefreshToken = await SecureStore.getItemAsync(REFRESH_TOKEN_KEY)
-      let refreshData: { accessToken: string; refreshToken: string }
-      try {
-        const { data } = await axios.post(
-          `${env.apiUrl}/auth/refresh`,
-          {},
-          { withCredentials: true, timeout: 8000 }
-        )
-        refreshData = data
-      } catch (cookieErr) {
-        if (!storedRefreshToken) throw cookieErr
-        const { data } = await axios.post(
-          `${env.apiUrl}/auth/refresh`,
-          { refreshToken: storedRefreshToken },
-          { timeout: 8000 }
-        )
-        refreshData = data
+      if (!result.success) {
+        setBiometricLoading(false)
+        return
       }
 
-      // Usa axios direto com o novo token — api.get usaria o Zustand store
-      // que ainda está vazio (null), causando 401 e acionando o interceptor
-      const { data: userData } = await axios.get(
-        `${env.apiUrl}/auth/me`,
-        { headers: { Authorization: `Bearer ${refreshData.accessToken}` }, timeout: 8000 }
-      )
-      await setAuth(userData, refreshData.accessToken)
-      await SecureStore.setItemAsync(REFRESH_TOKEN_KEY, refreshData.refreshToken)
+      // refreshSession (auth.store) centraliza cookie + fallback SecureStore
+      // e já persiste os tokens rotacionados e popula o store
+      const accessToken = await useAuthStore.getState().refreshSession()
+
+      const { data: userData } = await api.get<UserPublic>('/auth/me')
+      await setAuth(userData, accessToken)
       try {
         const { data: cfg } = await api.get<CompanyFieldConfig>('/companies/me/field-config')
         await setFieldConfig(cfg)
-      } catch { /* ignora */ }
+      } catch {
+        /* ignora */
+      }
       try {
         const { data: s } = await api.get<SyncSchedule>('/companies/me/sync-schedule')
         await setSyncSchedule(s)
-      } catch { /* ignora */ }
+      } catch {
+        /* ignora */
+      }
       // AuthGuard navega para /(app) automaticamente ao detectar accessToken
     } catch {
       Alert.alert(
@@ -115,30 +98,26 @@ export function LoginScreen() {
   }
 
   const apiErrorMessage = error
-    ? ((error as { response?: { data?: { message?: string } } })?.response?.data?.message ?? 'Erro ao conectar com o servidor')
+    ? getApiErrorMessage(error, 'Erro ao conectar com o servidor')
     : null
 
   function handleLogin() {
-    setValidationError(null)
+    setFieldErrors({})
     const result = schema.safeParse({ email, password })
     if (!result.success) {
-      setValidationError(result.error.errors[0].message)
+      const { fieldErrors: fe } = result.error.flatten()
+      setFieldErrors({ email: fe.email?.[0], password: fe.password?.[0] })
       return
     }
     login(result.data)
   }
-
-  const errorMessage = validationError ?? apiErrorMessage
 
   return (
     <KeyboardAvoidingView
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
-      <ScrollView
-        contentContainerStyle={styles.scroll}
-        keyboardShouldPersistTaps="handled"
-      >
+      <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
         <View style={styles.card}>
           {/* Logo group */}
           <View style={styles.logoGroup}>
@@ -150,25 +129,32 @@ export function LoginScreen() {
           {/* Inputs */}
           <View style={styles.fields}>
             <Input
+              testID="input-email"
               label="E-mail"
               value={email}
               onChangeText={setEmail}
               autoCapitalize="none"
               keyboardType="email-address"
               autoComplete="email"
+              error={fieldErrors.email}
             />
             <Input
+              testID="input-password"
               label="Senha"
               value={password}
               onChangeText={setPassword}
               secureTextEntry
+              error={fieldErrors.password}
             />
 
-            {errorMessage && (
-              <Text style={styles.error}>{errorMessage}</Text>
+            {apiErrorMessage && (
+              <Text testID="error-login" style={styles.error}>
+                {apiErrorMessage}
+              </Text>
             )}
 
             <Button
+              testID="btn-login"
               onPress={handleLogin}
               loading={isPending}
               size="lg"
@@ -178,22 +164,21 @@ export function LoginScreen() {
             </Button>
 
             {showBiometric && (
-              <TouchableOpacity
+              <Button
+                variant="secondary"
                 onPress={handleBiometricLogin}
-                disabled={biometricLoading}
-                style={styles.biometricBtn}
-                activeOpacity={0.75}
-              >
-                {biometricLoading
-                  ? <ActivityIndicator size={18} color="#1B4FA8" />
-                  : <Text style={styles.biometricText}>🔐 Entrar com biometria</Text>
+                loading={biometricLoading}
+                icon={
+                  <Fingerprint size={18} strokeWidth={1.5} color={buttonForeground.secondary} />
                 }
-              </TouchableOpacity>
+              >
+                Entrar com biometria
+              </Button>
             )}
 
-            <TouchableOpacity onPress={() => router.push('/(auth)/esqueci-senha')} style={styles.forgotWrapper}>
-              <Text style={styles.forgotText}>Esqueci minha senha</Text>
-            </TouchableOpacity>
+            <Button variant="ghost" size="sm" onPress={() => router.push('/(auth)/esqueci-senha')}>
+              Esqueci minha senha
+            </Button>
           </View>
         </View>
       </ScrollView>
@@ -204,18 +189,18 @@ export function LoginScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: colors.neutral.bg,
   },
   scroll: {
     flexGrow: 1,
     justifyContent: 'center',
-    padding: 24,
+    padding: spacing.lg,
   },
   card: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    padding: 32,
-    shadowColor: '#000',
+    backgroundColor: colors.neutral.white,
+    borderRadius: radius.lg,
+    padding: spacing.xl,
+    shadowColor: colors.neutral.black,
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.08,
     shadowRadius: 4,
@@ -223,51 +208,29 @@ const styles = StyleSheet.create({
   },
   logoGroup: {
     alignItems: 'center',
-    marginBottom: 32,
+    marginBottom: spacing.xl,
   },
   title: {
-    fontFamily: 'PlusJakartaSans_700Bold',
+    fontFamily: typography.fontFamily.sansBold,
     fontSize: 28,
-    color: '#0D2045',
-    marginTop: 12,
+    color: colors.brand.dark,
+    marginTop: spacing.md,
   },
   subtitle: {
-    fontFamily: 'Inter_400Regular',
+    fontFamily: typography.fontFamily.body,
     fontSize: 13,
-    color: '#64748B',
-    marginTop: 4,
+    color: colors.neutral.textSub,
+    marginTop: spacing.xs,
   },
   fields: {
-    gap: 12,
+    gap: spacing.md,
   },
   error: {
-    fontFamily: 'Inter_400Regular',
+    fontFamily: typography.fontFamily.body,
     fontSize: 13,
-    color: '#DC2626',
+    color: colors.semantic.danger,
   },
   button: {
-    marginTop: 8,
-  },
-  biometricBtn: {
-    alignItems: 'center',
-    paddingVertical: 12,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    borderRadius: 10,
-    backgroundColor: '#F8FAFC',
-  },
-  biometricText: {
-    fontFamily: 'Inter_400Regular',
-    fontSize: 14,
-    color: '#1B4FA8',
-  },
-  forgotWrapper: {
-    alignItems: 'center',
-    paddingVertical: 4,
-  },
-  forgotText: {
-    fontFamily: 'Inter_400Regular',
-    fontSize: 13,
-    color: '#1B4FA8',
+    marginTop: spacing.sm,
   },
 })

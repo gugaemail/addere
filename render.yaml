@@ -6,10 +6,14 @@ services:
     region: oregon
     plan: starter
     # rootDir não definido — build roda da raiz do monorepo (necessário para npm workspaces)
-    buildCommand: npm install --include=dev && npx prisma generate --schema=packages/db/prisma/schema.prisma && DATABASE_URL=$DATABASE_URL_DIRECT npx prisma migrate deploy --schema=packages/db/prisma/schema.prisma && npm run build --workspace=@addere/api
+    buildCommand: npm install --include=dev && npx prisma generate --schema=packages/db/prisma/schema.prisma && DATABASE_URL=${DATABASE_URL_DIRECT:-$DATABASE_URL} npx prisma migrate deploy --schema=packages/db/prisma/schema.prisma && npm run build --workspace=@addere/api
     startCommand: node apps/api/dist/server.js
     healthCheckPath: /health
     envVars:
+      # Sem isto o Render instala o Node padrao do dia do build - o runtime de
+      # producao podia mudar sozinho. Mantenha igual ao node-version do ci.yml.
+      - key: NODE_VERSION
+        value: '26'
       - key: NODE_ENV
         value: production
       - key: PORT
@@ -25,6 +29,8 @@ services:
         sync: false
       - key: PROTHEUS_ENCRYPTION_KEY
         sync: false
+      - key: SENTRY_DSN
+        sync: false
       - key: CORS_ORIGIN
         value: https://addere.vercel.app
 
@@ -34,10 +40,14 @@ services:
     runtime: node
     region: oregon
     plan: starter
-    buildCommand: npm install --include=dev && npx prisma generate --schema=packages/db/prisma/schema.prisma && DATABASE_URL=$DATABASE_URL_DIRECT npx prisma migrate deploy --schema=packages/db/prisma/schema.prisma && npm run build --workspace=@addere/api
+    buildCommand: npm install --include=dev && npx prisma generate --schema=packages/db/prisma/schema.prisma && DATABASE_URL=${DATABASE_URL_DIRECT:-$DATABASE_URL} npx prisma migrate deploy --schema=packages/db/prisma/schema.prisma && npm run build --workspace=@addere/api
     startCommand: node apps/api/dist/server.js
     healthCheckPath: /health
     envVars:
+      # Sem isto o Render instala o Node padrao do dia do build - o runtime de
+      # producao podia mudar sozinho. Mantenha igual ao node-version do ci.yml.
+      - key: NODE_VERSION
+        value: '26'
       - key: NODE_ENV
         value: production
       - key: PORT

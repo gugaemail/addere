@@ -4,7 +4,10 @@
     "module": "CommonJS",
     "moduleResolution": "Node",
     "outDir": "dist",
-    "rootDir": "src"
+    // o build de produção é feito pelo tsup; o tsc roda apenas como type-check
+    // (--noEmit). Sem rootDir/composite os fontes de @addere/types, importados
+    // direto do source no monorepo, não violam os limites do projeto.
+    "composite": false
   },
   "include": ["src/**/*"]
 }

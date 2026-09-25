@@ -1,3 +1,4 @@
+import { env } from '../../lib/env'
 import { prisma } from '@addere/db'
 import bcrypt from 'bcryptjs'
 import { randomUUID } from 'crypto'
@@ -54,7 +55,9 @@ export async function rotateRefreshToken(oldToken: string) {
 
   await prisma.$transaction([
     prisma.refreshToken.delete({ where: { token: oldToken } }),
-    prisma.refreshToken.create({ data: { token: newTokenValue, userId: existing.userId, expiresAt } }),
+    prisma.refreshToken.create({
+      data: { token: newTokenValue, userId: existing.userId, expiresAt },
+    }),
   ])
 
   const newToken = newTokenValue
@@ -66,7 +69,7 @@ export async function revokeRefreshToken(token: string): Promise<void> {
   await prisma.refreshToken.deleteMany({ where: { token } })
 }
 
-const WEB_URL = process.env.WEB_URL ?? 'https://addere-web.vercel.app'
+const WEB_URL = env.WEB_URL ?? 'https://addere-web.vercel.app'
 const RESET_TOKEN_EXPIRES_HOURS = 1
 
 export async function forgotPassword(email: string): Promise<void> {
@@ -79,12 +82,12 @@ export async function forgotPassword(email: string): Promise<void> {
 
   await prisma.passwordResetToken.create({ data: { token, userId: user.id, expiresAt } })
 
-  if (!process.env.RESEND_API_KEY) {
+  if (!env.RESEND_API_KEY) {
     console.warn('[auth] RESEND_API_KEY não configurada — email de reset não enviado')
     return
   }
 
-  const resend = new Resend(process.env.RESEND_API_KEY)
+  const resend = new Resend(env.RESEND_API_KEY)
   const resetLink = `${WEB_URL}/resetar-senha?token=${token}`
 
   try {

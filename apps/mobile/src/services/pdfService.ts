@@ -1,11 +1,8 @@
 import * as Print from 'expo-print'
 import type { Order } from '@addere/types'
-
-const STATUS_LABEL: Record<string, string> = {
-  PENDING: 'Pendente',
-  SYNCED: 'Sincronizado',
-  CANCELLED: 'Cancelado',
-}
+import { STATUS_LABEL } from '../utils/orderStatus'
+import { fmtData } from '../utils/format'
+import { colors } from '../theme'
 
 function fmtDecimal(value: string | number | null | undefined): string {
   if (value === null || value === undefined || value === '') return '—'
@@ -19,9 +16,12 @@ function fmtDecimal(value: string | number | null | undefined): string {
 
 function buildHtml(order: Order): string {
   const emissao = order.emissao ?? order.createdAt
-  const dateFormatted = new Date(emissao).toLocaleDateString('pt-BR')
-  const generatedAt = new Date().toLocaleDateString('pt-BR')
-  const generatedTime = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+  const dateFormatted = fmtData(emissao)
+  const generatedAt = fmtData(new Date().toISOString())
+  const generatedTime = new Date().toLocaleTimeString('pt-BR', {
+    hour: '2-digit',
+    minute: '2-digit',
+  })
   const statusLabel = STATUS_LABEL[order.status] ?? order.status
 
   const itemRows = order.items
@@ -40,9 +40,7 @@ function buildHtml(order: Order): string {
     )
     .join('')
 
-  const branchBlock = order.branch
-    ? `<p>Filial: <strong>${order.branch.name}</strong></p>`
-    : ''
+  const branchBlock = order.branch ? `<p>Filial: <strong>${order.branch.name}</strong></p>` : ''
   const transportBlock = order.transportadora
     ? `<p>Transportadora: <strong>${order.transportadora.nome}</strong></p>`
     : ''
@@ -52,9 +50,7 @@ function buildHtml(order: Order): string {
   const protheusBlock = order.protheusOrderId
     ? `<p>Cód. Protheus: <strong>${order.protheusOrderId}</strong></p>`
     : ''
-  const documentBlock = order.customer.document
-    ? `<p>${order.customer.document}</p>`
-    : ''
+  const documentBlock = order.customer.document ? `<p>${order.customer.document}</p>` : ''
   const observacoesBlock =
     order.notes || order.mennota
       ? `
@@ -73,10 +69,10 @@ function buildHtml(order: Order): string {
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
       font-family: Arial, Helvetica, sans-serif;
-      color: #1E293B;
+      color: ${colors.neutral.text};
       padding: 28px 32px;
       font-size: 12px;
-      background: #fff;
+      background: ${colors.neutral.white};
     }
 
     /* ── Cabeçalho ── */
@@ -85,14 +81,14 @@ function buildHtml(order: Order): string {
       justify-content: space-between;
       align-items: flex-start;
       padding-bottom: 16px;
-      border-bottom: 2px solid #1B4FA8;
+      border-bottom: 2px solid ${colors.brand.primary};
       margin-bottom: 20px;
     }
-    .logo { font-size: 26px; font-weight: 800; color: #0D2045; letter-spacing: -1px; }
-    .logo span { color: #29BEFF; }
+    .logo { font-size: 26px; font-weight: 800; color: ${colors.brand.dark}; letter-spacing: -1px; }
+    .logo span { color: ${colors.brand.accent}; }
     .order-meta { text-align: right; }
-    .order-meta h2 { font-size: 16px; font-weight: 700; color: #0D2045; margin-bottom: 4px; }
-    .order-meta p { color: #64748B; font-size: 11px; line-height: 1.6; }
+    .order-meta h2 { font-size: 16px; font-weight: 700; color: ${colors.brand.dark}; margin-bottom: 4px; }
+    .order-meta p { color: ${colors.neutral.textSub}; font-size: 11px; line-height: 1.6; }
     .status-pill {
       display: inline-block;
       margin-top: 6px;
@@ -100,9 +96,9 @@ function buildHtml(order: Order): string {
       border-radius: 999px;
       font-size: 11px;
       font-weight: 700;
-      background: #E8F4FF;
-      color: #1B4FA8;
-      border: 1px solid #29BEFF;
+      background: ${colors.brand.tint};
+      color: ${colors.brand.primary};
+      border: 1px solid ${colors.brand.accent};
     }
 
     /* ── Info grid ── */
@@ -113,25 +109,25 @@ function buildHtml(order: Order): string {
       margin-bottom: 20px;
     }
     .info-card {
-      background: #F8FAFC;
-      border: 1px solid #E2E8F0;
+      background: ${colors.neutral.bg};
+      border: 1px solid ${colors.neutral.border};
       border-radius: 8px;
       padding: 12px 14px;
     }
     .info-card .label-sm {
       font-size: 10px;
       font-weight: 700;
-      color: #94A3B8;
+      color: ${colors.neutral.placeholder};
       text-transform: uppercase;
       letter-spacing: 0.6px;
       margin-bottom: 6px;
     }
     .info-card p {
       font-size: 12px;
-      color: #334155;
+      color: ${colors.neutral.text};
       line-height: 1.7;
     }
-    .info-card strong { color: #0D2045; }
+    .info-card strong { color: ${colors.brand.dark}; }
 
     /* ── Tabela de produtos ── */
     table {
@@ -141,10 +137,10 @@ function buildHtml(order: Order): string {
       font-size: 11px;
     }
     thead tr {
-      background: #0D2045;
+      background: ${colors.brand.dark};
     }
     thead th {
-      color: #fff;
+      color: ${colors.neutral.white};
       padding: 8px 10px;
       text-align: left;
       font-size: 10px;
@@ -153,11 +149,11 @@ function buildHtml(order: Order): string {
       letter-spacing: 0.5px;
     }
     thead th.num { text-align: right; }
-    tbody tr:nth-child(even) td { background: #F8FAFC; }
+    tbody tr:nth-child(even) td { background: ${colors.neutral.bg}; }
     tbody td {
       padding: 8px 10px;
-      border-bottom: 1px solid #E2E8F0;
-      color: #1E293B;
+      border-bottom: 1px solid ${colors.neutral.border};
+      color: ${colors.neutral.text};
     }
     .num { text-align: right; }
 
@@ -169,7 +165,7 @@ function buildHtml(order: Order): string {
     }
     .totals-box {
       min-width: 220px;
-      border: 1px solid #E2E8F0;
+      border: 1px solid ${colors.neutral.border};
       border-radius: 8px;
       overflow: hidden;
     }
@@ -177,16 +173,16 @@ function buildHtml(order: Order): string {
       display: flex;
       justify-content: space-between;
       padding: 10px 14px;
-      background: #0D2045;
-      color: #fff;
+      background: ${colors.brand.dark};
+      color: ${colors.neutral.white};
       font-size: 14px;
       font-weight: 700;
     }
 
     /* ── Observações ── */
     .obs-box {
-      background: #F8FAFC;
-      border: 1px solid #E2E8F0;
+      background: ${colors.neutral.bg};
+      border: 1px solid ${colors.neutral.border};
       border-radius: 8px;
       padding: 12px 14px;
       margin-bottom: 20px;
@@ -194,7 +190,7 @@ function buildHtml(order: Order): string {
     .obs-box .label-sm {
       font-size: 10px;
       font-weight: 700;
-      color: #94A3B8;
+      color: ${colors.neutral.placeholder};
       text-transform: uppercase;
       letter-spacing: 0.6px;
       margin-bottom: 6px;
@@ -206,14 +202,14 @@ function buildHtml(order: Order): string {
       justify-content: space-between;
       align-items: center;
       padding-top: 14px;
-      border-top: 1px solid #E2E8F0;
+      border-top: 1px solid ${colors.neutral.border};
       font-size: 10px;
-      color: #94A3B8;
+      color: ${colors.neutral.placeholder};
     }
     .footer-watermark {
       font-size: 13px;
       font-weight: 800;
-      color: #0D2045;
+      color: ${colors.brand.dark};
       opacity: 0.15;
       letter-spacing: -0.5px;
     }

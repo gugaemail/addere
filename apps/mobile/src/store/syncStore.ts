@@ -5,7 +5,12 @@ import type { SyncQueueItem, SyncStatus } from '../types/sync'
 
 function generateId(): string {
   const bytes = new Uint8Array(16)
-  crypto.getRandomValues(bytes)
+  // Sem crypto disponível o enqueue não pode falhar — perderia o pedido offline
+  if (typeof crypto !== 'undefined' && typeof crypto.getRandomValues === 'function') {
+    crypto.getRandomValues(bytes)
+  } else {
+    for (let i = 0; i < bytes.length; i++) bytes[i] = Math.floor(Math.random() * 256)
+  }
   bytes[6] = (bytes[6] & 0x0f) | 0x40
   bytes[8] = (bytes[8] & 0x3f) | 0x80
   const hex = Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('')
@@ -14,16 +19,23 @@ function generateId(): string {
 
 interface SyncStoreState {
   queue: SyncQueueItem[]
+  /**
+   * Usuário logado — a fila é do aparelho, e a API grava o pedido em nome de
+   * quem envia: cada item leva o id de quem o criou e só o dono vê e envia.
+   * Mantido pelo auth.store a cada troca de sessão.
+   */
+  ownerId: string | null
   isSyncing: boolean
   lastSyncAt: string | null
   networkAvailable: boolean
   justSyncedOrderAt: string | null
 
   enqueue: (type: SyncQueueItem['type'], payload: unknown) => string
+  setOwner: (ownerId: string | null) => void
   markSyncing: (id: string) => void
   markSynced: (id: string) => void
   markError: (id: string, error: string) => void
-  removeItem: (id: string) => void
+  markFailedPermanently: (id: string, error: string) => void
   setNetworkAvailable: (available: boolean) => void
   clearSynced: () => void
   setIsSyncing: (value: boolean) => void
@@ -33,8 +45,9 @@ interface SyncStoreState {
 
 export const useSyncStore = create<SyncStoreState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       queue: [],
+      ownerId: null,
       isSyncing: false,
       lastSyncAt: null,
       networkAvailable: true,
@@ -52,15 +65,18 @@ export const useSyncStore = create<SyncStoreState>()(
           lastError: null,
           createdAt: new Date().toISOString(),
           syncedAt: null,
+          userId: get().ownerId ?? undefined,
         }
         set((s) => ({ queue: [...s.queue, item] }))
         return id
       },
 
+      setOwner: (ownerId) => set({ ownerId }),
+
       markSyncing: (id) =>
         set((s) => ({
           queue: s.queue.map((item) =>
-            item.id === id ? { ...item, status: 'syncing' as SyncStatus } : item,
+            item.id === id ? { ...item, status: 'syncing' as SyncStatus } : item
           ),
         })),
 
@@ -71,12 +87,27 @@ export const useSyncStore = create<SyncStoreState>()(
             queue: s.queue.map((item) =>
               item.id === id
                 ? { ...item, status: 'synced' as SyncStatus, syncedAt: new Date().toISOString() }
-                : item,
+                : item
             ),
             lastSyncAt: new Date().toISOString(),
-            justSyncedOrderAt: syncedItem?.type === 'order' ? new Date().toISOString() : s.justSyncedOrderAt,
+            justSyncedOrderAt:
+              syncedItem?.type === 'order' ? new Date().toISOString() : s.justSyncedOrderAt,
           }
         }),
+
+      markFailedPermanently: (id, error) =>
+        set((s) => ({
+          queue: s.queue.map((item) =>
+            item.id === id
+              ? {
+                  ...item,
+                  status: 'error' as SyncStatus,
+                  attempts: item.maxAttempts,
+                  lastError: error,
+                }
+              : item
+          ),
+        })),
 
       markError: (id, error) =>
         set((s) => ({
@@ -88,12 +119,9 @@ export const useSyncStore = create<SyncStoreState>()(
                   attempts: item.attempts + 1,
                   lastError: error,
                 }
-              : item,
+              : item
           ),
         })),
-
-      removeItem: (id) =>
-        set((s) => ({ queue: s.queue.filter((item) => item.id !== id) })),
 
       setNetworkAvailable: (available) => set({ networkAvailable: available }),
 
@@ -111,29 +139,44 @@ export const useSyncStore = create<SyncStoreState>()(
       storage: createJSONStorage(() => AsyncStorage),
       partialize: (state) => ({
         queue: state.queue,
+        ownerId: state.ownerId,
         lastSyncAt: state.lastSyncAt,
       }),
-    },
-  ),
+      // Se o app morreu no meio de um envio, o item ficou 'syncing' no storage;
+      // sem este reset ele nunca mais entraria no filtro de processamento
+      onRehydrateStorage: () => (state) => {
+        if (!state) return
+        state.queue = state.queue
+          // Itens de antes da fila ter dono não têm como ser atribuídos a
+          // ninguém — ficariam invisíveis para sempre
+          .filter((item) => item.userId)
+          .map((item) =>
+            item.status === 'syncing' ? { ...item, status: 'pending' as SyncStatus } : item
+          )
+      },
+    }
+  )
 )
 
+/** Só os itens do usuário logado — o resto da fila é de outra sessão. */
+export const selectOwnQueue = (state: SyncStoreState) =>
+  state.queue.filter((item) => (item.userId ?? null) === state.ownerId)
+
 export const selectPendingCount = (state: SyncStoreState) =>
-  state.queue.filter(
+  selectOwnQueue(state).filter(
     (item) =>
-      item.status === 'pending' ||
-      (item.status === 'error' && item.attempts < item.maxAttempts),
+      item.status === 'pending' || (item.status === 'error' && item.attempts < item.maxAttempts)
   ).length
 
-export const selectHasPending = (state: SyncStoreState) =>
-  selectPendingCount(state) > 0
+export const selectHasPending = (state: SyncStoreState) => selectPendingCount(state) > 0
 
 export const selectPendingItems = (state: SyncStoreState) =>
-  state.queue.filter(
+  selectOwnQueue(state).filter(
     (item) =>
       item.status === 'pending' ||
       item.status === 'syncing' ||
-      (item.status === 'error' && item.attempts < item.maxAttempts),
+      (item.status === 'error' && item.attempts < item.maxAttempts)
   )
 
 export const selectErrorItems = (state: SyncStoreState) =>
-  state.queue.filter((item) => item.status === 'error')
+  selectOwnQueue(state).filter((item) => item.status === 'error')

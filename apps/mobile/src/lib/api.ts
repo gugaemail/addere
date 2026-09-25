@@ -2,9 +2,23 @@ import axios from 'axios'
 import { env } from '../config/env'
 import { useAuthStore } from '../store/auth.store'
 
+// Sem timeout explícito o axios espera para sempre (o padrão é 0). Conexão que
+// cai no meio deixava a tela girando sem nunca dar erro. Todo endpoint que o app
+// chama resolve no PostgreSQL — 30s já é folga larga em 3G.
+const DEFAULT_TIMEOUT_MS = 30_000
+
+/**
+ * POST /orders/:id/sync é a exceção: fala com o Protheus dentro da própria
+ * request, onde a API espera até 60s pelo token e outros 60s pelo envio. Cortar
+ * antes disso derrubaria um pedido que o servidor ainda vai concluir — e o
+ * endpoint não é idempotente, então o reenvio duplicaria o pedido no ERP.
+ */
+export const ORDER_SYNC_TIMEOUT_MS = 120_000
+
 export const api = axios.create({
   baseURL: env.apiUrl,
   withCredentials: true, // envia cookies (refresh token HttpOnly)
+  timeout: DEFAULT_TIMEOUT_MS,
 })
 
 // Injeta o access token em cada request
@@ -50,15 +64,9 @@ api.interceptors.response.use(
     isRefreshing = true
 
     try {
-      const { data } = await axios.post(
-        `${env.apiUrl}/auth/refresh`,
-        {},
-        { withCredentials: true }
-      )
-
-      const newToken: string = data.accessToken
-      const { setAuth, user } = useAuthStore.getState()
-      if (user) await setAuth(user, newToken)
+      // refreshSession (auth.store) é a única implementação de refresh do app:
+      // cookie primeiro, fallback para o refresh token do SecureStore
+      const newToken = await useAuthStore.getState().refreshSession()
 
       refreshQueue.forEach(({ resolve }) => resolve(newToken))
       refreshQueue = []
@@ -68,7 +76,10 @@ api.interceptors.response.use(
     } catch (err) {
       refreshQueue.forEach(({ reject }) => reject(err))
       refreshQueue = []
-      useAuthStore.getState().clearAuth()
+      // Só desloga quando o servidor rejeitou o refresh — falha de rede não derruba a sessão
+      if ((err as { response?: unknown }).response) {
+        useAuthStore.getState().clearAuth()
+      }
       return Promise.reject(err)
     } finally {
       isRefreshing = false

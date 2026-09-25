@@ -1,4 +1,5 @@
 import fp from 'fastify-plugin'
+import { env } from '../lib/env'
 import jwt from '@fastify/jwt'
 import { FastifyInstance } from 'fastify'
 import type { JwtPayload } from '@addere/types'
@@ -13,7 +14,7 @@ declare module '@fastify/jwt' {
 
 export default fp(async (app: FastifyInstance) => {
   await app.register(jwt, {
-    secret: process.env.JWT_SECRET!,
+    secret: env.JWT_SECRET,
     sign: { expiresIn: '8h' },
   })
 })

@@ -2,6 +2,9 @@
 
 import { useState, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
+import { Check } from 'lucide-react'
+import { Button } from '@/components/ui/Button'
+import { Input } from '@/components/ui/Input'
 
 function ResetarSenhaForm() {
   const searchParams = useSearchParams()
@@ -14,8 +17,14 @@ function ResetarSenhaForm() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setErrorMsg('')
-    if (password.length < 8) { setErrorMsg('A senha deve ter pelo menos 8 caracteres.'); return }
-    if (password !== confirm) { setErrorMsg('As senhas não coincidem.'); return }
+    if (password.length < 8) {
+      setErrorMsg('A senha deve ter pelo menos 8 caracteres.')
+      return
+    }
+    if (password !== confirm) {
+      setErrorMsg('As senhas não coincidem.')
+      return
+    }
 
     setStatus('loading')
     try {
@@ -39,7 +48,7 @@ function ResetarSenhaForm() {
 
   if (!token) {
     return (
-      <p className="text-sm text-red-600">
+      <p className="text-sm text-danger">
         Link inválido. Solicite um novo link de recuperação no app Addere.
       </p>
     )
@@ -48,59 +57,49 @@ function ResetarSenhaForm() {
   if (status === 'success') {
     return (
       <div className="text-center">
-        <div className="mb-4 text-4xl">✓</div>
-        <h2 className="text-xl font-semibold text-[#0D2045] mb-2">Senha alterada!</h2>
-        <p className="text-sm text-[#64748B]">
-          Abra o app Addere e entre com sua nova senha.
-        </p>
+        <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-success/10 text-success">
+          <Check size={24} strokeWidth={1.5} aria-hidden />
+        </div>
+        <h2 className="text-xl font-semibold text-[var(--text-primary)] mb-2">Senha alterada!</h2>
+        <p className="text-sm text-muted">Abra o app Addere e entre com sua nova senha.</p>
       </div>
     )
   }
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-      <div>
-        <label className="block text-sm font-medium text-[#0D2045] mb-1">Nova senha</label>
-        <input
-          type="password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          required
-          minLength={8}
-          placeholder="Mínimo 8 caracteres"
-          className="w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1B4FA8]"
-        />
-      </div>
-      <div>
-        <label className="block text-sm font-medium text-[#0D2045] mb-1">Confirmar nova senha</label>
-        <input
-          type="password"
-          value={confirm}
-          onChange={(e) => setConfirm(e.target.value)}
-          required
-          placeholder="Repita a nova senha"
-          className="w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1B4FA8]"
-        />
-      </div>
-      {errorMsg && <p className="text-sm text-red-600">{errorMsg}</p>}
-      <button
-        type="submit"
-        disabled={status === 'loading'}
-        className="w-full bg-[#1B4FA8] text-white rounded-lg py-2.5 text-sm font-semibold disabled:opacity-60"
-      >
+      <Input
+        label="Nova senha"
+        type="password"
+        value={password}
+        onChange={(e) => setPassword(e.target.value)}
+        required
+        minLength={8}
+        placeholder="Mínimo 8 caracteres"
+      />
+      <Input
+        label="Confirmar nova senha"
+        type="password"
+        value={confirm}
+        onChange={(e) => setConfirm(e.target.value)}
+        required
+        placeholder="Repita a nova senha"
+      />
+      {errorMsg && <p className="text-sm text-danger">{errorMsg}</p>}
+      <Button type="submit" loading={status === 'loading'} className="w-full">
         {status === 'loading' ? 'Salvando...' : 'Redefinir senha'}
-      </button>
+      </Button>
     </form>
   )
 }
 
 export default function ResetarSenhaPage() {
   return (
-    <div className="min-h-screen bg-[#F8FAFC] flex items-center justify-center p-6">
-      <div className="w-full max-w-sm bg-white rounded-2xl shadow-sm border border-[#E2E8F0] p-8">
+    <div className="min-h-screen bg-[var(--bg-page)] flex items-center justify-center p-6">
+      <div className="w-full max-w-sm bg-[var(--bg-surface)] rounded-2xl shadow-sm border border-[var(--border)] p-8">
         <div className="text-center mb-6">
-          <h1 className="text-2xl font-bold text-[#0D2045]">Redefinir senha</h1>
-          <p className="text-sm text-[#64748B] mt-1">Addere ERP Mobile</p>
+          <h1 className="text-2xl font-bold text-[var(--text-primary)]">Redefinir senha</h1>
+          <p className="text-sm text-muted mt-1">Addere ERP Mobile</p>
         </div>
         <Suspense>
           <ResetarSenhaForm />

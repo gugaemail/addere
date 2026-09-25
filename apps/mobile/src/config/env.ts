@@ -5,7 +5,10 @@ const envSchema = z.object({
   protheuUrl: z.string().url().optional(),
   sentryDsn: z.string().min(1).optional(),
   appEnv: z.enum(['development', 'staging', 'production']).default('development'),
-  appVersion: z.string().regex(/^\d+\.\d+\.\d+$/).default('1.0.0'),
+  appVersion: z
+    .string()
+    .regex(/^\d+\.\d+\.\d+$/)
+    .default('1.0.0'),
 })
 
 export const env = envSchema.parse({

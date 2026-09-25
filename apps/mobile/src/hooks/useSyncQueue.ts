@@ -1,5 +1,6 @@
 import {
   useSyncStore,
+  selectOwnQueue,
   selectPendingCount,
   selectHasPending,
   selectPendingItems,
@@ -9,16 +10,16 @@ import { processSyncQueue } from '../services/syncEngine'
 import type { CreateOrderInput } from '@addere/types'
 
 export function useSyncQueue() {
-  const queue           = useSyncStore((s) => s.queue)
-  const isSyncing       = useSyncStore((s) => s.isSyncing)
-  const lastSyncAt      = useSyncStore((s) => s.lastSyncAt)
+  const queue = useSyncStore(selectOwnQueue)
+  const isSyncing = useSyncStore((s) => s.isSyncing)
+  const lastSyncAt = useSyncStore((s) => s.lastSyncAt)
   const networkAvailable = useSyncStore((s) => s.networkAvailable)
-  const pendingCount    = useSyncStore(selectPendingCount)
-  const hasPending      = useSyncStore(selectHasPending)
-  const pendingItems    = useSyncStore(selectPendingItems)
-  const errorItems      = useSyncStore(selectErrorItems)
+  const pendingCount = useSyncStore(selectPendingCount)
+  const hasPending = useSyncStore(selectHasPending)
+  const pendingItems = useSyncStore(selectPendingItems)
+  const errorItems = useSyncStore(selectErrorItems)
 
-  const { enqueue, markError, clearSynced } = useSyncStore.getState()
+  const { enqueue, clearSynced } = useSyncStore.getState()
 
   function enqueueOrder(payload: CreateOrderInput) {
     return enqueue('order', payload)
@@ -31,9 +32,7 @@ export function useSyncQueue() {
   function retryItem(id: string) {
     useSyncStore.setState((s) => ({
       queue: s.queue.map((item) =>
-        item.id === id
-          ? { ...item, status: 'pending', attempts: 0, lastError: null }
-          : item,
+        item.id === id ? { ...item, status: 'pending', attempts: 0, lastError: null } : item
       ),
     }))
     syncNow()

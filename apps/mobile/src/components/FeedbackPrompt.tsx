@@ -1,14 +1,21 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import {
-  View, Text, StyleSheet, Modal, TouchableOpacity, TextInput,
-  KeyboardAvoidingView, Platform, Animated,
+  View,
+  Text,
+  StyleSheet,
+  Modal,
+  TouchableOpacity,
+  KeyboardAvoidingView,
+  Platform,
+  Animated,
 } from 'react-native'
 import { ThumbsUp, ThumbsDown, X } from 'lucide-react-native'
 import { useSyncStore } from '../store/syncStore'
 import { api } from '../lib/api'
-import { colors } from '../theme/colors'
+import { colors, spacing, radius, typography } from '../theme'
+import { Button } from './ui/Button'
+import { Input } from './ui/Input'
 
-const SESSION_SHOWN_KEY = '__feedback_shown_this_session__'
 let shownThisSession = false
 
 export function FeedbackPrompt() {
@@ -68,7 +75,10 @@ export function FeedbackPrompt() {
   const handleSubmitComment = useCallback(async () => {
     setSubmitting(true)
     try {
-      await api.post('/pilot/feedback', { rating: 'negative', comment: comment.trim() || undefined })
+      await api.post('/pilot/feedback', {
+        rating: 'negative',
+        comment: comment.trim() || undefined,
+      })
     } catch {
       // silencioso
     } finally {
@@ -96,9 +106,15 @@ export function FeedbackPrompt() {
           {/* Alça */}
           <View style={styles.handle} />
 
-          {/* Fechar */}
-          <TouchableOpacity style={styles.closeBtn} onPress={dismiss}>
-            <X size={18} color="#94A3B8" />
+          {/* Fechar — ícone puro com hitSlop */}
+          <TouchableOpacity
+            style={styles.closeBtn}
+            onPress={dismiss}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            accessibilityRole="button"
+            accessibilityLabel="Fechar"
+          >
+            <X size={18} color={colors.neutral.placeholder} strokeWidth={1.5} />
           </TouchableOpacity>
 
           {step === 'rating' && (
@@ -106,13 +122,26 @@ export function FeedbackPrompt() {
               <Text style={styles.title}>Pedido enviado!</Text>
               <Text style={styles.subtitle}>Como foi a experiência?</Text>
               <View style={styles.ratingRow}>
-                <TouchableOpacity style={[styles.ratingBtn, styles.positiveBtn]} onPress={handlePositive}>
-                  <ThumbsUp size={28} color="#22C55E" />
-                  <Text style={[styles.ratingLabel, { color: '#22C55E' }]}>Ótimo</Text>
+                {/* Chips de avaliação (positivo/negativo) — mantidos como chips com tokens */}
+                <TouchableOpacity
+                  style={[styles.ratingBtn, styles.positiveBtn]}
+                  onPress={handlePositive}
+                  activeOpacity={0.75}
+                >
+                  <ThumbsUp size={28} color={colors.semantic.success} strokeWidth={1.5} />
+                  <Text style={[styles.ratingLabel, { color: colors.semantic.success }]}>
+                    Ótimo
+                  </Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={[styles.ratingBtn, styles.negativeBtn]} onPress={handleNegative}>
-                  <ThumbsDown size={28} color="#EF4444" />
-                  <Text style={[styles.ratingLabel, { color: '#EF4444' }]}>Tive um problema</Text>
+                <TouchableOpacity
+                  style={[styles.ratingBtn, styles.negativeBtn]}
+                  onPress={handleNegative}
+                  activeOpacity={0.75}
+                >
+                  <ThumbsDown size={28} color={colors.semantic.danger} strokeWidth={1.5} />
+                  <Text style={[styles.ratingLabel, { color: colors.semantic.danger }]}>
+                    Tive um problema
+                  </Text>
                 </TouchableOpacity>
               </View>
             </>
@@ -121,30 +150,33 @@ export function FeedbackPrompt() {
           {step === 'comment' && (
             <>
               <Text style={styles.title}>O que aconteceu?</Text>
-              <TextInput
-                style={styles.textInput}
+              <Input
                 placeholder="Descreva o problema brevemente..."
-                placeholderTextColor="#94A3B8"
                 value={comment}
                 onChangeText={setComment}
                 multiline
                 maxLength={500}
                 autoFocus
+                textAlignVertical="top"
+                containerStyle={styles.textInputContainer}
+                style={styles.textInput}
               />
-              <TouchableOpacity
-                style={[styles.sendBtn, submitting && styles.sendBtnDisabled]}
+              <Button
+                variant="primary"
+                size="lg"
+                loading={submitting}
                 onPress={handleSubmitComment}
-                disabled={submitting}
+                style={styles.sendBtn}
               >
-                <Text style={styles.sendBtnText}>{submitting ? 'Enviando...' : 'Enviar'}</Text>
-              </TouchableOpacity>
+                Enviar
+              </Button>
             </>
           )}
 
           {step === 'done' && (
             <View style={styles.doneContainer}>
               <View style={styles.doneIcon}>
-                <ThumbsUp size={32} color="#22C55E" />
+                <ThumbsUp size={32} color={colors.semantic.success} strokeWidth={1.5} />
               </View>
               <Text style={styles.doneText}>Obrigado pelo feedback!</Text>
             </View>
@@ -159,114 +191,97 @@ const styles = StyleSheet.create({
   overlay: {
     flex: 1,
     justifyContent: 'flex-end',
-    backgroundColor: 'rgba(0,0,0,0.4)',
+    backgroundColor: colors.overlay.scrim,
   },
   sheet: {
-    backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    paddingHorizontal: 24,
-    paddingTop: 12,
-    paddingBottom: 36,
+    backgroundColor: colors.neutral.white,
+    borderTopLeftRadius: radius.xl,
+    borderTopRightRadius: radius.xl,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.md,
+    paddingBottom: spacing.xl,
     minHeight: 200,
   },
   handle: {
     width: 40,
     height: 4,
-    backgroundColor: '#E2E8F0',
-    borderRadius: 2,
+    backgroundColor: colors.neutral.border,
+    borderRadius: radius.full,
     alignSelf: 'center',
-    marginBottom: 16,
+    marginBottom: spacing.md,
   },
   closeBtn: {
     position: 'absolute',
-    top: 16,
-    right: 20,
-    padding: 4,
+    top: spacing.md,
+    right: spacing.md,
+    padding: spacing.xs,
   },
   title: {
-    fontFamily: 'PlusJakartaSans_700Bold',
-    fontSize: 20,
+    fontFamily: typography.fontFamily.sansBold,
+    fontSize: typography.size.xl,
     color: colors.brand.dark,
     textAlign: 'center',
-    marginBottom: 6,
+    marginBottom: spacing.sm,
   },
   subtitle: {
-    fontFamily: 'Inter_400Regular',
-    fontSize: 15,
-    color: '#64748B',
+    fontFamily: typography.fontFamily.body,
+    fontSize: typography.size.md,
+    color: colors.neutral.textSub,
     textAlign: 'center',
-    marginBottom: 24,
+    marginBottom: spacing.lg,
   },
   ratingRow: {
     flexDirection: 'row',
-    gap: 12,
+    gap: spacing.md,
   },
   ratingBtn: {
     flex: 1,
     flexDirection: 'column',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 20,
-    borderRadius: 10,
+    paddingVertical: spacing.lg,
+    borderRadius: radius.md,
     borderWidth: 2,
-    gap: 8,
+    gap: spacing.sm,
   },
   positiveBtn: {
-    borderColor: '#22C55E',
-    backgroundColor: '#F0FDF4',
+    borderColor: colors.semantic.success,
+    backgroundColor: colors.semantic.successLight,
   },
   negativeBtn: {
-    borderColor: '#EF4444',
-    backgroundColor: '#FEF2F2',
+    borderColor: colors.semantic.danger,
+    backgroundColor: colors.semantic.dangerLight,
   },
   ratingLabel: {
-    fontFamily: 'Inter_400Regular',
-    fontSize: 13,
-    fontWeight: '500',
+    fontFamily: typography.fontFamily.bodySemibold,
+    fontSize: typography.size.sm,
+  },
+  textInputContainer: {
+    alignItems: 'flex-start',
   },
   textInput: {
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    borderRadius: 10,
-    padding: 12,
-    fontFamily: 'Inter_400Regular',
-    fontSize: 14,
-    color: colors.brand.dark,
     minHeight: 100,
     textAlignVertical: 'top',
-    marginBottom: 16,
   },
   sendBtn: {
-    backgroundColor: colors.brand.primary,
-    paddingVertical: 14,
-    borderRadius: 10,
-    alignItems: 'center',
-  },
-  sendBtnDisabled: {
-    opacity: 0.6,
-  },
-  sendBtnText: {
-    fontFamily: 'PlusJakartaSans_700Bold',
-    fontSize: 15,
-    color: '#FFFFFF',
+    marginTop: spacing.md,
   },
   doneContainer: {
     alignItems: 'center',
-    paddingVertical: 20,
-    gap: 12,
+    paddingVertical: spacing.lg,
+    gap: spacing.md,
   },
   doneIcon: {
     width: 64,
     height: 64,
-    borderRadius: 32,
-    backgroundColor: '#F0FDF4',
+    borderRadius: radius.full,
+    backgroundColor: colors.semantic.successLight,
     alignItems: 'center',
     justifyContent: 'center',
   },
   doneText: {
-    fontFamily: 'PlusJakartaSans_700Bold',
-    fontSize: 18,
+    fontFamily: typography.fontFamily.sansBold,
+    fontSize: typography.size.lg,
     color: colors.brand.dark,
   },
 })

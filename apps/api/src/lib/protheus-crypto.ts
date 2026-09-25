@@ -2,13 +2,14 @@
 // A chave deve ter 64 caracteres hex (32 bytes) em PROTHEUS_ENCRYPTION_KEY.
 // Valores não criptografados (legado) são retornados sem alteração.
 
+import { env } from './env'
 import { createCipheriv, createDecipheriv, randomBytes } from 'crypto'
 
 const ALGORITHM = 'aes-256-gcm'
 const ENCRYPTED_PREFIX = 'enc:'
 
 function getKey(): Buffer {
-  const hex = process.env.PROTHEUS_ENCRYPTION_KEY ?? ''
+  const hex = env.PROTHEUS_ENCRYPTION_KEY
   if (hex.length !== 64) {
     throw new Error(
       'PROTHEUS_ENCRYPTION_KEY deve ter 64 caracteres hex (32 bytes). ' +
@@ -41,7 +42,10 @@ export function encryptCredential(plaintext: string): string {
 export function decryptCredential(value: string): string {
   if (!value.startsWith(ENCRYPTED_PREFIX)) {
     // Credencial em plaintext (formato legado anterior à criptografia) — deve ser migrada
-    process.emitWarning('Credencial Protheus não criptografada detectada; execute a migração para enc: format', 'Protheus')
+    process.emitWarning(
+      'Credencial Protheus não criptografada detectada; execute a migração para enc: format',
+      'Protheus'
+    )
     return value
   }
 
@@ -59,9 +63,4 @@ export function decryptCredential(value: string): string {
   decipher.setAuthTag(authTag)
 
   return decipher.update(encryptedBuf).toString('utf8') + decipher.final('utf8')
-}
-
-/** Retorna true se o valor está criptografado */
-export function isEncrypted(value: string): boolean {
-  return value.startsWith(ENCRYPTED_PREFIX)
 }

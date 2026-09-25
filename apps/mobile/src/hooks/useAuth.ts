@@ -13,8 +13,8 @@ export const BIOMETRIC_KEY = 'addere_biometric_enabled'
 export function useLogin() {
   const queryClient = useQueryClient()
   const setAuth = useAuthStore((s) => s.setAuth)
-  const setFieldConfig   = useCompanyStore((s) => s.setFieldConfig)
-  const setSyncSchedule  = useCompanyStore((s) => s.setSyncSchedule)
+  const setFieldConfig = useCompanyStore((s) => s.setFieldConfig)
+  const setSyncSchedule = useCompanyStore((s) => s.setSyncSchedule)
 
   return useMutation({
     mutationFn: async (input: LoginRequest) => {
@@ -26,10 +26,12 @@ export function useLogin() {
       await SecureStore.setItemAsync(REFRESH_TOKEN_KEY, data.refreshToken)
       await setAuth(data.user, data.accessToken)
       // Atualiza configs em background sem bloquear a navegação
-      api.get<CompanyFieldConfig>('/companies/me/field-config')
+      api
+        .get<CompanyFieldConfig>('/companies/me/field-config')
         .then(({ data: cfg }) => setFieldConfig(cfg))
         .catch(() => {})
-      api.get<SyncSchedule>('/companies/me/sync-schedule')
+      api
+        .get<SyncSchedule>('/companies/me/sync-schedule')
         .then(({ data: s }) => setSyncSchedule(s))
         .catch(() => {})
 
@@ -37,7 +39,7 @@ export function useLogin() {
       const alreadyAsked = await AsyncStorage.getItem(BIOMETRIC_KEY)
       if (alreadyAsked === null) {
         const hasHardware = await LocalAuthentication.hasHardwareAsync()
-        const isEnrolled  = await LocalAuthentication.isEnrolledAsync()
+        const isEnrolled = await LocalAuthentication.isEnrolledAsync()
         if (hasHardware && isEnrolled) {
           Alert.alert(
             'Usar biometria?',
@@ -59,7 +61,7 @@ export function useLogin() {
 export function useLogout() {
   const queryClient = useQueryClient()
   const clearAuth = useAuthStore((s) => s.clearAuth)
-  const clearFieldConfig  = useCompanyStore((s) => s.clearFieldConfig)
+  const clearFieldConfig = useCompanyStore((s) => s.clearFieldConfig)
   const clearSyncSchedule = useCompanyStore((s) => s.clearSyncSchedule)
 
   return useMutation({

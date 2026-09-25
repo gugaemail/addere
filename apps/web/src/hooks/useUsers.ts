@@ -10,13 +10,21 @@ export function useUsers() {
   })
 }
 
-export function useCreateUser() {
+// companyId opcional: quando informado, cria o usuário dentro da empresa
+// (rota POST /companies/:id/users) e invalida o detalhe da empresa.
+export function useCreateUser(companyId?: string) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (data: CreateUserFormData) =>
-      api.post<UserPublic>('/users', data).then((r) => r.data),
+      companyId
+        ? api.post<UserPublic>(`/companies/${companyId}/users`, data).then((r) => r.data)
+        : api.post<UserPublic>('/users', data).then((r) => r.data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['users'] })
+      if (companyId) {
+        queryClient.invalidateQueries({ queryKey: ['companies', 'detail', companyId] })
+      } else {
+        queryClient.invalidateQueries({ queryKey: ['users'] })
+      }
     },
   })
 }
@@ -24,7 +32,8 @@ export function useCreateUser() {
 export function useToggleUser() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (id: string) => api.patch<UserPublic>(`/users/${id}`).then((r) => r.data),
+    // PATCH /users/:id virou edição; o toggle mora em /:id/active
+    mutationFn: (id: string) => api.patch<UserPublic>(`/users/${id}/active`).then((r) => r.data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['users'] })
     },

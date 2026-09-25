@@ -6,8 +6,9 @@
     "dev": "next dev",
     "build": "prisma generate --schema=../../packages/db/prisma/schema.prisma && next build",
     "start": "next start",
-    "lint": "next lint",
-    "type-check": "tsc --noEmit"
+    "lint": "eslint src",
+    "type-check": "tsc --noEmit",
+    "test": "vitest run"
   },
   "dependencies": {
     "@addere/db": "*",
@@ -18,23 +19,28 @@
     "@tanstack/react-query": "^5.51.1",
     "axios": "^1.15.0",
     "clsx": "^2.1.1",
+    "leaflet": "^1.9.4",
     "lucide-react": "^0.400.0",
     "next": "^15.5.15",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-hook-form": "^7.52.1",
+    "react-leaflet": "^4.2.1",
     "recharts": "^2.12.7",
     "resend": "^4.0.0",
+    "sonner": "^2.0.8",
     "tailwind-merge": "^2.4.0",
     "zod": "^3.23.8"
   },
   "devDependencies": {
+    "@types/leaflet": "^1.9.12",
     "@types/node": "^20.14.11",
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
     "autoprefixer": "^10.4.19",
     "postcss": "^8.4.39",
     "tailwindcss": "^3.4.6",
-    "typescript": "^5.4.5"
+    "typescript": "^5.4.5",
+    "vitest": "^3.2.4"
   }
 }

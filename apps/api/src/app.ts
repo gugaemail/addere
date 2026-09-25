@@ -1,8 +1,10 @@
 import Fastify, { FastifyInstance } from 'fastify'
 import rateLimit from '@fastify/rate-limit'
 import helmet from '@fastify/helmet'
-import { prisma } from '@addere/db'
-import envPlugin from './plugins/env'
+import multipart from '@fastify/multipart'
+import staticPlugin from '@fastify/static'
+import path from 'node:path'
+import fs from 'node:fs'
 import cookiePlugin from './plugins/cookie'
 import corsPlugin from './plugins/cors'
 import jwtPlugin from './plugins/jwt'
@@ -14,19 +16,28 @@ import companiesRoutes from './modules/companies/companies.routes'
 import branchesRoutes from './modules/branches/branches.routes'
 import syncRoutes from './modules/sync/sync.routes'
 import { initSchedulers } from './modules/sync/scheduler'
+import { captureError, initSentry } from './lib/sentry'
+import { registerIntelJobHandlers } from './modules/intelligence/jobs/register'
+import { initIntelScheduler } from './modules/intelligence/jobs/scheduler'
 import transportadorasRoutes from './modules/transportadoras/transportadoras.routes'
 import condpagsRoutes from './modules/condpags/condpags.routes'
+import intelligenceRoutes from './modules/intelligence/intelligence.routes'
 import { pilotRoutes } from './modules/pilot/pilot.routes'
+import helpRoutes from './modules/help/help.routes'
+import usersRoutes from './modules/users/users.routes'
+import permissionsRoutes, { userPermissionsRoutes } from './modules/permissions/permissions.routes'
+import { authenticate } from './middleware/authenticate'
+import { env } from './lib/env'
+import { registerErrorHandling } from './lib/error-handler'
 
 export async function buildApp(): Promise<FastifyInstance> {
   const app = Fastify({
     logger: {
-      level: process.env.NODE_ENV === 'production' ? 'info' : 'debug',
+      level: env.NODE_ENV === 'production' ? 'info' : 'debug',
     },
   })
 
-  // Plugins — ordem importa: env primeiro pois os outros dependem das variáveis
-  await app.register(envPlugin)
+  // Plugins — a validação de env acontece no boot via lib/env (importado pelo server)
   await app.register(helmet, { global: true })
   await app.register(cookiePlugin)
   await app.register(corsPlugin)
@@ -35,13 +46,42 @@ export async function buildApp(): Promise<FastifyInstance> {
   // Rate limiting: desabilitado globalmente, ativado por rota onde necessário
   await app.register(rateLimit, { global: false })
 
-  // GET /health — verifica conectividade real com o banco de dados
-  app.get('/health', { config: { rateLimit: { max: 60, timeWindow: '1 minute' } } }, async (_request, reply) => {
+  registerErrorHandling(app)
+
+  // Upload de arquivos (screenshots da Central de Ajuda) — max 5MB, 1 arquivo por request
+  await app.register(multipart, {
+    limits: { fileSize: 5 * 1024 * 1024, files: 1 },
+  })
+
+  // Serve pasta uploads/ (screenshots da Central de Ajuda) — somente autenticado:
+  // as URLs contêm userId/ticketId e não podem ser públicas
+  const uploadRoot = path.resolve(process.cwd(), env.UPLOAD_DIR)
+  fs.mkdirSync(uploadRoot, { recursive: true })
+  await app.register(async (scope) => {
+    scope.addHook('onRequest', authenticate)
+    await scope.register(staticPlugin, { root: uploadRoot, prefix: '/uploads/' })
+  })
+
+  // GET /health — sem autenticação; usado por load balancers, monitoramento e
+  // pelo keep-alive (pré-requisito dos jobs noturnos da Inteligência). Faz ping
+  // real no banco: 503 quando o Postgres está inacessível.
+  app.get('/health', async (_request, reply) => {
+    const { prisma } = await import('@addere/db')
     try {
       await prisma.$queryRaw`SELECT 1`
-      return reply.send({ status: 'ok', db: 'connected' })
+      return reply.send({
+        status: 'ok',
+        db: 'ok',
+        environment: env.NODE_ENV,
+        timestamp: new Date().toISOString(),
+      })
     } catch {
-      return reply.status(503).send({ status: 'error', db: 'unreachable' })
+      return reply.status(503).send({
+        status: 'error',
+        db: 'unreachable',
+        environment: env.NODE_ENV,
+        timestamp: new Date().toISOString(),
+      })
     }
   })
 
@@ -55,11 +95,27 @@ export async function buildApp(): Promise<FastifyInstance> {
   await app.register(syncRoutes, { prefix: '/sync' })
   await app.register(transportadorasRoutes, { prefix: '/transportadoras' })
   await app.register(condpagsRoutes, { prefix: '/condpags' })
+  await app.register(intelligenceRoutes, { prefix: '/intel' })
   await app.register(pilotRoutes)
+  await app.register(helpRoutes, { prefix: '/help' })
+  await app.register(usersRoutes, { prefix: '/users' })
+  await app.register(userPermissionsRoutes, { prefix: '/users' })
+  await app.register(permissionsRoutes)
 
   // Inicia schedulers de auto-sync após o servidor estar pronto
+  initSentry()
+
   app.addHook('onReady', async () => {
-    await initSchedulers()
+    // Nenhum scheduler pode bloquear o boot: se este hook rejeitar, o Fastify
+    // não sobe e a API fica fora do ar por causa de um job de segundo plano.
+    try {
+      await initSchedulers()
+    } catch (err) {
+      captureError(err, { module: 'scheduler' })
+      app.log.error({ err }, '[scheduler] initSchedulers falhou — auto-sync off neste boot')
+    }
+    registerIntelJobHandlers()
+    initIntelScheduler()
   })
 
   return app

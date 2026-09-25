@@ -18,14 +18,24 @@
     "db:generate": "npm run generate --workspace=packages/db",
     "db:migrate": "npm run migrate:dev --workspace=packages/db",
     "db:studio": "npm run studio --workspace=packages/db",
-    "types:build": "npm run build --workspace=packages/types"
+    "types:build": "npm run build --workspace=packages/types",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "type-check": "tsc --noEmit -p apps/api && tsc --noEmit -p apps/web && tsc --noEmit -p apps/mobile",
+    "test": "npm test --workspace=apps/api && npm test --workspace=apps/web && npm run test:unit --workspace=apps/mobile"
   },
   "dependencies": {
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   },
   "devDependencies": {
-    "typescript": "^5.4.5"
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.8.1",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "prettier": "^3.9.6",
+    "typescript": "^5.4.5",
+    "typescript-eslint": "^8.67.0"
   },
   "engines": {
     "node": ">=20.0.0",

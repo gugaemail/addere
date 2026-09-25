@@ -3,14 +3,32 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { useMemo, useState, Suspense } from 'react'
-import {
-  LineChart, Line, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer,
-} from 'recharts'
+import { LineChart, Line, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer } from 'recharts'
 import axios from 'axios'
-import { Plus, BarChart2, CheckCircle, XCircle, Clock } from 'lucide-react'
-import { api } from '@/lib/api'
+import {
+  ArrowLeft,
+  BarChart2,
+  CheckCircle,
+  Clock,
+  Download,
+  Package,
+  Plus,
+  Smartphone,
+  Timer,
+  Wifi,
+  XCircle,
+  Zap,
+  type LucideIcon,
+} from 'lucide-react'
+import { api, getAccessToken } from '@/lib/api'
+import { BRAND } from '@/lib/brand-tokens'
+import { cn } from '@/lib/utils'
+import { Badge } from '@/components/ui/Badge'
+import { Button } from '@/components/ui/Button'
+import { Card } from '@/components/ui/Card'
+import { Table, type Column } from '@/components/ui/Table'
 import { CreatePilotModal } from './CreatePilotModal'
-import type { PilotDashboardMetrics, PilotMetricDelta } from '@addere/types'
+import type { PilotDashboardMetrics } from '@addere/types'
 
 // ─── Tipos locais ────────────────────────────────────────────────────────────
 
@@ -22,6 +40,14 @@ interface PilotListItem {
   status: 'ACTIVE' | 'COMPLETED' | 'CANCELLED'
   company: { id: string; name: string; cnpj: string }
   _count: { events: number; feedbacks: number }
+}
+
+type PilotStatus = PilotListItem['status']
+
+// Badge de status do piloto (ui/Badge com variantes de marca)
+function PilotStatusBadge({ status }: { status: PilotStatus | string }) {
+  const variant = status === 'ACTIVE' ? 'success' : status === 'COMPLETED' ? 'info' : 'neutral'
+  return <Badge variant={variant}>{statusLabel(status)}</Badge>
 }
 
 // ─── Lista de pilotos ────────────────────────────────────────────────────────
@@ -47,61 +73,54 @@ function PilotList() {
     }
   }
 
-  const statusBadge = (status: PilotListItem['status']) => {
-    if (status === 'ACTIVE') return <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700 font-medium">Ativo</span>
-    if (status === 'COMPLETED') return <span className="text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 font-medium">Concluído</span>
-    return <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 font-medium">Cancelado</span>
-  }
-
-  const daysLeft = (endDate: string) => {
-    const diff = new Date(endDate).getTime() - Date.now()
-    return Math.max(0, Math.ceil(diff / (1000 * 60 * 60 * 24)))
-  }
-
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Pilotos comerciais</h1>
-          <p className="text-sm text-gray-500 mt-1">Gerencie os pilotos de 30 dias com clientes</p>
+          <h1 className="text-2xl font-bold text-[var(--text-primary)]">Pilotos comerciais</h1>
+          <p className="text-sm text-[var(--text-muted)] mt-1">
+            Gerencie os pilotos de 30 dias com clientes
+          </p>
         </div>
-        <button
-          onClick={() => setShowCreate(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-[#1B4FA8] hover:bg-[#1a3f8f] text-white text-sm rounded-lg transition-colors"
-        >
-          <Plus size={16} />
+        <Button onClick={() => setShowCreate(true)} leftIcon={Plus}>
           Novo piloto
-        </button>
+        </Button>
       </div>
 
       {isLoading ? (
-        <div className="text-center py-16 text-gray-400">Carregando pilotos...</div>
+        <div className="text-center py-16 text-[var(--text-muted)]">Carregando pilotos...</div>
       ) : pilots?.length === 0 ? (
-        <div className="text-center py-16 border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-xl">
-          <BarChart2 size={40} className="mx-auto mb-3 text-gray-300" />
-          <p className="text-gray-500">Nenhum piloto cadastrado</p>
-          <p className="text-sm text-gray-400 mt-1">Crie o primeiro piloto para começar o rastreamento</p>
+        <div className="text-center py-16 border-2 border-dashed border-[var(--border)] rounded-xl">
+          <BarChart2
+            size={40}
+            strokeWidth={1.25}
+            className="mx-auto mb-3 text-[var(--text-muted)]"
+          />
+          <p className="text-[var(--text-secondary)]">Nenhum piloto cadastrado</p>
+          <p className="text-sm text-[var(--text-muted)] mt-1">
+            Crie o primeiro piloto para começar o rastreamento
+          </p>
         </div>
       ) : (
         <div className="grid gap-4">
           {pilots?.map((pilot) => (
-            <div
-              key={pilot.id}
-              className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 p-5"
-            >
+            <Card key={pilot.id} className="p-5">
               <div className="flex items-start justify-between">
                 <div className="flex-1">
                   <div className="flex items-center gap-3 mb-1">
-                    <h3 className="font-semibold text-gray-900 dark:text-white">{pilot.clientName}</h3>
-                    {statusBadge(pilot.status)}
+                    <h3 className="font-semibold text-[var(--text-primary)]">{pilot.clientName}</h3>
+                    <PilotStatusBadge status={pilot.status} />
                   </div>
-                  <p className="text-sm text-gray-500">{pilot.company.name} · {pilot.company.cnpj}</p>
-                  <div className="flex items-center gap-4 mt-3 text-xs text-gray-400">
+                  <p className="text-sm text-[var(--text-secondary)]">
+                    {pilot.company.name} · {pilot.company.cnpj}
+                  </p>
+                  <div className="flex items-center gap-4 mt-3 text-xs text-[var(--text-muted)]">
                     <span className="flex items-center gap-1">
-                      <Clock size={12} />
+                      <Clock size={12} strokeWidth={1.5} />
                       {new Date(pilot.startDate).toLocaleDateString('pt-BR')} →{' '}
                       {new Date(pilot.endDate).toLocaleDateString('pt-BR')}
-                      {pilot.status === 'ACTIVE' && ` (${daysLeft(pilot.endDate)} dias restantes)`}
+                      {pilot.status === 'ACTIVE' &&
+                        ` (${daysRemaining(pilot.endDate)} dias restantes)`}
                     </span>
                     <span>{pilot._count.events.toLocaleString()} eventos</span>
                     <span>{pilot._count.feedbacks} feedbacks</span>
@@ -111,43 +130,47 @@ function PilotList() {
                 <div className="flex items-center gap-2 ml-4">
                   {pilot.status === 'ACTIVE' && (
                     <>
-                      <button
+                      <Button
+                        variant="ghost"
+                        size="xs"
+                        leftIcon={BarChart2}
                         onClick={() => router.push(`/piloto?pilotId=${pilot.id}`)}
-                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-[#E8F4FF] text-[#1B4FA8] hover:bg-[#d4e8ff] rounded-lg transition-colors"
                       >
-                        <BarChart2 size={13} />
                         Dashboard
-                      </button>
-                      <button
+                      </Button>
+                      <Button
+                        variant="success-outline"
+                        size="xs"
+                        leftIcon={CheckCircle}
                         onClick={() => handleStatusChange(pilot.id, 'COMPLETED')}
                         disabled={updatingId === pilot.id}
-                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-green-50 text-green-700 hover:bg-green-100 rounded-lg transition-colors disabled:opacity-50"
                       >
-                        <CheckCircle size={13} />
                         Concluir
-                      </button>
-                      <button
+                      </Button>
+                      <Button
+                        variant="danger-outline"
+                        size="xs"
+                        leftIcon={XCircle}
                         onClick={() => handleStatusChange(pilot.id, 'CANCELLED')}
                         disabled={updatingId === pilot.id}
-                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-red-50 text-red-600 hover:bg-red-100 rounded-lg transition-colors disabled:opacity-50"
                       >
-                        <XCircle size={13} />
                         Cancelar
-                      </button>
+                      </Button>
                     </>
                   )}
                   {pilot.status !== 'ACTIVE' && (
-                    <button
+                    <Button
+                      variant="outline"
+                      size="xs"
+                      leftIcon={BarChart2}
                       onClick={() => router.push(`/piloto?pilotId=${pilot.id}`)}
-                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-gray-100 text-gray-600 hover:bg-gray-200 rounded-lg transition-colors"
                     >
-                      <BarChart2 size={13} />
                       Ver dados
-                    </button>
+                    </Button>
                   )}
                 </div>
               </div>
-            </div>
+            </Card>
           ))}
         </div>
       )}
@@ -182,12 +205,6 @@ function daysRemaining(endDate: string): number {
   return Math.max(0, Math.ceil(diff / (1000 * 60 * 60 * 24)))
 }
 
-function statusColor(status: string): string {
-  if (status === 'ACTIVE') return 'bg-green-100 text-green-700'
-  if (status === 'COMPLETED') return 'bg-blue-100 text-blue-700'
-  return 'bg-gray-100 text-gray-600'
-}
-
 function statusLabel(status: string): string {
   if (status === 'ACTIVE') return 'Ativo'
   if (status === 'COMPLETED') return 'Concluído'
@@ -198,44 +215,62 @@ function statusLabel(status: string): string {
 
 interface MetricCardProps {
   label: string
-  icon: string
+  icon: LucideIcon
   value: string
   goal: string
-  goalMet: boolean | null   // null = sem dados
-  near: boolean             // dentro de 10% da meta
+  goalMet: boolean | null // null = sem dados
+  near: boolean // dentro de 10% da meta
   delta: number | null
-  deltaInvert?: boolean     // para "tempo" onde menor é melhor
+  deltaInvert?: boolean // para "tempo" onde menor é melhor
 }
 
-function MetricCard({ label, icon, value, goal, goalMet, near, delta, deltaInvert }: MetricCardProps) {
+function MetricCard({
+  label,
+  icon: Icon,
+  value,
+  goal,
+  goalMet,
+  near,
+  delta,
+  deltaInvert,
+}: MetricCardProps) {
+  // Semáforo da meta em tokens de marca (success/warning/danger)
   const borderColor =
-    goalMet === null ? 'border-gray-200' :
-    goalMet ? 'border-green-400' :
-    near ? 'border-yellow-400' : 'border-red-400'
+    goalMet === null
+      ? 'border-[var(--border)]'
+      : goalMet
+        ? 'border-success'
+        : near
+          ? 'border-warning'
+          : 'border-danger'
 
   const badge =
-    goalMet === null ? null :
-    goalMet ? <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700">Meta atingida</span> :
-    near ? <span className="text-xs px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-700">Próximo da meta</span> :
-    <span className="text-xs px-2 py-0.5 rounded-full bg-red-100 text-red-700">Abaixo da meta</span>
+    goalMet === null ? null : goalMet ? (
+      <Badge variant="success">Meta atingida</Badge>
+    ) : near ? (
+      <Badge variant="warning">Próximo da meta</Badge>
+    ) : (
+      <Badge variant="danger">Abaixo da meta</Badge>
+    )
 
   const deltaSign = delta !== null ? (deltaInvert ? delta < 0 : delta > 0) : null
   const deltaStr = delta !== null ? `${delta > 0 ? '+' : ''}${delta}% vs sem. ant.` : null
 
   return (
-    <div className={`bg-white dark:bg-gray-900 rounded-xl border-2 ${borderColor} p-5 flex flex-col gap-3`}>
+    <Card className={cn('border-2 p-5 flex flex-col gap-3', borderColor)}>
       <div className="flex items-center justify-between">
-        <span className="text-sm font-medium text-gray-500">{icon} {label}</span>
+        <span className="flex items-center gap-1.5 text-sm font-medium text-[var(--text-secondary)]">
+          <Icon size={16} strokeWidth={1.5} className="text-[var(--text-muted)]" aria-hidden />
+          {label}
+        </span>
         {badge}
       </div>
-      <div className="text-3xl font-bold text-gray-900 dark:text-white">{value}</div>
-      <div className="flex items-center justify-between text-xs text-gray-400">
+      <div className="text-3xl font-bold text-[var(--text-primary)]">{value}</div>
+      <div className="flex items-center justify-between text-xs text-[var(--text-muted)]">
         <span>Meta: {goal}</span>
-        {deltaStr && (
-          <span className={deltaSign ? 'text-green-600' : 'text-red-500'}>{deltaStr}</span>
-        )}
+        {deltaStr && <span className={deltaSign ? 'text-success' : 'text-danger'}>{deltaStr}</span>}
       </div>
-    </div>
+    </Card>
   )
 }
 
@@ -243,30 +278,39 @@ function MetricCard({ label, icon, value, goal, goalMet, near, delta, deltaInver
 
 function PilotoDashboard() {
   const searchParams = useSearchParams()
-  const router = useRouter()
   const pilotId = searchParams.get('pilotId') ?? ''
 
-  // Sem pilotId — mostrar lista de pilotos
+  // Lista e detalhe são componentes separados — um early-return antes dos
+  // hooks do detalhe violaria as Rules of Hooks ao alternar entre as duas visões
   if (!pilotId) return <PilotList />
+  return <PilotDetail pilotId={pilotId} />
+}
+
+type RepActivity = PilotDashboardMetrics['repActivity'][number]
+
+function PilotDetail({ pilotId }: { pilotId: string }) {
+  const router = useRouter()
 
   const { data, isLoading, isError } = useQuery<PilotDashboardMetrics>({
     queryKey: ['pilot-metrics', pilotId],
     queryFn: () =>
-      axios.get(`/api/pilot/${pilotId}/metrics`).then((r) => r.data),
-    enabled: !!pilotId,
+      axios
+        .get(`/api/pilot/${pilotId}/metrics`, {
+          headers: { Authorization: `Bearer ${getAccessToken()}` },
+        })
+        .then((r) => r.data),
     refetchInterval: 5 * 60 * 1000,
   })
 
-  const threesDaysAgo = useMemo(() => {
+  const threeDaysAgo = useMemo(() => {
     const d = new Date()
     d.setDate(d.getDate() - 3)
     return d
   }, [])
 
-
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-64 text-gray-400">
+      <div className="flex items-center justify-center h-64 text-[var(--text-muted)]">
         <p>Carregando métricas...</p>
       </div>
     )
@@ -274,14 +318,23 @@ function PilotoDashboard() {
 
   if (isError || !data) {
     return (
-      <div className="flex items-center justify-center h-64 text-red-400">
+      <div className="flex items-center justify-center h-64 text-danger">
         <p>Não foi possível carregar as métricas. Verifique o pilotId.</p>
       </div>
     )
   }
 
-  const { pilot, avgOrderDuration, syncSuccessRate, offlineOrderRate, avgQueueDuration, totalOrders,
-          dailyOrders, repActivity, recentNegativeFeedbacks } = data
+  const {
+    pilot,
+    avgOrderDuration,
+    syncSuccessRate,
+    offlineOrderRate,
+    avgQueueDuration,
+    totalOrders,
+    dailyOrders,
+    repActivity,
+    recentNegativeFeedbacks,
+  } = data
 
   // metas
   const goalAvg = avgOrderDuration.current !== null ? avgOrderDuration.current <= 5 * 60_000 : null
@@ -293,36 +346,97 @@ function PilotoDashboard() {
   const goalQueue = avgQueueDuration.current !== null ? avgQueueDuration.current <= 30_000 : null
   const nearQueue = avgQueueDuration.current !== null && avgQueueDuration.current <= 33_000
 
+  const isInactive = (rep: RepActivity) =>
+    rep.lastActiveAt ? new Date(rep.lastActiveAt) < threeDaysAgo : true
+
+  const repColumns: Column<RepActivity>[] = [
+    {
+      key: 'name',
+      header: 'Nome',
+      render: (rep) => (
+        <span className="font-medium text-[var(--text-primary)]">
+          {rep.repName}
+          {isInactive(rep) && <span className="ml-2 text-xs text-danger">inativo</span>}
+        </span>
+      ),
+    },
+    { key: 'today', header: 'Hoje', render: (rep) => rep.ordersToday },
+    { key: 'total', header: 'Total', render: (rep) => rep.ordersTotal },
+    {
+      key: 'lastActive',
+      header: 'Último acesso',
+      render: (rep) =>
+        rep.lastActiveAt
+          ? new Date(rep.lastActiveAt).toLocaleString('pt-BR', {
+              dateStyle: 'short',
+              timeStyle: 'short',
+            })
+          : '—',
+    },
+    {
+      key: 'syncRate',
+      header: 'Taxa sync',
+      render: (rep) =>
+        rep.syncRate !== null ? (
+          <span
+            className={
+              rep.syncRate >= 98
+                ? 'text-success'
+                : rep.syncRate >= 90
+                  ? 'text-warning'
+                  : 'text-danger'
+            }
+          >
+            {rep.syncRate}%
+          </span>
+        ) : (
+          '—'
+        ),
+    },
+  ]
+
+  async function handleExport() {
+    const since = new Date(pilot.startDate).toISOString().slice(0, 10)
+    const res = await axios.get(`/api/pilot/${pilotId}/export?since=${since}`, {
+      headers: { Authorization: `Bearer ${getAccessToken()}` },
+      responseType: 'blob',
+    })
+    const url = URL.createObjectURL(res.data as Blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `piloto-${pilotId}-${since}.csv`
+    link.click()
+    URL.revokeObjectURL(url)
+  }
+
   return (
     <div className="space-y-8">
       {/* Header */}
       <div className="flex items-start justify-between">
         <div>
-          <button
+          <Button
+            variant="ghost"
+            size="sm"
+            leftIcon={ArrowLeft}
             onClick={() => router.push('/piloto')}
-            className="text-sm text-gray-400 hover:text-gray-600 mb-3 flex items-center gap-1 transition-colors"
+            className="mb-3 -ml-3 text-[var(--text-muted)] hover:text-brand font-medium"
           >
-            ← Todos os pilotos
-          </button>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+            Todos os pilotos
+          </Button>
+          <h1 className="text-2xl font-bold text-[var(--text-primary)]">
             Piloto — {pilot.clientName}
           </h1>
-          <p className="text-sm text-gray-500 mt-1">
+          <p className="text-sm text-[var(--text-muted)] mt-1">
             Início: {new Date(pilot.startDate).toLocaleDateString('pt-BR')}
             {' · '}
             {daysRemaining(pilot.endDate)} dias restantes
           </p>
         </div>
         <div className="flex items-center gap-3">
-          <span className={`text-xs px-3 py-1 rounded-full font-medium ${statusColor(pilot.status)}`}>
-            {statusLabel(pilot.status)}
-          </span>
-          <a
-            href={`/api/pilot/${pilotId}/export?since=${new Date(pilot.startDate).toISOString().slice(0, 10)}`}
-            className="text-xs px-3 py-1.5 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 transition-colors"
-          >
+          <PilotStatusBadge status={pilot.status} />
+          <Button variant="outline" size="sm" leftIcon={Download} onClick={handleExport}>
             Exportar CSV
-          </a>
+          </Button>
         </div>
       </div>
 
@@ -330,7 +444,7 @@ function PilotoDashboard() {
       <div className="grid grid-cols-2 xl:grid-cols-5 gap-4">
         <MetricCard
           label="Tempo médio/pedido"
-          icon="⏱"
+          icon={Timer}
           value={formatDuration(avgOrderDuration.current)}
           goal="< 5 min"
           goalMet={goalAvg}
@@ -340,7 +454,7 @@ function PilotoDashboard() {
         />
         <MetricCard
           label="Taxa de sync"
-          icon="📶"
+          icon={Wifi}
           value={formatPercent(syncSuccessRate.current)}
           goal="> 98%"
           goalMet={goalSync}
@@ -349,7 +463,7 @@ function PilotoDashboard() {
         />
         <MetricCard
           label="Pedidos offline"
-          icon="📱"
+          icon={Smartphone}
           value={formatPercent(offlineOrderRate.current)}
           goal="> 50%"
           goalMet={goalOffline}
@@ -358,7 +472,7 @@ function PilotoDashboard() {
         />
         <MetricCard
           label="Tempo médio de sync"
-          icon="⚡"
+          icon={Zap}
           value={formatDuration(avgQueueDuration.current)}
           goal="< 30s"
           goalMet={goalQueue}
@@ -368,7 +482,7 @@ function PilotoDashboard() {
         />
         <MetricCard
           label="Total de pedidos"
-          icon="📦"
+          icon={Package}
           value={String(totalOrders.current ?? 0)}
           goal="—"
           goalMet={null}
@@ -378,109 +492,91 @@ function PilotoDashboard() {
       </div>
 
       {/* Gráfico 14 dias */}
-      <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
-        <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-4">
+      <Card className="p-6">
+        <h2 className="text-sm font-semibold text-[var(--text-secondary)] mb-4">
           Pedidos por dia — últimos 14 dias
         </h2>
         <ResponsiveContainer width="100%" height={220}>
           <LineChart data={dailyOrders} margin={{ top: 4, right: 16, left: -20, bottom: 0 }}>
             <XAxis
               dataKey="date"
-              tick={{ fontSize: 11 }}
+              tick={{ fontSize: 11, fill: BRAND.muted }}
               tickFormatter={(v) => v.slice(5)}
             />
-            <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
+            <YAxis tick={{ fontSize: 11, fill: BRAND.muted }} allowDecimals={false} />
             <Tooltip
-              formatter={(value: number, name: string) =>
-                [value, name === 'total' ? 'Total' : 'Offline']
-              }
+              formatter={(value: number, name: string) => [
+                value,
+                name === 'total' ? 'Total' : 'Offline',
+              ]}
               labelFormatter={(label) => new Date(label).toLocaleDateString('pt-BR')}
             />
             <Legend formatter={(v) => (v === 'total' ? 'Total' : 'Offline')} />
-            <Line type="monotone" dataKey="total" stroke="#1B4FA8" strokeWidth={2} dot={false} />
-            <Line type="monotone" dataKey="offline" stroke="#29BEFF" strokeWidth={2} dot={false} strokeDasharray="4 2" />
+            <Line
+              type="monotone"
+              dataKey="total"
+              stroke={BRAND.primary}
+              strokeWidth={2}
+              dot={false}
+            />
+            <Line
+              type="monotone"
+              dataKey="offline"
+              stroke={BRAND.accent}
+              strokeWidth={2}
+              dot={false}
+              strokeDasharray="4 2"
+            />
           </LineChart>
         </ResponsiveContainer>
-      </div>
+      </Card>
 
       {/* Tabela de reps */}
-      <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
-        <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-          <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+      <Card className="p-0 overflow-hidden">
+        <div className="px-6 py-4 border-b border-[var(--border)]">
+          <h2 className="text-sm font-semibold text-[var(--text-secondary)]">
             Atividade por representante
           </h2>
         </div>
-        <table className="w-full text-sm">
-          <thead className="bg-gray-50 dark:bg-gray-800">
-            <tr>
-              {['Nome', 'Hoje', 'Total', 'Último acesso', 'Taxa sync'].map((h) => (
-                <th key={h} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  {h}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
-            {repActivity.map((rep) => {
-              const inactive = rep.lastActiveAt
-                ? new Date(rep.lastActiveAt) < threesDaysAgo
-                : true
-              return (
-                <tr
-                  key={rep.repId}
-                  className={inactive ? 'bg-red-50 dark:bg-red-900/10' : ''}
-                >
-                  <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">
-                    {rep.repName}
-                    {inactive && (
-                      <span className="ml-2 text-xs text-red-500">inativo</span>
-                    )}
-                  </td>
-                  <td className="px-4 py-3 text-gray-600 dark:text-gray-400">{rep.ordersToday}</td>
-                  <td className="px-4 py-3 text-gray-600 dark:text-gray-400">{rep.ordersTotal}</td>
-                  <td className="px-4 py-3 text-gray-600 dark:text-gray-400">
-                    {rep.lastActiveAt
-                      ? new Date(rep.lastActiveAt).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })
-                      : '—'}
-                  </td>
-                  <td className="px-4 py-3">
-                    {rep.syncRate !== null ? (
-                      <span className={rep.syncRate >= 98 ? 'text-green-600' : rep.syncRate >= 90 ? 'text-yellow-600' : 'text-red-500'}>
-                        {rep.syncRate}%
-                      </span>
-                    ) : '—'}
-                  </td>
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
-      </div>
+        <Table
+          columns={repColumns}
+          data={repActivity}
+          rowKey={(rep) => rep.repId}
+          className="rounded-none"
+          rowClassName={(rep) => (isInactive(rep) ? 'bg-danger/5' : undefined)}
+          emptyMessage="Nenhum representante com atividade."
+        />
+      </Card>
 
       {/* Feedbacks negativos */}
       {recentNegativeFeedbacks.length > 0 && (
-        <div className="bg-white dark:bg-gray-900 rounded-xl border border-red-200 dark:border-red-900 overflow-hidden">
-          <div className="px-6 py-4 border-b border-red-100 dark:border-red-900 bg-red-50 dark:bg-red-900/20">
-            <h2 className="text-sm font-semibold text-red-700 dark:text-red-400">
-              Feedbacks negativos recentes
-            </h2>
+        <Card className="p-0 overflow-hidden border-danger/30">
+          <div className="px-6 py-4 border-b border-danger/20 bg-danger/10">
+            <h2 className="text-sm font-semibold text-danger">Feedbacks negativos recentes</h2>
           </div>
-          <ul className="divide-y divide-gray-100 dark:divide-gray-700">
+          <ul className="divide-y divide-[var(--border)]">
             {recentNegativeFeedbacks.map((f) => (
               <li key={f.id} className="px-6 py-4">
                 <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium text-gray-800 dark:text-gray-200">{f.repName}</span>
-                  <span className="text-xs text-gray-400">
-                    {new Date(f.createdAt).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}
+                  <span className="text-sm font-medium text-[var(--text-primary)]">
+                    {f.repName}
+                  </span>
+                  <span className="text-xs text-[var(--text-muted)]">
+                    {new Date(f.createdAt).toLocaleString('pt-BR', {
+                      dateStyle: 'short',
+                      timeStyle: 'short',
+                    })}
                   </span>
                 </div>
                 {f.comment && (
-                  <p className="mt-1 text-sm text-gray-500 italic">&ldquo;{f.comment}&rdquo;</p>
+                  <p className="mt-1 text-sm text-[var(--text-secondary)] italic">
+                    &ldquo;{f.comment}&rdquo;
+                  </p>
                 )}
               </li>
             ))}
           </ul>
-        </div>
+        </Card>
       )}
     </div>
   )

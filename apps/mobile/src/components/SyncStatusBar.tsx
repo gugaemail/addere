@@ -1,9 +1,16 @@
 import React from 'react'
-import { View, Text, TouchableOpacity, ActivityIndicator, StyleSheet, ViewStyle } from 'react-native'
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  ActivityIndicator,
+  StyleSheet,
+  ViewStyle,
+} from 'react-native'
 import { useRouter } from 'expo-router'
-import { Wifi, WifiOff, Upload, AlertCircle, CheckCircle } from 'lucide-react-native'
+import { WifiOff, Upload, AlertCircle, CheckCircle } from 'lucide-react-native'
 import { useSyncQueue } from '../hooks/useSyncQueue'
-import { colors } from '../theme/colors'
+import { colors, spacing, typography } from '../theme'
 
 interface SyncStatusBarProps {
   style?: ViewStyle
@@ -11,7 +18,8 @@ interface SyncStatusBarProps {
 
 export function SyncStatusBar({ style }: SyncStatusBarProps) {
   const router = useRouter()
-  const { networkAvailable, isSyncing, pendingCount, errorItems, hasPending } = useSyncQueue()
+  const { networkAvailable, isSyncing, pendingCount, pendingItems, errorItems, hasPending } =
+    useSyncQueue()
 
   if (!networkAvailable) {
     return (
@@ -36,6 +44,10 @@ export function SyncStatusBar({ style }: SyncStatusBarProps) {
     )
   }
 
+  // A fila também leva visitas e resultados: "pedido" só quando é só pedido
+  const noun = (items: { type: string }[]) =>
+    items.every((i) => i.type === 'order') ? 'pedido' : 'envio'
+
   if (errorItems.length > 0) {
     const exhaustedCount = errorItems.filter((i) => i.attempts >= i.maxAttempts).length
     return (
@@ -47,8 +59,10 @@ export function SyncStatusBar({ style }: SyncStatusBarProps) {
       >
         <AlertCircle size={14} color={colors.neutral.white} strokeWidth={1.5} />
         <Text style={s.text}>
-          {errorItems.length} pedido{errorItems.length !== 1 ? 's' : ''} com erro
-          {exhaustedCount > 0 ? ` — ${exhaustedCount} requer${exhaustedCount === 1 ? '' : 'em'} ação manual` : ''}
+          {errorItems.length} {noun(errorItems)}{errorItems.length !== 1 ? 's' : ''} com erro
+          {exhaustedCount > 0
+            ? ` — ${exhaustedCount} requer${exhaustedCount === 1 ? '' : 'em'} ação manual`
+            : ''}
         </Text>
         <Text style={s.link}>Ver detalhes</Text>
       </TouchableOpacity>
@@ -65,7 +79,8 @@ export function SyncStatusBar({ style }: SyncStatusBarProps) {
       >
         <Upload size={14} color={colors.neutral.white} strokeWidth={1.5} />
         <Text style={s.text}>
-          {pendingCount} pedido{pendingCount !== 1 ? 's' : ''} pendente{pendingCount !== 1 ? 's' : ''}
+          {pendingCount} {noun(pendingItems)}{pendingCount !== 1 ? 's' : ''} pendente
+          {pendingCount !== 1 ? 's' : ''}
         </Text>
         <Text style={s.link}>Sincronizar agora</Text>
       </TouchableOpacity>
@@ -82,27 +97,27 @@ export function SyncStatusBar({ style }: SyncStatusBarProps) {
 
 const s = StyleSheet.create({
   bar: {
-    flexDirection:     'row',
-    alignItems:        'center',
-    paddingHorizontal: 16,
-    paddingVertical:   8,
-    gap: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    gap: spacing.sm,
   },
-  synced:  { backgroundColor: colors.semantic.success },
+  synced: { backgroundColor: colors.semantic.success },
   pending: { backgroundColor: colors.semantic.warning },
   syncing: { backgroundColor: colors.brand.primary },
   offline: { backgroundColor: colors.semantic.danger },
-  error:   { backgroundColor: colors.semantic.danger },
+  error: { backgroundColor: colors.semantic.danger },
   text: {
-    flex:       1,
-    fontFamily: 'Inter_400Regular',
-    fontSize:   12,
-    color:      colors.neutral.white,
+    flex: 1,
+    fontFamily: typography.fontFamily.body,
+    fontSize: typography.size.xs,
+    color: colors.neutral.white,
   },
   link: {
-    fontFamily:         'Inter_400Regular',
-    fontSize:           12,
-    color:              colors.neutral.white,
+    fontFamily: typography.fontFamily.bodySemibold,
+    fontSize: typography.size.xs,
+    color: colors.neutral.white,
     textDecorationLine: 'underline',
   },
 })
