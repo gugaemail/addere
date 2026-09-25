@@ -5,7 +5,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 vi.mock('@addere/db', async () => (await import('../../../../test-utils/prisma-mock')).mockDb())
 
 import { prismaMock, resetPrismaMock } from '../../../../test-utils/prisma-mock'
-import { geoHandler, runGeocoding } from '../geo.job'
+import { backoffMs, geocodeWithRetry, geoHandler, runGeocoding } from '../geo.job'
 import type { GeocodingProvider } from '../geocoding.provider'
 
 const COMPANY = '11111111-1111-4111-8111-111111111111'
@@ -173,5 +173,96 @@ describe('geoHandler', () => {
 
     prismaMock.company.findUnique.mockResolvedValue({ intelligenceEnabled: false })
     await expect(geoHandler(COMPANY)).rejects.toThrow('desligada')
+  })
+})
+
+// ─── Retry (a rajada de HTTP 429 que parou a carga em 252 de 1131) ───
+
+describe('geocodeWithRetry', () => {
+  const semEspera = async () => undefined
+  const achou = { lat: -1, lng: -2, precision: 'ROOFTOP' as const }
+
+  it('repete erro transitório e devolve o acerto', async () => {
+    const geocode = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('Nominatim respondeu HTTP 429'))
+      .mockRejectedValueOnce(new Error('Nominatim respondeu HTTP 429'))
+      .mockResolvedValue(achou)
+    const provider = { source: 'nominatim', geocode } as unknown as GeocodingProvider
+    await expect(geocodeWithRetry(provider, 'X', semEspera)).resolves.toEqual(achou)
+    expect(geocode).toHaveBeenCalledTimes(3)
+  })
+
+  it('erro permanente sobe na primeira, sem gastar tentativa', async () => {
+    const geocode = vi.fn().mockRejectedValue(new Error('Google Geocoding status REQUEST_DENIED'))
+    const provider = { source: 'google', geocode } as unknown as GeocodingProvider
+    await expect(geocodeWithRetry(provider, 'X', semEspera)).rejects.toThrow('REQUEST_DENIED')
+    expect(geocode).toHaveBeenCalledTimes(1)
+  })
+
+  it('desiste depois do teto de tentativas', async () => {
+    const geocode = vi.fn().mockRejectedValue(new Error('HTTP 503'))
+    const provider = { source: 'google', geocode } as unknown as GeocodingProvider
+    await expect(geocodeWithRetry(provider, 'X', semEspera, 2)).rejects.toThrow('HTTP 503')
+    expect(geocode).toHaveBeenCalledTimes(3) // 1 + 2 tentativas
+  })
+
+  it('espera crescente entre tentativas', () => {
+    expect([backoffMs(0), backoffMs(1), backoffMs(2)]).toEqual([2000, 4000, 8000])
+  })
+})
+
+// ─── Cache: trocar de provider precisa dar nova chance a quem ficou sem posição ───
+
+describe('cache por provider', () => {
+  const enderecoDe = (code: string) =>
+    `RUA ${code}, 100, CENTRO, CAMPINAS - SP, 13010-000, BRASIL`
+
+  it('não refaz quem já tem coordenada, mesmo de outro provider', async () => {
+    prismaMock.customer.findMany.mockResolvedValue([customer('A')])
+    prismaMock.geoAddress.findMany.mockResolvedValue([
+      { customerCode: 'A', loja: '01', normalizedAddress: enderecoDe('A'), lat: -22.9, source: 'nominatim' },
+    ])
+    const provider = providerMock()
+    ;(provider as unknown as { source: string }).source = 'google'
+    const summary = await runGeocoding(COMPANY, provider)
+    expect(summary.candidates).toBe(0)
+    expect(provider.geocode).not.toHaveBeenCalled()
+  })
+
+  it('refaz quem ficou sem coordenada quando o provider muda', async () => {
+    prismaMock.customer.findMany.mockResolvedValue([customer('A')])
+    prismaMock.geoAddress.findMany.mockResolvedValue([
+      {
+        customerCode: 'A',
+        loja: '01',
+        normalizedAddress: enderecoDe('A'),
+        lat: null,
+        source: 'nominatim',
+      },
+    ])
+    const provider = providerMock()
+    ;(provider as unknown as { source: string }).source = 'google'
+    const summary = await runGeocoding(COMPANY, provider)
+    // os 148 "endereço não encontrado" do Nominatim ganham chance com o Google
+    expect(summary.candidates).toBe(1)
+    expect(provider.geocode).toHaveBeenCalledTimes(1)
+  })
+
+  it('não insiste com o mesmo provider que já não achou', async () => {
+    prismaMock.customer.findMany.mockResolvedValue([customer('A')])
+    prismaMock.geoAddress.findMany.mockResolvedValue([
+      {
+        customerCode: 'A',
+        loja: '01',
+        normalizedAddress: enderecoDe('A'),
+        lat: null,
+        source: 'nominatim',
+      },
+    ])
+    const provider = providerMock() // source 'nominatim'
+    const summary = await runGeocoding(COMPANY, provider)
+    expect(summary.candidates).toBe(0)
+    expect(provider.geocode).not.toHaveBeenCalled()
   })
 })

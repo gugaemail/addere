@@ -2,12 +2,16 @@
 // rate limiter (clock/sleep mockados) e parser Nominatim (fixtures).
 import { describe, expect, it, vi } from 'vitest'
 import {
+  FallbackGeocodingProvider,
   GoogleProvider,
   MockGeocodingProvider,
   NominatimProvider,
   createRateLimiter,
+  isRetryableGeoError,
   normalizeAddress,
+  parseGoogleResponse,
   parseNominatimResponse,
+  precisionFromGoogle,
   precisionFromNominatim,
 } from '../geocoding.provider'
 
@@ -156,13 +160,105 @@ describe('NominatimProvider', () => {
   })
 })
 
-describe('GoogleProvider (stub D14a)', () => {
+// fetch sempre injetado: o teste antigo chamava o Google de verdade e só passava
+// porque a chave falsa dava REQUEST_DENIED — rede dentro de teste unitário
+const googleFetch = (body: unknown, ok = true, status = 200) =>
+  vi.fn(async () => ({ ok, status, json: async () => body })) as unknown as typeof fetch
+
+const googleOk = (locationType: string, types: string[] = []) => ({
+  status: 'OK',
+  results: [{ geometry: { location: { lat: -23.5, lng: -46.6 }, location_type: locationType }, types }],
+})
+
+describe('GoogleProvider', () => {
   it('sem chave, explica a configuração', async () => {
     await expect(new GoogleProvider(undefined).geocode('X')).rejects.toThrow('GOOGLE_GEOCODING_API_KEY')
   })
 
-  it('com chave, avisa que é stub', async () => {
-    await expect(new GoogleProvider('key').geocode('X')).rejects.toThrow('stub')
+  it('devolve coordenada e marca a origem', async () => {
+    const provider = new GoogleProvider('k', googleFetch(googleOk('ROOFTOP')))
+    const hit = await provider.geocode('RUA X, 10, SAO PAULO - SP, BRASIL')
+    expect(hit).toEqual({ lat: -23.5, lng: -46.6, precision: 'ROOFTOP', source: 'google' })
+  })
+
+  it('ZERO_RESULTS é "não encontrado", não erro', async () => {
+    const provider = new GoogleProvider('k', googleFetch({ status: 'ZERO_RESULTS', results: [] }))
+    await expect(provider.geocode('X')).resolves.toBeNull()
+  })
+
+  it('erro no corpo com HTTP 200 lança, para não virar cache de "não existe"', async () => {
+    const provider = new GoogleProvider('k', googleFetch({ status: 'REQUEST_DENIED', error_message: 'chave restrita' }))
+    await expect(provider.geocode('X')).rejects.toThrow(/REQUEST_DENIED.*chave restrita/)
+  })
+
+  it('não vaza a chave na mensagem de erro HTTP', async () => {
+    const provider = new GoogleProvider('SEGREDO', googleFetch(null, false, 403))
+    await expect(provider.geocode('X')).rejects.toThrow(
+      expect.objectContaining({ message: expect.not.stringContaining('SEGREDO') })
+    )
+  })
+})
+
+describe('precisão do Google', () => {
+  it('mapeia location_type e cai em CEP/CITY no APPROXIMATE', () => {
+    expect(precisionFromGoogle({ geometry: { location_type: 'ROOFTOP' } })).toBe('ROOFTOP')
+    expect(precisionFromGoogle({ geometry: { location_type: 'RANGE_INTERPOLATED' } })).toBe('STREET')
+    expect(precisionFromGoogle({ geometry: { location_type: 'GEOMETRIC_CENTER' } })).toBe('STREET')
+    expect(
+      precisionFromGoogle({ geometry: { location_type: 'APPROXIMATE' }, types: ['postal_code'] })
+    ).toBe('CEP')
+    expect(precisionFromGoogle({ geometry: { location_type: 'APPROXIMATE' }, types: ['locality'] })).toBe('CITY')
+  })
+
+  it('corpo sem coordenada utilizável vira null', () => {
+    expect(parseGoogleResponse({ status: 'OK', results: [] })).toBeNull()
+    expect(parseGoogleResponse({ status: 'OK', results: [{ geometry: {} }] })).toBeNull()
+  })
+})
+
+describe('FallbackGeocodingProvider', () => {
+  const achou = { lat: -1, lng: -2, precision: 'ROOFTOP' as const }
+  const stub = (impl: () => Promise<unknown>, source: string) => ({ source, geocode: impl }) as never
+
+  it('usa o principal quando ele responde', async () => {
+    const secundario = vi.fn()
+    const p = new FallbackGeocodingProvider(
+      stub(async () => achou, 'google'),
+      stub(secundario as never, 'nominatim')
+    )
+    await expect(p.geocode('X')).resolves.toMatchObject({ source: 'google' })
+    expect(secundario).not.toHaveBeenCalled()
+  })
+
+  it('cai no secundário quando o principal lança, e registra quem respondeu', async () => {
+    const p = new FallbackGeocodingProvider(
+      stub(async () => {
+        throw new Error('Google Geocoding status OVER_QUERY_LIMIT')
+      }, 'google'),
+      stub(async () => achou, 'nominatim')
+    )
+    // source do resultado denuncia o principal quebrado em vez de passar batido
+    await expect(p.geocode('X')).resolves.toMatchObject({ source: 'nominatim' })
+  })
+
+  it('tenta o secundário também quando o principal não acha', async () => {
+    const p = new FallbackGeocodingProvider(
+      stub(async () => null, 'google'),
+      stub(async () => achou, 'nominatim')
+    )
+    await expect(p.geocode('X')).resolves.toMatchObject({ source: 'nominatim' })
+  })
+})
+
+describe('isRetryableGeoError', () => {
+  it('separa o que passa do que não passa', () => {
+    expect(isRetryableGeoError(new Error('Nominatim respondeu HTTP 429'))).toBe(true)
+    expect(isRetryableGeoError(new Error('Google Geocoding respondeu HTTP 503'))).toBe(true)
+    expect(isRetryableGeoError(new Error('Google Geocoding status OVER_QUERY_LIMIT'))).toBe(true)
+    expect(isRetryableGeoError(new Error('The operation was aborted due to timeout'))).toBe(true)
+    // configuração errada não melhora com nova tentativa
+    expect(isRetryableGeoError(new Error('Google Geocoding status REQUEST_DENIED'))).toBe(false)
+    expect(isRetryableGeoError(new Error('Nominatim respondeu HTTP 400'))).toBe(false)
   })
 })
 
