@@ -7,6 +7,86 @@ import { mergeIntelligenceConfig } from './config.routes'
 const SAMPLE = 20
 const TRACKED_JOBS: IntelJob[] = ['NIGHTLY', 'REFRESH', 'SYNC', 'GOALS', 'GEO', 'PURGE']
 
+export interface RunStep {
+  step: string
+  ok: boolean
+  error?: string
+}
+
+/**
+ * Lê `metadata.steps`, gravado pelo noturno e pelo refresh. O backfill grava
+ * outro formato no mesmo campo, então nada aqui pode assumir o shape: o que
+ * não for passo reconhecível é descartado em vez de derrubar o relatório.
+ */
+export function parseRunSteps(metadata: unknown): RunStep[] {
+  if (metadata === null || typeof metadata !== 'object') return []
+  const steps = (metadata as { steps?: unknown }).steps
+  if (!Array.isArray(steps)) return []
+  return steps.flatMap((raw) => {
+    if (raw === null || typeof raw !== 'object') return []
+    const { step, ok, error } = raw as Record<string, unknown>
+    if (typeof step !== 'string') return []
+    return [{ step, ok: ok !== false, error: typeof error === 'string' ? error : undefined }]
+  })
+}
+
+/**
+ * SYNC, GEO e GOALS não têm run próprio: rodam como passo do noturno,
+ * reaproveitando o runId dele. Sem traduzir o passo de volta para o job, o
+ * frescor deles ficava em "nunca" para sempre — inclusive logo depois de rodar.
+ */
+function jobOfStep(step: string): IntelJob | null {
+  switch (step.split(':')[0]) {
+    case 'sync':
+      return 'SYNC'
+    case 'geo':
+      return 'GEO'
+    case 'goals':
+      return 'GOALS'
+    case 'engine':
+      return 'ENGINE'
+    case 'plan':
+      return 'PLAN'
+    case 'purge':
+      return 'PURGE'
+    default:
+      return null
+  }
+}
+
+export interface RunForFreshness {
+  job: string
+  status: string
+  startedAt: Date
+  metadata?: unknown
+}
+
+/**
+ * Frescor por job: o run próprio quando existe, senão o passo correspondente
+ * dentro do noturno/refresh. Empate fica com o run próprio, que é a fonte mais
+ * forte. O horário é o do run — o passo não guarda o seu, e a diferença de
+ * minutos não muda a faixa do badge, que é de 24 h.
+ */
+export function computeFreshness(runs: RunForFreshness[]): HealthReport['freshness'] {
+  return TRACKED_JOBS.map((job) => {
+    let best: { at: Date; status: IntelJobRunStatus } | null = null
+    for (const run of runs) {
+      const found: IntelJobRunStatus[] = []
+      if (run.job === job) found.push(run.status as IntelJobRunStatus)
+      const steps = parseRunSteps(run.metadata).filter((s) => jobOfStep(s.step) === job)
+      if (steps.length > 0) found.push(steps.every((s) => s.ok) ? 'OK' : 'ERROR')
+      for (const status of found) {
+        if (best === null || run.startedAt > best.at) best = { at: run.startedAt, status }
+      }
+    }
+    return {
+      job,
+      lastRunAt: best?.at.toISOString() ?? null,
+      lastStatus: best?.status ?? null,
+    }
+  })
+}
+
 /** Média simples dos componentes de completude (0–100, arredondado). */
 export function computeHealthyPct(components: number[]): number {
   if (components.length === 0) return 100
@@ -120,18 +200,7 @@ export async function buildHealthReport(
     orderBy: { startedAt: 'desc' },
     take: 50,
   })
-  const latestByJob = new Map<string, (typeof recentRuns)[number]>()
-  for (const run of recentRuns) {
-    if (!latestByJob.has(run.job)) latestByJob.set(run.job, run)
-  }
-  const freshness = TRACKED_JOBS.map((job) => {
-    const run = latestByJob.get(job)
-    return {
-      job,
-      lastRunAt: run?.startedAt.toISOString() ?? null,
-      lastStatus: (run?.status ?? null) as IntelJobRunStatus | null,
-    }
-  })
+  const freshness = computeFreshness(recentRuns)
 
   // ─── Uso de LLM no mês (custo) ───
   const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1))
@@ -188,6 +257,8 @@ export async function buildHealthReport(
       startedAt: run.startedAt.toISOString(),
       finishedAt: run.finishedAt?.toISOString() ?? null,
       error: run.error,
+      // Sem isso o admin vê "3 passo(s) falharam" e não descobre quais
+      steps: parseRunSteps(run.metadata),
     })),
     geocoding: {
       byPrecision,

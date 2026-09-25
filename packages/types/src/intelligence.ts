@@ -119,6 +119,8 @@ export interface IntelJobRunDto {
   startedAt: string
   finishedAt: string | null
   error: string | null
+  /** Passos do noturno/refresh — diz qual falhou, não só quantos */
+  steps?: { step: string; ok: boolean; error?: string }[]
 }
 
 export interface HealthReport {
