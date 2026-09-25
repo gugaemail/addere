@@ -43,15 +43,22 @@ export function validateResultAgainstContract(
   )
   const required = contract.columns.filter((c) => c.required)
   const missing = required.filter((c) => !presentColumns.has(c.name.toLowerCase()))
+  // Sem linhas nenhuma coluna é conferida — dizer "(0/8)" aí faz parecer que as 8
+  // faltam, quando o problema é outro (SQL não devolveu nada). A lista esperada vai
+  // no detalhe para quem está cadastrando não ter de trocar de aba para descobrir.
+  const expected = required.map((c) => c.name).join(', ')
   checks.push({
     key: 'required_columns',
-    label: `Colunas obrigatórias do contrato (${required.length - missing.length}/${required.length})`,
+    label:
+      rows.length === 0
+        ? 'Colunas obrigatórias do contrato (sem linhas para conferir)'
+        : `Colunas obrigatórias do contrato (${required.length - missing.length}/${required.length})`,
     ok: rows.length === 0 ? false : missing.length === 0,
     detail:
       rows.length === 0
-        ? 'Prévia sem linhas — não foi possível conferir as colunas'
+        ? `A prévia não voltou nenhuma linha, então as colunas não foram conferidas. O contrato espera: ${expected}`
         : missing.length > 0
-          ? `Faltando: ${missing.map((c) => c.name).join(', ')}`
+          ? `Faltando: ${missing.map((c) => c.name).join(', ')} — o contrato espera: ${expected}`
           : undefined,
   })
 
@@ -98,9 +105,14 @@ export function validateResultAgainstContract(
       key: 'duplicate_keys',
       label: 'Chave pedido+item+produto sem duplicidade',
       ok: duplicates === 0,
+      // Duas causas bem diferentes, e mandar a errada custa horas de quem cadastra:
+      // sem a coluna "item" todo pedido multi-item colide na chave; com ela presente,
+      // a repetição só pode vir de JOIN multiplicando linhas.
       detail:
         duplicates > 0
-          ? `${duplicates} linha(s) duplicada(s) — inclua a coluna "item" (D2_ITEM/C6_ITEM) no SELECT`
+          ? presentColumns.has('item')
+            ? `${duplicates} linha(s) com pedido+item+produto repetido. A coluna "item" está no SELECT, então é JOIN multiplicando linhas: confira filial e D_E_L_E_T_ em cada JOIN (SB1, SF4) e troque por EXISTS a tabela que só serve de filtro`
+            : `${duplicates} linha(s) duplicada(s) — inclua a coluna "item" (D2_ITEM/C6_ITEM) no SELECT`
           : undefined,
     })
 

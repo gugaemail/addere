@@ -18,6 +18,41 @@ const okRow = {
 }
 
 describe('contract-validator', () => {
+  it('prévia vazia não acusa as colunas como faltantes, e diz quais são', () => {
+    const r = validateResultAgainstContract(SALES, [])
+    const check = r.checks.find((c) => c.key === 'required_columns')!
+    expect(check.ok).toBe(false)
+    // "(0/8)" fazia parecer que as 8 colunas faltavam; nenhuma foi conferida
+    expect(check.label).not.toMatch(/0\/\d/)
+    expect(check.label).toMatch(/sem linhas/)
+    expect(check.detail).toMatch(/não voltou nenhuma linha/)
+    expect(check.detail).toMatch(/pedido/) // lista o que o contrato espera
+  })
+
+  it('coluna faltando continua sendo nomeada', () => {
+    const { produto_cod: _omitida, ...semProduto } = okRow
+    const r = validateResultAgainstContract(SALES, [semProduto])
+    const check = r.checks.find((c) => c.key === 'required_columns')!
+    expect(check.ok).toBe(false)
+    expect(check.detail).toMatch(/Faltando: produto_cod/)
+  })
+
+  it('duplicidade com "item" presente aponta JOIN, não coluna ausente', () => {
+    const r = validateResultAgainstContract(SALES, [okRow, { ...okRow }])
+    const check = r.checks.find((c) => c.key === 'duplicate_keys')!
+    expect(check.ok).toBe(false)
+    expect(check.detail).toMatch(/JOIN multiplicando/)
+    expect(check.detail).not.toMatch(/inclua a coluna/)
+  })
+
+  it('duplicidade sem "item" segue mandando incluir a coluna', () => {
+    const { item: _semItem, ...semItem } = okRow
+    const r = validateResultAgainstContract(SALES, [semItem, { ...semItem }])
+    const check = r.checks.find((c) => c.key === 'duplicate_keys')!
+    expect(check.ok).toBe(false)
+    expect(check.detail).toMatch(/inclua a coluna "item"/)
+  })
+
   it('aprova resultado válido de vendas', () => {
     const r = validateResultAgainstContract(SALES, [okRow, { ...okRow, item: '02' }])
     expect(r.ok).toBe(true)
