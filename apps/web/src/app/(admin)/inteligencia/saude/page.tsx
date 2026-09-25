@@ -4,7 +4,7 @@
 // histórico de execuções, lista "corrigir no Protheus" (CSV) e sync manual.
 import { useState } from 'react'
 import { toast } from 'sonner'
-import { Download, RefreshCw } from 'lucide-react'
+import { Check, Download, RefreshCw, X } from 'lucide-react'
 import { api, getApiErrorMessage } from '@/lib/api'
 import { useAuth } from '@/contexts/AuthContext'
 import { useIntelCompanyParam, useIntelHealth, useRunJob } from '@/hooks/useIntel'
@@ -42,6 +42,12 @@ const PRECISION_LABELS: Record<string, string> = {
   CITY: 'só cidade (sem pino)',
 }
 
+interface RunStep {
+  step: string
+  ok: boolean
+  error?: string
+}
+
 interface RunRow {
   id: string
   job: string
@@ -49,6 +55,7 @@ interface RunRow {
   startedAt: string
   finishedAt: string | null
   error: string | null
+  steps?: RunStep[]
 }
 
 export default function SaudePage() {
@@ -59,6 +66,7 @@ export default function SaudePage() {
   const runJob = useRunJob()
   const companyParam = useIntelCompanyParam()
   const [downloading, setDownloading] = useState(false)
+  const [openRun, setOpenRun] = useState<string | null>(null)
 
   // Sem empresa ativa o tenant não resolve e a tela cairia num vazio genérico
   if (needsActiveCompany(isSuperAdmin, companyId)) return <SelectCompanyNotice />
@@ -125,7 +133,22 @@ export default function SaudePage() {
     {
       key: 'error',
       header: 'Detalhe',
-      render: (r) => <span className="text-xs text-[var(--text-secondary)]">{r.error ?? '—'}</span>,
+      // O erro do run diz quantos passos falharam; quais, só abrindo
+      render: (r) => (
+        <div className="space-y-1">
+          <span className="block text-xs text-[var(--text-secondary)]">{r.error ?? '—'}</span>
+          {r.steps && r.steps.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setOpenRun(openRun === r.id ? null : r.id)}
+              aria-expanded={openRun === r.id}
+              className="text-xs font-medium text-brand hover:underline"
+            >
+              {openRun === r.id ? 'esconder passos' : `ver ${r.steps.length} passo(s)`}
+            </button>
+          )}
+        </div>
+      ),
     },
   ]
 
@@ -232,7 +255,28 @@ export default function SaudePage() {
         {data.recentRuns.length === 0 ? (
           <p className="text-sm text-[var(--text-secondary)]">Nenhuma execução ainda.</p>
         ) : (
-          <Table columns={runColumns} data={data.recentRuns as RunRow[]} />
+          <Table
+            columns={runColumns}
+            data={data.recentRuns as RunRow[]}
+            rowKey={(r) => r.id}
+            renderExpanded={(r) =>
+              openRun === r.id && r.steps ? (
+                <ul className="space-y-1.5 pt-1">
+                  {r.steps.map((s, i) => (
+                    <li key={`${s.step}-${i}`} className="flex items-start gap-2 text-xs">
+                      {s.ok ? (
+                        <Check size={14} strokeWidth={1.5} className="mt-0.5 shrink-0 text-success" aria-label="ok" />
+                      ) : (
+                        <X size={14} strokeWidth={1.5} className="mt-0.5 shrink-0 text-danger" aria-label="falhou" />
+                      )}
+                      <span className="font-medium text-[var(--text-primary)]">{s.step}</span>
+                      {s.error && <span className="text-[var(--text-secondary)]">{s.error}</span>}
+                    </li>
+                  ))}
+                </ul>
+              ) : null
+            }
+          />
         )}
       </section>
     </div>
