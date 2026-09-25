@@ -19,12 +19,19 @@ function generateId(): string {
 
 interface SyncStoreState {
   queue: SyncQueueItem[]
+  /**
+   * Usuário logado — a fila é do aparelho, e a API grava o pedido em nome de
+   * quem envia: cada item leva o id de quem o criou e só o dono vê e envia.
+   * Mantido pelo auth.store a cada troca de sessão.
+   */
+  ownerId: string | null
   isSyncing: boolean
   lastSyncAt: string | null
   networkAvailable: boolean
   justSyncedOrderAt: string | null
 
   enqueue: (type: SyncQueueItem['type'], payload: unknown) => string
+  setOwner: (ownerId: string | null) => void
   markSyncing: (id: string) => void
   markSynced: (id: string) => void
   markError: (id: string, error: string) => void
@@ -38,8 +45,9 @@ interface SyncStoreState {
 
 export const useSyncStore = create<SyncStoreState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       queue: [],
+      ownerId: null,
       isSyncing: false,
       lastSyncAt: null,
       networkAvailable: true,
@@ -57,10 +65,13 @@ export const useSyncStore = create<SyncStoreState>()(
           lastError: null,
           createdAt: new Date().toISOString(),
           syncedAt: null,
+          userId: get().ownerId ?? undefined,
         }
         set((s) => ({ queue: [...s.queue, item] }))
         return id
       },
+
+      setOwner: (ownerId) => set({ ownerId }),
 
       markSyncing: (id) =>
         set((s) => ({
@@ -128,22 +139,31 @@ export const useSyncStore = create<SyncStoreState>()(
       storage: createJSONStorage(() => AsyncStorage),
       partialize: (state) => ({
         queue: state.queue,
+        ownerId: state.ownerId,
         lastSyncAt: state.lastSyncAt,
       }),
       // Se o app morreu no meio de um envio, o item ficou 'syncing' no storage;
       // sem este reset ele nunca mais entraria no filtro de processamento
       onRehydrateStorage: () => (state) => {
         if (!state) return
-        state.queue = state.queue.map((item) =>
-          item.status === 'syncing' ? { ...item, status: 'pending' as SyncStatus } : item
-        )
+        state.queue = state.queue
+          // Itens de antes da fila ter dono não têm como ser atribuídos a
+          // ninguém — ficariam invisíveis para sempre
+          .filter((item) => item.userId)
+          .map((item) =>
+            item.status === 'syncing' ? { ...item, status: 'pending' as SyncStatus } : item
+          )
       },
     }
   )
 )
 
+/** Só os itens do usuário logado — o resto da fila é de outra sessão. */
+export const selectOwnQueue = (state: SyncStoreState) =>
+  state.queue.filter((item) => (item.userId ?? null) === state.ownerId)
+
 export const selectPendingCount = (state: SyncStoreState) =>
-  state.queue.filter(
+  selectOwnQueue(state).filter(
     (item) =>
       item.status === 'pending' || (item.status === 'error' && item.attempts < item.maxAttempts)
   ).length
@@ -151,7 +171,7 @@ export const selectPendingCount = (state: SyncStoreState) =>
 export const selectHasPending = (state: SyncStoreState) => selectPendingCount(state) > 0
 
 export const selectPendingItems = (state: SyncStoreState) =>
-  state.queue.filter(
+  selectOwnQueue(state).filter(
     (item) =>
       item.status === 'pending' ||
       item.status === 'syncing' ||
@@ -159,4 +179,4 @@ export const selectPendingItems = (state: SyncStoreState) =>
   )
 
 export const selectErrorItems = (state: SyncStoreState) =>
-  state.queue.filter((item) => item.status === 'error')
+  selectOwnQueue(state).filter((item) => item.status === 'error')

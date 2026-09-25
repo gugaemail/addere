@@ -1,43 +1,9 @@
 import { PrismaClient } from '@prisma/client'
 import bcrypt from 'bcryptjs'
+// Import relativo (não @addere/db) para o tsx do `prisma db seed` resolver sem paths
+import { PERMISSIONS, DEFAULT_PERMISSIONS_BY_ROLE } from '../src/permission-catalog'
 
 const prisma = new PrismaClient()
-
-// Catálogo de permissões disponíveis no sistema
-const PERMISSIONS = [
-  { key: 'users.view', label: 'Ver usuários da empresa', category: 'users' },
-  { key: 'users.manage', label: 'Criar/ativar/desativar usuários', category: 'users' },
-  { key: 'sync.protheus', label: 'Executar sincronização com Protheus', category: 'sync' },
-  {
-    key: 'orders.reset_pending',
-    label: 'Reverter pedido sincronizado para pendente',
-    category: 'orders',
-  },
-  { key: 'orders.change_carrier', label: 'Alterar transportadora do pedido', category: 'orders' },
-  {
-    key: 'orders.change_payment_terms',
-    label: 'Alterar condição de pagamento do pedido',
-    category: 'orders',
-  },
-]
-
-// Permissões concedidas por padrão a cada role existente (backfill)
-const DEFAULT_PERMISSIONS_BY_ROLE: Record<string, string[]> = {
-  ADMIN: [
-    'users.view',
-    'users.manage',
-    'sync.protheus',
-    'orders.reset_pending',
-    'orders.change_carrier',
-    'orders.change_payment_terms',
-  ],
-  SALESPERSON: ['orders.change_carrier', 'orders.change_payment_terms'],
-}
-
-const USER_TYPE_BY_ROLE: Record<string, string> = {
-  ADMIN: 'Administrador',
-  SALESPERSON: 'Vendedor',
-}
 
 async function seedPermissions() {
   // ─── Catálogo de permissões ───
@@ -50,27 +16,10 @@ async function seedPermissions() {
   }
   console.log('Catálogo de permissões criado:', PERMISSIONS.length)
 
-  // ─── Tipos de usuário ───
-  const userTypes: Record<string, { id: string }> = {}
-  for (const name of Object.values(USER_TYPE_BY_ROLE)) {
-    userTypes[name] = await prisma.userType.upsert({
-      where: { name },
-      update: {},
-      create: { name },
-    })
-  }
-  console.log('Tipos de usuário criados:', Object.keys(userTypes).join(', '))
-
-  // ─── Backfill: associa tipo + permissões padrão aos usuários existentes ───
+  // ─── Backfill: permissões padrão dos usuários existentes ───
   const users = await prisma.user.findMany({ where: { role: { in: ['ADMIN', 'SALESPERSON'] } } })
   for (const user of users) {
-    const typeName = USER_TYPE_BY_ROLE[user.role]
     const permissionKeys = DEFAULT_PERMISSIONS_BY_ROLE[user.role] ?? []
-
-    await prisma.user.update({
-      where: { id: user.id },
-      data: { userTypeId: userTypes[typeName].id },
-    })
 
     for (const key of permissionKeys) {
       const permission = await prisma.permission.findUniqueOrThrow({ where: { key } })
@@ -81,7 +30,7 @@ async function seedPermissions() {
       })
     }
   }
-  console.log('Backfill de tipo/permissões aplicado a', users.length, 'usuário(s)')
+  console.log('Backfill de permissões aplicado a', users.length, 'usuário(s)')
 }
 
 async function main() {
@@ -164,6 +113,59 @@ async function main() {
     },
   })
   console.log('Vendedor criado:', vendedor.email)
+
+  // ─── Usuários dos testes e2e (Detox) — apenas fora de produção ───
+  // Credenciais fixas esperadas por apps/mobile/e2e/helpers/auth.ts
+  if (process.env.NODE_ENV !== 'production') {
+    const e2ePasswordHash = await bcrypt.hash('test1234', 10)
+    // O vendedor e2e tem código Protheus porque os fluxos da Inteligência
+    // (plano do dia, visita) são chaveados por `User.idVendProt` — o mesmo
+    // código do gerador sintético usado pelo `intel:smoke` da API.
+    const E2E_VENDOR_CODE = '000001'
+    const e2eUsers = [
+      {
+        email: 'rep@addere.test',
+        name: 'Vendedor E2E',
+        role: 'SALESPERSON' as const,
+        idVendProt: E2E_VENDOR_CODE,
+      },
+      { email: 'manager@addere.test', name: 'Gerente E2E', role: 'ADMIN' as const },
+    ]
+    for (const u of e2eUsers) {
+      await prisma.user.upsert({
+        where: { email: u.email },
+        update: { password: e2ePasswordHash, active: true, idVendProt: u.idVendProt ?? null },
+        create: {
+          name: u.name,
+          email: u.email,
+          password: e2ePasswordHash,
+          role: u.role,
+          companyId: company.id,
+          idVendProt: u.idVendProt ?? null,
+        },
+      })
+    }
+    console.log('Usuários e2e criados:', e2eUsers.map((u) => u.email).join(', '))
+
+    // Cliente buscado pelos fluxos e2e ("Cliente Teste") — precisa ser da
+    // carteira do vendedor e2e, senão a listagem por vendedor não o devolve
+    await prisma.customer.upsert({
+      where: { id: 'customer-e2e-001' },
+      update: { name: 'Cliente Teste', active: true, vendorCode: E2E_VENDOR_CODE },
+      create: {
+        id: 'customer-e2e-001',
+        name: 'Cliente Teste',
+        document: '111.222.333-44',
+        email: 'cliente@addere.test',
+        phone: '(31) 99999-0099',
+        protheusCode: 'CLIE2E',
+        vendorCode: E2E_VENDOR_CODE,
+        companyId: company.id,
+        active: true,
+      },
+    })
+    console.log('Cliente e2e criado: Cliente Teste')
+  }
 
   // ─── Clientes da empresa ───
   const cliente1 = await prisma.customer.upsert({

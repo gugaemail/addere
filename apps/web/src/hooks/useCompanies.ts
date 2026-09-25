@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
+import { useAuth } from '@/contexts/AuthContext'
 import type { CompanyListItem } from '@addere/types'
 
 // Query keys namespaced: ['companies','list'] | ['companies','detail',id] | ['companies',id,<entidade>]
@@ -11,9 +12,13 @@ export const companiesKeys = {
 }
 
 export function useCompanies() {
+  // GET /companies é exclusivo do SUPERADMIN — para o ADMIN da empresa a
+  // chamada só rendia um 403 no console (a tela de Usuários a disparava).
+  const { isSuperAdmin } = useAuth()
   return useQuery({
     queryKey: companiesKeys.list,
     queryFn: () => api.get<CompanyListItem[]>('/companies').then((r) => r.data),
+    enabled: isSuperAdmin,
   })
 }
 

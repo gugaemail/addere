@@ -1,11 +1,11 @@
-import { by, device, element, expect, waitFor } from 'detox'
-import { loginAs } from '../helpers/auth'
-import { goToPedidos } from '../helpers/navigation'
+import { by, element, expect, waitFor } from 'detox'
+import { launchFreshApp, loginAs } from '../helpers/auth'
+import { fillOrderWizard, goToPedidos } from '../helpers/navigation'
 import { goOffline, goOnline } from '../helpers/network'
 
 describe('Pedido offline com sync posterior', () => {
   beforeAll(async () => {
-    await device.launchApp({ newInstance: true })
+    await launchFreshApp()
     await loginAs('rep')
   })
 
@@ -20,18 +20,13 @@ describe('Pedido offline com sync posterior', () => {
     // Criar pedido normalmente
     await goToPedidos()
     await element(by.id('btn-novo-pedido')).tap()
-    await element(by.id('input-busca-cliente')).typeText('Cliente Teste')
-    await element(by.id('resultado-cliente-0')).tap()
-    await element(by.id('btn-adicionar-produto-0')).tap()
-    await element(by.id('produto-0')).tap()
-    await element(by.id('btn-proximo-step')).tap()
-    await element(by.id('btn-confirmar-pedido')).tap()
+    await fillOrderWizard()
 
     // Verificar alerta nativo "salvo offline"
-    await waitFor(element(by.label('Pedido salvo offline')))
+    await waitFor(element(by.text('Pedido salvo offline')))
       .toBeVisible()
       .withTimeout(3000)
-    await element(by.label('OK')).tap()
+    await element(by.text('OK')).tap()
 
     // Verificar na fila de pendentes
     await element(by.id('sync-status-pending')).tap()

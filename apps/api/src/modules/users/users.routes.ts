@@ -1,7 +1,13 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify'
 import { requirePermission } from '../../middleware/authenticate'
-import { createUserSchema } from './users.schema'
-import { listUsers, createUser, toggleUserActive } from './users.service'
+import { createUserSchema, updateUserSchema } from './users.schema'
+import {
+  listUsers,
+  createUser,
+  toggleUserActive,
+  updateUserById,
+  ForbiddenError,
+} from './users.service'
 
 // Usuários fora de uma empresa (companyId null) só existem para SUPERADMIN;
 // qualquer outro role sem empresa não tem o que listar/gerenciar aqui
@@ -59,9 +65,41 @@ export default async function usersRoutes(app: FastifyInstance) {
     }
   )
 
-  // PATCH /users/:id
+  // PATCH /users/:id — edição de verdade (nome, perfil, dados do vendedor).
+  // Antes esta rota era o toggle de ativo; o toggle passou para /:id/active,
+  // no mesmo formato de /companies/:id/users/:userId/active.
   app.patch(
     '/:id',
+    { preHandler: requirePermission('users.manage') },
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      if (!assertScope(request, reply)) return
+      const { id } = request.params as { id: string }
+      const result = updateUserSchema.safeParse(request.body)
+      if (!result.success) {
+        return reply.status(400).send({ message: result.error.errors[0].message })
+      }
+
+      // Só o SUPERADMIN promove alguém a administrador
+      if (request.user.role !== 'SUPERADMIN' && result.data.role === 'ADMIN') {
+        return reply
+          .status(403)
+          .send({ message: 'Apenas o super administrador pode criar administradores' })
+      }
+
+      try {
+        return reply.send(await updateUserById(id, result.data, request.user))
+      } catch (err) {
+        if (err instanceof ForbiddenError) {
+          return reply.status(403).send({ message: err.message })
+        }
+        return reply.status(404).send({ message: (err as Error).message })
+      }
+    }
+  )
+
+  // PATCH /users/:id/active — ativa/desativa
+  app.patch(
+    '/:id/active',
     { preHandler: requirePermission('users.manage') },
     async (request: FastifyRequest, reply: FastifyReply) => {
       if (!assertScope(request, reply)) return

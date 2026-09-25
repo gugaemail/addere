@@ -1,13 +1,12 @@
 import { AppState, AppStateStatus } from 'react-native'
 import NetInfo from '@react-native-community/netinfo'
 import * as Sentry from '@sentry/react-native'
-import { api } from '../lib/api'
 import { getApiErrorMessage } from '../lib/errors'
 import { queryClient } from '../lib/query-client'
-import { useSyncStore } from '../store/syncStore'
+import { selectOwnQueue, useSyncStore } from '../store/syncStore'
 import { pilotTracker } from './pilotTracking'
+import { syncHandlers } from './syncHandlers'
 import type { SyncQueueItem } from '../types/sync'
-import type { CreateOrderInput } from '@addere/types'
 
 const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms))
 
@@ -17,37 +16,36 @@ export function getSyncDelay(attempts: number): number {
   return 1_000 * Math.pow(2, attempts - 1)
 }
 
-function isValidOrderPayload(payload: unknown): payload is CreateOrderInput {
-  const p = payload as CreateOrderInput
-  return (
-    typeof p === 'object' &&
-    p !== null &&
-    typeof p.customerId === 'string' &&
-    typeof p.branchId === 'string' &&
-    Array.isArray(p.items) &&
-    p.items.length > 0
-  )
+const TRANSIENT_4XX = new Set([401, 408, 429])
+
+export function isPermanentRejection(err: unknown): boolean {
+  const status = (err as { response?: { status?: unknown } } | null)?.response?.status
+  return typeof status === 'number' && status >= 400 && status < 500 && !TRANSIENT_4XX.has(status)
 }
 
 async function processItem(item: SyncQueueItem): Promise<void> {
   const { markSyncing, markSynced, markError, markFailedPermanently } = useSyncStore.getState()
 
+  const handler = syncHandlers[item.type]
   markSyncing(item.id)
 
   try {
-    // Payload malformado nunca vai sincronizar — falha permanente, sem retentativas
-    if (!isValidOrderPayload(item.payload)) {
+    // Tipo desconhecido (downgrade do app?) ou payload malformado nunca vai
+    // sincronizar — falha permanente, sem retentativas
+    if (!handler || !handler.validate(item.payload)) {
       markFailedPermanently(item.id, 'Payload inválido: estrutura incorreta')
       Sentry.captureMessage('Item da fila de sync com payload inválido', {
         level: 'error',
-        extra: { itemId: item.id, createdAt: item.createdAt },
+        extra: { itemId: item.id, type: item.type, createdAt: item.createdAt },
         tags: { module: 'sync_engine' },
       })
       return
     }
-    await api.post('/orders', item.payload)
+    await handler.send(item.payload)
     markSynced(item.id)
-    queryClient.invalidateQueries({ queryKey: ['orders'] })
+    for (const key of handler.invalidates) {
+      queryClient.invalidateQueries({ queryKey: key })
+    }
 
     if (item.type === 'order') {
       const queuedDurationMs = Date.now() - new Date(item.createdAt).getTime()
@@ -55,17 +53,44 @@ async function processItem(item: SyncQueueItem): Promise<void> {
     }
   } catch (err: unknown) {
     const msg = getApiErrorMessage(err)
+
+    // 4xx é rejeição do servidor (posse, validação, item de plano que não
+    // existe mais): retentar 5× com backoff só atrasa o aviso e deixa a fila
+    // presa em "1 a enviar". 401/408/429 são transitórios (token, timeout,
+    // rate limit) e continuam no retry. O cache que o handler invalidaria
+    // pode estar defasado (ex.: plano regenerado no servidor) — refaz agora.
+    if (isPermanentRejection(err)) {
+      markFailedPermanently(item.id, msg)
+      for (const key of handler.invalidates) {
+        queryClient.invalidateQueries({ queryKey: key })
+      }
+      Sentry.captureEvent({
+        message: 'Item da fila rejeitado pelo servidor',
+        level: 'warning',
+        extra: {
+          itemId: item.id,
+          type: item.type,
+          ...(handler.reportPayload ? { lastError: msg } : {}),
+          createdAt: item.createdAt,
+        },
+        tags: { module: 'sync_engine' },
+      })
+      return
+    }
+
     markError(item.id, msg)
 
     if (item.attempts + 1 >= item.maxAttempts) {
+      // LGPD: lastError pode citar dados do cliente nos tipos da Inteligência —
+      // só o pedido (reportPayload) manda o erro completo ao Sentry
       Sentry.captureEvent({
-        message: 'Pedido atingiu máximo de tentativas sem sync',
+        message: 'Item da fila atingiu máximo de tentativas sem sync',
         level: 'error',
         extra: {
           itemId: item.id,
           type: item.type,
           attempts: item.attempts + 1,
-          lastError: msg,
+          ...(handler?.reportPayload ? { lastError: msg } : {}),
           createdAt: item.createdAt,
         },
         tags: { module: 'sync_engine' },
@@ -89,7 +114,8 @@ export async function processSyncQueue(): Promise<void> {
   // então chamadas concorrentes (AppState + NetInfo + interval) não passam juntas
   if (state.isSyncing) return
 
-  const items = state.queue.filter(
+  // Só os itens do usuário logado: a API grava o pedido em nome de quem envia
+  const items = selectOwnQueue(state).filter(
     (item) =>
       item.status === 'pending' || (item.status === 'error' && item.attempts < item.maxAttempts)
   )
@@ -122,7 +148,11 @@ export function startSyncListener(): () => void {
   const appStateSubscription = AppState.addEventListener('change', handleAppStateChange)
 
   const netInfoUnsubscribe = NetInfo.addEventListener((state) => {
-    const available = state.isConnected ?? false
+    // Só desliga com um `false` explícito. Quando o NetInfo não sabe responder
+    // (isConnected null/undefined — acontece no simulador e em aparelho real),
+    // assumir offline faz a fila parar de esvaziar mesmo com rede boa. Tentar e
+    // falhar é seguro: o item volta para a fila com backoff e nada se perde.
+    const available = state.isConnected !== false
     useSyncStore.getState().setNetworkAvailable(available)
     if (available) {
       processSyncQueue().catch((err) => Sentry.captureException(err))

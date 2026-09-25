@@ -1,0 +1,32 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`montagem de prompts (snapshot) > briefing: formato fixo de 4 campos 1`] = `
+"Gere a ficha "antes de entrar" do cliente abaixo no formato fixo
+O que aconteceu / Por que importa / O que fazer / Confiança.
+Uma frase por campo. Se houver mix cortado, mencione o produto.
+Se o status for BLOCKED, o "o que fazer" é resolver a pendência — nunca vender.
+
+FATOS:
+{"customers":[{"pseudonym":"C1","status":"LATE","cycleDays":28,"daysSinceLastPurchase":41,"orders12m":10,"avgTicket":"1500.00","trendPct":-30,"usualMix":[{"productCode":"CAFE","productDesc":"Café torrado"}],"cutMix":[{"productCode":"ACUCAR","productDesc":"Açúcar"}],"openTitles":{"count":0,"totalBalance":"0.00","maxDaysOverdue":null},"reasons":["Compra a cada 28 dias, está no dia 41"],"city":"Campinas"}],"freshness":{"lastSyncAt":"03:12"}}"
+`;
+
+exports[`montagem de prompts (snapshot) > message: tom e situação em PT 1`] = `
+"Escreva UMA mensagem de WhatsApp (tom informal, "você").
+Situação: cliente sumiu — reabrir conversa citando o padrão de compra.
+Use o motivo real dos fatos (ciclo, mix cortado, tempo sem compra). Sem "passando para lembrar".
+Refira-se ao cliente pelo pseudônimo (C1) — o app troca pelo nome depois. Termine com uma pergunta.
+Não inclua a linha de frescor nesta mensagem (vai por fora).
+
+FATOS:
+{"situation":"WENT_QUIET","tone":"informal","customers":[{"pseudonym":"C1","status":"LATE","cycleDays":28,"daysSinceLastPurchase":41,"orders12m":10,"avgTicket":"1500.00","trendPct":-30,"usualMix":[{"productCode":"CAFE","productDesc":"Café torrado"}],"cutMix":[{"productCode":"ACUCAR","productDesc":"Açúcar"}],"openTitles":{"count":0,"totalBalance":"0.00","maxDaysOverdue":null},"reasons":["Compra a cada 28 dias, está no dia 41"],"city":"Campinas"}],"lastOrderDays":41,"freshness":{"lastSyncAt":null}}"
+`;
+
+exports[`montagem de prompts (snapshot) > today: instruções + fatos serializados + linha de frescor exigida 1`] = `
+"Gere o resumo "Hoje" do vendedor a partir dos fatos abaixo.
+homeLine: 1 frase com o essencial (gap da meta e/ou primeira visita).
+planText: 2-4 frases sobre o plano do dia (agrupamento, quem priorizar e por quê).
+A última linha de planText deve ser exatamente: "Dados sincronizados: 03:12".
+
+FATOS:
+{"date":"20260821","grouping":"Campinas","goal":{"goalAmount":null,"soldAmount":null,"gap":"6000.00","perBusinessDay":null,"lateCoverage":null},"plan":[{"position":1,"pseudonym":"C1","status":"LATE","shortReason":"motivo","expectedAmount":"750.00"}],"freshness":{"lastSyncAt":"03:12"}}"
+`;

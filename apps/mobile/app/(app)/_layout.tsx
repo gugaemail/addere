@@ -1,7 +1,16 @@
 import { useState, useEffect } from 'react'
 import { View } from 'react-native'
 import { Tabs } from 'expo-router'
-import { LayoutDashboard, Users, Package, ClipboardList } from 'lucide-react-native'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
+import {
+  ClipboardList,
+  LayoutDashboard,
+  Map as MapIcon,
+  Package,
+  Sun,
+  Users,
+  UsersRound,
+} from 'lucide-react-native'
 import { brandScreenOptions } from '../../src/navigation/BrandHeader'
 import {
   OnboardingFlow,
@@ -9,9 +18,26 @@ import {
 } from '../../src/components/onboarding/OnboardingFlow'
 import { FeedbackPrompt } from '../../src/components/FeedbackPrompt'
 import { colors, spacing, typography } from '../../src/theme'
+import { useIntelEnabled } from '../../src/hooks/useIntelEnabled'
+import { useHasVendorCode, useIsManager } from '../../src/hooks/useProfile'
 
 export default function AppLayout() {
   const [showOnboarding, setShowOnboarding] = useState(false)
+  // Abas Hoje/Rota só aparecem quando a empresa tem a Inteligência ligada (E12)
+  const intelEnabled = useIntelEnabled()
+  // Gerente (intel.manager sem carteira): a home vira Equipe e a Rota some —
+  // ele não tem plano; Clientes e Pedidos mostram os da equipe (recorte na API)
+  const isManager = useIsManager()
+  // Gerente que também vende com o próprio código tem plano do dia: a Rota volta
+  const hasVendorCode = useHasVendorCode()
+  const showRota = intelEnabled && (!isManager || hasVendorCode)
+  const home = isManager
+    ? { testID: 'tab-equipe', title: 'Equipe', Icon: UsersRound }
+    : intelEnabled
+      ? { testID: 'tab-hoje', title: 'Hoje', Icon: Sun }
+      : { testID: 'tab-dashboard', title: 'Dashboard', Icon: LayoutDashboard }
+  // Safe-area inferior: evita a tab bar sobreposta pela barra do sistema (Android) / home indicator (iOS)
+  const insets = useSafeAreaInsets()
 
   useEffect(() => {
     shouldShowOnboarding().then(setShowOnboarding)
@@ -30,8 +56,8 @@ export default function AppLayout() {
             backgroundColor: colors.neutral.white,
             borderTopColor: colors.neutral.border,
             borderTopWidth: 1,
-            height: 60,
-            paddingBottom: spacing.sm,
+            height: 60 + insets.bottom,
+            paddingBottom: Math.max(insets.bottom, spacing.sm),
           },
           tabBarLabelStyle: {
             fontFamily: typography.fontFamily.bodySemibold,
@@ -42,11 +68,20 @@ export default function AppLayout() {
         <Tabs.Screen
           name="index"
           options={{
-            tabBarButtonTestID: 'tab-dashboard',
-            title: 'Dashboard',
-            tabBarIcon: ({ color }) => (
-              <LayoutDashboard size={22} color={color} strokeWidth={1.5} />
-            ),
+            tabBarButtonTestID: home.testID,
+            title: home.title,
+            tabBarIcon: ({ color }) => <home.Icon size={22} color={color} strokeWidth={1.5} />,
+          }}
+        />
+        {/* Rota (D11): oculta com a Inteligência desligada e para o gerente sem código de vendedor */}
+        <Tabs.Screen
+          name="rota"
+          options={{
+            href: showRota ? undefined : null,
+            tabBarButtonTestID: 'tab-rota',
+            title: 'Rota',
+            headerShown: false,
+            tabBarIcon: ({ color }) => <MapIcon size={22} color={color} strokeWidth={1.5} />,
           }}
         />
         <Tabs.Screen
@@ -59,21 +94,21 @@ export default function AppLayout() {
           }}
         />
         <Tabs.Screen
-          name="produtos"
-          options={{
-            tabBarButtonTestID: 'tab-produtos',
-            title: 'Produtos',
-            headerShown: false,
-            tabBarIcon: ({ color }) => <Package size={22} color={color} strokeWidth={1.5} />,
-          }}
-        />
-        <Tabs.Screen
           name="pedidos"
           options={{
             tabBarButtonTestID: 'tab-pedidos',
             title: 'Pedidos',
             headerShown: false,
             tabBarIcon: ({ color }) => <ClipboardList size={22} color={color} strokeWidth={1.5} />,
+          }}
+        />
+        <Tabs.Screen
+          name="produtos"
+          options={{
+            tabBarButtonTestID: 'tab-produtos',
+            title: 'Produtos',
+            headerShown: false,
+            tabBarIcon: ({ color }) => <Package size={22} color={color} strokeWidth={1.5} />,
           }}
         />
         {/* Rota oculta da tab bar — acessada via FAB */}

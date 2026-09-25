@@ -17,6 +17,7 @@ interface CompanyProtheus {
   apiCondPag: string | null
   apiTransp: string | null
   apiMetaVend: string | null
+  apiSql: string | null
   usrProtheus: string | null
   passProtheus: string | null
 }
@@ -49,6 +50,7 @@ export function ProtheusConfigForm({ company, onSaved }: Props) {
   const [apiCondPag, setApiCondPag] = useState(company.apiCondPag ?? '')
   const [apiTransp, setApiTransp] = useState(company.apiTransp ?? '')
   const [apiMetaVend, setApiMetaVend] = useState(company.apiMetaVend ?? '')
+  const [apiSql, setApiSql] = useState(company.apiSql ?? '')
   const [usrProtheus, setUsrProtheus] = useState(company.usrProtheus ?? '')
   const [passProtheus, setPassProtheus] = useState('')
   const [loading, setLoading] = useState(false)
@@ -62,6 +64,7 @@ export function ProtheusConfigForm({ company, onSaved }: Props) {
     setApiCondPag(company.apiCondPag ?? '')
     setApiTransp(company.apiTransp ?? '')
     setApiMetaVend(company.apiMetaVend ?? '')
+    setApiSql(company.apiSql ?? '')
     setUsrProtheus(company.usrProtheus ?? '')
     setPassProtheus('')
     setEditing(true)
@@ -80,6 +83,7 @@ export function ProtheusConfigForm({ company, onSaved }: Props) {
         apiCondPag,
         apiTransp,
         apiMetaVend,
+        apiSql,
         usrProtheus,
       }
       if (passProtheus) body.passProtheus = passProtheus
@@ -180,6 +184,13 @@ export function ProtheusConfigForm({ company, onSaved }: Props) {
               onChange={(e) => setApiMetaVend(e.target.value)}
               placeholder="http://..."
             />
+            <FormField
+              mono
+              label="SQL genérico (POST) — Inteligência"
+              value={apiSql}
+              onChange={(e) => setApiSql(e.target.value)}
+              placeholder="http://..."
+            />
           </div>
 
           <div className="border-t border-[var(--border)] pt-4 grid grid-cols-2 gap-3">
@@ -232,6 +243,7 @@ export function ProtheusConfigForm({ company, onSaved }: Props) {
           <ConfigRow label="Transportadoras (GET)" value={company.apiTransp} />
           <ConfigRow label="Cond. pagamento (GET)" value={company.apiCondPag} />
           <ConfigRow label="Meta vendedor (GET)" value={company.apiMetaVend} />
+          <ConfigRow label="SQL genérico (POST) — Inteligência" value={company.apiSql} />
           <ConfigRow label="Usuário Protheus" value={company.usrProtheus} />
           <ConfigRow label="Senha Protheus" value={company.passProtheus ? '••••••••' : null} />
         </div>

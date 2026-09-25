@@ -18,7 +18,8 @@ interface SyncStatusBarProps {
 
 export function SyncStatusBar({ style }: SyncStatusBarProps) {
   const router = useRouter()
-  const { networkAvailable, isSyncing, pendingCount, errorItems, hasPending } = useSyncQueue()
+  const { networkAvailable, isSyncing, pendingCount, pendingItems, errorItems, hasPending } =
+    useSyncQueue()
 
   if (!networkAvailable) {
     return (
@@ -43,6 +44,10 @@ export function SyncStatusBar({ style }: SyncStatusBarProps) {
     )
   }
 
+  // A fila também leva visitas e resultados: "pedido" só quando é só pedido
+  const noun = (items: { type: string }[]) =>
+    items.every((i) => i.type === 'order') ? 'pedido' : 'envio'
+
   if (errorItems.length > 0) {
     const exhaustedCount = errorItems.filter((i) => i.attempts >= i.maxAttempts).length
     return (
@@ -54,7 +59,7 @@ export function SyncStatusBar({ style }: SyncStatusBarProps) {
       >
         <AlertCircle size={14} color={colors.neutral.white} strokeWidth={1.5} />
         <Text style={s.text}>
-          {errorItems.length} pedido{errorItems.length !== 1 ? 's' : ''} com erro
+          {errorItems.length} {noun(errorItems)}{errorItems.length !== 1 ? 's' : ''} com erro
           {exhaustedCount > 0
             ? ` — ${exhaustedCount} requer${exhaustedCount === 1 ? '' : 'em'} ação manual`
             : ''}
@@ -74,7 +79,7 @@ export function SyncStatusBar({ style }: SyncStatusBarProps) {
       >
         <Upload size={14} color={colors.neutral.white} strokeWidth={1.5} />
         <Text style={s.text}>
-          {pendingCount} pedido{pendingCount !== 1 ? 's' : ''} pendente
+          {pendingCount} {noun(pendingItems)}{pendingCount !== 1 ? 's' : ''} pendente
           {pendingCount !== 1 ? 's' : ''}
         </Text>
         <Text style={s.link}>Sincronizar agora</Text>

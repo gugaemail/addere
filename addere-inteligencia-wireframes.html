@@ -1,0 +1,520 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Addere · Inteligência comercial — wireframes v0.1</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;700;800&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --cyan:#29BEFF;--navy:#1B4FA8;--deep:#0D2045;--ice:#E8F4FF;
+  --ink:#0F1A2E;--ink-2:#4A5568;--ink-3:#8A94A6;--line:#E3E8F0;--paper:#F7F9FC;--white:#fff;
+  --ok:#16A34A;--ok-bg:#E8F8EE;--warn:#D97706;--warn-bg:#FFF4E0;--risk:#DC2626;--risk-bg:#FDEBEB;--block:#6B7280;--block-bg:#EEF0F3;--new:#7C3AED;--new-bg:#F1EBFE;
+  --disp:'Plus Jakarta Sans',system-ui,sans-serif;--body:'Inter',system-ui,sans-serif;--mono:'JetBrains Mono',ui-monospace,monospace;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.55}
+a{color:var(--navy)}
+.wrap{max-width:1180px;margin:0 auto;padding:40px 24px 80px}
+h1,h2,h3,h4{font-family:var(--disp);letter-spacing:-0.02em;margin:0}
+h1{font-size:34px;font-weight:800;color:var(--deep)}
+h2{font-size:22px;font-weight:700;color:var(--deep);margin:56px 0 8px}
+h3{font-size:15px;font-weight:700;color:var(--deep)}
+.eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--navy)}
+.lead{color:var(--ink-2);max-width:760px;margin:8px 0 0}
+.hdr{display:flex;align-items:flex-start;justify-content:space-between;gap:24px;border-bottom:1px solid var(--line);padding-bottom:24px}
+.logo{display:flex;align-items:center;gap:10px;font-family:var(--disp);font-weight:800;font-size:20px;color:var(--deep)}
+.logo i{width:26px;height:26px;border-radius:8px;background:var(--navy);display:inline-block;position:relative}
+.logo i:after{content:"";position:absolute;inset:7px;border-radius:4px;background:var(--cyan)}
+.tag{font-family:var(--mono);font-size:11px;padding:4px 8px;border:1px solid var(--line);border-radius:6px;color:var(--ink-2);background:#fff}
+
+/* grids */
+.grid{display:grid;gap:28px}
+.g2{grid-template-columns:repeat(auto-fit,minmax(300px,1fr))}
+.g3{grid-template-columns:repeat(auto-fit,minmax(280px,1fr))}
+.shot{display:flex;flex-direction:column;gap:10px;align-items:center}
+.cap{font-size:13px;color:var(--ink-2);max-width:300px;text-align:center}
+.cap b{color:var(--deep)}
+
+/* phone */
+.phone{width:300px;background:#fff;border:1px solid var(--line);border-radius:30px;padding:12px;box-shadow:0 1px 0 rgba(13,32,69,.04)}
+.screen{border-radius:20px;overflow:hidden;background:var(--paper);display:flex;flex-direction:column;min-height:560px}
+.status{display:flex;justify-content:space-between;font-size:11px;color:var(--ink-2);padding:6px 14px 0;background:#fff}
+.top{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:#fff;border-bottom:1px solid var(--line)}
+.top .t{font-family:var(--disp);font-weight:700;font-size:15px;color:var(--deep)}
+.top .sub{font-size:11px;color:var(--ink-3)}
+.body{padding:12px;display:flex;flex-direction:column;gap:10px;flex:1}
+.nav{display:flex;justify-content:space-around;background:#fff;border-top:1px solid var(--line);padding:8px 4px 10px}
+.nav div{display:flex;flex-direction:column;align-items:center;gap:3px;font-size:10px;color:var(--ink-3);width:52px}
+.nav div.on{color:var(--navy);font-weight:600}
+.nav svg{width:20px;height:20px}
+.nav .dot{position:relative}
+.nav .dot:after{content:"";position:absolute;top:-2px;right:10px;width:7px;height:7px;border-radius:50%;background:var(--cyan);border:1.5px solid #fff}
+
+/* cards inside phone */
+.card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:11px 12px}
+.card.top-cyan{border-top:3px solid var(--cyan)}
+.card.top-navy{border-top:3px solid var(--navy)}
+.row{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.k{font-size:10px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.05em;font-family:var(--mono)}
+.n{font-family:var(--disp);font-weight:800;font-size:20px;color:var(--deep);letter-spacing:-0.02em}
+.n small{font-size:11px;font-weight:500;color:var(--ink-3);letter-spacing:0}
+.s{font-size:12px;color:var(--ink-2)}
+.xs{font-size:11px;color:var(--ink-3)}
+.pill{display:inline-flex;align-items:center;gap:4px;font-size:10.5px;font-weight:600;padding:2px 8px;border-radius:999px;white-space:nowrap}
+.p-ok{background:var(--ok-bg);color:#15803D}.p-warn{background:var(--warn-bg);color:#B45309}.p-risk{background:var(--risk-bg);color:#B91C1C}.p-block{background:var(--block-bg);color:#4B5563}.p-new{background:var(--new-bg);color:#6D28D9}.p-ice{background:var(--ice);color:var(--navy)}
+.btn{font-size:11.5px;font-weight:600;padding:6px 10px;border-radius:9px;border:1px solid var(--line);background:#fff;color:var(--deep);display:inline-flex;align-items:center;gap:5px}
+.btn.pri{background:var(--navy);color:#fff;border-color:var(--navy)}
+.btn.ghost{border-color:transparent;background:var(--ice);color:var(--navy)}
+.btn svg{width:13px;height:13px}
+.stack{display:flex;gap:6px;flex-wrap:wrap}
+.mini{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.bar{height:6px;border-radius:3px;background:var(--ice);overflow:hidden}.bar i{display:block;height:100%;background:var(--navy)}
+.why{font-size:11.5px;margin-top:3px;display:flex;gap:6px;align-items:flex-start}
+.why b{font-weight:600}
+.num{width:22px;height:22px;border-radius:50%;background:var(--deep);color:#fff;font-size:11px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;flex:none}
+.seg{display:flex;background:var(--ice);border-radius:10px;padding:3px}
+.seg span{flex:1;text-align:center;font-size:11.5px;padding:5px;border-radius:8px;color:var(--navy);font-weight:600}
+.seg span.on{background:#fff;color:var(--deep);box-shadow:0 1px 2px rgba(13,32,69,.08)}
+.map{border-radius:12px;background:#EEF2F7;position:relative;overflow:hidden}
+.dim{opacity:.45}
+.ai{border:1px dashed var(--cyan);background:#F3FBFF;border-radius:12px;padding:10px 12px}
+.ai .k{color:var(--navy)}
+.foot{font-size:10.5px;color:var(--ink-3);text-align:center;padding-top:2px}
+.chat{background:var(--ice);border-radius:12px 12px 12px 3px;padding:9px 11px;font-size:12px;color:var(--deep)}
+.input{border:1px solid var(--line);border-radius:10px;padding:8px 10px;font-size:12px;color:var(--ink-3);background:#fff}
+.dayhead{display:flex;justify-content:space-between;align-items:baseline;padding:2px 2px 0}
+.dayhead b{font-family:var(--disp);font-size:13px;color:var(--deep)}
+.chip{font-size:11px;padding:3px 8px;border-radius:8px;background:#fff;border:1px solid var(--line);color:var(--ink-2)}
+.chip.on{background:var(--deep);color:#fff;border-color:var(--deep)}
+.legend{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}
+.lg{background:#fff;border:1px solid var(--line);border-radius:14px;padding:14px}
+.lg .row{margin-bottom:6px}
+.lg p{margin:0;font-size:13px;color:var(--ink-2)}
+
+/* flow */
+.flow{background:#fff;border:1px solid var(--line);border-radius:16px;padding:20px;overflow:auto}
+.flow svg{display:block;min-width:760px}
+
+/* tables */
+.tbl{background:#fff;border:1px solid var(--line);border-radius:16px;padding:18px 20px}
+.tbl h3{margin-bottom:4px}
+.tbl .phase{font-family:var(--mono);font-size:11px;color:var(--navy);margin-bottom:10px}
+table{width:100%;border-collapse:collapse;font-size:12.5px}
+th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-family:var(--mono);font-weight:500;font-size:11px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.05em}
+td code{font-family:var(--mono);font-size:12px;color:var(--deep);background:var(--paper);padding:1px 5px;border-radius:4px}
+td.note{color:var(--ink-2)}
+.kv{display:grid;grid-template-columns:170px 1fr;gap:6px 14px;font-size:13.5px}
+.kv b{color:var(--deep);font-weight:600}
+.note-box{background:#fff;border-left:3px solid var(--cyan);padding:12px 16px;border-radius:0 12px 12px 0;color:var(--ink-2);font-size:14px}
+.ok-list li{margin-bottom:6px}
+@media (max-width:700px){.phone{width:100%;max-width:320px}.kv{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<div class="hdr">
+  <div>
+    <div class="logo"><i></i>Addere</div>
+    <div class="eyebrow" style="margin-top:18px">Inteligência comercial · wireframes</div>
+    <h1>O app que diz em quem falar hoje</h1>
+    <p class="lead">Proposta visual da camada de agentes + roteirização, pensada para o vendedor em campo: o que muda na tela principal, quantas telas entram, quais ícones e estados, e as tabelas que sustentam as 3 fases.</p>
+  </div>
+  <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end;flex:none">
+    <span class="tag">v0.1 · 19/08/2026</span>
+    <span class="tag">mobile · RN/Expo</span>
+    <span class="tag">fonte: Protheus via sync</span>
+  </div>
+</div>
+
+<!-- ============ 1. O QUE MUDA NA HOME ============ -->
+<h2>1. O que muda na tela principal</h2>
+<p class="lead">O dashboard atual responde "quanto eu já vendi". A nova home responde "o que eu faço agora". Os números continuam, mas descem; o plano do dia sobe. A aba <b>Dashboard</b> vira <b>Hoje</b>, e entra a aba <b>Rota</b> na barra inferior (5 abas, o máximo confortável no polegar).</p>
+
+<div class="grid g2" style="margin-top:24px">
+  <div class="shot">
+    <div class="phone dim"><div class="screen">
+      <div class="status"><span>06:39</span><span>●●● 100</span></div>
+      <div class="top"><span class="t">Olá, Gustavo</span><span class="sub">sair</span></div>
+      <div class="body">
+        <div class="mini">
+          <div class="card top-navy"><div class="n">11</div><div class="s">Total de pedidos</div></div>
+          <div class="card" style="border-top:3px solid var(--warn)"><div class="n">5</div><div class="s">Pendentes</div></div>
+          <div class="card" style="border-top:3px solid var(--ok)"><div class="n">4</div><div class="s">Sincronizados</div></div>
+          <div class="card top-cyan"><div class="n">R$ 27 mil</div><div class="s">Receita total</div></div>
+        </div>
+        <div class="card top-navy"><div class="row"><span class="s">Meta do mês</span><span class="n" style="font-size:18px">0,00%</span></div><div class="bar"><i style="width:0"></i></div></div>
+        <div class="k" style="padding:4px 2px 0">Últimos pedidos</div>
+        <div class="card"><div class="row"><span class="s" style="color:var(--deep);font-weight:600">FELIPE OLIVEIRA AGUERA</span><span class="s">R$ 70</span></div><div class="xs">12/06 · Pendente</div></div>
+        <div class="card"><div class="row"><span class="s" style="color:var(--deep);font-weight:600">A M SILVA</span><span class="s">R$ 2.785</span></div><div class="xs">05/06 · Pendente</div></div>
+      </div>
+      <div class="nav">
+        <div class="on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>Dashboard</div>
+        <div><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="7" r="4"/><path d="M17 11a4 4 0 1 0 0-8"/><path d="M3 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2"/></svg>Clientes</div>
+        <div><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8l-9-5-9 5v8l9 5 9-5z"/><path d="M3.3 7 12 12l8.7-5M12 22V12"/></svg>Produtos</div>
+        <div><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/></svg>Pedidos</div>
+      </div>
+    </div></div>
+    <div class="cap"><b>Antes</b> — home de indicadores. Responde o passado, não orienta o dia.</div>
+  </div>
+
+  <div class="shot">
+    <div class="phone"><div class="screen">
+      <div class="status"><span>06:39</span><span>●●● 100</span></div>
+      <div class="top"><div><div class="t">Bom dia, Gustavo</div><div class="sub">qua, 19 ago · Boa Viagem</div></div><span class="pill p-ice">sinc. 03h12</span></div>
+      <div class="body">
+        <div class="card top-cyan">
+          <div class="row"><span class="k">Plano de hoje</span><span class="xs">7 visitas · 23 km</span></div>
+          <div class="row" style="margin-top:4px"><span class="n">R$ 9,4 mil <small>esperado</small></span><span class="pill p-warn">3 atrasados</span></div>
+          <div class="s" style="margin-top:6px">Começa pelo <b>Mercado do Zé</b> — 41 dias sem pedido, ciclo de 28.</div>
+          <div class="stack" style="margin-top:8px"><span class="btn pri"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>Ver plano</span><span class="btn ghost"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 11l19-9-9 19-2-8-8-2z"/></svg>Abrir rota</span></div>
+        </div>
+        <div class="card top-navy">
+          <div class="row"><span class="k">Meta do mês</span><span class="xs">9 dias úteis</span></div>
+          <div class="row"><span class="n">R$ 27,4 mil <small>de 45</small></span><span class="n" style="font-size:16px;color:var(--navy)">61%</span></div>
+          <div class="bar"><i style="width:61%"></i></div>
+          <div class="xs" style="margin-top:5px">Faltam R$ 17,6 mil · R$ 2 mil/dia · os 12 atrasados cobrem R$ 31 mil</div>
+        </div>
+        <div class="mini">
+          <div class="card"><div class="k">Pedidos hoje</div><div class="n">0 <small>5 pend.</small></div></div>
+          <div class="card"><div class="k">Carteira ativa</div><div class="n">41% <small>▲4pp</small></div></div>
+        </div>
+        <div class="ai">
+          <div class="row"><span class="k">Pergunte</span><span class="xs">3 atalhos</span></div>
+          <div class="stack" style="margin-top:6px"><span class="chip">Quem está esfriando?</span><span class="chip">Plano da semana</span><span class="chip">Como está minha carteira?</span></div>
+        </div>
+      </div>
+      <div class="nav">
+        <div class="on dot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>Hoje</div>
+        <div><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6l6-3 6 3 6-3v15l-6 3-6-3-6 3z"/><path d="M9 3v15M15 6v15"/></svg>Rota</div>
+        <div><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="7" r="4"/><path d="M17 11a4 4 0 1 0 0-8"/><path d="M3 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2"/></svg>Clientes</div>
+        <div><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/></svg>Pedidos</div>
+        <div><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8l-9-5-9 5v8l9 5 9-5z"/><path d="M3.3 7 12 12l8.7-5M12 22V12"/></svg>Produtos</div>
+      </div>
+    </div></div>
+    <div class="cap"><b>Depois</b> — home orientada à ação. Plano primeiro, meta com "quanto falta por dia", atalhos de pergunta. Ponto ciano na aba avisa plano novo.</div>
+  </div>
+</div>
+
+<div class="note-box" style="margin-top:22px">
+<b>Regras da nova home:</b> nunca mais de 3 cards acima da dobra; o card do plano nomeia <i>um</i> cliente (o primeiro), não a lista; todo número de previsão vem com "se nada mudar"; o rodapé/pill de sincronização é obrigatório em qualquer tela que mostre número calculado.
+</div>
+
+<!-- ============ 2. MAPA DE TELAS ============ -->
+<h2>2. Quantas telas entram</h2>
+<p class="lead">Sete telas novas ou refeitas no app, três no painel web. Nenhuma tela nova de "IA": a inteligência aparece <i>dentro</i> das telas que o vendedor já usa.</p>
+
+<div class="flow" style="margin-top:20px">
+<svg viewBox="0 0 1100 300" width="100%" height="300" font-family="Inter,system-ui,sans-serif">
+  <defs><marker id="ar" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#8A94A6"/></marker></defs>
+  <g font-size="12" fill="#0D2045">
+    <!-- Row 1: app -->
+    <rect x="20" y="40" width="150" height="64" rx="12" fill="#E8F4FF" stroke="#1B4FA8"/><text x="95" y="66" text-anchor="middle" font-weight="700">1 · Hoje</text><text x="95" y="84" text-anchor="middle" font-size="11" fill="#4A5568">home refeita</text>
+    <rect x="210" y="40" width="150" height="64" rx="12" fill="#E8F4FF" stroke="#1B4FA8"/><text x="285" y="66" text-anchor="middle" font-weight="700">2 · Plano do dia</text><text x="285" y="84" text-anchor="middle" font-size="11" fill="#4A5568">lista ⇄ mapa</text>
+    <rect x="400" y="40" width="150" height="64" rx="12" fill="#E8F4FF" stroke="#1B4FA8"/><text x="475" y="66" text-anchor="middle" font-weight="700">3 · Visita</text><text x="475" y="84" text-anchor="middle" font-size="11" fill="#4A5568">check-in · motivo</text>
+    <rect x="590" y="40" width="150" height="64" rx="12" fill="#fff" stroke="#1B4FA8" stroke-dasharray="4 3"/><text x="665" y="66" text-anchor="middle" font-weight="700">4 · Ficha do cliente</text><text x="665" y="84" text-anchor="middle" font-size="11" fill="#4A5568">+ bloco "antes de entrar"</text>
+    <rect x="780" y="40" width="150" height="64" rx="12" fill="#E8F4FF" stroke="#1B4FA8"/><text x="855" y="66" text-anchor="middle" font-weight="700">5 · Mensagem</text><text x="855" y="84" text-anchor="middle" font-size="11" fill="#4A5568">WhatsApp no seu tom</text>
+
+    <rect x="210" y="150" width="150" height="64" rx="12" fill="#E8F4FF" stroke="#1B4FA8"/><text x="285" y="176" text-anchor="middle" font-weight="700">6 · Semana</text><text x="285" y="194" text-anchor="middle" font-size="11" fill="#4A5568">plano por dia/bairro</text>
+    <rect x="400" y="150" width="150" height="64" rx="12" fill="#E8F4FF" stroke="#1B4FA8"/><text x="475" y="176" text-anchor="middle" font-weight="700">7 · Carteira</text><text x="475" y="194" text-anchor="middle" font-size="11" fill="#4A5568">ciclo · risco · mix</text>
+
+    <!-- web -->
+    <rect x="20" y="240" width="1060" height="1" fill="#E3E8F0"/>
+    <text x="20" y="232" font-size="11" fill="#8A94A6" font-family="JetBrains Mono,monospace">PAINEL WEB (gerente / admin)</text>
+    <rect x="20" y="252" width="210" height="40" rx="10" fill="#F7F9FC" stroke="#CBD5E1"/><text x="125" y="277" text-anchor="middle" font-size="12">W1 · Equipe em campo (mapa)</text>
+    <rect x="250" y="252" width="210" height="40" rx="10" fill="#F7F9FC" stroke="#CBD5E1"/><text x="355" y="277" text-anchor="middle" font-size="12">W2 · Onde estou perdendo</text>
+    <rect x="480" y="252" width="260" height="40" rx="10" fill="#F7F9FC" stroke="#CBD5E1"/><text x="610" y="277" text-anchor="middle" font-size="12">W3 · Catálogo de consultas + saúde dos dados</text>
+  </g>
+  <g stroke="#8A94A6" stroke-width="1.5" fill="none" marker-end="url(#ar)">
+    <path d="M170 72 H205"/><path d="M360 72 H395"/><path d="M550 72 H585"/><path d="M740 72 H775"/>
+    <path d="M95 104 V182 H205"/><path d="M135 104 V170 Q135 182 147 182 H205" opacity="0"/>
+    <path d="M475 104 V145"/>
+    <path d="M285 150 V115 Q285 104 297 104" opacity="0"/>
+    <path d="M360 182 H395"/>
+    <path d="M665 104 V182 H555"/>
+  </g>
+  <g font-size="10.5" fill="#8A94A6">
+    <text x="100" y="150">atalho "Plano da semana"</text>
+    <text x="420" y="132">ao chegar</text>
+    <text x="570" y="195">"ver carteira"</text>
+  </g>
+</svg>
+</div>
+
+<div class="kv" style="margin-top:16px">
+  <b>Novas no app</b><span>Hoje (refeita), Plano do dia, Visita, Mensagem, Semana, Carteira — 6</span>
+  <b>Alteradas</b><span>Ficha do cliente ganha um bloco fixo no topo ("antes de entrar") — 1</span>
+  <b>Novas no web</b><span>Equipe em campo, Onde estou perdendo, Catálogo de consultas/saúde dos dados — 3</span>
+  <b>Não entra</b><span>Tela de chat livre (fase 3), tela de "configurar IA" no app (fica no web), ranking de vendedores no app</span>
+</div>
+
+<!-- ============ 3. AS TELAS ============ -->
+<h2>3. As telas do vendedor</h2>
+<p class="lead">Padrão comum: título curto, um número que importa, o porquê em uma linha, e no máximo três ações por card. Tudo legível a um braço de distância, sob sol.</p>
+
+<div class="grid g3" style="margin-top:24px">
+
+<!-- 2. Plano do dia (lista) -->
+<div class="shot">
+  <div class="phone"><div class="screen">
+    <div class="status"><span>07:10</span><span>●●● 96</span></div>
+    <div class="top"><div><div class="t">Plano de hoje</div><div class="sub">7 visitas · Boa Viagem · 23 km</div></div><span class="pill p-ice">editar</span></div>
+    <div class="body">
+      <div class="seg"><span class="on">Lista</span><span>Mapa</span></div>
+      <div class="card">
+        <div class="row"><span style="display:flex;gap:8px;align-items:center"><span class="num">1</span><b style="font-size:13.5px;color:var(--deep)">Mercado do Zé</b></span><span class="xs">08:30 · 2,1 km</span></div>
+        <div class="why"><span class="pill p-warn">Atrasado</span><span>compra a cada 28 dias, está no dia 41 · ticket R$ 3,1 mil</span></div>
+        <div class="xs" style="margin-top:3px">Oferecer: mix de sempre (3 itens) · confiança alta (14 pedidos)</div>
+        <div class="stack" style="margin-top:8px"><span class="btn">Ficha</span><span class="btn">Mensagem</span><span class="btn pri">Cheguei</span></div>
+      </div>
+      <div class="card">
+        <div class="row"><span style="display:flex;gap:8px;align-items:center"><span class="num">2</span><b style="font-size:13.5px;color:var(--deep)">Padaria Imperial</b></span><span class="xs">09:10 · 1,4 km</span></div>
+        <div class="why"><span class="pill p-ok">No ciclo</span><span>próximo pedido previsto esta semana</span></div>
+        <div class="xs" style="margin-top:3px">Cortou o Produto X nos últimos 2 pedidos — perguntar</div>
+      </div>
+      <div class="card">
+        <div class="row"><span style="display:flex;gap:8px;align-items:center"><span class="num">3</span><b style="font-size:13.5px;color:var(--deep)">Distribuidora Norte</b></span><span class="xs">09:50 · 3,2 km</span></div>
+        <div class="why"><span class="pill p-risk">Em risco</span><span>3 meses sem comprar · última 18/05</span></div>
+        <div class="xs" style="margin-top:3px">Sem título vencido · sugerido pela 3ª vez</div>
+      </div>
+      <div class="card" style="opacity:.7">
+        <div class="row"><span style="display:flex;gap:8px;align-items:center"><span class="num" style="background:var(--block)">4</span><b style="font-size:13.5px;color:var(--deep)">Bar do Tonho</b></span><span class="xs">10:30</span></div>
+        <div class="why"><span class="pill p-block">Bloqueado</span><span>título vencido R$ 860 · resolver antes de vender</span></div>
+      </div>
+      <div class="foot">+3 visitas · arraste para reordenar · deslize para tirar do dia</div>
+    </div>
+  </div></div>
+  <div class="cap"><b>2 · Plano do dia (lista)</b> — ordem do ranking. Cada card: número da parada, status colorido, o porquê, o que oferecer, confiança. Bloqueado fica no fim e sem botão "Cheguei".</div>
+</div>
+
+<!-- 2b. Plano (mapa) -->
+<div class="shot">
+  <div class="phone"><div class="screen">
+    <div class="status"><span>07:12</span><span>●●● 96</span></div>
+    <div class="top"><div><div class="t">Plano de hoje</div><div class="sub">7 visitas · Boa Viagem · 23 km</div></div><span class="pill p-ice">editar</span></div>
+    <div class="body" style="gap:8px">
+      <div class="seg"><span>Lista</span><span class="on">Mapa</span></div>
+      <svg class="map" viewBox="0 0 276 300" width="100%" height="300" style="display:block">
+        <g stroke="#fff" stroke-width="6" fill="none"><path d="M0 70 H276"/><path d="M0 170 H276"/><path d="M60 0 V300"/><path d="M150 0 V300"/><path d="M220 0 V300"/></g>
+        <g stroke="#DDE3EB" stroke-width="2" fill="none"><path d="M0 120 H276"/><path d="M0 230 H276"/><path d="M105 0 V300"/><path d="M185 0 V300"/></g>
+        <path d="M35 270 L60 230 L105 170 L150 120 L185 70 L220 120 L250 40" fill="none" stroke="#1B4FA8" stroke-width="3" stroke-dasharray="7 4"/>
+        <g fill="#0D2045" stroke="#fff" stroke-width="2"><circle cx="35" cy="270" r="12"/><circle cx="60" cy="230" r="12"/><circle cx="105" cy="170" r="12"/><circle cx="150" cy="120" r="12"/><circle cx="185" cy="70" r="12"/><circle cx="220" cy="120" r="12"/><circle cx="250" cy="40" r="12"/></g>
+        <circle cx="35" cy="270" r="17" fill="none" stroke="#D97706" stroke-width="2"/>
+        <circle cx="105" cy="170" r="17" fill="none" stroke="#DC2626" stroke-width="2"/>
+        <circle cx="150" cy="120" r="17" fill="none" stroke="#6B7280" stroke-width="2" stroke-dasharray="3 3"/>
+        <g fill="#fff" font-size="11" font-weight="700" text-anchor="middle" font-family="Inter,sans-serif"><text x="35" y="274">1</text><text x="60" y="234">2</text><text x="105" y="174">3</text><text x="150" y="124">4</text><text x="185" y="74">5</text><text x="220" y="124">6</text><text x="250" y="44">7</text></g>
+        <circle cx="20" cy="290" r="6" fill="#29BEFF" stroke="#fff" stroke-width="2"/>
+        <rect x="8" y="8" width="120" height="22" rx="6" fill="#fff" opacity=".95"/><text x="16" y="23" font-size="10.5" fill="#4A5568" font-family="Inter,sans-serif">● você · 07:12</text>
+      </svg>
+      <div class="card" style="padding:9px 11px">
+        <div class="row"><b style="font-size:13px;color:var(--deep)">1 · Mercado do Zé</b><span class="pill p-warn">Atrasado</span></div>
+        <div class="xs">2,1 km · 6 min · Rua das Palmeiras, 120</div>
+        <div class="stack" style="margin-top:7px"><span class="btn pri">Navegar (Waze)</span><span class="btn">Ficha</span><span class="btn">Pular</span></div>
+      </div>
+      <div class="stack"><span class="btn ghost" style="flex:1;justify-content:center">Abrir rota completa no Maps</span></div>
+    </div>
+  </div></div>
+  <div class="cap"><b>2 · Plano do dia (mapa)</b> — mesma lista, vista espacial. Anel colorido no pino = status. Toque no pino traz o card da parada; "Abrir rota completa" monta os waypoints na ordem.</div>
+</div>
+
+<!-- 3. Visita / check-in -->
+<div class="shot">
+  <div class="phone"><div class="screen">
+    <div class="status"><span>08:34</span><span>●●● 91</span></div>
+    <div class="top"><div><div class="t">Mercado do Zé</div><div class="sub">visita 1 de 7 · cheguei 08:34</div></div><span class="pill p-warn">Atrasado</span></div>
+    <div class="body">
+      <div class="ai">
+        <div class="k">Antes de entrar</div>
+        <div class="s" style="margin-top:4px;color:var(--deep)">Compra a cada <b>28 dias</b>, está no dia <b>41</b>. Ticket R$ 3,1 mil. Últimos 3 pedidos sempre com Arroz 5kg, Óleo, Açúcar. Sem título vencido.</div>
+        <div class="xs" style="margin-top:5px">Confiança alta · 14 pedidos em 12 meses</div>
+      </div>
+      <div class="card">
+        <div class="k">Sugestão de mix</div>
+        <div class="row" style="margin-top:6px"><span class="s">Arroz 5kg · Óleo · Açúcar</span><span class="xs">de sempre</span></div>
+        <div class="row"><span class="s">Café 500g</span><span class="pill p-new">clientes parecidos levam</span></div>
+        <div class="stack" style="margin-top:8px"><span class="btn pri">Iniciar pedido com esse mix</span></div>
+      </div>
+      <div class="card">
+        <div class="k">Como foi a visita?</div>
+        <div class="stack" style="margin-top:8px"><span class="chip on">Pedido feito</span><span class="chip">Sem pedido</span><span class="chip">Não encontrei</span><span class="chip">Reagendar</span></div>
+        <div class="input" style="margin-top:8px">Motivo (opcional): estoque cheio, preço, concorrente…</div>
+        <div class="stack" style="margin-top:8px"><span class="btn">Mensagem</span><span class="btn">Ligar</span><span class="btn pri" style="margin-left:auto">Concluir visita</span></div>
+      </div>
+      <div class="foot">base de vendas até 18/08 · sinc. 03h12</div>
+    </div>
+  </div></div>
+  <div class="cap"><b>3 · Visita</b> — abre ao tocar "Cheguei". Três blocos: contexto em 3 linhas, mix sugerido que vira pedido em um toque, e o resultado da visita (é o que alimenta positivação e o ranking).</div>
+</div>
+
+<!-- 5. Mensagem -->
+<div class="shot">
+  <div class="phone"><div class="screen">
+    <div class="status"><span>08:20</span><span>●●● 92</span></div>
+    <div class="top"><div><div class="t">Mensagem</div><div class="sub">Mercado do Zé · Seu Zé</div></div><span class="xs">no seu tom</span></div>
+    <div class="body">
+      <div class="seg"><span class="on">Proposta parada</span><span>Sumiu</span><span>Reativar</span></div>
+      <div class="chat">Bom dia, Seu Zé! Vi que o último pedido foi dia 09/07 e o senhor costuma repor por essa época. Vou passar aí hoje por volta das 8h30 — quer que eu já leve o arroz e o óleo de sempre?</div>
+      <div class="xs" style="padding:0 4px">Usa só o que está no histórico: data, itens, ciclo. Sem inventar preço ou prazo.</div>
+      <div class="stack"><span class="btn">Mais curta</span><span class="btn">Mais formal</span><span class="btn">Trocar motivo</span></div>
+      <div class="stack" style="margin-top:auto"><span class="btn pri" style="flex:1;justify-content:center">Abrir no WhatsApp</span><span class="btn">Copiar</span></div>
+      <div class="foot">ao enviar, registra contato e marca próximo toque</div>
+    </div>
+  </div></div>
+  <div class="cap"><b>5 · Mensagem</b> — follow-up WhatsApp-first com três moldes (herdados da Esteira). O vendedor ajusta e envia; o app só registra.</div>
+</div>
+
+<!-- 6. Semana -->
+<div class="shot">
+  <div class="phone"><div class="screen">
+    <div class="status"><span>18:02</span><span>●●● 40</span></div>
+    <div class="top"><div><div class="t">Plano da semana</div><div class="sub">24 a 28 ago · 31 visitas</div></div><span class="pill p-ice">editar</span></div>
+    <div class="body" style="gap:8px">
+      <div class="stack"><span class="chip on">Seg 7</span><span class="chip">Ter 6</span><span class="chip">Qua 7</span><span class="chip">Qui 6</span><span class="chip">Sex 5</span></div>
+      <div class="dayhead"><b>Segunda · Boa Viagem</b><span class="xs">7 visitas · R$ 9,4 mil</span></div>
+      <div class="card" style="padding:8px 11px"><div class="row"><span class="s" style="color:var(--deep);font-weight:600">Mercado do Zé</span><span class="pill p-warn">Atrasado</span></div></div>
+      <div class="card" style="padding:8px 11px"><div class="row"><span class="s" style="color:var(--deep);font-weight:600">Padaria Imperial</span><span class="pill p-ok">No ciclo</span></div></div>
+      <div class="card" style="padding:8px 11px"><div class="row"><span class="s" style="color:var(--deep);font-weight:600">Distribuidora Norte</span><span class="pill p-risk">Em risco</span></div></div>
+      <div class="xs" style="text-align:center">+4</div>
+      <div class="dayhead"><b>Terça · Piedade</b><span class="xs">6 visitas · R$ 6,1 mil</span></div>
+      <div class="card" style="padding:8px 11px"><div class="row"><span class="s" style="color:var(--deep);font-weight:600">Mercadinho Lua</span><span class="pill p-new">Novo</span></div></div>
+      <div class="card" style="padding:8px 11px"><div class="row"><span class="s" style="color:var(--deep);font-weight:600">Depósito Santa Rita</span><span class="pill p-warn">Atrasado</span></div></div>
+      <div class="xs" style="text-align:center">+4</div>
+      <div class="ai"><div class="s" style="color:var(--deep)">Se a semana sair como planejada, deve entrar perto de <b>R$ 34 mil</b> — faltam R$ 17,6 mil para a meta.</div></div>
+    </div>
+  </div></div>
+  <div class="cap"><b>6 · Semana</b> — um bairro por dia, capacidade de visitas respeitada. Arrastar cliente entre dias é permitido e registrado. A previsão fala "deve", nunca "vai".</div>
+</div>
+
+<!-- 7. Carteira -->
+<div class="shot">
+  <div class="phone"><div class="screen">
+    <div class="status"><span>12:40</span><span>●●● 70</span></div>
+    <div class="top"><div><div class="t">Minha carteira</div><div class="sub">140 clientes · 41% ativos no mês</div></div><span class="xs">filtrar</span></div>
+    <div class="body">
+      <div class="card">
+        <div class="k">Por situação</div>
+        <div style="display:flex;height:10px;border-radius:5px;overflow:hidden;margin:8px 0 6px"><i style="width:34%;background:var(--ok)"></i><i style="width:22%;background:var(--warn)"></i><i style="width:14%;background:var(--risk)"></i><i style="width:6%;background:var(--block)"></i><i style="width:24%;background:#CBD5E1"></i></div>
+        <div class="stack"><span class="pill p-ok">48 no ciclo</span><span class="pill p-warn">31 atrasados</span><span class="pill p-risk">19 em risco</span><span class="pill p-block">8 bloqueados</span><span class="pill" style="background:#F1F5F9;color:#475569">34 inativos</span></div>
+      </div>
+      <div class="card">
+        <div class="k">Quem cresceu / caiu (3 meses)</div>
+        <div class="row" style="margin-top:6px"><span class="s">Padaria Imperial</span><span class="s" style="color:var(--ok);font-weight:600">▲ 32%</span></div>
+        <div class="row"><span class="s">Mercado Boa Vista</span><span class="s" style="color:var(--risk);font-weight:600">▼ 28%</span></div>
+        <div class="row"><span class="s">Dist. Norte</span><span class="s" style="color:var(--risk);font-weight:600">▼ 100%</span></div>
+      </div>
+      <div class="card">
+        <div class="k">Ruptura de mix</div>
+        <div class="s" style="margin-top:6px">6 clientes deixaram de levar <b>Produto X</b> no último ciclo. <span style="color:var(--navy);font-weight:600">Ver lista →</span></div>
+      </div>
+      <div class="ai"><div class="s" style="color:var(--deep)">Os 31 atrasados somam R$ 31 mil de ticket esperado. Quer que eu monte um plano só com eles?</div><div class="stack" style="margin-top:6px"><span class="btn ghost">Montar plano</span></div></div>
+    </div>
+  </div></div>
+  <div class="cap"><b>7 · Carteira</b> — a visão RFM/ciclo traduzida: uma barra, cinco status, quem cresceu, quem cortou mix. Cada bloco leva a uma ação, não a um relatório.</div>
+</div>
+
+</div>
+
+<!-- ============ 4. ICONES E ESTADOS ============ -->
+<h2>4. Ícones, cores de status e sinais</h2>
+<p class="lead">Cinco status de cliente, sempre com a mesma cor em qualquer tela (pill, anel do pino no mapa, barra da carteira). Cor encode situação, não urgência estética — por isso ciano e navy da marca ficam para navegação e ação, nunca para status.</p>
+
+<div class="legend" style="margin-top:20px">
+  <div class="lg"><div class="row"><span class="pill p-ok">No ciclo</span><code style="font-family:var(--mono);font-size:11px;color:var(--ink-3)">#16A34A</code></div><p>Dias sem compra ≤ 1,3× ciclo. Visita de manutenção, foco em mix.</p></div>
+  <div class="lg"><div class="row"><span class="pill p-warn">Atrasado</span><code style="font-family:var(--mono);font-size:11px;color:var(--ink-3)">#D97706</code></div><p>Entre 1,3× e 2× ciclo. Prioridade alta, maior valor esperado do dia.</p></div>
+  <div class="lg"><div class="row"><span class="pill p-risk">Em risco</span><code style="font-family:var(--mono);font-size:11px;color:var(--ink-3)">#DC2626</code></div><p>&gt; 2× ciclo ou &gt; 90 dias com histórico ativo. Recuperação.</p></div>
+  <div class="lg"><div class="row"><span class="pill p-block">Bloqueado</span><code style="font-family:var(--mono);font-size:11px;color:var(--ink-3)">#6B7280</code></div><p>Título vencido ou limite estourado. Aparece, mas sem "Cheguei" nem pedido.</p></div>
+  <div class="lg"><div class="row"><span class="pill p-new">Novo</span><code style="font-family:var(--mono);font-size:11px;color:var(--ink-3)">#7C3AED</code></div><p>&lt; 3 pedidos: sem ciclo confiável. O app diz isso em vez de fingir certeza.</p></div>
+  <div class="lg"><div class="row"><span class="pill p-ice">sinc. 03h12</span><code style="font-family:var(--mono);font-size:11px;color:var(--ink-3)">ice/navy</code></div><p>Frescor dos dados. Fica vermelho se o sync falhou há &gt; 24h.</p></div>
+</div>
+
+<div class="kv" style="margin-top:22px">
+  <b>Ícones novos (Lucide)</b><span><code>sun</code> Hoje · <code>map</code> Rota · <code>navigation</code> Navegar · <code>map-pin-check</code> Cheguei · <code>message-circle</code> Mensagem · <code>sparkles</code> bloco do agente (uso discreto, só no eyebrow) · <code>calendar-days</code> Semana · <code>pie-chart</code> Carteira · <code>lock</code> Bloqueado · <code>refresh-cw</code> sincronização</span>
+  <b>Confiança</b><span>Texto, não ícone: "confiança alta (14 pedidos)", "sem ciclo confiável (2 pedidos)". Ícone de estrela ou barrinha vira ruído.</span>
+  <b>Número da parada</b><span>Círculo navy escuro com número branco — igual no card e no pino. Bloqueado usa cinza.</span>
+  <b>Anel no pino</b><span>O pino é sempre navy (é uma parada); o anel externo carrega o status. Assim o mapa lê ordem primeiro, situação depois.</span>
+</div>
+
+<!-- ============ 5. TABELAS ============ -->
+<h2>5. Tabelas por fase</h2>
+<p class="lead">Tudo no Postgres (Neon) do Addere, multi-tenant por <code style="font-family:var(--mono)">tenant_id</code>. Valores monetários em centavos (<code style="font-family:var(--mono)">bigint</code>). Datas do Protheus chegam <code style="font-family:var(--mono)">YYYYMMDD</code> e viram <code style="font-family:var(--mono)">date</code> no sync. Nomes em português porque o time e o cliente leem o banco.</p>
+
+<div class="grid" style="margin-top:20px;gap:18px">
+
+<div class="tbl">
+  <h3>Camada analítica (sync do Protheus)</h3>
+  <div class="phase">FASE 1 · já necessária para o agente</div>
+  <table>
+    <tr><th style="width:200px">Tabela</th><th>Campos</th><th style="width:260px">Notas</th></tr>
+    <tr><td><code>crm_cliente</code></td><td><code>tenant_id</code>, <code>cliente_cod</code>, <code>cliente_loja</code>, <code>nome</code>, <code>vendedor_cod</code>, <code>cidade</code>, <code>uf</code>, <code>bairro</code>, <code>endereco</code>, <code>cep</code>, <code>cnpj</code>, <code>bloqueado</code> bool, <code>limite_credito_cents</code>, <code>segmento</code>, <code>ultima_compra</code> date, <code>sync_em</code></td><td class="note">PK (tenant_id, cliente_cod, cliente_loja). Fase 2 adiciona <code>lat</code>, <code>lng</code>, <code>geocod_em</code>, <code>geocod_fonte</code>.</td></tr>
+    <tr><td><code>crm_venda_item</code></td><td><code>tenant_id</code>, <code>pedido</code>, <code>produto_cod</code>, <code>data</code>, <code>cliente_cod</code>, <code>cliente_loja</code>, <code>vendedor_cod</code>, <code>quantidade</code> numeric, <code>valor_cents</code>, <code>grupo_produto</code>, <code>sync_em</code></td><td class="note">PK (tenant_id, pedido, produto_cod). Upsert com janela de 7 dias. 13 meses de histórico.</td></tr>
+    <tr><td><code>crm_titulo</code></td><td><code>tenant_id</code>, <code>titulo</code>, <code>cliente_cod</code>, <code>cliente_loja</code>, <code>vencimento</code>, <code>saldo_cents</code>, <code>sync_em</code></td><td class="note">Só saldo &gt; 0. Gera o status Bloqueado.</td></tr>
+    <tr><td><code>crm_produto</code></td><td><code>tenant_id</code>, <code>produto_cod</code>, <code>descricao</code>, <code>grupo</code>, <code>ativo</code>, <code>preco_tabela_cents</code></td><td class="note">Semanal. Base do cross-sell (fase 2).</td></tr>
+    <tr><td><code>crm_meta_hist</code></td><td><code>tenant_id</code>, <code>vendedor_cod</code>, <code>periodo</code> char(6), <code>meta_cents</code>, <code>meta_positivacao</code>, <code>capturado_em</code></td><td class="note">Append-only: guarda cada captura da API de meta.</td></tr>
+    <tr><td><code>cfg_consulta</code></td><td><code>id</code>, <code>tenant_id</code>, <code>nome</code> (clientes/vendas/titulos/produtos/estoque), <code>sql</code> text, <code>escopo</code> (todos/por_vendedor), <code>definicao_pt</code>, <code>exclusoes</code>, <code>gotchas</code>, <code>versao</code>, <code>validado_em</code>, <code>validado_por</code>, <code>reconciliacao_ref_cents</code>, <code>reconciliacao_diff_pct</code>, <code>publicado</code> bool</td><td class="note">O "dicionário de métricas". Não publica se diff &gt; 2%.</td></tr>
+    <tr><td><code>cfg_premissa</code></td><td><code>tenant_id</code>, <code>chave</code>, <code>valor</code> jsonb, <code>segmento</code> null, <code>alterado_por</code>, <code>alterado_em</code></td><td class="note">Ex.: <code>atrasado_fator=1.3</code>, <code>ativo_dias=120</code>, <code>visitas_dia=8</code>, <code>dias_uteis_sabado=false</code>.</td></tr>
+    <tr><td><code>sync_execucao</code></td><td><code>tenant_id</code>, <code>consulta</code>, <code>iniciado_em</code>, <code>fim_em</code>, <code>linhas</code>, <code>status</code>, <code>erro</code></td><td class="note">Alimenta o pill "sinc. 03h12" e o card de saúde.</td></tr>
+  </table>
+</div>
+
+<div class="tbl">
+  <h3>Motor de sinais e plano</h3>
+  <div class="phase">FASE 1 · recalculado após cada sync</div>
+  <table>
+    <tr><th style="width:200px">Tabela</th><th>Campos</th><th style="width:260px">Notas</th></tr>
+    <tr><td><code>crm_sinal_cliente</code></td><td><code>tenant_id</code>, <code>cliente_cod</code>, <code>cliente_loja</code>, <code>calculado_em</code>, <code>ciclo_dias</code> (mediana), <code>dias_sem_compra</code>, <code>status</code> enum (no_ciclo/atrasado/risco/inativo/novo/bloqueado), <code>confianca</code> enum (alta/media/baixa), <code>n_pedidos_12m</code>, <code>ticket_medio_cents</code>, <code>tendencia_pct</code>, <code>prob_compra</code>, <code>rfm_r</code>, <code>rfm_f</code>, <code>rfm_m</code>, <code>rfm_segmento</code>, <code>mix_habitual</code> jsonb, <code>mix_cortado</code> jsonb, <code>cross_sell</code> jsonb, <code>score_valor</code>, <code>score_urgencia</code>, <code>score_risco</code>, <code>score_total</code>, <code>motivos</code> jsonb</td><td class="note">Uma linha por cliente. <code>motivos</code> é o texto curto que vira "o porquê" nos cards. Sobrescrita a cada cálculo.</td></tr>
+    <tr><td><code>crm_plano</code></td><td><code>id</code>, <code>tenant_id</code>, <code>vendedor_cod</code>, <code>data</code>, <code>tipo</code> (dia/semana), <code>gerado_em</code>, <code>versao_motor</code>, <code>meta_gap_cents</code>, <code>esperado_cents</code>, <code>agrupamento</code> (cidade/bairro), <code>resumo_llm</code> text, <code>status</code> (gerado/editado/em_andamento/encerrado)</td><td class="note">Um por vendedor por dia. <code>resumo_llm</code> é a frase do agente na home.</td></tr>
+    <tr><td><code>crm_plano_item</code></td><td><code>plano_id</code>, <code>ordem</code>, <code>cliente_cod</code>, <code>cliente_loja</code>, <code>status_no_momento</code>, <code>score_no_momento</code>, <code>motivo_curto</code>, <code>oferta_sugerida</code> jsonb, <code>esperado_cents</code>, <code>origem</code> (motor/gestor/vendedor), <code>removido_em</code>, <code>movido_para_plano_id</code></td><td class="note">Este é o SideEffect: registra o que foi sugerido e o que o humano mudou. Sem isso não há fase 3.</td></tr>
+    <tr><td><code>crm_mensagem</code></td><td><code>id</code>, <code>tenant_id</code>, <code>vendedor_cod</code>, <code>cliente_cod</code>, <code>cliente_loja</code>, <code>molde</code> (proposta_parada/sumiu/reativar), <code>texto</code>, <code>gerada_em</code>, <code>enviada_em</code>, <code>canal</code></td><td class="note">Fecha o "registrar contato" da Esteira.</td></tr>
+    <tr><td><code>crm_feedback</code></td><td><code>id</code>, <code>tenant_id</code>, <code>vendedor_cod</code>, <code>alvo_tipo</code> (plano/item/mensagem/resposta), <code>alvo_id</code>, <code>nota</code> (+1/-1), <code>comentario</code>, <code>em</code></td><td class="note">👍/👎. Fase 1 só grava; fase 3 usa.</td></tr>
+  </table>
+</div>
+
+<div class="tbl">
+  <h3>Geografia</h3>
+  <div class="phase">FASE 2 · ordenar a rota</div>
+  <table>
+    <tr><th style="width:200px">Tabela</th><th>Campos</th><th style="width:260px">Notas</th></tr>
+    <tr><td><code>geo_endereco</code></td><td><code>tenant_id</code>, <code>cliente_cod</code>, <code>cliente_loja</code>, <code>endereco_norm</code>, <code>cep</code>, <code>lat</code>, <code>lng</code>, <code>precisao</code> (rooftop/rua/cep/cidade), <code>fonte</code>, <code>geocod_em</code>, <code>erro</code></td><td class="note">Cache permanente; refaz só se o endereço mudar. Precisão "cidade" não entra na ordenação.</td></tr>
+    <tr><td><code>crm_plano_item</code> (+)</td><td>+ <code>lat</code>, <code>lng</code>, <code>dist_anterior_m</code>, <code>tempo_est_min</code>, <code>hora_prevista</code></td><td class="note">Calculado por vizinho-mais-próximo dentro do dia.</td></tr>
+    <tr><td><code>cfg_janela_cliente</code></td><td><code>tenant_id</code>, <code>cliente_cod</code>, <code>cliente_loja</code>, <code>dia_semana</code>, <code>hora_ini</code>, <code>hora_fim</code>, <code>origem</code> (cadastro/vendedor)</td><td class="note">Opcional. Maioria não vai preencher; o vendedor pode registrar "só de manhã".</td></tr>
+  </table>
+</div>
+
+<div class="tbl">
+  <h3>Execução e positivação</h3>
+  <div class="phase">FASE 3 · fechar o ciclo</div>
+  <table>
+    <tr><th style="width:200px">Tabela</th><th>Campos</th><th style="width:260px">Notas</th></tr>
+    <tr><td><code>crm_visita</code></td><td><code>id</code>, <code>tenant_id</code>, <code>vendedor_cod</code>, <code>cliente_cod</code>, <code>cliente_loja</code>, <code>plano_item_id</code> null, <code>chegada_em</code>, <code>saida_em</code>, <code>lat</code>, <code>lng</code>, <code>precisao_m</code>, <code>resultado</code> (pedido/sem_pedido/nao_encontrado/reagendado), <code>motivo_nao_compra</code>, <code>pedido_id</code> null, <code>obs</code>, <code>offline_criado_em</code>, <code>sync_em</code></td><td class="note"><code>plano_item_id</code> null = visita fora do plano (sinal importante). GPS só no check-in, não rastreamento contínuo.</td></tr>
+    <tr><td><code>kpi_diario_vendedor</code></td><td><code>tenant_id</code>, <code>vendedor_cod</code>, <code>data</code>, <code>visitas_previstas</code>, <code>visitas_realizadas</code>, <code>visitas_fora_plano</code>, <code>visitas_com_pedido</code>, <code>valor_pedidos_cents</code>, <code>km_estimado</code>, <code>calculado_em</code></td><td class="note">Materializado de madrugada. Aderência = realizadas/previstas; positivação da visita = com_pedido/realizadas.</td></tr>
+    <tr><td><code>kpi_mensal_vendedor</code></td><td><code>tenant_id</code>, <code>vendedor_cod</code>, <code>periodo</code>, <code>carteira_total</code>, <code>carteira_positivada</code>, <code>positivacao_pct</code>, <code>recuperados</code>, <code>perdidos</code>, <code>faturado_cents</code>, <code>meta_cents</code></td><td class="note">Positivação da carteira + recuperação de clientes em risco.</td></tr>
+    <tr><td><code>crm_sugestao_historico</code></td><td><code>tenant_id</code>, <code>cliente_cod</code>, <code>cliente_loja</code>, <code>vezes_sugerido_30d</code>, <code>vezes_visitado_30d</code>, <code>vezes_comprou_30d</code>, <code>ultimo_resultado</code>, <code>penalidade_score</code></td><td class="note">Feedback loop: sugerido 3× sem compra ⇒ penalidade até converter ou gestor fixar.</td></tr>
+    <tr><td><code>eval_caso</code></td><td><code>id</code>, <code>tenant_id</code>, <code>vendedor_cod</code>, <code>data_congelada</code>, <code>snapshot</code> jsonb, <code>resposta_esperada</code> jsonb, <code>prompt_versao</code>, <code>ultimo_resultado</code>, <code>rodado_em</code></td><td class="note">Conjunto de regressão: roda antes de trocar prompt ou modelo.</td></tr>
+  </table>
+</div>
+
+</div>
+
+<!-- ============ 6. PRINCIPIOS ============ -->
+<h2>6. Princípios de UX que as telas seguem</h2>
+<ul class="ok-list lead" style="padding-left:18px">
+  <li><b>Um cliente por vez.</b> A home nomeia o primeiro; o plano mostra 7; a carteira agrupa. Nunca uma lista de 140 com pinos.</li>
+  <li><b>O porquê vem junto com o quem.</b> Nenhum nome aparece sem status + fato + número. É o que transforma "a IA mandou" em "faz sentido".</li>
+  <li><b>Zero perguntas por padrão.</b> O app só pergunta quando a resposta muda o plano ("qual cidade hoje?"). Botões, não chat.</li>
+  <li><b>Confiança explícita.</b> Cliente novo diz "sem ciclo confiável"; previsão diz "deve", nunca "vai".</li>
+  <li><b>Editar é sinal, não erro.</b> Arrastar, pular e tirar do dia são permitidos, rápidos e gravados.</li>
+  <li><b>Offline de verdade.</b> Plano gerado na madrugada e sincronizado; o dia inteiro funciona sem sinal, inclusive check-in. Frescor sempre visível.</li>
+  <li><b>Bloqueado aparece, mas não vende.</b> O vendedor precisa saber por que não ir — ou ir só para resolver o título.</li>
+  <li><b>Polegar e sol.</b> Ações principais na metade de baixo, mínimo 44px, contraste alto, sem cinza claro em texto útil.</li>
+</ul>
+
+<div class="note-box" style="margin-top:28px">
+<b>Próximo passo sugerido:</b> validar estas 7 telas com dois vendedores reais (5 minutos cada, no celular, perguntando "o que você faria agora?") antes de consolidar o documento de arquitetura. O que eles não entenderem em 5 segundos sai da tela.
+</div>
+
+</div>
+</body>
+</html>

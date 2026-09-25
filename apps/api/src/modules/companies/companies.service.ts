@@ -3,7 +3,8 @@ import bcrypt from 'bcryptjs'
 import { encryptCredential } from '../../lib/protheus-crypto'
 import { invalidateToken } from '../sync/protheus.client'
 import { applySchedule, clearSchedule } from '../sync/scheduler'
-import { notFound } from '../../lib/errors'
+import { notFound, unprocessable } from '../../lib/errors'
+import { applyDefaultPermissions } from '../permissions/permissions.service'
 
 const MAX_PAGE_SIZE = 500
 
@@ -36,6 +37,11 @@ export async function getCompanyById(id: string) {
           active: true,
           idVendProt: true,
           createdAt: true,
+          visitsPerDay: true,
+          vehicle: true,
+          servedCities: true,
+          messageTone: true,
+          managerId: true,
         },
         orderBy: { name: 'asc' },
       },
@@ -45,8 +51,19 @@ export async function getCompanyById(id: string) {
 
   if (!company) throw notFound('Empresa não encontrada')
 
+  // Quem tem intel.manager (D3b) — alimenta o select de gerente no UserModal
+  const managerHolders = await prisma.userPermission.findMany({
+    where: { user: { companyId: id }, permission: { key: 'intel.manager' } },
+    select: { userId: true },
+  })
+  const managerSet = new Set(managerHolders.map((m) => m.userId))
+
   // Nunca expõe a senha; retorna null para não vazar nem o valor criptografado
-  return { ...company, passProtheus: company.passProtheus ? '••••••••' : null }
+  return {
+    ...company,
+    users: company.users.map((u) => ({ ...u, intelManager: managerSet.has(u.id) })),
+    passProtheus: company.passProtheus ? '••••••••' : null,
+  }
 }
 
 export interface CreateCompanyInput {
@@ -86,6 +103,7 @@ export interface UpdateCompanyProtheusInput {
   apiCondPag?: string
   apiTransp?: string
   apiMetaVend?: string
+  apiSql?: string
   usrProtheus?: string
   passProtheus?: string
   syncConfig?: Record<string, unknown>
@@ -102,6 +120,7 @@ export async function updateCompanyProtheus(id: string, input: UpdateCompanyProt
   if (input.apiCondPag !== undefined) data.apiCondPag = input.apiCondPag || null
   if (input.apiTransp !== undefined) data.apiTransp = input.apiTransp || null
   if (input.apiMetaVend !== undefined) data.apiMetaVend = input.apiMetaVend || null
+  if (input.apiSql !== undefined) data.apiSql = input.apiSql || null
   if (input.usrProtheus !== undefined) data.usrProtheus = input.usrProtheus || null
   if (input.syncConfig !== undefined) data.syncConfig = input.syncConfig
 
@@ -222,7 +241,15 @@ export async function listCompanyOrders(companyId: string, limit?: number, page?
 
 // ─── Users (por empresa) ────────────────────────────────────────────────────
 
-export interface CreateUserInput {
+export interface VendorProfileInput {
+  visitsPerDay?: number | null
+  vehicle?: 'CAR' | 'MOTORCYCLE' | 'FOOT' | null
+  servedCities?: string[]
+  messageTone?: string | null
+  managerId?: string | null
+}
+
+export interface CreateUserInput extends VendorProfileInput {
   name: string
   email: string
   password: string
@@ -230,10 +257,29 @@ export interface CreateUserInput {
   idVendProt?: string | null
 }
 
+// Gerente precisa ser usuário ativo da MESMA empresa (D3b); nunca ele mesmo
+async function assertValidManager(companyId: string, managerId: string, selfId?: string) {
+  if (selfId && managerId === selfId) {
+    throw unprocessable('O vendedor não pode ser gerente de si mesmo')
+  }
+  const manager = await prisma.user.findFirst({
+    where: { id: managerId, companyId, active: true },
+    select: { id: true },
+  })
+  if (!manager) throw unprocessable('Gerente inválido: precisa ser um usuário ativo da empresa')
+}
+
 export async function createUser(companyId: string, input: CreateUserInput) {
+  if (input.managerId) await assertValidManager(companyId, input.managerId)
   const passwordHash = await bcrypt.hash(input.password, 12)
-  return prisma.user.create({
-    data: { ...input, password: passwordHash, companyId, idVendProt: input.idVendProt ?? null },
+  const user = await prisma.user.create({
+    data: {
+      ...input,
+      password: passwordHash,
+      companyId,
+      idVendProt: input.idVendProt ?? null,
+      managerId: input.managerId ?? null,
+    },
     select: {
       id: true,
       name: true,
@@ -242,8 +288,18 @@ export async function createUser(companyId: string, input: CreateUserInput) {
       active: true,
       idVendProt: true,
       createdAt: true,
+      visitsPerDay: true,
+      vehicle: true,
+      servedCities: true,
+      messageTone: true,
+      managerId: true,
     },
   })
+
+  // Permissões padrão do role (mesmo catálogo do seed — decisão D3c)
+  await applyDefaultPermissions(user.id, user.role)
+
+  return user
 }
 
 export async function toggleUserActive(companyId: string, id: string, active: boolean) {
@@ -262,7 +318,7 @@ export async function toggleUserActive(companyId: string, id: string, active: bo
 
 // ─── Users (update) ──────────────────────────────────────────────────────────
 
-export interface UpdateUserInput {
+export interface UpdateUserInput extends VendorProfileInput {
   name?: string
   email?: string
   password?: string
@@ -273,11 +329,18 @@ export interface UpdateUserInput {
 export async function updateUser(companyId: string, id: string, input: UpdateUserInput) {
   const exists = await prisma.user.findFirst({ where: { id, companyId } })
   if (!exists) throw notFound('Usuário não encontrado')
+  if (input.managerId) await assertValidManager(companyId, input.managerId, id)
   const data: Record<string, unknown> = {}
   if (input.name !== undefined) data.name = input.name
   if (input.email !== undefined) data.email = input.email
   if (input.role !== undefined) data.role = input.role
   if (input.idVendProt !== undefined) data.idVendProt = input.idVendProt ?? null
+  // Perfil de vendedor da Inteligência (E10)
+  if (input.visitsPerDay !== undefined) data.visitsPerDay = input.visitsPerDay
+  if (input.vehicle !== undefined) data.vehicle = input.vehicle
+  if (input.servedCities !== undefined) data.servedCities = input.servedCities
+  if (input.messageTone !== undefined) data.messageTone = input.messageTone
+  if (input.managerId !== undefined) data.managerId = input.managerId
   if (input.password) data.password = await bcrypt.hash(input.password, 12)
 
   // Invalida todas as sessões ativas ao trocar role ou senha
@@ -297,6 +360,11 @@ export async function updateUser(companyId: string, id: string, input: UpdateUse
       active: true,
       idVendProt: true,
       createdAt: true,
+      visitsPerDay: true,
+      vehicle: true,
+      servedCities: true,
+      messageTone: true,
+      managerId: true,
     },
   })
 }

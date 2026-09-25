@@ -1,7 +1,7 @@
-import { useState } from 'react'
-import { View, Text, FlatList, StyleSheet } from 'react-native'
-import { useRouter } from 'expo-router'
-import { ChevronRight, Search } from 'lucide-react-native'
+import { useMemo, useState } from 'react'
+import { View, Text, FlatList, StyleSheet, TouchableOpacity } from 'react-native'
+import { useLocalSearchParams, useRouter } from 'expo-router'
+import { ChevronRight, Search, X } from 'lucide-react-native'
 import { useClientes } from '../../../src/hooks/useClientes'
 import { useDebouncedValue } from '../../../src/hooks/useDebounce'
 import { ClienteItemSkeleton } from '../../../src/components/Skeleton'
@@ -12,6 +12,9 @@ import { useFieldVisible } from '../../../src/hooks/useFieldConfig'
 import { colors, spacing, typography } from '../../../src/theme'
 import type { Customer } from '@addere/types'
 import { formatDocument } from '../../../src/utils/format'
+import { useCustomerSignals } from '../../../src/hooks/useIntel'
+import { parseIntelStatusParam } from '../../../src/utils/customerStatus'
+import { StatusPill } from '../../../src/components/intel/StatusPill'
 
 function ClienteItem({ customer, onPress }: { customer: Customer; onPress: () => void }) {
   const showDocument = useFieldVisible('customer.document')
@@ -36,6 +39,26 @@ export default function ClientesScreen() {
   const debouncedSearch = useDebouncedValue(search)
   const { data: customers, isLoading, refetch } = useClientes(debouncedSearch || undefined)
 
+  // Filtro por status do motor (E13): atalho "Quem está esfriando?" do Hoje.
+  // Derivado do parâmetro, nunca copiado para estado: a aba fica montada, então
+  // um `useState` só lia o parâmetro no primeiro mount — o atalho parava de
+  // filtrar da segunda vez em diante, e limpar o filtro mudava só o estado
+  // local, deixando o parâmetro para ressuscitá-lo no mount seguinte.
+  const params = useLocalSearchParams<{ intelStatus?: string }>()
+  const statusFilter = useMemo(() => parseIntelStatusParam(params.intelStatus), [params.intelStatus])
+  const signals = useCustomerSignals()
+  const filteredSignals = useMemo(() => {
+    if (!statusFilter || !signals.data) return null
+    return signals.data.items.filter((i) => statusFilter.includes(i.status))
+  }, [statusFilter, signals.data])
+  const idByKey = useMemo(() => {
+    const map = new Map<string, string>()
+    for (const c of customers ?? []) {
+      if (c.protheusCode) map.set(`${c.protheusCode}|${c.loja ?? '01'}`, c.id)
+    }
+    return map
+  }, [customers])
+
   return (
     <View style={s.container}>
       <View style={s.searchContainer}>
@@ -50,7 +73,56 @@ export default function ClientesScreen() {
         />
       </View>
 
-      {isLoading ? (
+      {statusFilter && (
+        <View style={s.filterBar}>
+          <Text style={s.filterLabel}>Esfriando:</Text>
+          {statusFilter.map((status) => (
+            <StatusPill key={status} status={status} />
+          ))}
+          <TouchableOpacity
+            testID="btn-limpar-filtro"
+            onPress={() => router.setParams({ intelStatus: '' })}
+            hitSlop={8}
+            style={{ marginLeft: 'auto' }}
+          >
+            <X size={16} color={colors.neutral.textSub} strokeWidth={1.5} />
+          </TouchableOpacity>
+        </View>
+      )}
+
+      {statusFilter && filteredSignals ? (
+        <FlatList
+          data={filteredSignals}
+          keyExtractor={(item) => `${item.customerCode}|${item.loja}`}
+          renderItem={({ item }) => (
+            <Card
+              onPress={() => {
+                const id = idByKey.get(`${item.customerCode}|${item.loja}`)
+                if (id) router.push(`/(app)/clientes/${id}`)
+              }}
+              style={s.card}
+            >
+              <View style={{ flex: 1 }}>
+                <Text style={s.name}>{item.customerName}</Text>
+                <Text style={s.sub}>
+                  {item.daysSinceLastPurchase !== null
+                    ? `${item.daysSinceLastPurchase} dias sem comprar`
+                    : (item.reason ?? '')}
+                </Text>
+              </View>
+              <StatusPill status={item.status} />
+            </Card>
+          )}
+          contentContainerStyle={{ padding: spacing.md }}
+          ListEmptyComponent={
+            <EmptyState
+              illustration="clients"
+              title="Ninguém esfriando"
+              subtitle="Nenhum cliente da carteira está atrasado ou em risco."
+            />
+          }
+        />
+      ) : isLoading ? (
         <View style={{ padding: spacing.md }}>
           {[0, 1, 2, 3, 4].map((i) => (
             <ClienteItemSkeleton key={i} />
@@ -87,6 +159,18 @@ export default function ClientesScreen() {
 }
 
 const s = StyleSheet.create({
+  filterBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingHorizontal: spacing.md,
+    paddingBottom: spacing.sm,
+  },
+  filterLabel: {
+    fontFamily: typography.fontFamily.bodySemibold,
+    fontSize: typography.size.sm,
+    color: colors.neutral.textSub,
+  },
   container: {
     flex: 1,
     backgroundColor: colors.neutral.bg,

@@ -35,6 +35,16 @@ export const colors = {
     textSub: '#94A3B8',
     textMuted: '#64748B',
   },
+  // Status do motor da Inteligência (E12) — mesmos hex do painel web (E9);
+  // ciano/navy ficam só para navegação e ação
+  status: {
+    onCycle: '#16A34A',
+    late: '#D97706',
+    atRisk: '#DC2626',
+    blocked: '#6B7280',
+    inactive: '#6B7280',
+    new: '#7C3AED',
+  },
   // Fundo escurecido atrás de modais/bottom sheets (navy a 45%)
   overlay: {
     scrim: 'rgba(13, 32, 69, 0.45)',

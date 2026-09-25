@@ -1,0 +1,405 @@
+// Testes de integração das rotas do gerente (E8) — portões de acesso, recorte
+// por tenant e as validações do "pôr no plano".
+import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest'
+import type { FastifyInstance } from 'fastify'
+
+vi.mock('@addere/db', async () => (await import('../../../../test-utils/prisma-mock')).mockDb())
+
+import { prismaMock, resetPrismaMock } from '../../../../test-utils/prisma-mock'
+import { buildApp } from '../../../../app'
+
+const COMPANY_A = '11111111-1111-4111-8111-111111111111'
+const COMPANY_B = '22222222-2222-4222-8222-222222222222'
+
+const companyRow = { id: COMPANY_A, name: 'Empresa A', intelligenceEnabled: true }
+
+const PERMISSIONS_BY_SUB: Record<string, string[]> = {
+  'admin-a': ['intel.admin'],
+  'manager-a': ['intel.manager'],
+  'manager-b': ['intel.manager'],
+  'sales-a': [],
+}
+
+let app: FastifyInstance
+let tokens: Record<string, string>
+
+beforeAll(async () => {
+  app = await buildApp()
+  await app.ready()
+  const sign = (sub: string, role: string) =>
+    app.jwt.sign({ sub, email: `${sub}@a.com`, role, companyId: COMPANY_A })
+  tokens = {
+    'admin-a': sign('admin-a', 'ADMIN'),
+    'manager-a': sign('manager-a', 'ADMIN'),
+    'manager-b': sign('manager-b', 'ADMIN'),
+    'sales-a': sign('sales-a', 'SALESPERSON'),
+  }
+})
+
+afterAll(async () => {
+  await app.close()
+})
+
+beforeEach(() => {
+  resetPrismaMock()
+  prismaMock.user.findUnique.mockResolvedValue({ active: true })
+  prismaMock.userPermission.findMany.mockImplementation(
+    async (args: { where: { userId: string } }) =>
+      (PERMISSIONS_BY_SUB[args.where.userId] ?? []).map((key) => ({ permission: { key } }))
+  )
+  prismaMock.company.findUnique.mockResolvedValue({ ...companyRow })
+  prismaMock.user.count.mockResolvedValue(1)
+  prismaMock.user.findMany.mockResolvedValue([])
+})
+
+const auth = (sub: string) => ({ authorization: `Bearer ${tokens[sub]}` })
+
+describe('acesso', () => {
+  it('sem token → 401', async () => {
+    const res = await app.inject({ method: 'GET', url: '/intel/manager/team' })
+    expect(res.statusCode).toBe(401)
+  })
+
+  it('vendedor sem intel.* → 403', async () => {
+    const res = await app.inject({
+      method: 'GET',
+      url: '/intel/manager/team',
+      headers: auth('sales-a'),
+    })
+    expect(res.statusCode).toBe(403)
+  })
+
+  it('gerente e admin entram', async () => {
+    for (const sub of ['manager-a', 'admin-a']) {
+      const res = await app.inject({
+        method: 'GET',
+        url: '/intel/manager/team',
+        headers: auth(sub),
+      })
+      expect(res.statusCode, sub).toBe(200)
+    }
+  })
+
+  it('ADMIN da empresa A pedindo a empresa B → 403', async () => {
+    const res = await app.inject({
+      method: 'GET',
+      url: `/intel/manager/team?companyId=${COMPANY_B}`,
+      headers: auth('admin-a'),
+    })
+    expect(res.statusCode).toBe(403)
+  })
+})
+
+describe('GET /intel/manager/team', () => {
+  it('empresa sem vendedores devolve relatório vazio', async () => {
+    const res = await app.inject({
+      method: 'GET',
+      url: '/intel/manager/team?date=2026-08-25&range=day',
+      headers: auth('manager-a'),
+    })
+    expect(res.statusCode).toBe(200)
+    const body = res.json()
+    expect(body.totals.sellers).toBe(0)
+    expect(body.range).toEqual({ fromYmd: '20260825', toYmd: '20260825' })
+  })
+
+  it('range week devolve a semana da data pedida', async () => {
+    const res = await app.inject({
+      method: 'GET',
+      url: '/intel/manager/team?date=2026-08-25&range=week',
+      headers: auth('manager-a'),
+    })
+    expect(res.json().range).toEqual({ fromYmd: '20260824', toYmd: '20260830' })
+  })
+
+  it('data em formato inválido → 400', async () => {
+    const res = await app.inject({
+      method: 'GET',
+      url: '/intel/manager/team?date=25/08/2026',
+      headers: auth('manager-a'),
+    })
+    expect(res.statusCode).toBe(400)
+  })
+
+  it('gerente: a consulta filtra pela equipe de quem pediu e inclui ele mesmo (gerente que vende)', async () => {
+    prismaMock.user.count.mockResolvedValue(1)
+    await app.inject({ method: 'GET', url: '/intel/manager/team', headers: auth('manager-a') })
+
+    const where = prismaMock.user.findMany.mock.calls[0][0].where
+    expect(where.OR).toEqual([{ managerId: 'manager-a' }, { id: 'manager-a' }])
+    expect(where.managerId).toBeUndefined()
+  })
+
+  it('intel.admin não filtra por gerente — vê a empresa inteira', async () => {
+    await app.inject({ method: 'GET', url: '/intel/manager/team', headers: auth('admin-a') })
+
+    const where = prismaMock.user.findMany.mock.calls[0][0].where
+    expect(where.managerId).toBeUndefined()
+    expect(where.OR).toBeUndefined()
+  })
+
+  it('gerente com código de vendedor e sem gerente acima não conta como "sem gerente"', async () => {
+    prismaMock.user.findMany.mockResolvedValue([
+      { id: 'manager-a', name: 'Gustavo Gerente', idVendProt: '123', managerId: null },
+      { id: 'u-ana', name: 'Ana', idVendProt: 'V1', managerId: 'manager-a' },
+      { id: 'u-sem', name: 'Sem Gerente', idVendProt: 'V2', managerId: null },
+    ])
+    // Consulta em lote (userId in [...]) devolve quem tem intel.manager; a por
+    // usuário continua servindo o portão de acesso
+    prismaMock.userPermission.findMany.mockImplementation(
+      async (args: { where: { userId: string | { in: string[] } } }) =>
+        typeof args.where.userId === 'object'
+          ? args.where.userId.in
+              .filter((id) => (PERMISSIONS_BY_SUB[id] ?? []).includes('intel.manager'))
+              .map((userId) => ({ userId }))
+          : (PERMISSIONS_BY_SUB[args.where.userId] ?? []).map((key) => ({ permission: { key } }))
+    )
+    const res = await app.inject({ method: 'GET', url: '/intel/manager/team', headers: auth('admin-a') })
+    expect(res.statusCode).toBe(200)
+    // manager-a tem intel.manager (PERMISSIONS_BY_SUB) — só "Sem Gerente" fica sem gerente
+    expect(res.json().unassignedSellers).toBe(1)
+  })
+})
+
+describe('GET /intel/manager/home', () => {
+  it('meta da equipe é a soma dos vendedores associados — só os dele, mesmo sendo o único gerente', async () => {
+    prismaMock.user.count.mockResolvedValue(1)
+    prismaMock.user.findMany.mockResolvedValue([
+      { id: 'u-ana', name: 'Ana', idVendProt: 'V1', managerId: 'manager-a' },
+      { id: 'u-bia', name: 'Bia', idVendProt: 'V2', managerId: 'manager-a' },
+    ])
+    prismaMock.goalSnapshot.findMany.mockResolvedValue([
+      { vendorCode: 'V1', goalAmount: '1000', soldAmount: '250', capturedAt: new Date() },
+      { vendorCode: 'V2', goalAmount: '3000', soldAmount: '1750', capturedAt: new Date() },
+    ])
+
+    const res = await app.inject({
+      method: 'GET',
+      url: '/intel/manager/home',
+      headers: auth('manager-a'),
+    })
+    expect(res.statusCode).toBe(200)
+    const body = res.json()
+    expect(body.goal).toMatchObject({ goalAmount: '4000.00', soldAmount: '2000.00', pct: 50 })
+    expect(body.sellers.map((s: { name: string; pct: number }) => [s.name, s.pct])).toEqual([
+      ['Ana', 25],
+      ['Bia', 58],
+    ])
+    expect(body.today).toMatchObject({ planned: 0, done: 0 })
+
+    // Recorte pela equipe dele — e ele mesmo, se também vende com o próprio código
+    for (const call of prismaMock.user.findMany.mock.calls) {
+      expect(call[0].where.OR).toEqual([{ managerId: 'manager-a' }, { id: 'manager-a' }])
+    }
+  })
+
+  it('vendedor sem intel.* → 403', async () => {
+    const res = await app.inject({
+      method: 'GET',
+      url: '/intel/manager/home',
+      headers: auth('sales-a'),
+    })
+    expect(res.statusCode).toBe(403)
+  })
+})
+
+describe('GET /intel/manager/pilot-metrics', () => {
+  it('período invertido → 400', async () => {
+    const res = await app.inject({
+      method: 'GET',
+      url: '/intel/manager/pilot-metrics?from=2026-08-31&to=2026-08-01',
+      headers: auth('manager-a'),
+    })
+    expect(res.statusCode).toBe(400)
+  })
+
+  it('sem from/to → 400', async () => {
+    const res = await app.inject({
+      method: 'GET',
+      url: '/intel/manager/pilot-metrics',
+      headers: auth('manager-a'),
+    })
+    expect(res.statusCode).toBe(400)
+  })
+
+  it('devolve as três métricas', async () => {
+    const res = await app.inject({
+      method: 'GET',
+      url: '/intel/manager/pilot-metrics?from=2026-08-01&to=2026-08-31',
+      headers: auth('manager-a'),
+    })
+    expect(res.statusCode).toBe(200)
+    const body = res.json()
+    expect(body).toHaveProperty('portfolioPositivation')
+    expect(body).toHaveProperty('suggestionConversion')
+    expect(body).toHaveProperty('atRiskRecovery')
+    expect(body.conversionDays).toBe(7)
+  })
+})
+
+describe('POST /intel/manager/plan-items', () => {
+  const payload = { vendorCode: 'V1', customerCode: 'C1', loja: '01', date: '2026-08-25' }
+
+  it('vendedor inexistente na empresa → 404', async () => {
+    prismaMock.user.findFirst.mockResolvedValue(null)
+    const res = await app.inject({
+      method: 'POST',
+      url: '/intel/manager/plan-items',
+      headers: auth('manager-a'),
+      payload,
+    })
+    expect(res.statusCode).toBe(404)
+  })
+
+  it('cliente inexistente na empresa → 404', async () => {
+    prismaMock.user.findFirst.mockResolvedValue({ id: 'u1', managerId: 'manager-a' })
+    prismaMock.customer.findFirst.mockResolvedValue(null)
+    const res = await app.inject({
+      method: 'POST',
+      url: '/intel/manager/plan-items',
+      headers: auth('manager-a'),
+      payload,
+    })
+    expect(res.statusCode).toBe(404)
+  })
+
+  it('gerente com recorte próprio não mexe no plano de outra equipe → 403', async () => {
+    prismaMock.user.count.mockResolvedValue(2)
+    prismaMock.user.findFirst.mockResolvedValue({ id: 'u1', managerId: 'manager-b' })
+    const res = await app.inject({
+      method: 'POST',
+      url: '/intel/manager/plan-items',
+      headers: auth('manager-a'),
+      payload,
+    })
+    expect(res.statusCode).toBe(403)
+  })
+
+  it('gerente que vende pode pôr cliente no próprio plano (o vendedor é ele)', async () => {
+    prismaMock.user.findFirst.mockResolvedValue({ id: 'manager-a', managerId: null })
+    prismaMock.customer.findFirst.mockResolvedValue({ id: 'c1' })
+    prismaMock.visitPlan.upsert.mockResolvedValue({ id: 'plan-1' })
+    prismaMock.visitPlanItem.findFirst.mockResolvedValue(null)
+    prismaMock.visitPlanItem.create.mockResolvedValue({ id: 'item-1' })
+    const res = await app.inject({
+      method: 'POST',
+      url: '/intel/manager/plan-items',
+      headers: auth('manager-a'),
+      payload,
+    })
+    expect(res.statusCode).toBe(201)
+  })
+
+  it('cria o item no fim da fila, com origem MANAGER e o status do sinal', async () => {
+    prismaMock.user.findFirst.mockResolvedValue({ id: 'u1', managerId: 'manager-a' })
+    prismaMock.customer.findFirst.mockResolvedValue({ id: 'c1' })
+    prismaMock.visitPlan.upsert.mockResolvedValue({ id: 'plan-1' })
+    prismaMock.visitPlanItem.findFirst.mockResolvedValue(null)
+    prismaMock.customerSignal.findUnique.mockResolvedValue({ status: 'AT_RISK', scoreTotal: 9.5 })
+    prismaMock.visitPlanItem.create.mockResolvedValue({ id: 'item-1' })
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/intel/manager/plan-items',
+      headers: auth('manager-a'),
+      payload,
+    })
+
+    expect(res.statusCode).toBe(201)
+    const data = prismaMock.visitPlanItem.create.mock.calls[0][0].data
+    expect(data).toMatchObject({
+      planId: 'plan-1',
+      position: 1,
+      origin: 'MANAGER',
+      statusAtTime: 'AT_RISK',
+    })
+  })
+
+  it('sem sinal calculado, o item entra como NEW em vez de quebrar', async () => {
+    prismaMock.user.findFirst.mockResolvedValue({ id: 'u1', managerId: 'manager-a' })
+    prismaMock.customer.findFirst.mockResolvedValue({ id: 'c1' })
+    prismaMock.visitPlan.upsert.mockResolvedValue({ id: 'plan-1' })
+    prismaMock.visitPlanItem.findFirst.mockResolvedValue(null)
+    prismaMock.customerSignal.findUnique.mockResolvedValue(null)
+    prismaMock.visitPlanItem.create.mockResolvedValue({ id: 'item-1' })
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/intel/manager/plan-items',
+      headers: auth('manager-a'),
+      payload,
+    })
+
+    expect(res.statusCode).toBe(201)
+    expect(prismaMock.visitPlanItem.create.mock.calls[0][0].data.statusAtTime).toBe('NEW')
+  })
+
+  it('repetir o pedido devolve o item existente e desfaz a remoção', async () => {
+    prismaMock.user.findFirst.mockResolvedValue({ id: 'u1', managerId: 'manager-a' })
+    prismaMock.customer.findFirst.mockResolvedValue({ id: 'c1' })
+    prismaMock.visitPlan.upsert.mockResolvedValue({ id: 'plan-1' })
+    prismaMock.visitPlanItem.findFirst.mockResolvedValue({ id: 'item-1', removedAt: new Date() })
+    prismaMock.visitPlanItem.update.mockResolvedValue({ id: 'item-1', removedAt: null })
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/intel/manager/plan-items',
+      headers: auth('manager-a'),
+      payload,
+    })
+
+    expect(res.statusCode).toBe(200)
+    expect(prismaMock.visitPlanItem.update.mock.calls[0][0].data).toMatchObject({
+      removedAt: null,
+      origin: 'MANAGER',
+    })
+    expect(prismaMock.visitPlanItem.create).not.toHaveBeenCalled()
+  })
+
+  it('cliente com loja nula no cadastro também é encontrado', async () => {
+    // O motor planeja esse cliente como |01; casar a coluna literalmente dava 404
+    prismaMock.user.findFirst.mockResolvedValue({ id: 'u1', managerId: 'manager-a' })
+    prismaMock.customer.findFirst.mockResolvedValue({ id: 'c1' })
+    prismaMock.visitPlan.upsert.mockResolvedValue({ id: 'plan-1' })
+    prismaMock.visitPlanItem.findFirst.mockResolvedValue(null)
+    prismaMock.visitPlanItem.create.mockResolvedValue({ id: 'item-1' })
+
+    await app.inject({
+      method: 'POST',
+      url: '/intel/manager/plan-items',
+      headers: auth('manager-a'),
+      payload: { vendorCode: 'V1', customerCode: 'C1', date: '2026-08-25' },
+    })
+
+    expect(prismaMock.customer.findFirst.mock.calls[0][0].where.OR).toEqual([
+      { loja: '01' },
+      { loja: null },
+    ])
+  })
+
+  it('loja explícita diferente de 01 casa a coluna sem o fallback', async () => {
+    prismaMock.user.findFirst.mockResolvedValue({ id: 'u1', managerId: 'manager-a' })
+    prismaMock.customer.findFirst.mockResolvedValue(null)
+
+    await app.inject({
+      method: 'POST',
+      url: '/intel/manager/plan-items',
+      headers: auth('manager-a'),
+      payload: { ...payload, loja: '02' },
+    })
+
+    const where = prismaMock.customer.findFirst.mock.calls[0][0].where
+    expect(where.loja).toBe('02')
+    expect(where.OR).toBeUndefined()
+  })
+
+  it('campo desconhecido no corpo → 400 (não passa despercebido)', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/intel/manager/plan-items',
+      headers: auth('manager-a'),
+      payload: { ...payload, enabled: true },
+    })
+    expect(res.statusCode).toBe(400)
+  })
+})

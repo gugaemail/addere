@@ -6,6 +6,8 @@ type Variant = 'success' | 'warning' | 'danger' | 'info' | 'neutral'
 
 interface BadgeProps {
   variant?: Variant
+  /** Cor direta (hex) — usada pelos status do motor da Inteligência (E12) */
+  color?: string
   // Tipado a partir do Text para ficar compatível com os tipos do react-native
   children: NonNullable<TextProps['children']>
   testID?: string
@@ -27,10 +29,12 @@ const fg: Record<Variant, string> = {
   neutral: colors.semantic.muted,
 }
 
-export function Badge({ variant = 'neutral', children, testID }: BadgeProps) {
+export function Badge({ variant = 'neutral', color, children, testID }: BadgeProps) {
+  const background = color ? color + '1F' : bg[variant]
+  const foreground = color ?? fg[variant]
   return (
-    <View style={[styles.pill, { backgroundColor: bg[variant] }]} testID={testID}>
-      <Text style={[styles.label, { color: fg[variant] }]}>{children}</Text>
+    <View style={[styles.pill, { backgroundColor: background }]} testID={testID}>
+      <Text style={[styles.label, { color: foreground }]}>{children}</Text>
     </View>
   )
 }

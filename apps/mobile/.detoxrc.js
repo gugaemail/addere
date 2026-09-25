@@ -1,3 +1,14 @@
+const fs = require('fs')
+const path = require('path')
+
+// O nome do projeto iOS depende do variant do app.config.js (Addere Dev / Addere Staging / Addere),
+// então lemos o .xcworkspace gerado pelo `expo prebuild` em vez de fixar o nome.
+const iosDir = path.join(__dirname, 'ios')
+const workspace = fs.existsSync(iosDir)
+  ? fs.readdirSync(iosDir).find((f) => f.endsWith('.xcworkspace'))
+  : undefined
+const iosScheme = workspace ? path.basename(workspace, '.xcworkspace') : 'Addere'
+
 module.exports = {
   testRunner: {
     args: { $0: 'jest', config: 'e2e/jest.config.js' },
@@ -6,9 +17,8 @@ module.exports = {
   apps: {
     'ios.debug': {
       type: 'ios.app',
-      binaryPath: 'ios/build/Build/Products/Debug-iphonesimulator/Addere.app',
-      build:
-        'xcodebuild -workspace ios/Addere.xcworkspace -scheme Addere -configuration Debug -sdk iphonesimulator -derivedDataPath ios/build',
+      binaryPath: `ios/build/Build/Products/Debug-iphonesimulator/${iosScheme}.app`,
+      build: `xcodebuild -workspace ios/${iosScheme}.xcworkspace -scheme ${iosScheme} -configuration Debug -sdk iphonesimulator -derivedDataPath ios/build`,
     },
     'android.debug': {
       type: 'android.apk',

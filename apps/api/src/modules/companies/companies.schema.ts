@@ -1,6 +1,10 @@
 import { z } from 'zod'
 import { FIELD_REGISTRY_KEYS } from '@addere/types'
 
+// Códigos Protheus interpolados nos placeholders {{FILIAL}}/{{VENDEDOR}} das
+// consultas SQL da camada de Inteligência — formato restrito por segurança (E2)
+const protheusCode = z.string().regex(/^[A-Za-z0-9 ]{1,20}$/, 'Código Protheus inválido')
+
 export const createCompanySchema = z.object({
   name: z.string().min(1),
   cnpj: z.string().min(1),
@@ -20,7 +24,7 @@ export const updateCompanySchema = z
 export const createBranchSchema = z.object({
   name: z.string().min(1),
   cnpj: z.string().optional(),
-  idProtheus: z.string().optional(),
+  idProtheus: protheusCode.optional(),
   razaoSocial: z.string().optional(),
   endereco: z.string().optional(),
   complemento: z.string().optional(),
@@ -34,13 +38,24 @@ export const updateBranchSchema = createBranchSchema.partial().extend({
   logo: z.string().optional().nullable(),
 })
 
-export const createCompanyUserSchema = z.object({
-  name: z.string().min(1),
-  email: z.string().email(),
-  password: z.string().min(8),
-  role: z.enum(['ADMIN', 'SALESPERSON']),
-  idVendProt: z.string().optional().nullable(),
+// Perfil de vendedor da Inteligência (E10; campos criados na E1c)
+const vendorProfileSchema = z.object({
+  visitsPerDay: z.number().int().min(1).max(30).optional().nullable(),
+  vehicle: z.enum(['CAR', 'MOTORCYCLE', 'FOOT']).optional().nullable(),
+  servedCities: z.array(z.string().trim().min(1).max(60)).max(30).optional(),
+  messageTone: z.enum(['informal', 'formal']).optional().nullable(),
+  managerId: z.string().uuid().optional().nullable(),
 })
+
+export const createCompanyUserSchema = z
+  .object({
+    name: z.string().min(1),
+    email: z.string().email(),
+    password: z.string().min(8),
+    role: z.enum(['ADMIN', 'SALESPERSON']),
+    idVendProt: protheusCode.optional().nullable(),
+  })
+  .merge(vendorProfileSchema)
 
 export const updateCompanyUserSchema = createCompanyUserSchema.partial()
 
@@ -91,6 +106,7 @@ export const updateProtheusSchema = z.object({
   apiCondPag: z.string().optional(),
   apiTransp: z.string().optional(),
   apiMetaVend: z.string().optional(),
+  apiSql: z.string().optional(),
   usrProtheus: z.string().optional(),
   passProtheus: z.string().optional(),
   syncConfig: z.record(z.unknown()).optional(),

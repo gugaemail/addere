@@ -10,7 +10,8 @@ jest.mock('../../lib/api', () => ({
 jest.mock('../../lib/query-client', () => ({
   queryClient: { invalidateQueries: jest.fn() },
 }))
-type NetInfoListener = (state: { isConnected: boolean }) => void
+// isConnected pode vir null quando o NetInfo não consegue determinar o estado
+type NetInfoListener = (state: { isConnected: boolean | null }) => void
 const mockNetInfoAddEventListener = jest.fn((_cb: NetInfoListener): (() => void) => jest.fn())
 jest.mock('@react-native-community/netinfo', () => ({
   addEventListener: (cb: NetInfoListener) => mockNetInfoAddEventListener(cb),
@@ -63,6 +64,31 @@ describe('getSyncDelay', () => {
 })
 
 describe('processSyncQueue', () => {
+  it('4xx (ex.: 422) falha de vez: sem retentativa e cache do handler invalidado', async () => {
+    const { queryClient } = jest.requireMock('../../lib/query-client') as {
+      queryClient: { invalidateQueries: jest.Mock }
+    }
+    queryClient.invalidateQueries.mockClear()
+    mockPost.mockRejectedValue({ response: { status: 422, data: { message: 'Item de plano não pertence ao seu plano' } } })
+    useSyncStore.getState().enqueue('order', validPayload)
+    await processSyncQueue()
+    const [item] = useSyncStore.getState().queue
+    expect(mockPost).toHaveBeenCalledTimes(1)
+    expect(item.status).toBe('error')
+    expect(item.attempts).toBe(item.maxAttempts)
+    expect(item.lastError).toContain('Item de plano')
+    expect(queryClient.invalidateQueries).toHaveBeenCalledWith({ queryKey: ['orders'] })
+  })
+
+  it('401 continua transitório: entra no retry normal', async () => {
+    mockPost.mockRejectedValue({ response: { status: 401, data: { message: 'expirado' } } })
+    useSyncStore.getState().enqueue('order', validPayload)
+    await processSyncQueue()
+    const [item] = useSyncStore.getState().queue
+    expect(item.status).toBe('error')
+    expect(item.attempts).toBe(1)
+  })
+
   it('não processa se offline', async () => {
     resetStore({ networkAvailable: false })
     useSyncStore.getState().enqueue('order', {})
@@ -191,6 +217,48 @@ describe('startSyncListener', () => {
     await new Promise((r) => setTimeout(r, 50))
 
     expect(mockPost).toHaveBeenCalled()
+    cleanup()
+    jest.useFakeTimers()
+  })
+
+  it('estado indeterminado do NetInfo não é tratado como offline', async () => {
+    // isConnected null (o NetInfo não sabe) fazia a fila parar de esvaziar com
+    // rede boa — o app ficava marcado "Offline" e as visitas nunca subiam.
+    jest.useRealTimers()
+    let netInfoCallback: ((state: { isConnected: boolean | null }) => void) | null = null
+    mockNetInfoAddEventListener.mockImplementation(
+      (cb: (state: { isConnected: boolean | null }) => void) => {
+        netInfoCallback = cb
+        return jest.fn()
+      }
+    )
+    mockPost.mockResolvedValue({ data: {} })
+    useSyncStore.getState().enqueue('order', validPayload)
+
+    const cleanup = startSyncListener()
+    netInfoCallback!({ isConnected: null })
+    await new Promise((r) => setTimeout(r, 50))
+
+    expect(useSyncStore.getState().networkAvailable).toBe(true)
+    expect(mockPost).toHaveBeenCalled()
+    cleanup()
+    jest.useFakeTimers()
+  })
+
+  it('isConnected false explícito continua marcando offline', async () => {
+    jest.useRealTimers()
+    let netInfoCallback: ((state: { isConnected: boolean }) => void) | null = null
+    mockNetInfoAddEventListener.mockImplementation(
+      (cb: (state: { isConnected: boolean }) => void) => {
+        netInfoCallback = cb
+        return jest.fn()
+      }
+    )
+
+    const cleanup = startSyncListener()
+    netInfoCallback!({ isConnected: false })
+
+    expect(useSyncStore.getState().networkAvailable).toBe(false)
     cleanup()
     jest.useFakeTimers()
   })

@@ -8,16 +8,16 @@ import { StatCard } from '@/components/ui/StatCard'
 import { useCompany, useToggleCompany } from '@/hooks/useCompany'
 import { getApiErrorMessage } from '@/lib/api'
 import { BranchesTab } from './tabs/BranchesTab'
-import { UsersTab } from './tabs/UsersTab'
 import { CustomersTab } from './tabs/CustomersTab'
 import { ProductsTab } from './tabs/ProductsTab'
 import { OrdersTab } from './tabs/OrdersTab'
 import { ProtheusTab } from './tabs/ProtheusTab'
 import { FieldsTab } from './tabs/FieldsTab'
 import { LogsTab } from './tabs/LogsTab'
+import { IntelligenceTab } from './tabs/IntelligenceTab'
 
 type Tab =
-  'filiais' | 'usuarios' | 'clientes' | 'produtos' | 'pedidos' | 'protheus' | 'campos' | 'logs'
+  'filiais' | 'clientes' | 'produtos' | 'pedidos' | 'protheus' | 'inteligencia' | 'campos' | 'logs'
 
 function PageSkeleton() {
   return (
@@ -71,11 +71,11 @@ export default function EmpresaPage() {
 
   const tabs: { key: Tab; label: string }[] = [
     { key: 'filiais', label: `Filiais (${company.branches.length})` },
-    { key: 'usuarios', label: `Usuários (${company.users.length})` },
     { key: 'clientes', label: 'Clientes' },
     { key: 'produtos', label: 'Produtos' },
     { key: 'pedidos', label: 'Pedidos' },
     { key: 'protheus', label: 'Protheus' },
+    { key: 'inteligencia', label: 'Inteligência' },
     { key: 'campos', label: 'Campos' },
     { key: 'logs', label: 'Logs API' },
   ]
@@ -140,11 +140,13 @@ export default function EmpresaPage() {
 
       {/* Conteúdo da aba ativa */}
       {tab === 'filiais' && <BranchesTab company={company} />}
-      {tab === 'usuarios' && <UsersTab company={company} />}
       {tab === 'clientes' && <CustomersTab companyId={company.id} />}
       {tab === 'produtos' && <ProductsTab companyId={company.id} />}
       {tab === 'pedidos' && <OrdersTab companyId={company.id} />}
       {tab === 'protheus' && <ProtheusTab company={company} />}
+      {tab === 'inteligencia' && (
+        <IntelligenceTab companyId={company.id} apiSqlConfigured={!!company.apiSql} />
+      )}
       {tab === 'campos' && <FieldsTab companyId={company.id} />}
       {tab === 'logs' && <LogsTab companyId={company.id} />}
     </div>

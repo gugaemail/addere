@@ -13,6 +13,7 @@ import {
   resetOrderToPending,
 } from './orders.service'
 import { getEffectivePermissions } from '../permissions/permissions.service'
+import { resolveOrderOwners } from '../users/data-scope'
 import { syncOrderToProtheus, consultOrderStatus } from '../sync/sync.service'
 import { notFound } from '../../lib/errors'
 
@@ -23,12 +24,17 @@ function toUnprocessable(err: unknown): never {
   throw unprocessable((err as Error).message)
 }
 
+// Leituras: o vendedor vê os próprios pedidos; o gerente, os da equipe
+function ownersOf(request: FastifyRequest): Promise<string[]> {
+  return resolveOrderOwners(request.user.sub, request.user.role)
+}
+
 export default async function ordersRoutes(app: FastifyInstance) {
   const auth = { preHandler: [authenticate, requireCompany] }
 
   // GET /orders/stats — deve vir antes de /:id para não conflitar
   app.get('/stats', auth, async (request: FastifyRequest, reply: FastifyReply) => {
-    const stats = await getOrderStats(request.user.sub, request.user.companyId!)
+    const stats = await getOrderStats(await ownersOf(request), request.user.companyId!)
     return reply.send(stats)
   })
 
@@ -38,14 +44,14 @@ export default async function ordersRoutes(app: FastifyInstance) {
     const MAX_PAGE_SIZE = 500
     const raw = parseInt(limit ?? '', 10)
     const parsedLimit = Number.isFinite(raw) && raw > 0 ? Math.min(raw, MAX_PAGE_SIZE) : 100
-    const orders = await listOrders(request.user.sub, request.user.companyId!, parsedLimit)
+    const orders = await listOrders(await ownersOf(request), request.user.companyId!, parsedLimit)
     return reply.send(orders)
   })
 
   // GET /orders/:id
   app.get('/:id', auth, async (request: FastifyRequest, reply: FastifyReply) => {
     const { id } = request.params as { id: string }
-    const order = await getOrder(request.user.sub, request.user.companyId!, id)
+    const order = await getOrder(await ownersOf(request), request.user.companyId!, id)
     if (!order) throw notFound('Pedido não encontrado')
     return reply.send(order)
   })

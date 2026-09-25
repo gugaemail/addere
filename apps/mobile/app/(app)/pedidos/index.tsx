@@ -20,6 +20,7 @@ import type { Order } from '@addere/types'
 import { fmtMoeda, fmtData } from '../../../src/utils/format'
 import { STATUS_BADGE, STATUS_LABEL } from '../../../src/utils/orderStatus'
 import { getApiErrorMessage } from '../../../src/lib/errors'
+import { useIsManager } from '../../../src/hooks/useProfile'
 
 function OrderCard({
   order,
@@ -28,6 +29,7 @@ function OrderCard({
   onSync,
   onCheckStatus,
   onPress,
+  showSeller,
 }: {
   order: Order
   syncingId: string | null
@@ -35,6 +37,8 @@ function OrderCard({
   onSync: (id: string) => void
   onCheckStatus: (id: string) => void
   onPress: () => void
+  /** Gerente vê os pedidos da equipe — precisa saber de quem é cada um */
+  showSeller: boolean
 }) {
   const variant = STATUS_BADGE[order.status] ?? 'neutral'
   const isSyncing = syncingId === order.id
@@ -44,6 +48,7 @@ function OrderCard({
     <Card onPress={onPress} style={s.card}>
       <View style={{ flex: 1 }}>
         <Text style={s.customer}>{order.customer.name}</Text>
+        {showSeller && order.user && <Text style={s.seller}>Vendedor: {order.user.name}</Text>}
         <Text style={s.sub}>{fmtData(order.createdAt)}</Text>
         <Text style={s.sub}>{order.items.length} item(s)</Text>
         {order.protheusOrderId && (
@@ -82,6 +87,7 @@ function OrderCard({
 
 export default function PedidosScreen() {
   const router = useRouter()
+  const isManager = useIsManager()
   const { data: orders, isLoading, refetch } = usePedidos()
   const { mutate: sincronizar } = useSincronizarPedido()
   const { mutate: consultarStatus } = useConsultarStatusPedido()
@@ -152,6 +158,7 @@ export default function PedidosScreen() {
                 onSync={handleSync}
                 onCheckStatus={handleCheckStatus}
                 onPress={() => router.push(`/(app)/pedidos/${item.id}`)}
+                showSeller={isManager}
               />
             </OrderSwipeActions>
           )}
@@ -161,22 +168,28 @@ export default function PedidosScreen() {
             <EmptyState
               illustration="orders"
               title="Nenhum pedido ainda"
-              subtitle="Toque no botão + para criar seu primeiro pedido."
+              subtitle={
+                isManager
+                  ? 'Os pedidos dos vendedores da sua equipe aparecem aqui.'
+                  : 'Toque no botão + para criar seu primeiro pedido.'
+              }
             />
           }
           contentContainerStyle={{ padding: spacing.md, paddingBottom: 88, gap: spacing.sm }}
         />
       )}
 
-      {/* FAB — Novo Pedido */}
-      <TouchableOpacity
-        testID="btn-novo-pedido"
-        style={s.fab}
-        onPress={() => router.push('/(app)/novo-pedido')}
-        activeOpacity={0.85}
-      >
-        <Plus size={28} color={colors.neutral.white} strokeWidth={1.5} />
-      </TouchableOpacity>
+      {/* FAB — Novo Pedido (o gerente não vende: só acompanha a equipe) */}
+      {!isManager && (
+        <TouchableOpacity
+          testID="btn-novo-pedido"
+          style={s.fab}
+          onPress={() => router.push('/(app)/novo-pedido')}
+          activeOpacity={0.85}
+        >
+          <Plus size={28} color={colors.neutral.white} strokeWidth={1.5} />
+        </TouchableOpacity>
+      )}
 
       <PdfPreviewModal visible={showPdfModal} order={pdfOrder} onClose={handleClosePdf} />
     </View>
@@ -195,6 +208,11 @@ const s = StyleSheet.create({
     fontFamily: typography.fontFamily.sansSemibold,
     fontSize: 15,
     color: colors.brand.dark,
+  },
+  seller: {
+    fontFamily: typography.fontFamily.bodySemibold,
+    fontSize: 12,
+    color: colors.brand.primary,
   },
   sub: {
     fontFamily: typography.fontFamily.body,

@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage'
-import { useSyncStore, selectPendingCount, selectHasPending } from '../syncStore'
+import { useSyncStore, selectPendingCount, selectHasPending, selectOwnQueue } from '../syncStore'
 
 jest.mock('@react-native-async-storage/async-storage', () =>
   require('@react-native-async-storage/async-storage/jest/async-storage-mock')
@@ -120,5 +120,23 @@ describe('persist', () => {
     getStore().enqueue('order', { test: true })
     await new Promise((r) => setTimeout(r, 50))
     expect(AsyncStorage.setItem).toHaveBeenCalled()
+  })
+})
+
+describe('dono da fila (aparelho compartilhado)', () => {
+  it('o item leva o id de quem o criou e só o dono o vê', () => {
+    getStore().setOwner('ana')
+    const id = getStore().enqueue('order', { customerId: 'c1' })
+    expect(getStore().queue.find((i) => i.id === id)?.userId).toBe('ana')
+    expect(selectPendingCount(getStore())).toBe(1)
+
+    // Outro usuário no mesmo aparelho: a fila da Ana não aparece nem é enviada
+    getStore().setOwner('bia')
+    expect(selectPendingCount(getStore())).toBe(0)
+    expect(selectOwnQueue(getStore())).toEqual([])
+
+    // A Ana volta e encontra o pedido dela
+    getStore().setOwner('ana')
+    expect(selectPendingCount(getStore())).toBe(1)
   })
 })

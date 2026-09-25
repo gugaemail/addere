@@ -18,6 +18,12 @@ const pilotEventSchema = z.object({
           'ORDER_SYNC_FAILED',
           'SESSION_STARTED',
           'CATALOG_LOADED',
+          // Camada de Inteligência (E12)
+          'PLAN_OPENED',
+          'VISIT_CHECKIN',
+          'VISIT_RESULT',
+          'MESSAGE_SENT',
+          'PLAN_EDITED',
         ]),
         metadata: z.record(z.unknown()).optional(),
         occurredAt: z.string().datetime(),

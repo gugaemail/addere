@@ -26,15 +26,17 @@ export function Modal({ isOpen, onClose, title, children, className }: ModalProp
   if (!isOpen) return null
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+      {/* max-h + rolagem interna: formulário mais alto que a janela deixava o
+          botão de salvar fora de alcance, sem rolagem nenhuma que o trouxesse */}
       <div
         className={cn(
-          'relative z-10 w-full max-w-md rounded-xl border border-[var(--border)] bg-[var(--bg-surface)] p-6 shadow-xl',
+          'relative z-10 flex max-h-[90vh] w-full max-w-md flex-col rounded-xl border border-[var(--border)] bg-[var(--bg-surface)] p-6 shadow-xl',
           className
         )}
       >
-        <div className="mb-4 flex items-center justify-between">
+        <div className="mb-4 flex shrink-0 items-center justify-between">
           <h2 className="text-lg font-semibold text-[var(--text-primary)]">{title}</h2>
           <button
             type="button"
@@ -45,7 +47,7 @@ export function Modal({ isOpen, onClose, title, children, className }: ModalProp
             <X size={16} strokeWidth={1.5} aria-hidden />
           </button>
         </div>
-        {children}
+        <div className="-mx-6 min-h-0 flex-1 overflow-y-auto px-6">{children}</div>
       </div>
     </div>
   )

@@ -1,6 +1,6 @@
 // Permissões dinâmicas por usuário. SUPERADMIN não participa do cadastro — tem acesso total.
 
-import { prisma } from '@addere/db'
+import { prisma, DEFAULT_PERMISSIONS_BY_ROLE } from '@addere/db'
 import type { UserRole } from '@addere/types'
 
 interface PermissionCacheEntry {
@@ -39,6 +39,37 @@ export async function setUserPermissions(userId: string, keys: string[]): Promis
   ])
 
   invalidateUserPermissions(userId)
+}
+
+// Concede as permissões informadas sem remover as existentes (diferente de
+// setUserPermissions, que substitui o conjunto inteiro).
+export async function grantPermissions(userId: string, keys: string[]): Promise<void> {
+  if (keys.length === 0) return
+
+  const permissions = await prisma.permission.findMany({ where: { key: { in: keys } } })
+  await prisma.userPermission.createMany({
+    data: permissions.map((permission) => ({ userId, permissionId: permission.id })),
+    skipDuplicates: true,
+  })
+
+  invalidateUserPermissions(userId)
+}
+
+// Revoga as permissões informadas, deixando as demais intactas.
+export async function revokePermissions(userId: string, keys: string[]): Promise<void> {
+  if (keys.length === 0) return
+
+  await prisma.userPermission.deleteMany({
+    where: { userId, permission: { key: { in: keys } } },
+  })
+
+  invalidateUserPermissions(userId)
+}
+
+// Concede as permissões padrão do role (catálogo em @addere/db) sem remover as existentes.
+// Usada na criação de usuário (decisão D3c: ADMIN nasce com intel.admin).
+export async function applyDefaultPermissions(userId: string, role: UserRole): Promise<void> {
+  await grantPermissions(userId, DEFAULT_PERMISSIONS_BY_ROLE[role] ?? [])
 }
 
 export async function copyUserPermissions(fromUserId: string, toUserId: string): Promise<void> {

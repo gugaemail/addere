@@ -33,10 +33,10 @@ Sentry.init({
   },
 })
 
-function AuthGuard() {
+function AuthGuard({ children }: { children: React.ReactNode }) {
   const router = useRouter()
   const segments = useSegments()
-  const { accessToken, hydrated, hydrate } = useAuthStore()
+  const { accessToken, user, hydrated, hydrate } = useAuthStore()
   const hydrateFieldConfig = useCompanyStore((s) => s.hydrateFieldConfig)
   const hydrateSyncSchedule = useCompanyStore((s) => s.hydrateSyncSchedule)
 
@@ -80,6 +80,18 @@ function AuthGuard() {
       }
 
       try {
+        // Mesma checagem que o LoginScreen e o useAuth já fazem: sem hardware ou
+        // sem biometria cadastrada o prompt falha sempre, e tratar isso como
+        // recusa apagava a sessão de quem nunca teve chance de autenticar.
+        const [hasHardware, isEnrolled] = await Promise.all([
+          LocalAuthentication.hasHardwareAsync(),
+          LocalAuthentication.isEnrolledAsync(),
+        ])
+        if (!hasHardware || !isEnrolled) {
+          setBiometricReady(true)
+          return
+        }
+
         const result = await LocalAuthentication.authenticateAsync({
           promptMessage: 'Entre no Addere',
           cancelLabel: 'Usar senha',
@@ -107,14 +119,26 @@ function AuthGuard() {
 
     if (inDevPreview) return
 
-    if (!accessToken && !inAuthGroup) {
+    // Token e usuário: só o token não basta. O refresh publica o access token
+    // antes de existir usuário por trás dele (login biométrico, hidratação), e
+    // gatear só nele mandava o app para dentro meio logado — dashboard com
+    // "Olá," vazio em vez de continuar no login.
+    const authenticated = Boolean(accessToken && user)
+
+    if (!authenticated && !inAuthGroup) {
       router.replace('/(auth)/login')
-    } else if (accessToken && inAuthGroup) {
+    } else if (authenticated && inAuthGroup) {
       router.replace('/(app)')
     }
-  }, [accessToken, hydrated, segments, biometricReady])
+  }, [accessToken, user, hydrated, segments, biometricReady])
 
-  return null
+  // Antes da hidratação (e da biometria) o navegador não monta: a rota
+  // inicial `(app)/index` subia na frente, disparava as queries do dashboard
+  // sem token (3×401), o interceptor renovava pelo cookie e o app piscava o
+  // dashboard legado com "Olá," vazio até o guard redirecionar para o login.
+  if (!hydrated || !biometricReady) return <SplashScreen />
+
+  return <>{children}</>
 }
 
 const asyncStoragePersister = createAsyncStoragePersister({
@@ -144,8 +168,9 @@ export default function RootLayout() {
             },
           }}
         >
-          <AuthGuard />
-          <Stack screenOptions={{ headerShown: false }} />
+          <AuthGuard>
+            <Stack screenOptions={{ headerShown: false }} />
+          </AuthGuard>
         </PersistQueryClientProvider>
       </AppErrorBoundary>
     </GestureHandlerRootView>

@@ -60,9 +60,35 @@ describe('middleware(request)', () => {
     }
   })
 
-  it('redireciona rota pública com sessão ativa para /dashboard', () => {
+  it("redireciona rota pública com sessão ativa para '/' (home por papel — E9)", () => {
     const res = middleware(makeRequest('/login', { session: true }))
     expect(res.status).toBe(307)
-    expect(new URL(res.headers.get('location')!).pathname).toBe('/dashboard')
+    expect(new URL(res.headers.get('location')!).pathname).toBe('/')
+  })
+})
+
+describe('middleware — destino do login', () => {
+  it('guarda o caminho pedido no ?next=', () => {
+    const res = middleware(makeRequest('/inteligencia/saude'))
+    const location = new URL(res.headers.get('location') as string)
+
+    expect(location.pathname).toBe('/login')
+    expect(location.searchParams.get('next')).toBe('/inteligencia/saude')
+  })
+
+  it('com sessão, devolve o usuário ao destino guardado', () => {
+    const request = new NextRequest(new URL('http://localhost/login?next=/inteligencia/saude'))
+    request.cookies.set(SESSION_COOKIE, '1')
+
+    const location = new URL(middleware(request).headers.get('location') as string)
+    expect(location.pathname).toBe('/inteligencia/saude')
+  })
+
+  it('ignora destino externo e cai na home', () => {
+    const request = new NextRequest(new URL('http://localhost/login?next=https://evil.test'))
+    request.cookies.set(SESSION_COOKIE, '1')
+
+    const location = new URL(middleware(request).headers.get('location') as string)
+    expect(location.pathname).toBe('/')
   })
 })

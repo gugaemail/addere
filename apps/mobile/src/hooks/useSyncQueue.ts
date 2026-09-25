@@ -1,5 +1,6 @@
 import {
   useSyncStore,
+  selectOwnQueue,
   selectPendingCount,
   selectHasPending,
   selectPendingItems,
@@ -9,7 +10,7 @@ import { processSyncQueue } from '../services/syncEngine'
 import type { CreateOrderInput } from '@addere/types'
 
 export function useSyncQueue() {
-  const queue = useSyncStore((s) => s.queue)
+  const queue = useSyncStore(selectOwnQueue)
   const isSyncing = useSyncStore((s) => s.isSyncing)
   const lastSyncAt = useSyncStore((s) => s.lastSyncAt)
   const networkAvailable = useSyncStore((s) => s.networkAvailable)

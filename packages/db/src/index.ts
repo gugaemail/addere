@@ -24,3 +24,7 @@ export type {
   PilotFeedback,
 } from '@prisma/client'
 export { Role, OrderStatus, PilotEventType, PilotStatus } from '@prisma/client'
+
+// Catálogo de permissões (fonte única para seed, migrations e API)
+export type { PermissionDefinition } from './permission-catalog'
+export { PERMISSIONS, DEFAULT_PERMISSIONS_BY_ROLE } from './permission-catalog'

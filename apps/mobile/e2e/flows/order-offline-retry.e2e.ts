@@ -1,11 +1,11 @@
 import { by, device, element, expect, waitFor } from 'detox'
-import { loginAs } from '../helpers/auth'
-import { goToPedidos } from '../helpers/navigation'
+import { launchFreshApp, loginAs } from '../helpers/auth'
+import { fillOrderWizard, goToPedidos } from '../helpers/navigation'
 import { adbShell, goOffline, goOnline } from '../helpers/network'
 
 describe('Reenvio manual de pedido com erro', () => {
   beforeAll(async () => {
-    await device.launchApp({ newInstance: true })
+    await launchFreshApp()
     await loginAs('rep')
   })
 
@@ -16,17 +16,12 @@ describe('Reenvio manual de pedido com erro', () => {
     await goToPedidos()
 
     await element(by.id('btn-novo-pedido')).tap()
-    await element(by.id('input-busca-cliente')).typeText('Cliente Teste')
-    await element(by.id('resultado-cliente-0')).tap()
-    await element(by.id('btn-adicionar-produto-0')).tap()
-    await element(by.id('produto-0')).tap()
-    await element(by.id('btn-proximo-step')).tap()
-    await element(by.id('btn-confirmar-pedido')).tap()
+    await fillOrderWizard()
 
-    await waitFor(element(by.label('Pedido salvo offline')))
+    await waitFor(element(by.text('Pedido salvo offline')))
       .toBeVisible()
       .withTimeout(3000)
-    await element(by.label('OK')).tap()
+    await element(by.text('OK')).tap()
 
     // Navegar para pendentes
     await element(by.id('sync-status-pending')).tap()

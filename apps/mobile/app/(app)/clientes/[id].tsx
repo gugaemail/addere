@@ -3,6 +3,12 @@ import { useLocalSearchParams, Stack, useRouter } from 'expo-router'
 import { ChevronRight, Phone } from 'lucide-react-native'
 import * as Clipboard from 'expo-clipboard'
 import { useCliente } from '../../../src/hooks/useClientes'
+import { useIntelEnabled } from '../../../src/hooks/useIntelEnabled'
+import { useBriefing } from '../../../src/hooks/useIntel'
+import { BeforeEnterCard } from '../../../src/components/intel/BeforeEnterCard'
+import { CustomerWindowsCard } from '../../../src/components/intel/CustomerWindowsCard'
+import { StatusPill } from '../../../src/components/intel/StatusPill'
+import { SyncPill } from '../../../src/components/intel/SyncPill'
 import { useFieldVisible } from '../../../src/hooks/useFieldConfig'
 import { LoadingState } from '../../../src/components/Skeleton'
 import { Badge } from '../../../src/components/ui/Badge'
@@ -112,6 +118,13 @@ export default function ClienteDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>()
   const router = useRouter()
   const { data: customer, isLoading, error } = useCliente(id)
+  // Antes de entrar (E13): sinais do motor quando a Inteligência está ligada
+  const intelEnabled = useIntelEnabled()
+  const briefing = useBriefing(
+    customer?.protheusCode ?? '',
+    customer?.loja ?? '01',
+    intelEnabled && !!customer?.protheusCode
+  )
   const showDocument = useFieldVisible('customer.document')
   const showEmail = useFieldVisible('customer.email')
   const showPhone = useFieldVisible('customer.phone')
@@ -136,6 +149,17 @@ export default function ClienteDetailScreen() {
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={{ padding: spacing.md }}>
+      {intelEnabled && briefing.data && (
+        <View style={{ gap: spacing.sm, marginBottom: spacing.md }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
+            <StatusPill status={briefing.data.signals.status} />
+            <View style={{ marginLeft: 'auto' }}>
+              <SyncPill />
+            </View>
+          </View>
+          <BeforeEnterCard signals={briefing.data.signals} agentText={briefing.data.text} />
+        </View>
+      )}
       <Stack.Screen options={{ title: customer.name }} />
 
       <Card style={styles.section}>
@@ -158,6 +182,11 @@ export default function ClienteDetailScreen() {
         {showXcodemp && <InfoRow label="Filial de faturamento" value={customer.xcodemp} />}
         {customer.protheusCode && <InfoRow label="Cód. Protheus" value={customer.protheusCode} />}
       </Card>
+
+      {/* Janelas de atendimento (E16): só com a Inteligência ligada e código Protheus */}
+      {intelEnabled && customer.protheusCode && (
+        <CustomerWindowsCard customerCode={customer.protheusCode} loja={customer.loja ?? '01'} />
+      )}
 
       <Text style={styles.sectionTitle}>Pedidos ({orders.length})</Text>
       {orders.length === 0 ? (
