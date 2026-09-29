@@ -144,6 +144,11 @@ async function main(): Promise<void> {
       where: { companyId_loja_protheusCode: { companyId: company.id, loja, protheusCode: code } },
       update: {
         name: String(c.cliente_nome),
+        // O documento também é reescrito: deixá-lo só no `create` congelava o
+        // CNPJ do primeiro seed, e mudar o gerador não chegava em quem já
+        // existia. A troca é segura porque os 40 documentos são distintos
+        // entre si e não colidem com os do seed anterior.
+        document: String(c.cnpj),
         address: String(c.endereco),
         municipio: String(c.cidade),
         bairro: String(c.bairro),
