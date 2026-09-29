@@ -27,13 +27,93 @@ function ymd(date: Date): string {
 }
 
 const CITIES: [string, string, string][] = [
-  ['Recife', 'PE', 'Boa Viagem'],
-  ['Recife', 'PE', 'Piedade'],
-  ['Recife', 'PE', 'Afogados'],
-  ['Olinda', 'PE', 'Casa Caiada'],
+  ['Campinas', 'SP', 'Cambuí'],
+  ['Campinas', 'SP', 'Barão Geraldo'],
+  ['Valinhos', 'SP', 'Centro'],
+  ['Vinhedo', 'SP', 'Capela'],
 ]
 
-const GROUPS = ['ALIMENTOS', 'LIMPEZA', 'BEBIDAS', 'HIGIENE']
+const STREETS = [
+  'Av. Francisco Glicério',
+  'R. Barão de Jaguara',
+  'Av. Orosimbo Maia',
+  'R. Conceição',
+  'Av. Andrade Neves',
+  'R. Dr. Quirino',
+  'Av. Aquidabã',
+  'R. General Osório',
+]
+
+// Elenco fictício: nenhum nome aqui existe. O dataset alimenta o tenant de
+// demonstração, que vira screenshot de loja e conta do revisor da Apple — dado
+// de cliente real não pode chegar em nenhum dos dois.
+const CUSTOMER_NAMES = [
+  'Mercado Dona Nair',
+  'Empório Vale Verde',
+  'Mercado Vila Nova',
+  'Supermercado Boa Colheita',
+  'Armazém São Lucas',
+  'Mercearia do Tião',
+  'Atacado Primavera',
+  'Casa das Embalagens Aurora',
+  'Distribuidora Céu Azul',
+  'Mercado Ponto Certo',
+  'Empório Terra Boa',
+  'Supermercado Jardim Real',
+  'Mercearia Flor de Liz',
+  'Atacadão Bom Preço Lagoa',
+  'Mercado São Benedito',
+  'Empório da Serra',
+  'Padaria Pão de Ouro',
+  'Mercado Recanto Feliz',
+  'Casa Nova Alimentos',
+  'Distribuidora Monte Alto',
+  'Mercado Estrela do Norte',
+  'Empório Raiz Forte',
+  'Supermercado Vista Alegre',
+  'Mercearia Santa Rita',
+  'Atacado Rio Claro',
+  'Mercado Bela Vista',
+  'Empório Cantinho Bom',
+  'Adega Sol Poente',
+  'Mercado Nova Aurora',
+  'Distribuidora Passo Largo',
+  'Mercearia do Zé',
+  'Supermercado Campo Belo',
+  'Empório Boa Safra',
+  'Mercado Sete Colinas',
+  'Casa do Produtor',
+  'Atacado Vale do Sol',
+  'Mercado Girassol',
+  'Empório Luar',
+  'Mercearia Bom Retiro',
+  'Distribuidora Horizonte',
+]
+
+// Descrição e grupo andam juntos: com `GROUPS[i % 4]` o "Produto 7" caía em
+// BEBIDAS sem nada a ver, e o mix sugerido da visita ficava incoerente na tela.
+const PRODUCTS: [string, string][] = [
+  ['Arroz Tipo 1 5kg', 'ALIMENTOS'],
+  ['Feijão Carioca 1kg', 'ALIMENTOS'],
+  ['Macarrão Espaguete 500g', 'ALIMENTOS'],
+  ['Açúcar Refinado 1kg', 'ALIMENTOS'],
+  ['Óleo de Soja 900ml', 'ALIMENTOS'],
+  ['Detergente Neutro 500ml', 'LIMPEZA'],
+  ['Água Sanitária 1L', 'LIMPEZA'],
+  ['Sabão em Pó 1kg', 'LIMPEZA'],
+  ['Desinfetante Lavanda 2L', 'LIMPEZA'],
+  ['Esponja Multiuso 4un', 'LIMPEZA'],
+  ['Refrigerante Cola 2L', 'BEBIDAS'],
+  ['Suco de Uva Integral 1L', 'BEBIDAS'],
+  ['Água Mineral 500ml', 'BEBIDAS'],
+  ['Cerveja Pilsen 350ml', 'BEBIDAS'],
+  ['Energético 250ml', 'BEBIDAS'],
+  ['Sabonete Glicerina 90g', 'HIGIENE'],
+  ['Papel Higiênico 4un', 'HIGIENE'],
+  ['Creme Dental 90g', 'HIGIENE'],
+  ['Shampoo 350ml', 'HIGIENE'],
+  ['Desodorante Aerosol 150ml', 'HIGIENE'],
+]
 
 export type MockDataset = Record<IntelQueryName, SqlRow[]>
 
@@ -48,17 +128,13 @@ export function generateMockDataset(companyId: string, referenceDate: Date): Moc
   const today = new Date(referenceDate)
 
   // ─── Produtos (20) ───
-  const products: SqlRow[] = []
-  for (let i = 1; i <= 20; i++) {
-    const code = `P${String(i).padStart(3, '0')}`
-    products.push({
-      produto_cod: code,
-      produto_desc: `Produto ${i}`,
-      grupo: GROUPS[i % GROUPS.length],
-      ativo: 'S',
-      preco_tabela: Math.round((5 + rand() * 95) * 100) / 100,
-    })
-  }
+  const products: SqlRow[] = PRODUCTS.map(([desc, grupo], i) => ({
+    produto_cod: `P${String(i + 1).padStart(3, '0')}`,
+    produto_desc: desc,
+    grupo,
+    ativo: 'S',
+    preco_tabela: Math.round((5 + rand() * 95) * 100) / 100,
+  }))
 
   // ─── Clientes (40) com perfil de ciclo ───
   const customers: SqlRow[] = []
@@ -89,13 +165,13 @@ export function generateMockDataset(companyId: string, referenceDate: Date): Moc
     customers.push({
       cliente_cod: code,
       cliente_loja: '01',
-      cliente_nome: `Cliente ${i} ${city}`,
+      cliente_nome: CUSTOMER_NAMES[i - 1],
       vendedor_cod: i % 2 === 0 ? '000001' : '000002',
       cidade: city,
       uf,
       bairro: district,
-      endereco: `Rua ${i}, ${100 + i}`,
-      cep: `51020${String(100 + i)}`,
+      endereco: `${STREETS[i % STREETS.length]}, ${100 + i * 7}`,
+      cep: `130${String(10 + (i % 80)).padStart(2, '0')}${String(100 + i)}`,
       cnpj: `000000000001${String(i).padStart(2, '0')}`,
       bloqueado: profile === 'blocked' ? '1' : '2',
       limite_credito: Math.round(ticketBase * 3 * 100) / 100,
