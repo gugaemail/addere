@@ -15,6 +15,8 @@ import { protheusPost } from '../../sync/protheus.client'
 import { getCredentials } from '../../sync/utils'
 import { logProtheusCall } from '../../sync/protheus-logger'
 import { generateMockDataset } from './mock-dataset'
+import { env } from '../../../lib/env'
+import { isDemoTenant } from '../demo-tenant'
 
 export type SqlRow = Record<string, string | number | null>
 
@@ -262,4 +264,17 @@ export class MockSqlAdapter implements SqlApiAdapter {
 
 export function getSqlAdapter(kind: 'protheus' | 'mock'): SqlApiAdapter {
   return kind === 'mock' ? new MockSqlAdapter() : new ProtheusSqlAdapter()
+}
+
+/**
+ * Adapter da empresa: sintético para o tenant de demonstração, senão o que o
+ * ambiente manda. A escolha é por empresa porque o mesmo servidor atende a
+ * demonstração e as empresas reais — `INTEL_SQL_ADAPTER=mock` global falsearia
+ * os dados de todo mundo.
+ */
+export function resolveSqlAdapter(
+  company: { intelligenceConfig?: unknown },
+  fallback: 'protheus' | 'mock' = env.INTEL_SQL_ADAPTER
+): SqlApiAdapter {
+  return getSqlAdapter(isDemoTenant(company) ? 'mock' : fallback)
 }

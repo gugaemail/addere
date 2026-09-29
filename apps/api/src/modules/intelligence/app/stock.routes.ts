@@ -5,14 +5,13 @@ import { FastifyInstance } from 'fastify'
 import { z } from 'zod'
 import { prisma } from '@addere/db'
 import type { StockDto } from '@addere/types'
-import { env } from '../../../lib/env'
 import { authenticate } from '../../../middleware/authenticate'
 import { requireCompany } from '../../../middleware/require-company'
 import { requireVendorCode } from '../../../middleware/require-vendor-code'
 import { userRateLimit } from '../../../lib/rate-limit'
 import { QUERY_CONTRACTS } from '../protheus-sql/contracts'
 import { substitutePlaceholders } from '../protheus-sql/placeholders'
-import { getSqlAdapter } from '../protheus-sql/sql-api.adapter'
+import { resolveSqlAdapter } from '../protheus-sql/sql-api.adapter'
 
 const LIVE_TIMEOUT_MS = 8_000
 const CACHE_MS = 10 * 60_000
@@ -84,7 +83,7 @@ async function liveStock(companyId: string, productCode: string): Promise<StockD
   if (substituted.errors.length > 0) return null
 
   try {
-    const result = await getSqlAdapter(env.INTEL_SQL_ADAPTER).run(company, substituted.sql, {
+    const result = await resolveSqlAdapter(company).run(company, substituted.sql, {
       queryName: QUERY_CONTRACTS.STOCK.name,
       timeoutMs: LIVE_TIMEOUT_MS,
       maxRows: 50,

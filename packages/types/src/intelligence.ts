@@ -186,6 +186,12 @@ export interface IntelligenceConfig {
   defaultTone: 'informal' | 'formal' // tom padrão das mensagens
   retentionDays: number // retenção de textos (D4)
   lgpdNoticeAcceptedAt: string | null
+  /**
+   * Empresa de demonstração: dados sintéticos de ponta a ponta, sem Protheus e
+   * sem geocoder externo. Serve os screenshots da loja e a conta do revisor da
+   * Apple. Ligar isto numa empresa real troca a carteira dela por dados falsos.
+   */
+  demoData: boolean
 }
 
 export const DEFAULT_INTELLIGENCE_CONFIG: IntelligenceConfig = {
@@ -194,6 +200,7 @@ export const DEFAULT_INTELLIGENCE_CONFIG: IntelligenceConfig = {
   defaultTone: 'informal',
   retentionDays: 365,
   lgpdNoticeAcceptedAt: null,
+  demoData: false,
 }
 
 // ═══ Parte 2 (motor, plano e execução; plano E1c) ═══
