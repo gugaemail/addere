@@ -26,6 +26,23 @@ function ymd(date: Date): string {
   return date.toISOString().slice(0, 10).replace(/-/g, '')
 }
 
+// Documento e telefone saem de `i`, nunca do PRNG. Consumir rand() aqui
+// deslocaria toda a série e mudaria ciclo, ticket e histórico de cada cliente —
+// os números que já estão no banco pelo backfill deixariam de bater.
+
+/** CNPJ fictício em 14 dígitos crus (o app formata). Raiz diferente por cliente
+ *  para não parecerem filiais da mesma empresa; os verificadores não fecham. */
+function fakeCnpj(i: number): string {
+  const root = String(10_000_000 + i * 987_654) // sempre 8 dígitos para i ≤ 40
+  return `${root}0001${String(11 + (i % 80)).padStart(2, '0')}`
+}
+
+/** Fixo de Campinas, no mesmo formato que `buildPhone` grava o do Protheus. */
+function fakePhone(i: number): string {
+  const line = String(30_000_000 + i * 123_457)
+  return `(19) ${line.slice(0, 4)}-${line.slice(4, 8)}`
+}
+
 const CITIES: [string, string, string][] = [
   ['Campinas', 'SP', 'Cambuí'],
   ['Campinas', 'SP', 'Barão Geraldo'],
@@ -172,7 +189,8 @@ export function generateMockDataset(companyId: string, referenceDate: Date): Moc
       bairro: district,
       endereco: `${STREETS[i % STREETS.length]}, ${100 + i * 7}`,
       cep: `130${String(10 + (i % 80)).padStart(2, '0')}${String(100 + i)}`,
-      cnpj: `000000000001${String(i).padStart(2, '0')}`,
+      cnpj: fakeCnpj(i),
+      telefone: fakePhone(i),
       bloqueado: profile === 'blocked' ? '1' : '2',
       limite_credito: Math.round(ticketBase * 3 * 100) / 100,
       segmento: i % 3 === 0 ? 'atacado' : 'varejo',
