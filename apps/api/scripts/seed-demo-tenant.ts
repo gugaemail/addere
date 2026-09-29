@@ -21,9 +21,11 @@ import { registerIntelJobHandlers } from '../src/modules/intelligence/jobs/regis
 import { nightlyHandler } from '../src/modules/intelligence/jobs/nightly'
 
 const COMPANY_NAME = 'Addere Demonstração'
-// CNPJ inválido de propósito (dígitos verificadores não fecham): a empresa é
-// fictícia e não pode colidir com nenhuma real, que o campo exige ser única.
-const COMPANY_CNPJ = '00.000.000/0001-00'
+// CNPJ inválido de propósito (dígitos verificadores não fecham) e diferente do
+// 00.000.000/0001-00 que o `prisma db seed` dá à "Empresa Demonstração" — essa
+// está ligada no Protheus real, e reaproveitar o CNPJ dela trocaria a carteira
+// de um cliente de verdade por dados sintéticos.
+const COMPANY_CNPJ = '99.999.999/0001-99'
 const BRANCH_PROTHEUS = '0101'
 // Os dois códigos que o mock-dataset distribui entre os 40 clientes; sem um
 // usuário com cada um, metade da carteira fica sem dono e não entra em plano.
@@ -41,22 +43,28 @@ async function main(): Promise<void> {
   const passwordHash = await bcrypt.hash(password, 10)
 
   // ─── Empresa ───
-  const existing = await prisma.company.findFirst({ where: { name: COMPANY_NAME } })
+  // A chave é o CNPJ, não o nome: renomear a empresa no painel não pode fazer
+  // o script criar uma segunda. Mas se o CNPJ já for de outra empresa, aborta —
+  // ligar demoData numa empresa real apagaria a carteira dela da tela do
+  // vendedor, e um seed não tem o direito de fazer isso sem ninguém pedir.
+  const existing = await prisma.company.findUnique({ where: { cnpj: COMPANY_CNPJ } })
+  if (existing && existing.name !== COMPANY_NAME) {
+    throw new Error(
+      `CNPJ ${COMPANY_CNPJ} já pertence a "${existing.name}" — abortado para não converter empresa real em sintética`
+    )
+  }
   const intelligenceConfig = { ...DEFAULT_INTELLIGENCE_CONFIG, demoData: true }
-  const company = existing
-    ? await prisma.company.update({
-        where: { id: existing.id },
-        data: { active: true, intelligenceEnabled: true, intelligenceConfig },
-      })
-    : await prisma.company.create({
-        data: {
-          name: COMPANY_NAME,
-          cnpj: COMPANY_CNPJ,
-          active: true,
-          intelligenceEnabled: true,
-          intelligenceConfig,
-        },
-      })
+  const company = await prisma.company.upsert({
+    where: { cnpj: COMPANY_CNPJ },
+    update: { name: COMPANY_NAME, active: true, intelligenceEnabled: true, intelligenceConfig },
+    create: {
+      name: COMPANY_NAME,
+      cnpj: COMPANY_CNPJ,
+      active: true,
+      intelligenceEnabled: true,
+      intelligenceConfig,
+    },
+  })
   log(`empresa ${company.name} (${company.id}) — demoData ligado`)
 
   // ─── Filial ───
