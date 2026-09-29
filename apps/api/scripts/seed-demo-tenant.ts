@@ -151,6 +151,7 @@ async function main(): Promise<void> {
         cep: String(c.cep),
         vendorCode: String(c.vendedor_cod),
         msblql: String(c.bloqueado),
+        phone: String(c.telefone),
         active: true,
       },
       create: {
@@ -166,6 +167,7 @@ async function main(): Promise<void> {
         cep: String(c.cep),
         vendorCode: String(c.vendedor_cod),
         msblql: String(c.bloqueado),
+        phone: String(c.telefone),
       },
     })
   }
