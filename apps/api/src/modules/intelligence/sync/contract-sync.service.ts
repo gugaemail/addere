@@ -5,13 +5,12 @@
 import { prisma } from '@addere/db'
 import type { Company, Prisma } from '@prisma/client'
 import type { IntelQueryName } from '@addere/types'
-import { env } from '../../../lib/env'
 import { unprocessable } from '../../../lib/errors'
 import { toStr, toNum, parseProtheusDate } from '../../sync/utils'
 import { QUERY_CONTRACTS } from '../protheus-sql/contracts'
 import { substitutePlaceholders } from '../protheus-sql/placeholders'
 import { buildPlaceholderValues } from '../protheus-sql/placeholder-values'
-import { getSqlAdapter, type SqlRow } from '../protheus-sql/sql-api.adapter'
+import { resolveSqlAdapter, type SqlRow } from '../protheus-sql/sql-api.adapter'
 import { upsertChunked } from '../../sync/upsert-chunked'
 import { incrementalWindow, type DateWindow } from './windows'
 
@@ -145,7 +144,7 @@ async function fetchContractRows(
   const allErrors = [...errors, ...substituted.errors]
   if (allErrors.length > 0) throw unprocessable(allErrors.join('; '))
 
-  const adapter = getSqlAdapter(env.INTEL_SQL_ADAPTER)
+  const adapter = resolveSqlAdapter(company)
   const result = await adapter.run(company, substituted.sql, { queryName: name, timeoutMs })
   return { rows: result.rows, ms: result.ms }
 }

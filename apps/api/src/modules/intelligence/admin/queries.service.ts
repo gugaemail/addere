@@ -19,7 +19,8 @@ import { validateSql } from '../protheus-sql/sql-guard'
 import { substitutePlaceholders, formatDateYmdSaoPaulo } from '../protheus-sql/placeholders'
 import { buildPlaceholderValues } from '../protheus-sql/placeholder-values'
 import { periodWindow, type DateWindow } from '../sync/windows'
-import { getSqlAdapter, resolveSqlApiConfig, type SqlRow } from '../protheus-sql/sql-api.adapter'
+import { resolveSqlAdapter, resolveSqlApiConfig, type SqlRow } from '../protheus-sql/sql-api.adapter'
+import { isDemoTenant } from '../demo-tenant'
 import { validateResultAgainstContract } from '../protheus-sql/contract-validator'
 import type { UpsertQueryInput } from './queries.schema'
 import { auditReconciliation, endpointHostOf, rowsToCsv } from './reconciliation-audit'
@@ -254,7 +255,7 @@ export async function previewQuery(
   }
 
   // 3. Execução no ERP (janela de 7 dias, 1 página)
-  const adapter = getSqlAdapter(env.INTEL_SQL_ADAPTER)
+  const adapter = resolveSqlAdapter(company)
   let ms: number
   let rows
   try {
@@ -429,7 +430,7 @@ async function runForReconciliation(
   const errors = [...valueErrors, ...substituted.errors]
   if (errors.length > 0) throw unprocessable(errors.join('; '))
 
-  const adapter = getSqlAdapter(env.INTEL_SQL_ADAPTER)
+  const adapter = resolveSqlAdapter(company)
   const result = await adapter.run(company, substituted.sql, {
     queryName: name,
     timeoutMs: RECONCILE_TIMEOUT_MS,
@@ -456,7 +457,7 @@ export async function reconcileQuery(
   const run = await runForReconciliation(company, name, period)
   const latest = (await getLatestQuery(company.id, name)) as IntelQuery
 
-  const source = env.INTEL_SQL_ADAPTER
+  const source = isDemoTenant(company) ? 'mock' : env.INTEL_SQL_ADAPTER
   const { calcAmount, audit, concreteCauses } = auditReconciliation({
     name,
     spec,

@@ -5,6 +5,7 @@ import { prisma } from '@addere/db'
 import { unprocessable } from '../../../lib/errors'
 import { env } from '../../../lib/env'
 import { registerJobHandler } from '../jobs/registry'
+import { isDemoTenant } from '../demo-tenant'
 import {
   getGeocodingProvider,
   isRetryableGeoError,
@@ -181,11 +182,14 @@ export async function runGeocoding(
 export async function geoHandler(companyId: string): Promise<GeoRunSummary> {
   const company = await prisma.company.findUnique({
     where: { id: companyId },
-    select: { intelligenceEnabled: true },
+    select: { intelligenceEnabled: true, intelligenceConfig: true },
   })
   if (!company) throw unprocessable('Empresa não encontrada')
   if (!company.intelligenceEnabled) throw unprocessable('Camada de Inteligência desligada')
-  const summary = await runGeocoding(companyId)
+  // Demonstração geocodifica pelo provider sintético: endereço inventado não
+  // merece cota do Google, e o pino precisa existir para o mapa da loja.
+  const provider = getGeocodingProvider(isDemoTenant(company) ? 'mock' : env.INTEL_GEOCODER)
+  const summary = await runGeocoding(companyId, provider)
   // Aborto sistêmico precisa marcar o passo (e o run noturno) como erro
   if (summary.aborted) {
     throw new Error(`Geocodificação abortada por falhas seguidas: ${JSON.stringify(summary)}`)

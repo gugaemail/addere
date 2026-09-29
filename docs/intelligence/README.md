@@ -128,6 +128,29 @@ npm run intel:eval -w @addere/api
 produção: o Nominatim tem limite de 1 req/s e geocodificar uma carteira inteira
 contra ele leva horas.
 
+### Tenant de demonstração (dados sintéticos em produção)
+
+As duas variáveis acima são **globais**: em produção não dá para usá-las, porque
+falseariam os dados de todas as empresas. Por isso a escolha também é por
+empresa, em `intelligenceConfig.demoData`:
+
+```bash
+DEMO_USER_PASSWORD=... npm run seed:demo -w @addere/api
+```
+
+O script cria a empresa `Addere Demonstração` com `demoData: true`, 40 clientes
+e 20 produtos fictícios, publica os contratos e roda o noturno. Com o flag
+ligado, `resolveSqlAdapter` devolve o adapter sintético e o job GEO usa o
+geocoder sintético, independentemente do que o ambiente diz.
+
+Ele existe por uma razão específica: **screenshot de loja e conta do revisor da
+Apple não podem expor cliente real**. Sem ele, a única saída seria logar o
+revisor numa empresa de verdade e entregar a carteira comercial dela.
+
+O flag é por empresa e não vaza — há teste para isso. Mas ligá-lo numa empresa
+real troca a carteira dela por dados falsos na tela do vendedor: é uma linha de
+JSON, e só deve existir na empresa de demonstração.
+
 ### Eval do agente
 
 `intel:freeze-eval` congela 20 casos pseudonimizados a partir dos sinais atuais,
