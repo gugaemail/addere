@@ -33,30 +33,49 @@ const FORBIDDEN_VALUE_PATTERNS: Array<[RegExp, string]> = [
   [/\(\d{2}\)\s?\d{4,5}-?\d{4}/, 'telefone'],
 ]
 
+/**
+ * Campos cujo valor é identificador ou data, não texto livre. Os padrões acima
+ * não se aplicam a eles.
+ *
+ * Sem essa exceção o guardrail deixa de ser rede e vira interruptor: a data do
+ * plano sai como `20260930` e o padrão de CEP (`\d{5}-?\d{3}`) casa com
+ * qualquer número de 8 dígitos, então TODO payload era reprovado e o agente
+ * nunca chegava a ser chamado. Aconteceu em produção entre 25 e 30/09/2026 —
+ * cinco dias com zero chamadas ao modelo, sem nada na tela indicando isso.
+ * Código de produto do Protheus com 8 ou 14 dígitos cairia na mesma armadilha.
+ *
+ * A força do guardrail não muda onde importa: a allowlist de chaves continua
+ * impedindo que cpf, cnpj, cep ou telefone existam como campo, e os padrões
+ * seguem valendo integralmente em texto livre (`reasons`, `shortReason`,
+ * `productDesc`), que é por onde um dado pessoal realmente vazaria.
+ */
+const CODE_LIKE_KEYS = new Set(['date', 'lastSyncAt', 'productCode', 'pseudonym'])
+
 /** Varre o payload serializado: chaves fora da allowlist e valores suspeitos. */
 export function validateFactsPayload(payload: unknown): string[] {
   const violations: string[] = []
-  const walk = (value: unknown, path: string) => {
+  const walk = (value: unknown, path: string, key: string | null) => {
     if (Array.isArray(value)) {
-      value.forEach((item, i) => walk(item, `${path}[${i}]`))
+      value.forEach((item, i) => walk(item, `${path}[${i}]`, key))
       return
     }
     if (value !== null && typeof value === 'object') {
-      for (const [key, child] of Object.entries(value)) {
-        if (!ALLOWED_FACT_KEYS.has(key)) {
-          violations.push(`chave fora da allowlist: ${path}.${key}`)
+      for (const [childKey, child] of Object.entries(value)) {
+        if (!ALLOWED_FACT_KEYS.has(childKey)) {
+          violations.push(`chave fora da allowlist: ${path}.${childKey}`)
         }
-        walk(child, `${path}.${key}`)
+        walk(child, `${path}.${childKey}`, childKey)
       }
       return
     }
     if (typeof value === 'string') {
+      if (key !== null && CODE_LIKE_KEYS.has(key)) return
       for (const [pattern, label] of FORBIDDEN_VALUE_PATTERNS) {
         if (pattern.test(value)) violations.push(`valor com cara de ${label} em ${path}`)
       }
     }
   }
-  walk(payload, '$')
+  walk(payload, '$', null)
   return violations
 }
 
