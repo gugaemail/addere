@@ -231,7 +231,7 @@ export default function SaudePage() {
 
       {/* Corrigir no Protheus */}
       <section>
-        <div className="mb-2 flex items-center justify-between gap-3">
+        <div className="mb-2 flex flex-wrap items-center justify-between gap-3">
           <h2 className="text-sm font-semibold text-[var(--text-primary)]">
             Corrigir no Protheus ({data.fixes.length})
           </h2>

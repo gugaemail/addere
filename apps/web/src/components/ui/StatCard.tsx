@@ -23,7 +23,7 @@ export function StatCard({ label, value, accent, text }: StatCardProps) {
   return (
     <div
       className={cn(
-        'bg-[var(--bg-surface)] rounded-xl shadow-card border border-[var(--border)] px-5 py-4',
+        'bg-[var(--bg-surface)] rounded-xl shadow-card border border-[var(--border)] px-4 py-3 sm:px-5 sm:py-4',
         accent && accentClasses[accent]
       )}
     >
