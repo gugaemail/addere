@@ -25,7 +25,7 @@ const toneClasses: Record<Tone, string> = {
 // ser julgado — só o valor e o contexto que o torna legível.
 export function KpiCard({ label, value, icon: Icon, hint, tone = 'neutral' }: KpiCardProps) {
   return (
-    <div className="rounded-xl border border-[var(--border)] bg-[var(--bg-surface)] px-5 py-4 shadow-card">
+    <div className="rounded-xl border border-[var(--border)] bg-[var(--bg-surface)] px-4 py-3 shadow-card sm:px-5 sm:py-4">
       <span className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-[var(--text-muted)]">
         {Icon && <Icon size={14} strokeWidth={1.5} aria-hidden />}
         {label}

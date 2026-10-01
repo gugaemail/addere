@@ -75,7 +75,7 @@ function PilotList() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-[var(--text-primary)]">Pilotos comerciais</h1>
           <p className="text-sm text-[var(--text-muted)] mt-1">
@@ -105,7 +105,7 @@ function PilotList() {
         <div className="grid gap-4">
           {pilots?.map((pilot) => (
             <Card key={pilot.id} className="p-5">
-              <div className="flex items-start justify-between">
+              <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="flex-1">
                   <div className="flex items-center gap-3 mb-1">
                     <h3 className="font-semibold text-[var(--text-primary)]">{pilot.clientName}</h3>
@@ -114,7 +114,7 @@ function PilotList() {
                   <p className="text-sm text-[var(--text-secondary)]">
                     {pilot.company.name} · {pilot.company.cnpj}
                   </p>
-                  <div className="flex items-center gap-4 mt-3 text-xs text-[var(--text-muted)]">
+                  <div className="flex flex-wrap items-center gap-4 mt-3 text-xs text-[var(--text-muted)]">
                     <span className="flex items-center gap-1">
                       <Clock size={12} strokeWidth={1.5} />
                       {new Date(pilot.startDate).toLocaleDateString('pt-BR')} →{' '}
@@ -127,7 +127,7 @@ function PilotList() {
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2 ml-4">
+                <div className="flex items-center gap-2">
                   {pilot.status === 'ACTIVE' && (
                     <>
                       <Button
@@ -412,7 +412,7 @@ function PilotDetail({ pilotId }: { pilotId: string }) {
   return (
     <div className="space-y-8">
       {/* Header */}
-      <div className="flex items-start justify-between">
+      <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <Button
             variant="ghost"

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { Toaster } from 'sonner'
@@ -10,6 +10,7 @@ import {
   BarChart3,
   Database,
   LogOut,
+  Menu,
   Moon,
   Route,
   Settings,
@@ -18,9 +19,11 @@ import {
   Sun,
   TrendingDown,
   Users,
+  X,
   type LucideIcon,
 } from 'lucide-react'
 import { clearAccessToken } from '@/lib/api'
+import { cn } from '@/lib/utils'
 import { useTheme } from '../theme-provider'
 import { useAuth } from '@/contexts/AuthContext'
 import { useCompanyContext } from '@/contexts/CompanyContext'
@@ -179,6 +182,13 @@ function CompanySelector() {
   )
 }
 
+// Wordmark ao lado da logo (sidebar e barra superior do celular)
+const WORDMARK_STYLE: React.CSSProperties = {
+  fontFamily: 'var(--font-heading), sans-serif',
+  fontSize: 16,
+  letterSpacing: '-0.02em',
+}
+
 // Classe base dos itens da sidebar (fundo navy fixo nos dois temas)
 const SIDEBAR_ITEM =
   'w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-colors'
@@ -190,6 +200,19 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const { user, isLoading, isAdmin, isSuperAdmin, hasPermission, logout } = useAuth()
 
   const navGroups = filterNavGroups(NAV_GROUPS, { isSuperAdmin, isAdmin, hasPermission })
+
+  // Abaixo de lg a sidebar vira gaveta e começa fechada: no celular ela
+  // ocupava 224 px fixos e sobrava menos da metade da tela para o conteúdo.
+  const [menuOpen, setMenuOpen] = useState(false)
+
+  useEffect(() => {
+    if (!menuOpen) return
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setMenuOpen(false)
+    }
+    document.addEventListener('keydown', handler)
+    return () => document.removeEventListener('keydown', handler)
+  }, [menuOpen])
 
   // E9: sessão sem acesso ao painel volta ao login — inclusive quando o
   // restore falhou (user null): sem isso a página vira casca morta sem menu
@@ -218,21 +241,40 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   return (
     <div className="min-h-screen flex bg-[var(--bg-page)]">
-      {/* Sidebar — navy da marca nos dois temas */}
-      <aside className="w-56 bg-navy dark:bg-[var(--bg-page)] text-white flex flex-col border-r border-white/5 shrink-0">
+      {/* Fundo escurecido atrás da gaveta — tocar nele fecha o menu */}
+      {menuOpen && (
+        <div
+          className="fixed inset-0 z-30 bg-black/50 lg:hidden"
+          onClick={() => setMenuOpen(false)}
+          aria-hidden
+        />
+      )}
+
+      {/* Sidebar — navy da marca nos dois temas. Abaixo de lg é uma gaveta
+          fixa que desliza da esquerda; a partir de lg volta a ser a coluna
+          de sempre (static, sem transform). */}
+      <aside
+        id="admin-sidebar"
+        className={cn(
+          'fixed inset-y-0 left-0 z-40 w-64 overflow-y-auto bg-navy dark:bg-[var(--bg-page)] text-white flex flex-col border-r border-white/5 shrink-0 transition-transform duration-200',
+          'lg:static lg:z-auto lg:w-56 lg:translate-x-0',
+          menuOpen ? 'translate-x-0' : '-translate-x-full'
+        )}
+      >
         {/* Logo */}
         <div className="px-5 py-4 border-b border-white/5 flex items-center gap-2">
           <Logo size={28} />
-          <span
-            style={{
-              fontFamily: 'var(--font-heading), sans-serif',
-              fontSize: 16,
-              letterSpacing: '-0.02em',
-            }}
-            className="font-bold text-white"
-          >
+          <span style={WORDMARK_STYLE} className="font-bold text-white">
             addere
           </span>
+          <button
+            type="button"
+            onClick={() => setMenuOpen(false)}
+            aria-label="Fechar menu"
+            className="ml-auto rounded-lg p-1.5 text-white/60 hover:bg-white/5 hover:text-white lg:hidden"
+          >
+            <X size={18} strokeWidth={1.5} aria-hidden />
+          </button>
         </div>
 
         {/* Seletor de tenant (SUPERADMIN) */}
@@ -252,6 +294,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   <Link
                     key={item.href}
                     href={item.href}
+                    onClick={() => setMenuOpen(false)}
                     className={`${SIDEBAR_ITEM} ${
                       active
                         ? 'bg-white/10 text-white font-medium'
@@ -291,19 +334,39 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         </div>
       </aside>
 
-      {/* Conteúdo */}
-      {/* Enquanto a sessão é restaurada (reload/link direto) as páginas não
-          montam: suas queries sairiam sem token, cairiam em 401 e disputariam
-          o refresh com o AuthContext. */}
-      <main className="flex-1 overflow-auto p-8">
-        {isLoading ? (
-          <div className="flex justify-center pt-24">
-            <Spinner size="lg" />
-          </div>
-        ) : (
-          children
-        )}
-      </main>
+      {/* Coluna de conteúdo */}
+      <div className="flex min-w-0 flex-1 flex-col">
+        {/* Barra superior do celular: o único jeito de abrir o menu abaixo de lg */}
+        <header className="sticky top-0 z-20 flex items-center gap-3 border-b border-[var(--border)] bg-[var(--bg-surface)] px-4 py-3 lg:hidden">
+          <button
+            type="button"
+            onClick={() => setMenuOpen(true)}
+            aria-label="Abrir menu"
+            aria-controls="admin-sidebar"
+            aria-expanded={menuOpen}
+            className="rounded-lg p-1.5 text-[var(--text-secondary)] hover:bg-[var(--bg-subtle)] hover:text-[var(--text-primary)]"
+          >
+            <Menu size={20} strokeWidth={1.5} aria-hidden />
+          </button>
+          <Logo size={24} />
+          <span style={WORDMARK_STYLE} className="font-bold text-[var(--text-primary)]">
+            addere
+          </span>
+        </header>
+
+        {/* Enquanto a sessão é restaurada (reload/link direto) as páginas não
+            montam: suas queries sairiam sem token, cairiam em 401 e disputariam
+            o refresh com o AuthContext. */}
+        <main className="flex-1 overflow-auto p-4 sm:p-6 lg:p-8">
+          {isLoading ? (
+            <div className="flex justify-center pt-24">
+              <Spinner size="lg" />
+            </div>
+          ) : (
+            children
+          )}
+        </main>
+      </div>
 
       {/* Toasts de feedback (sonner) */}
       <Toaster richColors position="top-right" theme={theme === 'dark' ? 'dark' : 'light'} />

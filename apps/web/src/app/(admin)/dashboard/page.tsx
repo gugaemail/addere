@@ -106,7 +106,7 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-bold tracking-tight text-[var(--text-primary)]">Empresas</h1>
         <Button onClick={() => setShowModal(true)} leftIcon={Plus}>
           Nova empresa
@@ -115,13 +115,13 @@ export default function DashboardPage() {
 
       {/* Cards resumo */}
       {isLoading ? (
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid gap-4 sm:grid-cols-3">
           {[0, 1, 2].map((i) => (
             <StatCardSkeleton key={i} />
           ))}
         </div>
       ) : (
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid gap-4 sm:grid-cols-3">
           <StatCard label="Total de empresas" value={companies.length} accent="brand" />
           <StatCard
             label="Ativas"

@@ -40,7 +40,7 @@ export function Table<T>({
         <thead className="sticky top-0 z-10 bg-[var(--bg-subtle)]">
           <tr className="text-left text-xs uppercase tracking-wider text-[var(--text-muted)]">
             {columns.map((col) => (
-              <th key={col.key} className={cn('px-4 py-3 font-medium', col.className)}>
+              <th key={col.key} className={cn('whitespace-nowrap px-4 py-3 font-medium', col.className)}>
                 {col.header}
               </th>
             ))}

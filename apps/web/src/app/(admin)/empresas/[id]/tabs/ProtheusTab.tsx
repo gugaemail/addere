@@ -232,7 +232,7 @@ export function ProtheusTab({ company }: { company: CompanyDetail }) {
       <div className="rounded-xl border border-[var(--border)] bg-[var(--bg-surface)] overflow-hidden">
         <CardHeader title="Produtos" />
         <div className="p-4">
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="border border-[var(--border)] rounded-lg p-3 flex flex-col justify-between gap-3">
               <div>
                 <p className="text-sm font-medium text-[var(--text-primary)]">Testar API</p>
@@ -289,7 +289,7 @@ export function ProtheusTab({ company }: { company: CompanyDetail }) {
       <div className="rounded-xl border border-[var(--border)] bg-[var(--bg-surface)] overflow-hidden">
         <CardHeader title="Clientes" />
         <div className="p-4">
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="border border-[var(--border)] rounded-lg p-3 flex flex-col justify-between gap-3">
               <div>
                 <p className="text-sm font-medium text-[var(--text-primary)]">Testar API</p>
