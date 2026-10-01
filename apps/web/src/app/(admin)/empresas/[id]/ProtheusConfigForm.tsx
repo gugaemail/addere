@@ -193,7 +193,7 @@ export function ProtheusConfigForm({ company, onSaved }: Props) {
             />
           </div>
 
-          <div className="border-t border-[var(--border)] pt-4 grid grid-cols-2 gap-3">
+          <div className="border-t border-[var(--border)] pt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
             <FormField
               mono
               label="Usuário Protheus"
@@ -234,7 +234,7 @@ export function ProtheusConfigForm({ company, onSaved }: Props) {
           </div>
         </form>
       ) : (
-        <div className="grid grid-cols-2 gap-4 text-sm">
+        <div className="grid grid-cols-1 gap-4 text-sm sm:grid-cols-2">
           <ConfigRow label="Token (auth) POST" value={company.apiToken} />
           <ConfigRow label="Produtos (POST)" value={company.apiPord} />
           <ConfigRow label="Clientes (POST)" value={company.apiCliente} />
