@@ -121,6 +121,8 @@ export default function VisitaScreen() {
   }, [customers, item])
   const customerPhone = item?.customerPhone ?? null
 
+  // Leva o mix junto: sem ele o formulário abria em branco e o vendedor tinha
+  // que achar cliente e produtos de novo, na frente do cliente.
   const startOrder = useCallback(() => {
     if (!customerId) {
       Alert.alert('Cliente não sincronizado', 'Abra a lista de clientes e sincronize antes de criar o pedido.')
@@ -128,9 +130,13 @@ export default function VisitaScreen() {
     }
     router.push({
       pathname: '/novo-pedido',
-      params: { customerId, visitClientId: clientIdRef.current ?? '' },
+      params: {
+        customerId,
+        visitClientId: clientIdRef.current ?? '',
+        mix: (item?.suggestedOffer ?? []).map((offer) => offer.productCode).join(','),
+      },
     })
-  }, [customerId, router])
+  }, [customerId, router, item])
 
   const conclude = useCallback(() => {
     if (!result) {
