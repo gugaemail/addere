@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import { View, Text, FlatList, StyleSheet, Alert, ScrollView } from 'react-native'
 import { useRouter, Stack } from 'expo-router'
 import { ArrowLeft, ArrowRight, Minus, Plus, Search } from 'lucide-react-native'
@@ -10,6 +10,7 @@ import { useCatalog } from '../../../src/hooks/useCatalog'
 import { useBranches } from '../../../src/hooks/useBranches'
 import { useDebouncedValue } from '../../../src/hooks/useDebounce'
 import { submitOrder, startOrderSession } from '../../../src/utils/createOrder'
+import { cartFromMix, parseMixParam } from '../../../src/utils/orderPrefill'
 import { useTransportadoras } from '../../../src/hooks/useTransportadoras'
 import { useCondPags } from '../../../src/hooks/useCondPags'
 import { useFieldVisible, useFieldRequired } from '../../../src/hooks/useFieldConfig'
@@ -62,17 +63,26 @@ function StepIndicator({ current }: { current: Step }) {
 
 // ─── Step 1: Seleção de cliente e filial ─────────────────────────────────
 
-function Step1({ onComplete }: { onComplete: (customer: Customer, branch: Branch) => void }) {
+// Cliente controlado pelo pai: vindo da Visita ele já chega escolhido (E13) e
+// o vendedor só confirma a filial.
+function Step1({
+  selectedCustomer,
+  onSelectCustomer,
+  onComplete,
+}: {
+  selectedCustomer: Customer | null
+  onSelectCustomer: (customer: Customer | null) => void
+  onComplete: (customer: Customer, branch: Branch) => void
+}) {
   const [search, setSearch] = useState('')
   const debouncedSearch = useDebouncedValue(search)
-  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null)
   const { data: customers, isLoading: loadingCustomers } = useClientes(debouncedSearch || undefined)
   const { data: branches, isLoading: loadingBranches } = useBranches()
 
   if (selectedCustomer) {
     return (
       <View style={{ flex: 1 }}>
-        <Card style={styles.selectedCard} onPress={() => setSelectedCustomer(null)}>
+        <Card style={styles.selectedCard} onPress={() => onSelectCustomer(null)}>
           <Text style={styles.selectedCardLabel}>Cliente selecionado</Text>
           <Text style={styles.selectedCardValue}>{selectedCustomer.name}</Text>
           <View style={styles.selectedCardChange}>
@@ -132,7 +142,7 @@ function Step1({ onComplete }: { onComplete: (customer: Customer, branch: Branch
             <Card
               testID={`resultado-cliente-${index}`}
               style={styles.listItem}
-              onPress={() => setSelectedCustomer(item)}
+              onPress={() => onSelectCustomer(item)}
             >
               <Text style={styles.listItemTitle}>{item.name}</Text>
               {item.document && (
@@ -536,12 +546,21 @@ export default function NovoPedidoScreen() {
   const [isPending, setIsPending] = useState(false)
   const { data: transportadoras = [] } = useTransportadoras()
   const { data: condPags = [] } = useCondPags()
+  // Mesmas chaves de cache que Step1/Step2 usam com a busca vazia — nenhuma
+  // requisição a mais, e funciona offline como o resto do formulário.
+  const { data: allCustomers } = useClientes()
+  const { data: allBranches } = useBranches()
+  const { data: allProducts } = useCatalog()
 
   // Reseta o formulário toda vez que a tela ganha foco.
   // Necessário porque o Tab Navigator mantém a tela montada em memória
   // mesmo quando não está visível (href: null no _layout).
   // Vindo da Visita (E12/E13): pré-seleciona o cliente e liga o pedido à visita
-  const visitParams = useLocalSearchParams<{ customerId?: string; visitClientId?: string }>()
+  const visitParams = useLocalSearchParams<{
+    customerId?: string
+    visitClientId?: string
+    mix?: string
+  }>()
   const cameFromVisit = !!visitParams.visitClientId
 
   useFocusEffect(
@@ -564,6 +583,52 @@ export default function NovoPedidoScreen() {
       startOrderSession()
     }, [cameFromVisit])
   )
+
+  // Pré-preenche cliente, filial e mix quando o pedido nasce de uma visita.
+  // A chave inclui o clientId da visita: abrir outra visita refaz o preenchimento
+  // em vez de reaproveitar o carrinho da anterior (a tela fica montada no tab).
+  const prefilledKeyRef = useRef<string | null>(null)
+  useEffect(() => {
+    if (!cameFromVisit || !visitParams.customerId) return
+    const key = `${visitParams.visitClientId}|${visitParams.customerId}|${visitParams.mix ?? ''}`
+    if (prefilledKeyRef.current === key) return
+
+    // Espera o que a navegação pediu: sem o cliente não há pedido, e preencher
+    // antes do catálogo deixaria o carrinho vazio sem o vendedor entender.
+    const target = allCustomers?.find((c) => c.id === visitParams.customerId)
+    if (!target || !allBranches) return
+    const codes = parseMixParam(visitParams.mix)
+    if (codes.length > 0 && !allProducts) return
+
+    prefilledKeyRef.current = key
+    const { cart: mixCart, missing } = cartFromMix(codes, allProducts ?? [])
+
+    setCustomer(target)
+    setCart(mixCart)
+    setMennota('')
+    setNotes('')
+    setIsPending(false)
+    // Uma filial só: nada a escolher, vai direto para os produtos. Com mais de
+    // uma, para no passo 1 com o cliente já marcado.
+    const onlyBranch = allBranches.length === 1 ? allBranches[0] : null
+    setBranch(onlyBranch)
+    setStep(onlyBranch ? 2 : 1)
+
+    if (missing.length > 0) {
+      Alert.alert(
+        'Parte do mix não entrou',
+        `Sem no catálogo do app: ${missing.join(', ')}. Os demais já estão no carrinho.`
+      )
+    }
+  }, [
+    cameFromVisit,
+    visitParams.customerId,
+    visitParams.visitClientId,
+    visitParams.mix,
+    allCustomers,
+    allBranches,
+    allProducts,
+  ])
 
   // Auto-preenche transportadora e condPag a partir dos padrões do cliente
   useEffect(() => {
@@ -641,7 +706,13 @@ export default function NovoPedidoScreen() {
       <StepIndicator current={step} />
 
       <View style={{ flex: 1, padding: spacing.md }}>
-        {step === 1 && <Step1 onComplete={handleStep1Complete} />}
+        {step === 1 && (
+          <Step1
+            selectedCustomer={customer}
+            onSelectCustomer={setCustomer}
+            onComplete={handleStep1Complete}
+          />
+        )}
         {step === 2 && (
           <View style={{ flex: 1 }}>
             <Step2 cart={cart} onCartChange={setCart} onBack={() => setStep(1)} />
