@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { selfCheck, extractNumbers, type SelfCheckFacts } from '../self-check'
+import { selfCheck, extractNumbers, freshnessLine, type SelfCheckFacts } from '../self-check'
 
 const facts = (over: Partial<SelfCheckFacts> = {}): SelfCheckFacts => ({
   customers: [
@@ -110,6 +110,17 @@ describe('selfCheck — rodapé de frescor', () => {
 
   it('freshnessLine=null não exige rodapé', () => {
     expect(selfCheck('C1 compra a cada 28 dias.', facts({ freshnessLine: null })).ok).toBe(true)
+  })
+
+  it('rodapé presente nunca vira número, mesmo com freshnessLine=null (job do Hoje)', () => {
+    // "03:12" → 3 e 12; 12 não está nos fatos. Era o que derrubava o Hoje em só-motor.
+    const text = `C1 compra a cada 28 dias.\n${FOOTER}`
+    expect(selfCheck(text, facts({ freshnessLine: null })).ok).toBe(true)
+  })
+
+  it('freshnessLine() é o mesmo rodapé que o prompt do Hoje exige', () => {
+    expect(freshnessLine('03:12')).toBe(FOOTER)
+    expect(freshnessLine(null)).toBe('Dados sincronizados: sem sincronização ainda')
   })
 })
 

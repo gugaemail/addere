@@ -1,6 +1,14 @@
 // Self-check determinístico da resposta do LLM (E6, doc §5.2) — puro.
 // Falhou → regenera 1×; falhou de novo → entrega só-motor (sem texto).
 
+/** Prefixo do rodapé de frescor — o prompt exige, o self-check desconta. */
+export const FRESHNESS_PREFIX = 'Dados sincronizados: '
+
+/** Rodapé exatamente como o prompt do Hoje pede ao modelo (fonte única). */
+export function freshnessLine(lastSyncAt: string | null): string {
+  return `${FRESHNESS_PREFIX}${lastSyncAt ?? 'sem sincronização ainda'}`
+}
+
 export interface SelfCheckCustomer {
   pseudonym: string // C1, C2…
   status: string // CustomerStatus
@@ -63,8 +71,12 @@ export function selfCheck(text: string, facts: SelfCheckFacts): SelfCheckResult 
     if (!known.has(pseudonym)) violations.push(`cliente inventado: ${pseudonym}`)
   }
 
-  // 2. Todo número citado existe nos fatos (tolerância de arredondamento)
-  const scannable = facts.freshnessLine ? text.replace(facts.freshnessLine, ' ') : text
+  // 2. Todo número citado existe nos fatos (tolerância de arredondamento).
+  // O rodapé de frescor sai da varredura SEMPRE, exigido ou não: "03:12"
+  // viraria os números 3 e 12, e o skill manda terminar com ele. Foi isso
+  // que deixou o Hoje em só-motor desde a v1 — o job passava freshnessLine
+  // null enquanto o prompt exigia a linha, e "12" nunca estava nos fatos.
+  const scannable = text.replace(new RegExp(`${FRESHNESS_PREFIX}[^\n]*`, 'g'), ' ')
   for (const cited of extractNumbers(scannable)) {
     if (!numberMatches(cited, facts.numbers)) {
       violations.push(`número fora dos fatos: ${cited}`)

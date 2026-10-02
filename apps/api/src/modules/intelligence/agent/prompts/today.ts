@@ -1,5 +1,6 @@
 // Prompt "Hoje" (E6, doc §5.1): 1 frase para a home + texto do plano.
 import type { TodayFacts } from '../facts'
+import { freshnessLine } from '../self-check'
 
 export const TODAY_SCHEMA = {
   type: 'object',
@@ -28,7 +29,7 @@ export function buildTodayPrompt(facts: TodayFacts): string {
     'Gere o resumo "Hoje" do vendedor a partir dos fatos abaixo.',
     'homeLine: 1 frase com o essencial (gap da meta e/ou primeira visita).',
     'planText: 2-4 frases sobre o plano do dia (agrupamento, quem priorizar e por quê).',
-    `A última linha de planText deve ser exatamente: "Dados sincronizados: ${facts.freshness.lastSyncAt ?? 'sem sincronização ainda'}".`,
+    `A última linha de planText deve ser exatamente: "${freshnessLine(facts.freshness.lastSyncAt)}".`,
     '',
     'FATOS:',
     JSON.stringify(facts),

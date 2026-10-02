@@ -11,10 +11,16 @@ import { buildTodayPrompt, TODAY_SCHEMA, type TodayOutput } from './prompts/toda
 import { buildWeekPrompt, WEEK_SCHEMA, type WeekFacts, type WeekOutput } from './prompts/week'
 import { Pseudonymizer } from './pseudonymizer'
 import type { TodayFacts } from './facts'
-import type { SelfCheckFacts } from './self-check'
+import { freshnessLine, type SelfCheckFacts } from './self-check'
 
 export function registerPlanJob(): void {
   registerJobHandler('PLAN', planSummaryHandler)
+}
+
+/** Conta motivos de fallback sem explodir cardinalidade (números viram N). */
+function countReason(reasons: Record<string, number>, reason: string | undefined): void {
+  const key = (reason ?? 'desconhecido').replace(/\d+(?:[.,]\d+)?/g, 'N').slice(0, 80)
+  reasons[key] = (reasons[key] ?? 0) + 1
 }
 
 export async function planSummaryHandler(companyId: string): Promise<unknown> {
@@ -49,6 +55,7 @@ export async function planSummaryHandler(companyId: string): Promise<unknown> {
 
   let generated = 0
   let fallback = 0
+  const reasons: Record<string, number> = {} // vai para intel_job_runs.metadata.steps
   for (const plan of plans) {
     const pseudonymizer = new Pseudonymizer()
     const customerKeys = plan.items.map((i) => `${i.customerCode}|${i.loja}`)
@@ -90,7 +97,10 @@ export async function planSummaryHandler(companyId: string): Promise<unknown> {
         ]),
         ...(facts.goal?.gap ? [Number(facts.goal.gap)] : []),
       ],
-      freshnessLine: null, // a home mostra o frescor em pill própria (E13)
+      // O prompt exige a linha; sem informá-la aqui, "03:12" virava número
+      // fora dos fatos e todo vendedor caía em só-motor (a home mostra o
+      // frescor em pill própria, mas o planText do modelo ainda termina com ela)
+      freshnessLine: freshnessLine(lastSyncAt),
     }
 
     const result = await generateWithGuardrails<TodayOutput>({
@@ -115,13 +125,14 @@ export async function planSummaryHandler(companyId: string): Promise<unknown> {
       void customerKeys
     } else {
       fallback++
+      countReason(reasons, result.reason)
     }
   }
 
   // Plano da semana (E18): uma frase-resumo por vendedor, cache diário
   const week = await summarizeWeekPlans(companyId, today, system, lastSyncAt)
 
-  return { plans: plans.length, generated, fallback, week }
+  return { plans: plans.length, generated, fallback, reasons, week }
 }
 
 /** Resumo do plano da semana (E18) — só o texto; o plano em si vem do motor. */
@@ -130,13 +141,20 @@ async function summarizeWeekPlans(
   today: string,
   system: ReturnType<typeof systemBlocks>,
   lastSyncAt: string | null
-): Promise<{ plans: number; generated: number }> {
+): Promise<{
+  plans: number
+  generated: number
+  fallback: number
+  reasons: Record<string, number>
+}> {
   const weekStart = ymdToDate(mondayOf(today))
   const plans = await prisma.visitPlan.findMany({
     where: { companyId, date: weekStart, kind: 'WEEK' },
     include: { items: { where: { removedAt: null }, orderBy: { position: 'asc' } } },
   })
   let generated = 0
+  let fallback = 0
+  const reasons: Record<string, number> = {}
   for (const plan of plans) {
     const pseudonymizer = new Pseudonymizer()
     const names = await prisma.customer.findMany({
@@ -203,7 +221,10 @@ async function summarizeWeekPlans(
         data: { llmSummary: pseudonymizer.rehydrate(result.data.weekText, nameByKey) },
       })
       generated++
+    } else {
+      fallback++
+      countReason(reasons, result.reason)
     }
   }
-  return { plans: plans.length, generated }
+  return { plans: plans.length, generated, fallback, reasons }
 }
