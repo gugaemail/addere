@@ -39,6 +39,12 @@ interface NavItem {
   match: (p: string) => boolean
   icon: LucideIcon
   requires?: NavRequirement
+  /**
+   * Destino de quem não é SUPERADMIN. "Empresas" leva o SUPERADMIN à lista e o
+   * ADMIN direto à ficha da empresa dele — não existe lista de uma empresa só.
+   * Sem companyId resolvido, o item não é renderizado.
+   */
+  hrefForCompany?: (companyId: string) => string
 }
 
 interface NavGroup {
@@ -132,11 +138,14 @@ const NAV_GROUPS: NavGroup[] = [
         requires: 'admin',
       },
       {
+        // E23: o ADMIN cadastra e confere a integração da própria empresa
+        // (filiais, clientes, produtos, pedidos, Protheus, campos e logs)
         href: '/dashboard',
         label: 'Empresas',
         match: (p) => p.startsWith('/dashboard') || p.startsWith('/empresas'),
         icon: Building2,
-        requires: 'superadmin',
+        requires: 'admin',
+        hrefForCompany: (companyId) => `/empresas/${companyId}`,
       },
       {
         href: '/piloto',
@@ -198,6 +207,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const pathname = usePathname()
   const { theme, toggle } = useTheme()
   const { user, isLoading, isAdmin, isSuperAdmin, hasPermission, logout } = useAuth()
+  const { companyId } = useCompanyContext()
 
   const navGroups = filterNavGroups(NAV_GROUPS, { isSuperAdmin, isAdmin, hasPermission })
 
@@ -288,12 +298,19 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 {group.title}
               </p>
               {group.items.map((item) => {
+                const href =
+                  item.hrefForCompany && !isSuperAdmin
+                    ? companyId
+                      ? item.hrefForCompany(companyId)
+                      : null
+                    : item.href
+                if (!href) return null
                 const active = item.match(pathname)
                 const Icon = item.icon
                 return (
                   <Link
                     key={item.href}
-                    href={item.href}
+                    href={href}
                     onClick={() => setMenuOpen(false)}
                     className={`${SIDEBAR_ITEM} ${
                       active

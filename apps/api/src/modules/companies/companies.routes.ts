@@ -1,5 +1,6 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify'
 import { authenticate, requireSuperAdmin } from '../../middleware/authenticate'
+import { requireCompanyScope } from '../../middleware/require-company'
 import {
   listCompanies,
   getCompanyById,
@@ -52,6 +53,8 @@ import { DEFAULT_SYNC_SCHEDULE } from '@addere/types'
 // resposta pelo error handler global de app.ts — as rotas não têm try/catch.
 export default async function companiesRoutes(app: FastifyInstance) {
   const superadmin = { preHandler: requireSuperAdmin }
+  // ADMIN opera a própria empresa; SUPERADMIN, qualquer uma (E23)
+  const companyScoped = { preHandler: requireCompanyScope() }
 
   // ─── Empresa ───────────────────────────────────────────────────────────────
 
@@ -67,7 +70,7 @@ export default async function companiesRoutes(app: FastifyInstance) {
   })
 
   // GET /companies/:id — detalhe da empresa (filiais + usuários)
-  app.get('/:id', superadmin, async (request: FastifyRequest, reply: FastifyReply) => {
+  app.get('/:id', companyScoped, async (request: FastifyRequest, reply: FastifyReply) => {
     const { id } = request.params as { id: string }
     return reply.send(await getCompanyById(id))
   })
@@ -87,7 +90,7 @@ export default async function companiesRoutes(app: FastifyInstance) {
   })
 
   // PATCH /companies/:id/protheus — atualiza configuração Protheus da empresa
-  app.patch('/:id/protheus', superadmin, async (request: FastifyRequest, reply: FastifyReply) => {
+  app.patch('/:id/protheus', companyScoped, async (request: FastifyRequest, reply: FastifyReply) => {
     const { id } = request.params as { id: string }
     const company = await updateCompanyProtheus(id, updateProtheusSchema.parse(request.body))
     return reply.send(company)
@@ -96,7 +99,7 @@ export default async function companiesRoutes(app: FastifyInstance) {
   // ─── Filiais ───────────────────────────────────────────────────────────────
 
   // POST /companies/:id/branches — cria filial
-  app.post('/:id/branches', superadmin, async (request: FastifyRequest, reply: FastifyReply) => {
+  app.post('/:id/branches', companyScoped, async (request: FastifyRequest, reply: FastifyReply) => {
     const { id } = request.params as { id: string }
     const branch = await createBranch(id, createBranchSchema.parse(request.body))
     return reply.status(201).send(branch)
@@ -105,7 +108,7 @@ export default async function companiesRoutes(app: FastifyInstance) {
   // PATCH /companies/:id/branches/:branchId — atualiza dados da filial
   app.patch(
     '/:id/branches/:branchId',
-    superadmin,
+    companyScoped,
     async (request: FastifyRequest, reply: FastifyReply) => {
       const { id, branchId } = request.params as { id: string; branchId: string }
       return reply.send(await updateBranch(id, branchId, updateBranchSchema.parse(request.body)))
@@ -115,7 +118,7 @@ export default async function companiesRoutes(app: FastifyInstance) {
   // PATCH /companies/:id/branches/:branchId/active — ativa/desativa filial
   app.patch(
     '/:id/branches/:branchId/active',
-    superadmin,
+    companyScoped,
     async (request: FastifyRequest, reply: FastifyReply) => {
       const { id, branchId } = request.params as { id: string; branchId: string }
       const { active } = toggleActiveSchema.parse(request.body)
@@ -126,7 +129,7 @@ export default async function companiesRoutes(app: FastifyInstance) {
   // ─── Usuários da empresa ───────────────────────────────────────────────────
 
   // POST /companies/:id/users — cria usuário na empresa
-  app.post('/:id/users', superadmin, async (request: FastifyRequest, reply: FastifyReply) => {
+  app.post('/:id/users', companyScoped, async (request: FastifyRequest, reply: FastifyReply) => {
     const { id } = request.params as { id: string }
     const input = createCompanyUserSchema.parse(request.body)
     const user = await createUser(id, input)
@@ -136,7 +139,7 @@ export default async function companiesRoutes(app: FastifyInstance) {
   // PATCH /companies/:id/users/:userId — atualiza dados do usuário
   app.patch(
     '/:id/users/:userId',
-    superadmin,
+    companyScoped,
     async (request: FastifyRequest, reply: FastifyReply) => {
       const { id, userId } = request.params as { id: string; userId: string }
       return reply.send(await updateUser(id, userId, updateCompanyUserSchema.parse(request.body)))
@@ -146,7 +149,7 @@ export default async function companiesRoutes(app: FastifyInstance) {
   // PATCH /companies/:id/users/:userId/active — ativa/desativa usuário
   app.patch(
     '/:id/users/:userId/active',
-    superadmin,
+    companyScoped,
     async (request: FastifyRequest, reply: FastifyReply) => {
       const { id, userId } = request.params as { id: string; userId: string }
       const { active } = toggleActiveSchema.parse(request.body)
@@ -157,14 +160,14 @@ export default async function companiesRoutes(app: FastifyInstance) {
   // ─── Clientes da empresa ───────────────────────────────────────────────────
 
   // GET /companies/:id/customers — clientes da empresa
-  app.get('/:id/customers', superadmin, async (request: FastifyRequest, reply: FastifyReply) => {
+  app.get('/:id/customers', companyScoped, async (request: FastifyRequest, reply: FastifyReply) => {
     const { id } = request.params as { id: string }
     const { limit, page } = listQuerySchema.parse(request.query)
     return reply.send(await listCompanyCustomers(id, limit, page))
   })
 
   // POST /companies/:id/customers — cria cliente
-  app.post('/:id/customers', superadmin, async (request: FastifyRequest, reply: FastifyReply) => {
+  app.post('/:id/customers', companyScoped, async (request: FastifyRequest, reply: FastifyReply) => {
     const { id } = request.params as { id: string }
     const customer = await createCustomer(id, createCustomerSchema.parse(request.body))
     return reply.status(201).send(customer)
@@ -173,7 +176,7 @@ export default async function companiesRoutes(app: FastifyInstance) {
   // PATCH /companies/:id/customers/:customerId — atualiza cliente
   app.patch(
     '/:id/customers/:customerId',
-    superadmin,
+    companyScoped,
     async (request: FastifyRequest, reply: FastifyReply) => {
       const { id, customerId } = request.params as { id: string; customerId: string }
       return reply.send(
@@ -185,7 +188,7 @@ export default async function companiesRoutes(app: FastifyInstance) {
   // PATCH /companies/:id/customers/:customerId/active — ativa/desativa cliente
   app.patch(
     '/:id/customers/:customerId/active',
-    superadmin,
+    companyScoped,
     async (request: FastifyRequest, reply: FastifyReply) => {
       const { id, customerId } = request.params as { id: string; customerId: string }
       const { active } = toggleActiveSchema.parse(request.body)
@@ -196,14 +199,14 @@ export default async function companiesRoutes(app: FastifyInstance) {
   // ─── Produtos da empresa ───────────────────────────────────────────────────
 
   // GET /companies/:id/products — produtos da empresa
-  app.get('/:id/products', superadmin, async (request: FastifyRequest, reply: FastifyReply) => {
+  app.get('/:id/products', companyScoped, async (request: FastifyRequest, reply: FastifyReply) => {
     const { id } = request.params as { id: string }
     const { limit, page } = listQuerySchema.parse(request.query)
     return reply.send(await listCompanyProducts(id, limit, page))
   })
 
   // POST /companies/:id/products — cria produto
-  app.post('/:id/products', superadmin, async (request: FastifyRequest, reply: FastifyReply) => {
+  app.post('/:id/products', companyScoped, async (request: FastifyRequest, reply: FastifyReply) => {
     const { id } = request.params as { id: string }
     const product = await createProduct(id, createProductSchema.parse(request.body))
     return reply.status(201).send(product)
@@ -212,7 +215,7 @@ export default async function companiesRoutes(app: FastifyInstance) {
   // PATCH /companies/:id/products/:productId — atualiza produto
   app.patch(
     '/:id/products/:productId',
-    superadmin,
+    companyScoped,
     async (request: FastifyRequest, reply: FastifyReply) => {
       const { id, productId } = request.params as { id: string; productId: string }
       return reply.send(await updateProduct(id, productId, updateProductSchema.parse(request.body)))
@@ -222,7 +225,7 @@ export default async function companiesRoutes(app: FastifyInstance) {
   // PATCH /companies/:id/products/:productId/active — ativa/desativa produto
   app.patch(
     '/:id/products/:productId/active',
-    superadmin,
+    companyScoped,
     async (request: FastifyRequest, reply: FastifyReply) => {
       const { id, productId } = request.params as { id: string; productId: string }
       const { active } = toggleActiveSchema.parse(request.body)
@@ -233,7 +236,7 @@ export default async function companiesRoutes(app: FastifyInstance) {
   // ─── Pedidos da empresa ────────────────────────────────────────────────────
 
   // GET /companies/:id/orders — pedidos da empresa
-  app.get('/:id/orders', superadmin, async (request: FastifyRequest, reply: FastifyReply) => {
+  app.get('/:id/orders', companyScoped, async (request: FastifyRequest, reply: FastifyReply) => {
     const { id } = request.params as { id: string }
     const { limit, page } = listQuerySchema.parse(request.query)
     return reply.send(await listCompanyOrders(id, limit, page))
@@ -242,7 +245,7 @@ export default async function companiesRoutes(app: FastifyInstance) {
   // PATCH /companies/:id/orders/:orderId/cancel — cancela pedido
   app.patch(
     '/:id/orders/:orderId/cancel',
-    superadmin,
+    companyScoped,
     async (request: FastifyRequest, reply: FastifyReply) => {
       const { id, orderId } = request.params as { id: string; orderId: string }
       return reply.send(await cancelOrder(id, orderId))
@@ -251,8 +254,8 @@ export default async function companiesRoutes(app: FastifyInstance) {
 
   // ─── Configurações ─────────────────────────────────────────────────────────
 
-  // GET /companies/:id/field-config — retorna config de visibilidade de uma empresa (superadmin)
-  app.get('/:id/field-config', superadmin, async (request: FastifyRequest, reply: FastifyReply) => {
+  // GET /companies/:id/field-config — config de visibilidade da empresa
+  app.get('/:id/field-config', companyScoped, async (request: FastifyRequest, reply: FastifyReply) => {
     const { id } = request.params as { id: string }
     return reply.send(await getCompanyFieldConfig(id))
   })
@@ -260,7 +263,7 @@ export default async function companiesRoutes(app: FastifyInstance) {
   // PATCH /companies/:id/field-config — admin atualiza visibilidade e obrigatoriedade de campos
   app.patch(
     '/:id/field-config',
-    superadmin,
+    companyScoped,
     async (request: FastifyRequest, reply: FastifyReply) => {
       const { id } = request.params as { id: string }
       const { hidden, required } = updateFieldConfigSchema.parse(request.body)
@@ -271,7 +274,7 @@ export default async function companiesRoutes(app: FastifyInstance) {
   // GET /companies/:id/sync-schedule — retorna configuração de agendamento
   app.get(
     '/:id/sync-schedule',
-    superadmin,
+    companyScoped,
     async (request: FastifyRequest, reply: FastifyReply) => {
       const { id } = request.params as { id: string }
       return reply.send(await getSyncSchedule(id))
@@ -281,7 +284,7 @@ export default async function companiesRoutes(app: FastifyInstance) {
   // PATCH /companies/:id/sync-schedule — salva configuração e reinicia timers
   app.patch(
     '/:id/sync-schedule',
-    superadmin,
+    companyScoped,
     async (request: FastifyRequest, reply: FastifyReply) => {
       const { id } = request.params as { id: string }
       const body = updateSyncScheduleSchema.parse(request.body)
@@ -325,7 +328,7 @@ export default async function companiesRoutes(app: FastifyInstance) {
   // GET /companies/:id/protheus-logs — lista logs de chamadas às APIs Protheus
   app.get(
     '/:id/protheus-logs',
-    superadmin,
+    companyScoped,
     async (request: FastifyRequest, reply: FastifyReply) => {
       const { id } = request.params as { id: string }
       const q = protheusLogsQuerySchema.parse(request.query)
