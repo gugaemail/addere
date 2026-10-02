@@ -997,18 +997,19 @@ model IntelFeedback {
 // ─────────────────────────────────────────
 
 model IntelLlmCache {
-  id              String   @id @default(uuid())
-  kind            String // 'today' | 'briefing' | 'message' | …
-  vendorCode      String
-  targetKey       String   @default("") // ex: customerCode:loja ou template
-  payload         Json
-  expiresAt       DateTime // expurgo no job PURGE
-  inputTokens     Int      @default(0)
-  outputTokens    Int      @default(0)
-  cacheReadTokens Int      @default(0)
-  model           String?
-  latencyMs       Int?
-  createdAt       DateTime @default(now())
+  id                  String   @id @default(uuid())
+  kind                String // 'today' | 'briefing' | 'message' | …
+  vendorCode          String
+  targetKey           String   @default("") // ex: customerCode:loja ou template
+  payload             Json
+  expiresAt           DateTime // expurgo no job PURGE
+  inputTokens         Int      @default(0)
+  outputTokens        Int      @default(0)
+  cacheReadTokens     Int      @default(0)
+  cacheCreationTokens Int      @default(0) // gravado no cache de prompt (cobrado a 1,25×)
+  model               String?
+  latencyMs           Int?
+  createdAt           DateTime @default(now())
 
   companyId String
   company   Company @relation(fields: [companyId], references: [id])

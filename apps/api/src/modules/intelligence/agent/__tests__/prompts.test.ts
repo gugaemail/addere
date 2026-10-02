@@ -3,7 +3,7 @@ import { buildTodayPrompt, TODAY_SCHEMA } from '../prompts/today'
 import { buildBriefingPrompt, BRIEFING_SCHEMA } from '../prompts/briefing'
 import { buildMessagePrompt, MESSAGE_SCHEMA } from '../prompts/message'
 import { AGENT_SKILL } from '../skill-prompt'
-import { promptVersion } from '../tenant-context'
+import { promptVersion, systemBlocks } from '../tenant-context'
 
 const customer = {
   pseudonym: 'C1',
@@ -62,5 +62,20 @@ describe('montagem de prompts (snapshot)', () => {
     expect(promptVersion()).toMatch(/^[0-9a-f]{8}$/)
     expect(AGENT_SKILL).toContain('BLOCKED')
     expect(AGENT_SKILL).toContain('C1')
+  })
+})
+
+describe('systemBlocks (cache de prompt)', () => {
+  it('um breakpoint só, no fim do prefixo', () => {
+    const blocks = systemBlocks('# DADOS.md')
+    expect(blocks.map((b) => b.text)).toEqual([AGENT_SKILL, '# DADOS.md'])
+    expect(blocks[0].cache_control).toBeUndefined()
+    expect(blocks[1].cache_control).toEqual({ type: 'ephemeral' })
+  })
+
+  it('sem contexto do tenant não entra bloco vazio', () => {
+    expect(systemBlocks('')).toEqual([
+      { type: 'text', text: AGENT_SKILL, cache_control: { type: 'ephemeral' } },
+    ])
   })
 })

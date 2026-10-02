@@ -35,11 +35,16 @@ export interface GenerateOutput<T> {
 
 export async function dailyTokensUsed(companyId: string, now: Date = new Date()): Promise<number> {
   const dayStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()))
+  // input_tokens da API exclui o que passou pelo cache de prompt. A gravação
+  // (cache_creation) é cobrada a 1,25× e conta no teto; a leitura (0,1×) fica
+  // de fora de propósito — é o desconto que o cache dá.
   const sum = await prisma.intelLlmCache.aggregate({
     where: { companyId, createdAt: { gte: dayStart } },
-    _sum: { inputTokens: true, outputTokens: true },
+    _sum: { inputTokens: true, outputTokens: true, cacheCreationTokens: true },
   })
-  return (sum._sum.inputTokens ?? 0) + (sum._sum.outputTokens ?? 0)
+  return (
+    (sum._sum.inputTokens ?? 0) + (sum._sum.outputTokens ?? 0) + (sum._sum.cacheCreationTokens ?? 0)
+  )
 }
 
 export async function generateWithGuardrails<T>(
@@ -80,7 +85,12 @@ export async function generateWithGuardrails<T>(
   }
 
   // 1ª tentativa + 1 regeneração quando o self-check reprova (§5.2)
-  const usage: LlmUsage = { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0 }
+  const usage: LlmUsage = {
+    inputTokens: 0,
+    outputTokens: 0,
+    cacheReadTokens: 0,
+    cacheCreationTokens: 0,
+  }
   let model: string | null
   let latencyMs = 0
 
@@ -101,6 +111,7 @@ export async function generateWithGuardrails<T>(
     usage.inputTokens += result.usage.inputTokens
     usage.outputTokens += result.usage.outputTokens
     usage.cacheReadTokens += result.usage.cacheReadTokens
+    usage.cacheCreationTokens += result.usage.cacheCreationTokens
     model = result.model
     latencyMs += result.ms
 
@@ -131,6 +142,7 @@ export async function generateWithGuardrails<T>(
         inputTokens: usage.inputTokens,
         outputTokens: usage.outputTokens,
         cacheReadTokens: usage.cacheReadTokens,
+        cacheCreationTokens: usage.cacheCreationTokens,
         model,
         latencyMs,
       },
@@ -140,6 +152,7 @@ export async function generateWithGuardrails<T>(
         inputTokens: usage.inputTokens,
         outputTokens: usage.outputTokens,
         cacheReadTokens: usage.cacheReadTokens,
+        cacheCreationTokens: usage.cacheCreationTokens,
         model,
         latencyMs,
         createdAt: new Date(), // renova a janela do cap diário

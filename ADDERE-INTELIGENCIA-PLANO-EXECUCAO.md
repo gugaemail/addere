@@ -139,7 +139,7 @@ Decisão do Gustavo (D9): **mapa entra na Fase 1.** Isso puxa a geocodificação
 
 ### 2.9 LLM
 
-`@anthropic-ai/sdk` em `apps/api`; `ANTHROPIC_API_KEY` global; `INTEL_LLM_MODEL` (default `claude-sonnet-5`, decisão do doc); saída JSON via `output_config.format`; `thinking: { type: 'adaptive' }`, `output_config.effort: 'low'|'medium'`; contexto do tenant em `system` com `cache_control` (ttl 1h, sem datas para cachear); **allowlist de fatos** (nunca nome/CNPJ/telefone/endereço/texto livre); mapa de pseudônimos só em memória por requisição; uso (tokens/latência/modelo) registrado por chamada; `INTEL_LLM_DAILY_TOKEN_CAP` por tenant (default 500 000 — D13) → fallback só-motor. Batches API (50%) quando houver >1 tenant.
+`@anthropic-ai/sdk` em `apps/api`; `ANTHROPIC_API_KEY` global; `INTEL_LLM_MODEL` (default `claude-sonnet-5`, decisão do doc); saída JSON via `output_config.format`; `thinking: { type: 'adaptive' }`, `output_config.effort: 'low'|'medium'`; contexto do tenant em `system` com `cache_control` (um breakpoint no fim do prefixo, TTL padrão de 5 min — era 1h até 01/10/2026; sem datas para cachear); **allowlist de fatos** (nunca nome/CNPJ/telefone/endereço/texto livre); mapa de pseudônimos só em memória por requisição; uso (tokens/latência/modelo) registrado por chamada; `INTEL_LLM_DAILY_TOKEN_CAP` por tenant (default 500 000 — D13) → fallback só-motor. Batches API (50%) quando houver >1 tenant.
 
 ### 2.10 Aba Rota
 
