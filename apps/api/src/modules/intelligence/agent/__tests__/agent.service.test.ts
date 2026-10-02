@@ -33,7 +33,7 @@ const baseInput = (): GenerateInput<{ text: string }> => ({
 const okCompletion = (text: string) => ({
   ok: true as const,
   data: { text },
-  usage: { inputTokens: 100, outputTokens: 50, cacheReadTokens: 0 },
+  usage: { inputTokens: 100, outputTokens: 50, cacheReadTokens: 0, cacheCreationTokens: 0 },
   ms: 300,
   model: 'claude-sonnet-5',
 })
@@ -121,6 +121,30 @@ describe('generateWithGuardrails', () => {
     const hours = (upsert.create.expiresAt.getTime() - Date.now()) / 3_600_000
     expect(hours).toBeGreaterThan(3.9)
     expect(hours).toBeLessThanOrEqual(4)
+  })
+
+  it('cache de prompt: gravação e leitura entram no registro', async () => {
+    completeMock.mockResolvedValue({
+      ...okCompletion('C1 compra a cada 28 dias.'),
+      usage: { inputTokens: 100, outputTokens: 50, cacheReadTokens: 600, cacheCreationTokens: 700 },
+    })
+    await generateWithGuardrails(baseInput())
+    const upsert = prismaMock.intelLlmCache.upsert.mock.calls[0][0]
+    expect(upsert.create).toMatchObject({ cacheReadTokens: 600, cacheCreationTokens: 700 })
+    expect(upsert.update).toMatchObject({ cacheReadTokens: 600, cacheCreationTokens: 700 })
+  })
+
+  it('cap diário conta a gravação no cache de prompt, não a leitura', async () => {
+    prismaMock.intelLlmCache.aggregate.mockResolvedValue({
+      _sum: { inputTokens: 300_000, outputTokens: 100_000, cacheCreationTokens: 100_000 }, // 500k = teto
+    })
+    const result = await generateWithGuardrails(baseInput())
+    expect(result).toMatchObject({ source: 'engine', reason: 'daily_cap' })
+    expect(prismaMock.intelLlmCache.aggregate.mock.calls[0][0]._sum).toEqual({
+      inputTokens: true,
+      outputTokens: true,
+      cacheCreationTokens: true,
+    })
   })
 
   it('erro da API → fallback com o motivo', async () => {
