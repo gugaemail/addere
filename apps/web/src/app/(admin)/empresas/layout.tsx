@@ -1,6 +1,7 @@
-import { SuperAdminOnly } from '@/components/SuperAdminOnly'
+import { CompanyScopeOnly } from '@/components/CompanyScopeOnly'
 
-// Telas exclusivas do SUPERADMIN (E9) — gate antes de montar a página
+// SUPERADMIN abre qualquer empresa; ADMIN, só a dele (E23) — gate antes de
+// montar a página. A lista de empresas (/dashboard) segue só do SUPERADMIN.
 export default function Layout({ children }: { children: React.ReactNode }) {
-  return <SuperAdminOnly>{children}</SuperAdminOnly>
+  return <CompanyScopeOnly>{children}</CompanyScopeOnly>
 }

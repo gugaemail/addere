@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation'
 import { ArrowLeft } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { StatCard } from '@/components/ui/StatCard'
+import { useAuth } from '@/contexts/AuthContext'
 import { useCompany, useToggleCompany } from '@/hooks/useCompany'
 import { getApiErrorMessage } from '@/lib/api'
 import { BranchesTab } from './tabs/BranchesTab'
@@ -42,6 +43,7 @@ function PageSkeleton() {
 export default function EmpresaPage() {
   const { id } = useParams<{ id: string }>()
   const router = useRouter()
+  const { isSuperAdmin } = useAuth()
   const [tab, setTab] = useState<Tab>('filiais')
 
   const { data: company, isLoading, error, refetch } = useCompany(id)
@@ -85,15 +87,19 @@ export default function EmpresaPage() {
       {/* Header */}
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <Button
-            variant="ghost"
-            size="sm"
-            leftIcon={ArrowLeft}
-            onClick={() => router.push('/dashboard')}
-            className="mb-3 -ml-3 text-[var(--text-muted)] hover:text-brand font-medium"
-          >
-            Voltar
-          </Button>
+          {/* "Voltar" é para a lista de empresas, que só o SUPERADMIN tem —
+              para o ADMIN esta é a única ficha, e o link cairia no gate */}
+          {isSuperAdmin && (
+            <Button
+              variant="ghost"
+              size="sm"
+              leftIcon={ArrowLeft}
+              onClick={() => router.push('/dashboard')}
+              className="mb-3 -ml-3 text-[var(--text-muted)] hover:text-brand font-medium"
+            >
+              Voltar
+            </Button>
+          )}
           <h1 className="text-2xl font-bold tracking-tight text-[var(--text-primary)]">
             {company.name}
           </h1>
@@ -102,13 +108,17 @@ export default function EmpresaPage() {
             {company.idProtheus && <span className="ml-3">Protheus: {company.idProtheus}</span>}
           </p>
         </div>
-        <Button
-          variant={company.active ? 'danger-outline' : 'success-outline'}
-          onClick={() => toggleCompany.mutate(!company.active)}
-          loading={toggleCompany.isPending}
-        >
-          {company.active ? 'Desativar empresa' : 'Ativar empresa'}
-        </Button>
+        {/* Liga-desliga da empresa é do SUPERADMIN: o ADMIN se trancaria para
+            fora da própria conta e só o SUPERADMIN reverteria (E23) */}
+        {isSuperAdmin && (
+          <Button
+            variant={company.active ? 'danger-outline' : 'success-outline'}
+            onClick={() => toggleCompany.mutate(!company.active)}
+            loading={toggleCompany.isPending}
+          >
+            {company.active ? 'Desativar empresa' : 'Ativar empresa'}
+          </Button>
+        )}
       </div>
 
       {/* Stats */}
