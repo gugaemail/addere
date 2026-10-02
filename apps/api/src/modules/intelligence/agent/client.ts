@@ -8,9 +8,10 @@ const TIMEOUT_MS = 60_000
 const MAX_TOKENS = 2_000
 
 export interface LlmUsage {
-  inputTokens: number
+  inputTokens: number // exclui o que passou pelo cache de prompt
   outputTokens: number
   cacheReadTokens: number
+  cacheCreationTokens: number
 }
 
 export type CompleteResult<T> =
@@ -85,6 +86,7 @@ export async function complete<T>(input: CompleteInput): Promise<CompleteResult<
         inputTokens: response.usage.input_tokens,
         outputTokens: response.usage.output_tokens,
         cacheReadTokens: response.usage.cache_read_input_tokens ?? 0,
+        cacheCreationTokens: response.usage.cache_creation_input_tokens ?? 0,
       },
       ms: Date.now() - t0,
       model: response.model,

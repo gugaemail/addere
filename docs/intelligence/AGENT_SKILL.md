@@ -7,12 +7,18 @@ qualquer mudança muda a versão e o eval passa a rodar contra ela.
 
 ## Estrutura
 
-- **Skill (sistema, cacheado 1h):** persona + 7 regras invariantes (só fatos
+- **Skill (sistema):** persona + 7 regras invariantes (só fatos
   do JSON; pseudônimos C1/C2; bloqueado nunca recebe ação de venda; novo nunca
   tem certeza de ciclo; números só dos fatos; linha de frescor; tom direto).
-- **DADOS.md do tenant (sistema, cacheado 1h):** definições/exclusões/gotchas
+- **DADOS.md do tenant (sistema):** definições/exclusões/gotchas
   das consultas publicadas + premissas do motor em prosa + tom padrão
   (`tenant-context.ts`).
+- **Cache de prompt:** um breakpoint no fim do prefixo de sistema (skill +
+  DADOS.md), TTL padrão de 5 min (`systemBlocks`). Só grava quando o prefixo
+  passa do mínimo do modelo — 1024 tokens no Sonnet 5; o skill sozinho tem
+  ~300, então depende do tamanho do DADOS.md do tenant. Abaixo disso a API não
+  grava nem cobra. Para saber se está pegando: `cacheCreationTokens` (gravou) e
+  `cacheReadTokens` (leu) em `intel_llm_cache`.
 - **Prompt por botão (usuário):** `prompts/today.ts` (home + plano),
   `prompts/briefing.ts` (O que aconteceu / Por que importa / O que fazer /
   Confiança), `prompts/message.ts` (WhatsApp com motivo real + pergunta).
