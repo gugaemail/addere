@@ -141,6 +141,47 @@ EXPO_PUBLIC_API_URL=https://api.addere.com.br EXPO_PUBLIC_APP_ENV=production npx
       gerenciador de tarefas e reabrir (OTA só troca o bundle no restart), e
       confirmar que a tela chama a API certa
 
+## Envio para as lojas (`eas submit`)
+
+O `eas submit` tem a **mesma** armadilha de ambiente do `eas update`: resolve o
+`app.config.js` com o ambiente da máquina, e sem `EXPO_PUBLIC_APP_ENV` o config
+cai no default `development` e procura credenciais do bundle errado
+(`com.addere.app.dev` em vez de `com.addere.app`). Em 05/10/2026 isso passou
+despercebido porque a chave do App Store Connect é de conta, não de bundle — mas
+com credencial amarrada ao bundle a busca falha.
+
+- [ ] Env explícita, como no OTA:
+
+```bash
+EXPO_PUBLIC_APP_ENV=production npx eas-cli@latest submit --platform ios --profile production --latest
+```
+
+- [ ] **Usar `eas-cli@latest`, não o instalado.** Erro da Apple é a causa mais
+      provável de um envio falhar, e a versão antiga do CLI esconde a mensagem.
+      Em 05/10/2026 o `eas-cli` 19.0.5 imprimia apenas
+      `Something went wrong when submitting your app to Apple App Store Connect`
+      em quatro tentativas seguidas; o 24.10.0, no mesmo envio, mostrou a causa:
+
+      ```
+      Apple 403 detected - Access forbidden.
+      A required agreement is missing or has expired.
+      ```
+
+- [ ] Nenhum contrato pendente no App Store Connect, em **Business** (contas
+      antigas: *Agreements, Tax, and Banking*). A Apple atualiza o Developer
+      Program License Agreement de tempos em tempos e **bloqueia upload de
+      binário** até ser reaceito — dados fiscais ou bancários incompletos travam
+      igual. Só o Account Holder assina; não há como contornar pelo EAS
+- [ ] Aceitou o contrato e o 403 continua? Confira **todos** os contratos da
+      lista, não só o que estava em destaque: o status de cada um precisa estar
+      ativo, não pendente. Contrato aceito mas com formulário fiscal ou conta
+      bancária incompletos permanece pendente e segue bloqueando. A entrada em
+      vigor também não é instantânea — vale esperar e reenviar antes de procurar
+      outra causa
+- [ ] Falhou o envio, mas o build está íntegro? **Reenvie, não rebuilde.** O
+      `.ipa`/`.aab` continua no EAS e o `--latest` pega ele de novo; rebuildar só
+      queima um buildNumber/versionCode à toa
+
 ## Pós-deploy
 
 - [ ] Health check do admin respondendo 200: `GET /api/health`
