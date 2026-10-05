@@ -39,16 +39,29 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
   const { accessToken, user, hydrated, hydrate } = useAuthStore()
   const hydrateFieldConfig = useCompanyStore((s) => s.hydrateFieldConfig)
   const hydrateSyncSchedule = useCompanyStore((s) => s.hydrateSyncSchedule)
+  const refreshCompanyConfig = useCompanyStore((s) => s.refreshFromServer)
 
   // Biometric gate: checked once per app lifecycle
   const biometricCheckedRef = useRef(false)
   const [biometricReady, setBiometricReady] = useState(false)
+
+  // Configs da empresa: uma vez por abertura do app, como a biometria. O
+  // SecureStore já respondeu no hydrate acima; isto só alcança o que o admin
+  // mudou no painel desde o último login. Ref porque o accessToken roda no
+  // refresh e a dependência dispararia de novo a cada rotação.
+  const companyConfigRef = useRef(false)
 
   useEffect(() => {
     hydrate()
     hydrateFieldConfig()
     hydrateSyncSchedule()
   }, [])
+
+  useEffect(() => {
+    if (!hydrated || !accessToken || companyConfigRef.current) return
+    companyConfigRef.current = true
+    refreshCompanyConfig()
+  }, [hydrated, accessToken, refreshCompanyConfig])
 
   // O listener de NetInfo vive dentro do startSyncListener — um segundo listener
   // aqui competia escrevendo networkAvailable sem disparar o processamento da fila
