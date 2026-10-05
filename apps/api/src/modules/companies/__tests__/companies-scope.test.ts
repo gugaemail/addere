@@ -137,6 +137,53 @@ describe('integração Protheus — o que o ADMIN foi liberado a fazer', () => {
   })
 })
 
+// O app lê o dicionário de campos por aqui. A rota é estática e mora depois de
+// /:id/field-config, que é companyScoped — se um dia o roteador passar a casar
+// o :id primeiro, o vendedor levaria 403 e o app voltaria a mostrar todo campo
+// que o admin ocultou (sem config, useFieldVisible devolve true).
+describe('GET /companies/me/field-config — o contrato que o app consome', () => {
+  it('o vendedor lê o config da própria empresa', async () => {
+    prismaMock.company.findUnique.mockResolvedValue({
+      fieldConfig: { hidden: ['orderItem.largura', 'orderItem.tara'], required: [] },
+    })
+    const res = await app.inject({
+      method: 'GET',
+      url: '/companies/me/field-config',
+      headers: auth('salesA'),
+    })
+    expect(res.statusCode).toBe(200)
+    expect(res.json()).toEqual({
+      hidden: ['orderItem.largura', 'orderItem.tara'],
+      required: [],
+    })
+  })
+
+  it('a rota estática não é engolida pela paramétrica /:id/field-config', async () => {
+    prismaMock.company.findUnique.mockResolvedValue({ fieldConfig: null })
+    const res = await app.inject({
+      method: 'GET',
+      url: '/companies/me/field-config',
+      headers: auth('salesA'),
+    })
+    // Se tivesse casado /:id com id="me", o guard de ADMIN responderia 403
+    expect(res.statusCode).toBe(200)
+    expect(prismaMock.company.findUnique).toHaveBeenCalledWith({
+      where: { id: COMPANY_A },
+      select: { fieldConfig: true },
+    })
+  })
+
+  it('empresa sem config devolve listas vazias — o app mostra tudo', async () => {
+    prismaMock.company.findUnique.mockResolvedValue({ fieldConfig: null })
+    const res = await app.inject({
+      method: 'GET',
+      url: '/companies/me/field-config',
+      headers: auth('salesA'),
+    })
+    expect(res.json()).toEqual({ hidden: [], required: [] })
+  })
+})
+
 describe('o que continua exclusivo do SUPERADMIN', () => {
   it.each([
     ['GET', '/companies'],
