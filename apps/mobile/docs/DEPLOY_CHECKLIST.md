@@ -113,6 +113,34 @@ rode `npm run test:e2e:ios` antes de abrir o PR.
 - [ ] Com a Inteligência ligada: Hoje → Plano do dia → "Cheguei" → registrar
       resultado, e conferir a visita na Equipe em campo do painel
 
+## Publicação OTA (`eas update`)
+
+Um update OTA **não** passa pelo perfil de build: o `eas update` resolve a
+config com o ambiente da máquina que publica, então o `env` do perfil
+`production` do `eas.json` — que é quem garante a URL certa nos builds — não
+vale aqui. Quem vale é o `.env` local, e o `.env` de quem desenvolve aponta para
+o IP da própria rede.
+
+Publicar OTA sem cuidado manda todo aparelho do canal para um endereço que só
+existe na máquina de quem publicou, em `http://` (que o Android bloqueia por
+cleartext). O app fica sem backend até o próximo update, e quem está em campo
+não tem como voltar atrás sozinho.
+
+- [ ] Env explícita no comando, nunca confiando no `.env` do disco:
+
+```bash
+EXPO_PUBLIC_API_URL=https://api.addere.com.br EXPO_PUBLIC_APP_ENV=production npx eas update --channel production --message "<o que mudou>"
+```
+
+- [ ] O canal bate com o do build que está na loja (`channel` do perfil no
+      `eas.json`: `production` para loja, `preview` para staging). Update no
+      canal errado não chega em ninguém — ou chega em quem não devia
+- [ ] Mudança é só de JS/TS. Qualquer coisa que toque código nativo (plugin
+      novo, permissão, `app.config.js`, versão de SDK) exige **build**, não OTA
+- [ ] Depois de publicar: abrir o app num aparelho real, fechar pelo
+      gerenciador de tarefas e reabrir (OTA só troca o bundle no restart), e
+      confirmar que a tela chama a API certa
+
 ## Pós-deploy
 
 - [ ] Health check do admin respondendo 200: `GET /api/health`
