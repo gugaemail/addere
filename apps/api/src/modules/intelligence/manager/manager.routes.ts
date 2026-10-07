@@ -5,15 +5,9 @@ import { z } from 'zod'
 import { prisma } from '@addere/db'
 import { requireAnyPermission } from '../../../middleware/authenticate'
 import { resolveTenant } from '../../../middleware/resolve-tenant'
-import { getEffectivePermissions } from '../../permissions/permissions.service'
+import { resolveViewerScope, type ViewerScope } from '../../users/data-scope'
 import { ymdSaoPaulo } from '../engine/business-days'
-import {
-  buildManagerHome,
-  buildPilotReport,
-  buildTeam,
-  resolveTeamScope,
-  type TeamScope,
-} from './manager.service'
+import { buildManagerHome, buildPilotReport, buildTeam } from './manager.service'
 import { compactYmd, ymdToUtcDate } from './range'
 import { buildTeamMapForDay } from './team-map.service'
 import { buildLossesReport } from './losses.service'
@@ -48,16 +42,13 @@ const planItemSchema = z
   })
   .strict()
 
-/** Só intel.admin/SUPERADMIN veem a empresa inteira; o gerente, a sua equipe (D3b). */
-async function scopeFor(request: FastifyRequest): Promise<TeamScope> {
-  const isSuperAdmin = request.user.role === 'SUPERADMIN'
-  const permissions = isSuperAdmin
-    ? new Set<string>()
-    : await getEffectivePermissions(request.user.sub, request.user.role)
-  return resolveTeamScope({
-    viewerId: request.user.sub,
-    isAdmin: isSuperAdmin || permissions.has('intel.admin'),
-  })
+/**
+ * Só intel.admin/SUPERADMIN veem a empresa inteira; o gerente, a sua equipe
+ * (D3b). Delega a resolveViewerScope (users/data-scope.ts — resolvedor único
+ * desde o plano 007); antes disso havia resolveTeamScope só para este módulo.
+ */
+function scopeFor(request: FastifyRequest): Promise<ViewerScope> {
+  return resolveViewerScope(request.user.sub, request.user.role)
 }
 
 export default async function managerRoutes(app: FastifyInstance) {
@@ -79,7 +70,13 @@ export default async function managerRoutes(app: FastifyInstance) {
   app.get('/home', { preHandler: [guard] }, async (request, reply) => {
     const company = await resolveTenant(request, reply, 'query')
     if (!company) return
-    return reply.send(await buildManagerHome(company.id, request.user.sub))
+    // A home do gerente é sempre a equipe de quem chamou, mesmo que ele
+    // também tenha intel.admin/SUPERADMIN (decisão existente — nunca passou
+    // por scopeFor). Por isso não usa scopeFor/resolveViewerScope aqui, que
+    // dariam 'company' pro admin. ownVendorCode fica null de propósito:
+    // loadSellers (via sellerWhere) só lê scope.managerId para o caso 'team'.
+    const scope: ViewerScope = { kind: 'team', managerId: request.user.sub, ownVendorCode: null }
+    return reply.send(await buildManagerHome(company.id, scope))
   })
 
   // GET /intel/manager/team-map?date= — Mapa da equipe (E20): paradas do dia e último check-in
@@ -101,7 +98,7 @@ export default async function managerRoutes(app: FastifyInstance) {
     const scope = await scopeFor(request)
 
     // Gerente só pergunta pelos vendedores dele — vendedor de fora → 403
-    if (query.vendorCode && scope.managerId) {
+    if (query.vendorCode && scope.kind === 'team') {
       const seller = await prisma.user.findFirst({
         where: { companyId: company.id, active: true, idVendProt: query.vendorCode },
         select: { id: true, managerId: true },
@@ -153,7 +150,7 @@ export default async function managerRoutes(app: FastifyInstance) {
 
     // O gerente com recorte próprio não mexe no plano de quem não é dele
     const scope = await scopeFor(request)
-    if (scope.managerId && seller.managerId !== scope.managerId && seller.id !== scope.managerId) {
+    if (scope.kind === 'team' && seller.managerId !== scope.managerId && seller.id !== scope.managerId) {
       return reply.status(403).send({ message: 'Este vendedor não é da sua equipe' })
     }
 

@@ -1,9 +1,16 @@
 // Consultas da tela Equipe em campo e das métricas do piloto (E8).
-// Toda query filtra por companyId; o recorte por gerente vem de resolveTeamScope.
+// Toda query filtra por companyId; o recorte por gerente vem de
+// resolveViewerScope (users/data-scope.ts — resolvedor único desde o plano
+// 007, que uniu este módulo com o mecanismo do app). Visibilidade (decisão
+// D3b, revista no teste geral de 26/08/2026): intel.admin/SUPERADMIN veem
+// todos os vendedores da empresa; gerente, só os associados a ele
+// (managerId = seu id) e ele mesmo, no painel e no app — um vendedor sem
+// gerente aparece só para o administrador (e no aviso `unassignedSellers`).
 import { prisma } from '@addere/db'
 import { ymdSaoPaulo } from '../engine/business-days'
 import { resolveParameters } from '../engine/parameters'
 import { getFreshness } from '../app/plan.service'
+import { sellerWhere, type ViewerScope } from '../../users/data-scope'
 import {
   buildTeamReport,
   type PlanFact,
@@ -16,33 +23,6 @@ import { buildTeamGoal, type TeamGoal } from './team-goal'
 import { addDays, rangeWindow, ymdToUtcDate, type DateWindow, type TeamRange } from './range'
 
 const CONVERSION_DAYS = 7
-
-export interface TeamScope {
-  /** null = sem recorte por gerente (vê a empresa inteira). */
-  managerId: string | null
-}
-
-/**
- * Visibilidade da equipe (decisão D3b, revista no teste geral de 26/08/2026):
- * - intel.admin / SUPERADMIN → todos os vendedores da empresa
- * - gerente → só `managerId = seu id`, no painel e no app. A regra antiga do
- *   gerente único ver a empresa inteira fazia painel e app discordarem; um
- *   vendedor sem gerente aparece só para o administrador (e no aviso
- *   `unassignedSellers`), que é quem resolve isso no cadastro.
- */
-export function resolveTeamScope(input: { viewerId: string; isAdmin: boolean }): TeamScope {
-  if (input.isAdmin) return { managerId: null }
-  return { managerId: input.viewerId }
-}
-
-/**
- * Filtro de vendedores do recorte: a equipe do gerente (managerId = ele) e ele
- * mesmo — o gerente pode vender com o próprio código, e a produção dele conta
- * na equipe. Sem recorte (admin), a empresa inteira.
- */
-export function sellerScopeWhere(scope: TeamScope): { OR?: Array<{ managerId: string } | { id: string }> } {
-  return scope.managerId ? { OR: [{ managerId: scope.managerId }, { id: scope.managerId }] } : {}
-}
 
 /** Ids, entre os informados, de quem tem intel.manager. */
 export async function managerIdsAmong(userIds: string[]): Promise<Set<string>> {
@@ -58,13 +38,13 @@ function customerKey(row: { customerCode: string; loja: string }): string {
   return `${row.customerCode}|${row.loja}`
 }
 
-async function loadSellers(companyId: string, scope: TeamScope) {
+async function loadSellers(companyId: string, scope: ViewerScope) {
   return prisma.user.findMany({
     where: {
       companyId,
       active: true,
       idVendProt: { not: null },
-      ...sellerScopeWhere(scope),
+      ...sellerWhere(scope),
     },
     select: { id: true, name: true, idVendProt: true, managerId: true },
     orderBy: { name: 'asc' },
@@ -184,7 +164,7 @@ async function resolveMinVisits(companyId: string, range: TeamRange): Promise<nu
 
 export async function buildTeam(
   companyId: string,
-  scope: TeamScope,
+  scope: ViewerScope,
   anchorYmd: string,
   range: TeamRange
 ): Promise<TeamReport> {
@@ -243,7 +223,7 @@ export async function buildTeam(
 
 export async function buildPilotReport(
   companyId: string,
-  scope: TeamScope,
+  scope: ViewerScope,
   fromYmd: string,
   toYmd: string
 ): Promise<PilotMetrics> {
@@ -350,11 +330,16 @@ export interface ManagerHome {
  * Home do gerente no app (decisão 1 do teste geral): meta do mês somada e as
  * visitas de hoje, só dos vendedores associados a ele (managerId) — o mesmo
  * recorte da tela Equipe em campo do painel.
+ *
+ * Recebe o ViewerScope já resolvido (plano 007) em vez de montar `{ managerId }`
+ * na mão. O chamador (manager.routes.ts) sempre passa um scope 'team' com
+ * managerId = quem chamou — a home do gerente é sempre a equipe de quem
+ * chamou, mesmo que ele também tenha intel.admin/SUPERADMIN; isso já era
+ * assim antes (nunca passava por scopeFor/resolveTeamScope), só que implícito.
  */
-export async function buildManagerHome(companyId: string, managerId: string): Promise<ManagerHome> {
+export async function buildManagerHome(companyId: string, scope: ViewerScope): Promise<ManagerHome> {
   const todayYmd = ymdSaoPaulo(new Date())
   const period = todayYmd.slice(0, 6)
-  const scope: TeamScope = { managerId }
   const sellers = await loadSellers(companyId, scope)
   const vendorCodes = sellers.map((s) => s.idVendProt as string)
 
