@@ -4,13 +4,13 @@ import { prisma } from '@addere/db'
 import type { TeamMapDto } from '@addere/types'
 import { getFreshness } from '../app/plan.service'
 import { buildTeamMap } from './team-map'
-import { sellerScopeWhere, type TeamScope } from './manager.service'
+import { sellerWhere, type ViewerScope } from '../../users/data-scope'
 import { addDays, ymdToUtcDate } from './range'
 import { ymdSaoPaulo } from '../engine/business-days'
 
 export async function buildTeamMapForDay(
   companyId: string,
-  scope: TeamScope,
+  scope: ViewerScope,
   anchorYmd: string
 ): Promise<TeamMapDto> {
   const isoDate = `${anchorYmd.slice(0, 4)}-${anchorYmd.slice(4, 6)}-${anchorYmd.slice(6, 8)}`
@@ -19,7 +19,7 @@ export async function buildTeamMapForDay(
       companyId,
       active: true,
       idVendProt: { not: null },
-      ...sellerScopeWhere(scope),
+      ...sellerWhere(scope),
     },
     select: { id: true, name: true, idVendProt: true },
     orderBy: { name: 'asc' },
