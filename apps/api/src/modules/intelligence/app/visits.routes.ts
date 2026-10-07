@@ -6,6 +6,7 @@ import { prisma } from '@addere/db'
 import { authenticate } from '../../../middleware/authenticate'
 import { requireCompany } from '../../../middleware/require-company'
 import { requireVendorCode } from '../../../middleware/require-vendor-code'
+import { ymdSaoPaulo } from '../engine/business-days'
 
 const visitSchema = z.object({
   clientId: z.string().uuid(),
@@ -21,6 +22,9 @@ const visitSchema = z.object({
   orderId: z.string().uuid().nullish(),
   notes: z.string().max(1000).nullish(),
   createdOfflineAt: z.string().datetime().nullish(),
+  // CHECKIN = "Cheguei" explícito; ORDER = visita implícita, o pedido valendo
+  // como check-in (plano 006). Default preserva o comportamento de hoje.
+  source: z.enum(['CHECKIN', 'ORDER']).default('CHECKIN'),
 })
 
 const patchSchema = z.object({
@@ -97,6 +101,7 @@ export default async function visitsRoutes(app: FastifyInstance) {
       lng: body.lng ?? null,
       accuracyM: body.accuracyM ?? null,
       result: body.result ?? null,
+      source: body.source,
       noOrderReason: body.noOrderReason ?? null,
       orderId: body.orderId ?? null,
       notes: body.notes ?? null,
@@ -107,6 +112,41 @@ export default async function visitsRoutes(app: FastifyInstance) {
       await prisma.visit.update({ where: { id: existing.id }, data })
       await markPlanInProgress(planId)
       return reply.send({ id: existing.id, clientId: body.clientId, updated: true })
+    }
+
+    // Dedup por dia civil (plano 006): check-in seguido de pedido pela aba
+    // Clientes (ou dois pedidos no mesmo cliente no mesmo dia) não pode virar
+    // duas visitas — a aderência passaria a contar o dia duas vezes. Rede
+    // larga em UTC (±1 dia) e recorte fino pelo dia civil de São Paulo, como
+    // manager.service.ts faz para a mesma necessidade.
+    const arrivedAt = data.arrivedAt
+    const sameDayCandidates = await prisma.visit.findMany({
+      where: {
+        companyId,
+        vendorCode,
+        customerCode: body.customerCode,
+        loja: body.loja,
+        arrivedAt: {
+          gte: new Date(arrivedAt.getTime() - 24 * 60 * 60 * 1000),
+          lte: new Date(arrivedAt.getTime() + 24 * 60 * 60 * 1000),
+        },
+      },
+    })
+    const targetYmd = ymdSaoPaulo(arrivedAt)
+    const sameDay = sameDayCandidates.find((v) => ymdSaoPaulo(v.arrivedAt) === targetYmd)
+
+    if (sameDay) {
+      // Preserva arrivedAt e source originais; só o resultado e o pedido
+      // chegam de novo (e só sobrescrevem se vierem informados).
+      await prisma.visit.update({
+        where: { id: sameDay.id },
+        data: {
+          result: body.result ?? sameDay.result,
+          orderId: body.orderId ?? sameDay.orderId,
+        },
+      })
+      await markPlanInProgress(planId)
+      return reply.send({ id: sameDay.id, clientId: sameDay.clientId, updated: true })
     }
 
     const visit = await prisma.visit.create({
