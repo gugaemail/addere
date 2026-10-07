@@ -14,6 +14,7 @@ import { buildTeamMapForDay } from './team-map.service'
 import { buildLossesReport } from './losses.service'
 import { buildNoOrderReasonsReport } from './no-order.service'
 import { buildTeamVisitHistory } from './visits.service'
+import { buildTeamConversionReport } from './conversion.service'
 
 const DEFAULT_LOJA = '01'
 
@@ -25,6 +26,8 @@ const teamQuerySchema = z.object({
 })
 
 const pilotQuerySchema = z.object({ from: isoDate, to: isoDate })
+
+const conversionQuerySchema = z.object({ from: isoDate, to: isoDate })
 
 const mapQuerySchema = z.object({ date: isoDate.optional() })
 
@@ -208,6 +211,26 @@ export default async function managerRoutes(app: FastifyInstance) {
 
     const scope = await scopeFor(request)
     return reply.send(await buildPilotReport(company.id, scope, fromYmd, toYmd))
+  })
+
+  // GET /intel/manager/conversion?from=&to= — conversão em reais por origem
+  // da visita (plano 004): quanto cada visita rendeu e se o motor acertou o
+  // tamanho do dia. Mesmo guard e mesma resolução de escopo das rotas
+  // vizinhas — esta rota expõe faturamento por vendedor, então o recorte de
+  // equipe (sellerWhere, via loadSellers) é a contenção, não um detalhe.
+  app.get('/conversion', { preHandler: [guard] }, async (request, reply) => {
+    const company = await resolveTenant(request, reply, 'query')
+    if (!company) return
+    const query = conversionQuerySchema.parse(request.query)
+
+    const fromYmd = compactYmd(query.from)
+    const toYmd = compactYmd(query.to)
+    if (fromYmd > toYmd) {
+      return reply.status(400).send({ message: 'A data inicial não pode ser depois da final' })
+    }
+
+    const scope = await scopeFor(request)
+    return reply.send(await buildTeamConversionReport(company.id, scope, fromYmd, toYmd))
   })
 
   // POST /intel/manager/plan-items — gerente põe um cliente no plano do vendedor

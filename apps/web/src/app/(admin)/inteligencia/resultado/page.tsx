@@ -8,11 +8,12 @@
 // gerente ou admin) é resolvido pelo backend — a tela não filtra de novo.
 import { useState } from 'react'
 import { ArrowDownRight, ArrowUpRight, Info, ShieldCheck, ShoppingCart, Sparkles, Users } from 'lucide-react'
+import type { ConversionSliceDto } from '@addere/types'
 import { useAuth } from '@/contexts/AuthContext'
 import { useCompanyContext } from '@/contexts/CompanyContext'
-import { usePilotMetrics } from '@/hooks/useIntel'
+import { useConversionReport, usePilotMetrics } from '@/hooks/useIntel'
 import { getApiErrorMessage } from '@/lib/api'
-import { needsActiveCompany, pctLabel, ppLabel, todayInSaoPaulo } from '@/lib/intel-helpers'
+import { brl, needsActiveCompany, pctLabel, ppLabel, todayInSaoPaulo } from '@/lib/intel-helpers'
 import {
   liftLabel,
   monthRange,
@@ -143,6 +144,13 @@ export default function ResultadoPage() {
           </Card>
         </>
       )}
+
+      <ConversionSection
+        from={from}
+        to={to}
+        enabled={hasTenant}
+        periodLabel={PERIOD_TABS.find((tab) => tab.key === periodKind)?.label ?? ''}
+      />
     </div>
   )
 }
@@ -187,5 +195,181 @@ function LiftBanner({ liftPp, lift }: { liftPp: number | null; lift: LiftLabel }
         <p className="mt-0.5 text-sm text-[var(--text-secondary)]">{lift.text}</p>
       </div>
     </Card>
+  )
+}
+
+/**
+ * Conversão em reais por origem da visita (plano 004) — os dois blocos
+ * abaixo dos cartões de conversão (que são em %). Busca separada da de
+ * usePilotMetrics: mesmo período da página (um seletor só, nunca um por
+ * bloco), mas o estado de carregamento/erro/vazio é próprio, porque é uma
+ * pergunta diferente ("quanto rendeu" em vez de "quanto converteu").
+ */
+function ConversionSection({
+  from,
+  to,
+  enabled,
+  periodLabel,
+}: {
+  from: string
+  to: string
+  enabled: boolean
+  periodLabel: string
+}) {
+  const { data, isLoading, isError, error } = useConversionReport(from, to, enabled)
+
+  if (!enabled) return null
+
+  if (isLoading) {
+    return (
+      <div className="flex justify-center py-10">
+        <Spinner />
+      </div>
+    )
+  }
+
+  if (isError) {
+    return (
+      <Card className="border-danger/30 bg-danger/5">
+        <p className="text-sm text-[var(--text-secondary)]">
+          {getApiErrorMessage(error, 'Não foi possível carregar a conversão em reais.')}
+        </p>
+      </Card>
+    )
+  }
+
+  if (!data || data.total.visits === 0) {
+    return (
+      <Card>
+        <p className="text-sm text-[var(--text-secondary)]">
+          Ainda não há visitas conciliadas com pedido neste período.
+        </p>
+      </Card>
+    )
+  }
+
+  const reconciledTotal = data.reconciliation.strong + data.reconciliation.byDate
+
+  return (
+    <>
+      <Card className="space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-sm font-semibold text-[var(--text-primary)]">Quanto cada visita rendeu</h2>
+          <span className="text-xs text-[var(--text-muted)]">
+            {rangeLabel(data.range.fromYmd, data.range.toYmd)} · {periodLabel}
+          </span>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-xs">
+            <thead>
+              <tr className="text-[var(--text-muted)]">
+                <th className="py-1 pr-2 font-medium" />
+                <th className="py-1 pr-2 font-medium">Visitas</th>
+                <th className="py-1 pr-2 font-medium">Viraram pedido</th>
+                <th className="py-1 pr-2 font-medium">Vendido</th>
+                <th className="py-1 pr-2 font-medium">Ticket médio</th>
+              </tr>
+            </thead>
+            <tbody>
+              <ConversionRow label="Do plano" slice={data.planned} />
+              <ConversionRow label="Fora do plano" slice={data.outOfPlan} />
+              <tr className="border-t-2 border-[var(--border)] font-semibold">
+                <ConversionRowCells label="Total" slice={data.total} />
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        {data.valuePerVisitDiff !== null && (
+          <p className="text-sm text-[var(--text-secondary)]">
+            {data.valuePerVisitDiff >= 0 ? (
+              <>A visita sugerida rendeu {brl(data.valuePerVisitDiff)} a mais por visita realizada.</>
+            ) : (
+              <>
+                Nesta janela, a visita fora do plano rendeu {brl(Math.abs(data.valuePerVisitDiff))} a mais
+                por visita realizada.
+              </>
+            )}
+          </p>
+        )}
+
+        {data.reconciliation.byDate > 0 && (
+          <p className="text-xs text-[var(--text-muted)]">
+            {data.reconciliation.byDate} de {reconciledTotal} pedidos conciliados por data, não por vínculo
+            direto.
+          </p>
+        )}
+      </Card>
+
+      <Card className="space-y-3">
+        <h2 className="text-sm font-semibold text-[var(--text-primary)]">O motor acertou o tamanho do dia?</h2>
+
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div>
+            <p className="text-xs text-[var(--text-muted)]">Valor esperado das paradas visitadas</p>
+            <p className="mt-0.5 text-lg font-semibold text-[var(--text-primary)]">
+              {brl(data.expected.expectedAmount)}
+            </p>
+          </div>
+          <div>
+            <p className="text-xs text-[var(--text-muted)]">Vendido nessas mesmas paradas</p>
+            <p className="mt-0.5 text-lg font-semibold text-[var(--text-primary)]">
+              {brl(data.expected.soldAmount)}
+            </p>
+          </div>
+        </div>
+
+        {data.expected.ratioPct !== null && (
+          <div className="space-y-1">
+            <div
+              className="h-2 w-full overflow-hidden rounded-full bg-[var(--border)]"
+              role="progressbar"
+              aria-valuenow={data.expected.ratioPct}
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-label="Percentual vendido sobre o esperado"
+            >
+              <div
+                className="h-full rounded-full bg-brand"
+                style={{ width: `${Math.max(0, Math.min(data.expected.ratioPct, 100))}%` }}
+              />
+            </div>
+            <p className="text-xs text-[var(--text-muted)]">{pctLabel(data.expected.ratioPct)} do esperado</p>
+          </div>
+        )}
+
+        <div className="flex items-start gap-3 rounded-lg bg-brand/5 p-3">
+          <Info size={16} strokeWidth={1.5} className="mt-0.5 shrink-0 text-brand" aria-hidden />
+          <p className="text-xs leading-relaxed text-[var(--text-secondary)]">
+            O valor esperado é ticket médio × probabilidade de compra, somado sobre as paradas. Ele não
+            prevê o tamanho de um pedido específico — só faz sentido no agregado. Por isso não há esta
+            conta por cliente.
+          </p>
+        </div>
+      </Card>
+    </>
+  )
+}
+
+function ConversionRow({ label, slice }: { label: string; slice: ConversionSliceDto }) {
+  return (
+    <tr className="border-t border-[var(--border)]">
+      <ConversionRowCells label={label} slice={slice} />
+    </tr>
+  )
+}
+
+function ConversionRowCells({ label, slice }: { label: string; slice: ConversionSliceDto }) {
+  return (
+    <>
+      <td className="py-1.5 pr-2 text-[var(--text-secondary)]">{label}</td>
+      <td className="py-1.5 pr-2 text-[var(--text-primary)]">{slice.visits}</td>
+      <td className="py-1.5 pr-2 text-[var(--text-primary)]">{slice.withOrder}</td>
+      <td className="py-1.5 pr-2 text-[var(--text-primary)]">{brl(slice.soldAmount)}</td>
+      <td className="py-1.5 pr-2 text-[var(--text-primary)]">
+        {slice.avgTicket === null ? '—' : brl(slice.avgTicket)}
+      </td>
+    </>
   )
 }
