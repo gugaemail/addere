@@ -19,13 +19,20 @@ import {
 import { useAuth } from '@/contexts/AuthContext'
 import { useCompanyContext } from '@/contexts/CompanyContext'
 import {
+  useNoOrderReasons,
   useTeamMap,
   useTeamReport,
   type TeamAlert,
   type TeamRange,
   type TeamSellerCard,
 } from '@/hooks/useIntel'
-import { needsActiveCompany, pctLabel, rangeLabel, todayInSaoPaulo } from '@/lib/intel-helpers'
+import {
+  dayLabel,
+  needsActiveCompany,
+  pctLabel,
+  rangeLabel,
+  todayInSaoPaulo,
+} from '@/lib/intel-helpers'
 import { filterMapSellers, mapBounds, withoutPinLabel, withoutPinRows } from '@/lib/team-map'
 import { SelectCompanyNotice } from '@/components/intel/SelectCompanyNotice'
 import { Badge } from '@/components/ui/Badge'
@@ -187,6 +194,8 @@ export default function EquipePage() {
             </div>
           )}
 
+          <NoOrderSection date={date} range={range} />
+
           {range === 'day' ? (
             <TeamMapSection date={date} />
           ) : (
@@ -203,6 +212,119 @@ export default function EquipePage() {
         </>
       )}
     </div>
+  )
+}
+
+// Por que não vendeu (E22, plano 002): agrega Visit.noOrderReason por
+// normalização burra (minúsculas, espaços colapsados, pontuação final
+// removida) — não é taxonomia, é aproximação honesta de texto livre. Por
+// isso a seção fala em "motivos que se repetem", e o aviso de motivos únicos
+// é obrigatório: sem ele o gerente lê as barras como se fossem 100% dos
+// casos. Segue o mesmo seletor Hoje/Semana/Mês da página — sem controle
+// próprio.
+function NoOrderSection({ date, range }: { date: string; range: TeamRange }) {
+  const { data, isLoading } = useNoOrderReasons(date, range)
+
+  if (isLoading) {
+    return (
+      <Card className="flex justify-center py-10">
+        <Spinner />
+      </Card>
+    )
+  }
+  if (!data) return null
+
+  const maxCount = data.buckets[0]?.count ?? 0
+
+  return (
+    <Card className="space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h2 className="text-sm font-semibold text-[var(--text-primary)]">Por que não vendeu</h2>
+        <Badge variant="neutral">
+          {data.total} visita(s) sem pedido · {rangeLabel(data.range)}
+        </Badge>
+      </div>
+
+      {data.total === 0 ? (
+        <p className="text-sm text-[var(--text-secondary)]">
+          Nenhuma visita sem pedido com motivo registrado neste período.
+        </p>
+      ) : (
+        <>
+          <div className="space-y-2">
+            <h3 className="text-xs font-medium uppercase tracking-wide text-[var(--text-muted)]">
+              Motivos que se repetem
+            </h3>
+            {data.buckets.length === 0 ? (
+              <p className="text-sm text-[var(--text-secondary)]">
+                Nenhum motivo se repetiu neste período — todos apareceram uma vez só.
+              </p>
+            ) : (
+              <ul className="space-y-1.5">
+                {data.buckets.map((bucket) => (
+                  <li key={bucket.normalized} className="flex items-center gap-2 text-sm">
+                    <span
+                      className="w-44 shrink-0 truncate text-[var(--text-secondary)]"
+                      title={bucket.sample}
+                    >
+                      {bucket.sample}
+                    </span>
+                    <span className="h-2 flex-1 overflow-hidden rounded bg-[var(--bg-subtle)]">
+                      <span
+                        className="block h-2 rounded bg-brand"
+                        style={{
+                          width: `${maxCount > 0 ? Math.max((bucket.count / maxCount) * 100, 4) : 0}%`,
+                        }}
+                      />
+                    </span>
+                    <span className="w-6 shrink-0 text-right text-xs font-medium text-[var(--text-primary)]">
+                      {bucket.count}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
+          {data.singletons > 0 && (
+            <div className="flex items-start gap-2 rounded-lg bg-warning/5 px-3 py-2">
+              <AlertTriangle
+                size={14}
+                strokeWidth={1.5}
+                className="mt-0.5 shrink-0 text-warning"
+                aria-hidden
+              />
+              <p className="text-xs text-[var(--text-secondary)]">
+                {data.singletons} motivo{data.singletons > 1 ? 's' : ''} apareceu
+                {data.singletons > 1 ? 'ram' : ''} uma vez só — não entram nas barras acima. As barras
+                não são 100% dos casos.
+              </p>
+            </div>
+          )}
+
+          <div className="space-y-2">
+            <h3 className="text-xs font-medium uppercase tracking-wide text-[var(--text-muted)]">
+              Últimas visitas sem pedido
+            </h3>
+            <ul className="space-y-1.5">
+              {data.recent.map((visit, i) => (
+                <li
+                  key={`${visit.ymd}-${visit.vendorCode}-${i}`}
+                  className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-sm"
+                >
+                  <span className="w-12 shrink-0 text-xs text-[var(--text-muted)]">
+                    {dayLabel(visit.ymd)}
+                  </span>
+                  <span className="font-medium text-[var(--text-primary)]">{visit.customerName}</span>
+                  <span className="text-xs text-[var(--text-muted)]">{visit.sellerName}</span>
+                  <span className="text-[var(--text-secondary)]">&ldquo;{visit.reason}&rdquo;</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </>
+      )}
+    </Card>
   )
 }
 

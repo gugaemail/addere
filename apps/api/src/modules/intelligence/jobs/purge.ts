@@ -10,6 +10,7 @@ export interface PurgeResult {
   messages: number
   feedbackComments: number
   visitNotes: number
+  visitNoOrderReasons: number
   visitGps: number
 }
 
@@ -35,6 +36,12 @@ export async function purgeCompany(
     where: { companyId, arrivedAt: { lt: retentionCutoff }, notes: { not: null } },
     data: { notes: null },
   })
+  // noOrderReason é texto livre digitado por humano, mesma natureza de
+  // notes — e até aqui sobrevivia para sempre (plano 002).
+  const visitNoOrderReasons = await prisma.visit.updateMany({
+    where: { companyId, arrivedAt: { lt: retentionCutoff }, noOrderReason: { not: null } },
+    data: { noOrderReason: null },
+  })
   const visitGps = await prisma.visit.updateMany({
     where: { companyId, arrivedAt: { lt: gpsCutoff }, lat: { not: null } },
     data: { lat: null, lng: null, accuracyM: null },
@@ -45,6 +52,7 @@ export async function purgeCompany(
     messages: messages.count,
     feedbackComments: feedbackComments.count,
     visitNotes: visitNotes.count,
+    visitNoOrderReasons: visitNoOrderReasons.count,
     visitGps: visitGps.count,
   }
 }
