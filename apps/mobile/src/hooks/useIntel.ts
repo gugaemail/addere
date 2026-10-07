@@ -12,6 +12,7 @@ import type {
   PortfolioDto,
   StockDto,
   TeamPortfolioDto,
+  VisitHistoryDto,
   VisitPlanDto,
 } from '@addere/types'
 import { generateUuid } from '../utils/uuid'
@@ -39,6 +40,9 @@ export const intelKeys = {
   // Carteira da equipe (gerente) — GET /intel/manager/customers/signals
   teamSignals: (status?: string, vendorCode?: string) =>
     [...intelKeys.all, 'team-signals', status ?? 'all', vendorCode ?? 'all'] as const,
+  // Histórico de visitas (E24) — GET /intel/app/visits
+  visitHistory: (from?: string, to?: string) =>
+    [...intelKeys.all, 'visit-history', from ?? 'default', to ?? 'default'] as const,
 }
 
 // ─── Tipos das respostas (rotas E7) ───
@@ -158,6 +162,27 @@ export function usePortfolio() {
   return useQuery({
     queryKey: intelKeys.portfolio(),
     queryFn: () => api.get<PortfolioDto>('/intel/app/portfolio').then((r) => r.data),
+    enabled: hasVendorCode,
+    staleTime: 5 * 60_000,
+  })
+}
+
+/**
+ * Histórico de visitas do vendedor (E24, plano 003) — GET /intel/app/visits.
+ * `from`/`to` em 'YYYY-MM-DD'; sem eles a API usa os últimos 30 dias. Sem
+ * dado no período a API devolve 200 com lista vazia (nunca 404) — por isso,
+ * ao contrário de usePlan/useWeekPlan, não há catch de nullOn404 aqui.
+ */
+export function useVisitHistory(from?: string, to?: string) {
+  const hasVendorCode = useHasVendorCode()
+  return useQuery({
+    queryKey: intelKeys.visitHistory(from, to),
+    queryFn: () =>
+      api
+        .get<VisitHistoryDto>('/intel/app/visits', {
+          params: { ...(from ? { from } : {}), ...(to ? { to } : {}) },
+        })
+        .then((r) => r.data),
     enabled: hasVendorCode,
     staleTime: 5 * 60_000,
   })

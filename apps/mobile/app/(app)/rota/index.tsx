@@ -15,6 +15,7 @@ import {
   ChevronDown,
   ChevronUp,
   GripVertical,
+  History,
   MessageCircle,
   Navigation,
   User as UserIcon,
@@ -49,6 +50,18 @@ function WeekButton({ onPress }: { onPress: () => void }) {
     <TouchableOpacity testID="btn-semana" style={s.weekButton} onPress={onPress} hitSlop={4}>
       <CalendarDays size={14} color={colors.brand.primary} strokeWidth={1.5} />
       <Text style={s.weekButtonText}>Semana</Text>
+    </TouchableOpacity>
+  )
+}
+
+// Entrada do histórico de visitas (E24, plano 003) — ao lado do botão Semana,
+// mesma pílula: a tela é de consulta, não de uso diário (por isso não ganhou
+// aba própria).
+function HistoryButton({ onPress }: { onPress: () => void }) {
+  return (
+    <TouchableOpacity testID="btn-historico" style={s.weekButton} onPress={onPress} hitSlop={4}>
+      <History size={14} color={colors.brand.primary} strokeWidth={1.5} />
+      <Text style={s.weekButtonText}>Histórico</Text>
     </TouchableOpacity>
   )
 }
@@ -198,6 +211,7 @@ export default function RotaScreen() {
   )
 
   const openWeek = useCallback(() => router.push('/rota/semana'), [router])
+  const openHistory = useCallback(() => router.push('/rota/historico'), [router])
 
   // Card de parada — `drag` só vem nos ativos (lista arrastável); os
   // bloqueados são renderizados no rodapé, na seção "Resolver"
@@ -345,7 +359,10 @@ export default function RotaScreen() {
     return (
       <View style={s.container} testID="screen-rota">
         <View style={s.headerRow}>
-          <WeekButton onPress={openWeek} />
+          <View style={s.headerRight}>
+            <WeekButton onPress={openWeek} />
+            <HistoryButton onPress={openHistory} />
+          </View>
           <SyncPill />
         </View>
         <EmptyState
@@ -377,6 +394,7 @@ export default function RotaScreen() {
         </View>
         <View style={s.headerRight}>
           <WeekButton onPress={openWeek} />
+          <HistoryButton onPress={openHistory} />
           <SyncPill />
         </View>
       </View>

@@ -571,6 +571,104 @@ describe('visitas — idempotência offline e posse', () => {
   })
 })
 
+// Histórico de visitas do vendedor (plano 003) — GET /intel/app/visits.
+// Decisão inegociável do plano: a rota é estritamente do dono do token, sem
+// parâmetro vendorCode (ver grep do critério de conclusão); quem prova isso
+// aqui é o teste de isolamento abaixo.
+describe('GET /intel/app/visits — histórico (plano 003)', () => {
+  // Duas visitas de vendedores diferentes "no banco" — o mock simula o
+  // filtro do `where` (como userPermission.findMany faz em manager-routes.test.ts),
+  // para provar que é a query, e não um acaso do mock, que isola por vendorCode.
+  const ALL_VISITS = [
+    {
+      id: 'visit-v1',
+      vendorCode: 'V1',
+      customerCode: 'A',
+      loja: '01',
+      arrivedAt: new Date('2026-08-21T14:00:00.000Z'),
+      leftAt: new Date('2026-08-21T14:24:00.000Z'),
+      planItemId: null,
+      result: 'ORDER',
+      noOrderReason: null,
+      orderId: null,
+      source: 'CHECKIN',
+    },
+    {
+      id: 'visit-v2',
+      vendorCode: 'V2',
+      customerCode: 'B',
+      loja: '01',
+      arrivedAt: new Date('2026-08-22T14:00:00.000Z'),
+      leftAt: new Date('2026-08-22T14:24:00.000Z'),
+      planItemId: null,
+      result: 'ORDER',
+      noOrderReason: null,
+      orderId: null,
+      source: 'CHECKIN',
+    },
+  ]
+
+  it('devolve só as visitas do vendorCode do token, mesmo com visita de outro vendedor no banco', async () => {
+    prismaMock.visit.findMany.mockImplementation(
+      async (args: { where: { vendorCode: string } }) =>
+        ALL_VISITS.filter((v) => v.vendorCode === args.where.vendorCode)
+    )
+    prismaMock.customer.findMany.mockResolvedValue([{ protheusCode: 'A', loja: '01', name: 'Cliente A' }])
+    const res = await app.inject({
+      method: 'GET',
+      url: '/intel/app/visits?from=2026-08-01&to=2026-08-31',
+      headers: auth(),
+    })
+    expect(res.statusCode).toBe(200)
+    const body = res.json()
+    expect(body.items).toHaveLength(1)
+    expect(body.items[0].customerCode).toBe('A')
+    expect(body.items.find((i: { customerCode: string }) => i.customerCode === 'B')).toBeUndefined()
+  })
+
+  it('sem idVendProt → 422 (mesmo portão de requireVendorCode das outras rotas)', async () => {
+    const res = await app.inject({
+      method: 'GET',
+      url: '/intel/app/visits',
+      headers: auth('seller-no-code'),
+    })
+    expect(res.statusCode).toBe(422)
+  })
+
+  it('empresa com Inteligência desligada → 403', async () => {
+    const res = await app.inject({
+      method: 'GET',
+      url: '/intel/app/visits',
+      headers: auth('seller-off'),
+    })
+    expect(res.statusCode).toBe(403)
+  })
+
+  it('janela maior que 90 dias → 400', async () => {
+    const res = await app.inject({
+      method: 'GET',
+      url: '/intel/app/visits?from=2026-01-01&to=2026-08-01',
+      headers: auth(),
+    })
+    expect(res.statusCode).toBe(400)
+    expect(res.json().message).toContain('90 dias')
+  })
+
+  it('período sem visitas → 200 com total 0 e lista vazia (não 404)', async () => {
+    const res = await app.inject({
+      method: 'GET',
+      url: '/intel/app/visits?from=2026-08-01&to=2026-08-31',
+      headers: auth(),
+    })
+    expect(res.statusCode).toBe(200)
+    const body = res.json()
+    expect(body.total).toBe(0)
+    expect(body.withOrder).toBe(0)
+    expect(body.outOfPlan).toBe(0)
+    expect(body.items).toEqual([])
+  })
+})
+
 describe('mensagens e feedback', () => {
   it('mensagem sem LLM usa o template determinístico e registra', async () => {
     prismaMock.customer.findFirst.mockResolvedValue({ name: 'Padaria Central', municipio: 'Campinas' })

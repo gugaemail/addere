@@ -1,5 +1,5 @@
 // Stack da aba Rota (E12) — Plano do dia, Visita, Mensagem e, na Fase 2,
-// Semana (E18) e Carteira (E19).
+// Semana (E18), Carteira (E19) e Histórico (E24, plano 003).
 import { Stack } from 'expo-router'
 import { brandScreenOptions } from '../../../src/navigation/BrandHeader'
 
@@ -16,6 +16,7 @@ export default function RotaLayout() {
       <Stack.Screen name="mensagem/[customerKey]" options={{ title: 'Mensagem' }} />
       <Stack.Screen name="semana" options={{ title: 'Semana' }} />
       <Stack.Screen name="carteira" options={{ title: 'Carteira' }} />
+      <Stack.Screen name="historico" options={{ title: 'Histórico' }} />
     </Stack>
   )
 }

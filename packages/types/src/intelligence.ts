@@ -384,6 +384,49 @@ export interface VisitInput {
   source?: VisitSource
 }
 
+// Histórico de visitas do vendedor (GET /intel/app/visits) e, com um campo a
+// mais (sellerName), da equipe do gerente (GET /intel/manager/visits).
+export interface VisitHistoryItemDto {
+  id: string
+  ymd: string // dia civil de São Paulo, 'YYYY-MM-DD'
+  arrivedAt: string // ISO
+  durationMin: number | null // null quando não há leftAt
+  // ORDER = visita nascida do pedido (plano 006): sem GPS/duração por
+  // desenho — a tela mostra "registrada pelo pedido" no lugar do tempo,
+  // nunca "0 min". CHECKIN sem leftAt também dá durationMin null, mas aí a
+  // tela mostra só a hora de chegada: é este campo que distingue os dois.
+  source: VisitSource
+  customerCode: string
+  loja: string
+  customerName: string
+  planned: boolean // planItemId !== null — fora do plano leva o rótulo "fora do plano"
+  result: VisitResult | null
+  noOrderReason: string | null
+  orderId: string | null
+}
+
+export interface VisitHistoryDto {
+  range: { from: string; to: string }
+  total: number
+  withOrder: number
+  outOfPlan: number
+  items: VisitHistoryItemDto[]
+}
+
+// Mesma forma, com o vendedor de cada visita — sem isso o gerente não sabe
+// com quem falar quando a lista junta mais de um vendedor da equipe.
+export interface TeamVisitHistoryItemDto extends VisitHistoryItemDto {
+  sellerName: string
+}
+
+export interface TeamVisitHistoryDto {
+  range: { from: string; to: string }
+  total: number
+  withOrder: number
+  outOfPlan: number
+  items: TeamVisitHistoryItemDto[]
+}
+
 export interface FeedbackInput {
   targetType: FeedbackTargetType
   targetId: string
