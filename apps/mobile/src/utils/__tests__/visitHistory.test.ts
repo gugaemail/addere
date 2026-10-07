@@ -38,7 +38,11 @@ describe('dayHeaderLabel', () => {
 describe('durationLabel', () => {
   it('minutos abaixo de uma hora', () => {
     expect(durationLabel(24)).toBe('24 min')
-    expect(durationLabel(0)).toBe('0 min')
+    expect(durationLabel(1)).toBe('1 min')
+  })
+
+  it('duração zero: "menos de 1 min" — visita real nunca dura zero, não confundir com "registrada pelo pedido"', () => {
+    expect(durationLabel(0)).toBe('menos de 1 min')
   })
 
   it('horas e minutos acima de 60, só "Xh" quando exato', () => {

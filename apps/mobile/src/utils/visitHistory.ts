@@ -89,6 +89,8 @@ export function sectionsByDay(items: VisitHistoryItemDto[]): VisitHistoryDaySect
 
 /** "24 min" sob uma hora; "1h05min" acima (ou só "1h" quando exato). */
 export function durationLabel(min: number): string {
+  // Visita real nunca dura zero; "menos de 1 min" evita confundir com "registrada pelo pedido".
+  if (min === 0) return 'menos de 1 min'
   if (min < 60) return `${min} min`
   const h = Math.floor(min / 60)
   const m = min % 60
