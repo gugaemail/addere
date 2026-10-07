@@ -81,11 +81,14 @@ async function assertOrderRefsBelongToCompany(
 
 /**
  * Dono(s) visíveis nas leituras: o vendedor vê os seus; o gerente, os da
- * equipe (users/data-scope:resolveOrderOwners). Escrita continua só do dono.
+ * equipe (users/data-scope:orderOwnerIds). `null` é o escopo 'company' (ADMIN/
+ * intel.admin/SUPERADMIN) — sem filtro de dono, a empresa inteira, sem
+ * excluir pedidos de usuário desativado. Escrita continua só do dono.
  */
-type OrderOwners = string | string[]
+type OrderOwners = string | string[] | null
 
 function ownerWhere(owners: OrderOwners) {
+  if (owners === null) return {}
   return Array.isArray(owners) ? { userId: { in: owners } } : { userId: owners }
 }
 

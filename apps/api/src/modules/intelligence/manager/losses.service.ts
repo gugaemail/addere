@@ -10,7 +10,7 @@ import { buildLossesPrompt, LOSSES_SCHEMA, type LossesFacts, type LossesOutput }
 import { decomposeLosses } from '../engine/decomposition'
 import { getFreshness, todayPlanDate } from '../app/plan.service'
 import { addDays, ymdToUtcDate } from './range'
-import { sellerScopeWhere, type TeamScope } from './manager.service'
+import { sellerWhere, type ViewerScope } from '../../users/data-scope'
 
 const MAX_CUSTOMERS = 20
 const MAX_PRODUCTS = 10
@@ -43,7 +43,7 @@ export function lossWindows(anchorYmd: string, baselineMonths: number) {
 
 export async function buildLossesReport(
   companyId: string,
-  scope: TeamScope,
+  scope: ViewerScope,
   query: LossesQuery
 ): Promise<LossesReportDto> {
   const windows = lossWindows(query.anchorYmd, query.baselineMonths)
@@ -54,7 +54,7 @@ export async function buildLossesReport(
       companyId,
       active: true,
       idVendProt: { not: null },
-      ...sellerScopeWhere(scope),
+      ...sellerWhere(scope),
       ...(query.vendorCode ? { idVendProt: query.vendorCode } : {}),
     },
     select: { idVendProt: true },

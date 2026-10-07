@@ -13,7 +13,7 @@ import {
   resetOrderToPending,
 } from './orders.service'
 import { getEffectivePermissions } from '../permissions/permissions.service'
-import { resolveOrderOwners } from '../users/data-scope'
+import { orderOwnerIds, resolveViewerScope } from '../users/data-scope'
 import { syncOrderToProtheus, consultOrderStatus } from '../sync/sync.service'
 import { notFound } from '../../lib/errors'
 
@@ -24,9 +24,15 @@ function toUnprocessable(err: unknown): never {
   throw unprocessable((err as Error).message)
 }
 
-// Leituras: o vendedor vê os próprios pedidos; o gerente, os da equipe
-function ownersOf(request: FastifyRequest): Promise<string[]> {
-  return resolveOrderOwners(request.user.sub, request.user.role)
+// Leituras: o vendedor vê os próprios pedidos; o gerente, os da equipe; o
+// admin (scope 'company'), a empresa inteira — orderOwnerIds devolve null
+// nesse caso, e quem consome (orders.service.ts) omite o filtro de dono em
+// vez de enumerar usuários ativos (o que excluiria pedidos de quem foi
+// desativado).
+async function ownersOf(request: FastifyRequest): Promise<string[] | null> {
+  const companyId = request.user.companyId!
+  const scope = await resolveViewerScope(request.user.sub, request.user.role)
+  return orderOwnerIds(companyId, scope)
 }
 
 export default async function ordersRoutes(app: FastifyInstance) {

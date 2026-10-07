@@ -1,7 +1,7 @@
 import { prisma } from '@addere/db'
 import type { UserRole } from '@addere/types'
 import { notFound } from '../../lib/errors'
-import { customerScopeWhere, resolveDataScope } from '../users/data-scope'
+import { customerWhere, resolveViewerScope } from '../users/data-scope'
 
 const DEFAULT_LIMIT = 500
 
@@ -10,14 +10,16 @@ export async function listCustomers(
   search?: string,
   viewer?: { id: string; role: UserRole }
 ) {
-  // Vendedor vê a carteira; gerente, as carteiras da equipe (users/data-scope)
-  const scope = viewer ? await resolveDataScope(viewer.id, viewer.role) : null
+  // Vendedor vê a carteira; gerente, as carteiras da equipe; admin, a empresa
+  // inteira (users/data-scope)
+  const scope = viewer ? await resolveViewerScope(viewer.id, viewer.role) : null
+  const scopeWhere = scope ? await customerWhere(companyId, scope) : {}
 
   return prisma.customer.findMany({
     where: {
       companyId,
       active: true,
-      ...(scope ? customerScopeWhere(scope) : {}),
+      ...scopeWhere,
       ...(search && {
         OR: [
           { name: { contains: search, mode: 'insensitive' } },

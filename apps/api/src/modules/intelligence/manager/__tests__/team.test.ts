@@ -2,7 +2,6 @@
 import { describe, expect, it } from 'vitest'
 import { buildTeamReport, type TeamInput } from '../team'
 import { addDays, businessDaysIn, rangeWindow } from '../range'
-import { resolveTeamScope } from '../manager.service'
 
 const seller = (over: Partial<TeamInput['sellers'][number]> = {}) => ({
   userId: 'u1',
@@ -226,12 +225,7 @@ describe('rangeWindow', () => {
   })
 })
 
-describe('resolveTeamScope (D3b)', () => {
-  it('admin vê a empresa inteira', () => {
-    expect(resolveTeamScope({ viewerId: 'm1', isAdmin: true })).toEqual({ managerId: null })
-  })
-
-  it('gerente vê só os vendedores associados a ele — mesmo sendo o único da empresa', () => {
-    expect(resolveTeamScope({ viewerId: 'm1', isAdmin: false })).toEqual({ managerId: 'm1' })
-  })
-})
+// resolveTeamScope (D3b) foi removido daqui pelo plano 007: a decisão de
+// escopo (admin → empresa inteira; gerente → só os vendedores associados a
+// ele) agora é resolveViewerScope, testado em
+// apps/api/src/modules/users/__tests__/data-scope.test.ts.
