@@ -70,6 +70,21 @@ describe('resolveDataScope', () => {
     const scope = await resolveDataScope(uid(), 'SUPERADMIN')
     expect(scope.kind).toBe('self')
   })
+
+  // BUG (plano 007): ADMIN com intel.manager cai em 'team' aqui, e loadTeam
+  // não acha subordinados dele (ele não é gerente de ninguém) — a equipe sai
+  // vazia e customerScopeWhere trava em `{ in: [] }`, zerando a aba Clientes.
+  // No mecanismo B (intelligence/manager), o mesmo usuário é `isAdmin` e vê a
+  // empresa inteira — as duas implementações discordam. O passo 3 deste plano
+  // inverte esta expectativa para `kind: 'company'` depois de unificar os
+  // resolvedores; até lá, este teste documenta o comportamento atual (errado).
+  it('ADMIN com intel.manager hoje cai em team com equipe vazia (bug)', async () => {
+    grant(['intel.manager'])
+    prismaMock.user.findUnique.mockResolvedValue({ idVendProt: null })
+    const scope = await resolveDataScope(uid(), 'ADMIN')
+    expect(scope.kind).toBe('team')
+    expect(customerScopeWhere(scope)).toEqual({ vendorCode: { in: [] } })
+  })
 })
 
 describe('resolveOrderOwners', () => {
