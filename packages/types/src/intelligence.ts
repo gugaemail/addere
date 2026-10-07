@@ -614,3 +614,32 @@ export interface NoOrderReportDto {
   singletons: number // quantos motivos apareceram uma vez só
   recent: NoOrderVisitDto[] // até 10, mais recentes primeiro
 }
+
+// Conversão em reais por origem da visita (plano 004): quanto cada visita
+// rendeu ("do plano" × "fora do plano") e se o motor acertou o tamanho do
+// dia — ver apps/api/.../manager/conversion.ts, o cálculo puro que gera
+// este formato. Diferente do resto do arquivo, os valores em reais aqui são
+// `number`, não string: a API já converte o Decimal do Prisma e arredonda
+// antes de montar o relatório, nunca repassa o Decimal cru.
+export interface ConversionSliceDto {
+  visits: number
+  withOrder: number
+  soldAmount: number
+  avgTicket: number | null // soldAmount / withOrder; null com withOrder === 0
+}
+
+export interface ConversionReportDto {
+  range: { fromYmd: string; toYmd: string }
+  planned: ConversionSliceDto
+  outOfPlan: ConversionSliceDto
+  total: ConversionSliceDto
+  /** soldAmount/visits do plano − soldAmount/visits fora do plano; null se algum lado tiver visits 0 */
+  valuePerVisitDiff: number | null
+  /** Quantos pedidos vieram de Visit.orderId (vínculo direto) × de conciliação por cliente+vendedor+dia — alimenta o rodapé de transparência da tela. */
+  reconciliation: { strong: number; byDate: number }
+  expected: {
+    expectedAmount: number // Σ expectedAmount das paradas que viraram visita
+    soldAmount: number // Σ total vendido nessas mesmas paradas
+    ratioPct: number | null // null quando expectedAmount === 0
+  }
+}

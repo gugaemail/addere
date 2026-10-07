@@ -5,6 +5,7 @@
 // backend resolve o tenant pelo token (sentinel 'own' na key).
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type {
+  ConversionReportDto,
   HealthReport,
   IntelJobRunDto,
   IntelParameterKey,
@@ -41,6 +42,9 @@ export const intelKeys = {
     [...intelKeys.all, 'team', date, range, companyId ?? 'own'] as const,
   pilotMetrics: (from: string, to: string, companyId?: string | null) =>
     [...intelKeys.all, 'pilot-metrics', from, to, companyId ?? 'own'] as const,
+  // Conversão em reais por origem da visita (plano 004) — GET /intel/manager/conversion
+  conversion: (from: string, to: string, companyId?: string | null) =>
+    [...intelKeys.all, 'conversion', from, to, companyId ?? 'own'] as const,
   // Fase 2 — os prefixos sem argumentos servem para invalidar de uma vez
   teamMapAll: () => [...intelKeys.all, 'team-map'] as const,
   teamMap: (date: string, companyId?: string | null) =>
@@ -588,6 +592,27 @@ export function usePilotMetrics(from: string, to: string, enabled = true) {
     queryFn: () =>
       api
         .get<PilotMetricsResponse>('/intel/manager/pilot-metrics', {
+          params: { from, to, ...companyParams },
+        })
+        .then((r) => r.data),
+  })
+}
+
+// ─── Fase 2 · Conversão em reais por origem da visita (plano 004) ───
+
+/**
+ * GET /intel/manager/conversion?from&to → ConversionReportDto.
+ * @param from/to 'YYYY-MM-DD'. `enabled` desliga a busca enquanto não há período.
+ */
+export function useConversionReport(from: string, to: string, enabled = true) {
+  const companyParams = useIntelCompanyParam()
+  const ready = useIntelReady()
+  return useQuery({
+    enabled: enabled && ready,
+    queryKey: intelKeys.conversion(from, to, companyParams.companyId),
+    queryFn: () =>
+      api
+        .get<ConversionReportDto>('/intel/manager/conversion', {
           params: { from, to, ...companyParams },
         })
         .then((r) => r.data),
