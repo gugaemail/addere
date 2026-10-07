@@ -158,8 +158,7 @@ sob `requireVendorCode`, e pertence ao vendedor que fez o pedido.
 | Para quê | Comando | Esperado quando dá certo |
 |---|---|---|
 | Instalar | `npm install` | exit 0 |
-| Gerar o client | `npm run db:generate` | exit 0 |
-| Migration (dev) | `npm run db:migrate` | migration criada e aplicada |
+| Gerar o client | `npm run db:generate` | exit 0 (não precisa de banco) |
 | Checar tipos | `npm run type-check` | exit 0, sem erros |
 | Lint | `npm run lint` | exit 0 |
 | Testes da API | `npm test --workspace=apps/api` | todos passam |
@@ -169,7 +168,7 @@ sob `requireVendorCode`, e pertence ao vendedor que fez o pedido.
 
 **Dentro do escopo:**
 - `packages/db/prisma/schema.prisma` (enum `VisitSource` + campo `Visit.source`)
-- a migration gerada por `npm run db:migrate`
+- `packages/db/prisma/migrations/20261007120000_visit_source/migration.sql` (criar à mão — ver passo 1)
 - `packages/types/src/intelligence.ts` (`VisitInput.source`)
 - `apps/api/src/modules/intelligence/app/visits.routes.ts` (aceitar `source`, deduplicar no dia)
 - `apps/api/src/modules/intelligence/app/__tests__/app-routes.test.ts` (casos novos)
@@ -216,12 +215,42 @@ E no modelo `Visit`, depois de `result`:
 source VisitSource @default(CHECKIN)
 ```
 
-O default existente preserva todas as linhas atuais. Rode `npm run db:migrate` e
-confira que a migration gerada **só** acrescenta — nenhum `DROP`, nenhum
-`NOT NULL` sem default.
+O default existente preserva todas as linhas atuais.
+
+> ⚠️ **NÃO rode `npm run db:migrate`, `prisma migrate dev` ou `prisma migrate reset`.
+> NÃO copie nenhum arquivo `.env` para o worktree. NÃO conecte em banco nenhum.**
+> O `DATABASE_URL` deste projeto aponta para um banco **real** (Neon): `migrate dev`
+> aplicaria a mudança lá e, diante de qualquer drift, chega a propor **resetar o
+> banco**. A migration vai ser aplicada depois, por `migrate deploy`, no pipeline
+> de deploy, sob controle de quem opera.
+
+Em vez disso, **escreva a migration à mão**, no formato das existentes. Crie
+`packages/db/prisma/migrations/20261007120000_visit_source/migration.sql` com
+exatamente este conteúdo:
+
+```sql
+-- O pedido passa a valer como check-in (plano 006): a visita implícita nasce do
+-- pedido, sem GPS e sem duração. A origem fica registrada para que a ausência
+-- desses dados seja explicável — tratar as duas como equivalentes é a regra de
+-- negócio, mas não saber qual foi qual torna impossível explicar a diferença.
+-- O default preserva todas as linhas que já existem.
+CREATE TYPE "VisitSource" AS ENUM ('CHECKIN', 'ORDER');
+
+ALTER TABLE "intel_visits"
+  ADD COLUMN "source" "VisitSource" NOT NULL DEFAULT 'CHECKIN';
+```
+
+O nome da tabela é `intel_visits` (vem do `@@map` no modelo `Visit`,
+`schema.prisma:949`), **não** `Visit`. Confira o padrão em
+`packages/db/prisma/migrations/20261001120000_intel_llm_cache_creation_tokens/migration.sql`,
+que é o exemplo vivo mais recente de `ADD COLUMN` com comentário explicativo.
+
+`prisma generate` **não** precisa de banco — ele lê só o `schema.prisma`.
 
 **Verificar**: `npm run db:generate && npm run type-check` → exit 0;
-`git diff packages/db/prisma/migrations/` → só `CREATE TYPE` e `ALTER TABLE ... ADD COLUMN`.
+`cat packages/db/prisma/migrations/20261007120000_visit_source/migration.sql` →
+só `CREATE TYPE` e `ALTER TABLE ... ADD COLUMN`, nenhum `DROP`, nenhum
+`NOT NULL` sem default.
 
 ### Passo 2: A API aceita a origem e deduplica o dia
 
@@ -312,7 +341,8 @@ motor e a premissa deste plano caiu.
 - [ ] `npm run lint` sai com 0
 - [ ] `npm test --workspace=apps/api` passa, incluindo os cinco casos novos
 - [ ] `npm run test:unit --workspace=apps/mobile` passa
-- [ ] A migration gerada contém só `CREATE TYPE` e `ADD COLUMN`
+- [ ] A migration escrita à mão contém só `CREATE TYPE` e `ADD COLUMN`
+- [ ] Nenhum comando de banco foi executado: `migrate dev`/`migrate reset`/`db push` não aparecem em lugar nenhum, e nenhum `.env` foi criado ou copiado no worktree
 - [ ] `git diff --stat apps/api/src/modules/orders/` vazio
 - [ ] `git diff --stat apps/api/src/modules/intelligence/engine/` vazio
 - [ ] `grep -n "source" apps/api/src/modules/intelligence/engine/engine.service.ts` não retorna referência a `Visit.source`
@@ -320,7 +350,9 @@ motor e a premissa deste plano caiu.
 
 ## Condições de PARADA
 
-- A migration gerada contiver qualquer coisa além de `CREATE TYPE` e `ADD COLUMN`.
+- Parecer necessário conectar em um banco para concluir qualquer passo — não é,
+  e conectar no banco deste projeto a partir de um worktree é risco real.
+- A migration precisar de qualquer coisa além de `CREATE TYPE` e `ADD COLUMN`.
 - O motor já filtrar visitas por `source`.
 - A deduplicação do passo 2 exigir índice novo para ter desempenho aceitável —
   reporte o plano de query em vez de criar índice por conta própria (o índice
