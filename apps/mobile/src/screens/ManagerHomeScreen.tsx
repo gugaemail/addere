@@ -6,14 +6,20 @@
 import { View, Text, ScrollView, StyleSheet, RefreshControl, TouchableOpacity } from 'react-native'
 import { useRouter } from 'expo-router'
 import { CalendarDays, ChevronRight, Map as MapIcon, Users } from 'lucide-react-native'
-import type { ManagerHomeSellerDto } from '@addere/types'
+import type { CustomerStatus, ManagerHomeSellerDto, TeamPortfolioDto } from '@addere/types'
 import { useAuthStore } from '../store/auth.store'
 import { useManagerHome } from '../hooks/useManager'
 import { useHasVendorCode } from '../hooks/useProfile'
 import { Card } from '../components/ui/Card'
 import { EmptyState } from '../components/ui/EmptyState'
 import { FreshnessFooter } from '../components/intel/FreshnessFooter'
+import { STATUS_LABELS, statusColor } from '../utils/customerStatus'
 import { colors, spacing, radius, typography } from '../theme'
+
+// Mesma ordem da carteira do vendedor (rota/carteira.tsx) — todas as seis
+// chaves de CustomerStatus, sempre: um status que some da tela faz o gerente
+// achar que não existe cliente naquele estado.
+const STATUS_ORDER: CustomerStatus[] = ['ON_CYCLE', 'LATE', 'AT_RISK', 'INACTIVE', 'NEW', 'BLOCKED']
 
 function todayLabel(): string {
   const label = new Date().toLocaleDateString('pt-BR', {
@@ -57,6 +63,59 @@ function SellerCard({ seller }: { seller: ManagerHomeSellerDto }) {
           : 'Sem meta capturada neste mês'}
         {` · ${seller.done}/${seller.planned} visitas hoje`}
       </Text>
+    </Card>
+  )
+}
+
+// Carteira da equipe (bloco A, E8 fase 2): barra de status + os seis números,
+// sempre presentes — e o aviso de quem está em risco, com quantos vendedores.
+// Tocar num status abre a lista filtrada (tela B, /equipe/carteira).
+function TeamPortfolioCard({
+  portfolio,
+  onPressStatus,
+}: {
+  portfolio: TeamPortfolioDto
+  onPressStatus: (status: CustomerStatus) => void
+}) {
+  const atRisk = portfolio.byStatus.AT_RISK
+  return (
+    <Card testID="card-carteira-equipe">
+      <View style={s.rowBetween}>
+        <Text style={s.cardTitle}>Carteira da equipe</Text>
+        <Text style={s.portfolioTotal}>
+          {portfolio.total} {portfolio.total === 1 ? 'cliente' : 'clientes'}
+        </Text>
+      </View>
+      {portfolio.total > 0 && (
+        <View style={s.portfolioBar}>
+          {STATUS_ORDER.filter((status) => portfolio.byStatus[status] > 0).map((status) => (
+            <View
+              key={status}
+              style={{ flex: portfolio.byStatus[status], backgroundColor: statusColor(status) }}
+            />
+          ))}
+        </View>
+      )}
+      {STATUS_ORDER.map((status) => (
+        <TouchableOpacity
+          key={status}
+          testID={`portfolio-status-${status}`}
+          style={s.portfolioRow}
+          activeOpacity={0.7}
+          onPress={() => onPressStatus(status)}
+        >
+          <View style={[s.portfolioDot, { backgroundColor: statusColor(status) }]} />
+          <Text style={s.portfolioLabel}>{STATUS_LABELS[status]}</Text>
+          <Text style={s.portfolioCount}>{portfolio.byStatus[status]}</Text>
+          <ChevronRight size={14} color={colors.neutral.placeholder} strokeWidth={1.5} />
+        </TouchableOpacity>
+      ))}
+      {atRisk > 0 && (
+        <Text style={s.portfolioHint} testID="portfolio-at-risk-hint">
+          {atRisk} {atRisk === 1 ? 'cliente' : 'clientes'} em risco em {portfolio.sellersWithAtRisk}{' '}
+          {portfolio.sellersWithAtRisk === 1 ? 'vendedor' : 'vendedores'}
+        </Text>
+      )}
     </Card>
   )
 }
@@ -128,6 +187,15 @@ export function ManagerHomeScreen() {
           <Text style={s.smallLabel}>na equipe</Text>
         </View>
       </View>
+
+      {data?.portfolio && (
+        <TeamPortfolioCard
+          portfolio={data.portfolio}
+          onPressStatus={(status) =>
+            router.push({ pathname: '/equipe/carteira', params: { status } } as never)
+          }
+        />
+      )}
 
       {/* Gerente que vende: os mesmos atalhos da Hoje do vendedor */}
       {hasVendorCode && (
@@ -268,6 +336,44 @@ const s = StyleSheet.create({
     fontFamily: typography.fontFamily.bodySemibold,
     fontSize: typography.size.sm,
     color: colors.neutral.text,
+  },
+  portfolioTotal: {
+    fontFamily: typography.fontFamily.sansBold,
+    fontSize: typography.size.sm,
+    color: colors.brand.dark,
+  },
+  portfolioBar: {
+    flexDirection: 'row',
+    height: 8,
+    borderRadius: radius.full,
+    overflow: 'hidden',
+    backgroundColor: colors.neutral.subtle,
+    marginTop: spacing.sm,
+  },
+  portfolioRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingVertical: spacing.xs,
+    marginTop: spacing.xs,
+  },
+  portfolioDot: { width: 8, height: 8, borderRadius: radius.full },
+  portfolioLabel: {
+    flex: 1,
+    fontFamily: typography.fontFamily.body,
+    fontSize: typography.size.sm,
+    color: colors.neutral.text,
+  },
+  portfolioCount: {
+    fontFamily: typography.fontFamily.sansSemibold,
+    fontSize: typography.size.sm,
+    color: colors.neutral.text,
+  },
+  portfolioHint: {
+    fontFamily: typography.fontFamily.body,
+    fontSize: typography.size.xs,
+    color: colors.status.atRisk,
+    marginTop: spacing.sm,
   },
   sellerName: {
     fontFamily: typography.fontFamily.sansSemibold,

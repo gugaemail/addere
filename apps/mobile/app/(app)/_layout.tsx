@@ -113,6 +113,9 @@ export default function AppLayout() {
         />
         {/* Rota oculta da tab bar — acessada via FAB */}
         <Tabs.Screen name="novo-pedido" options={{ href: null }} />
+        {/* Carteira da equipe (E8 fase 2) oculta da tab bar — acessada pelo
+            bloco de carteira na home do gerente (ManagerHomeScreen) */}
+        <Tabs.Screen name="equipe" options={{ href: null }} />
       </Tabs>
     </View>
   )

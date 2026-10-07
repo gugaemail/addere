@@ -16,6 +16,7 @@ import type {
   ReconciliationResult,
   ReconciliationSpec,
   TeamMapDto,
+  TeamPortfolioDto,
 } from '@addere/types'
 import { api } from '@/lib/api'
 import type { ReferenceSqlOption } from '@/lib/query-reference'
@@ -53,6 +54,8 @@ export const intelKeys = {
     [...intelKeys.lossesAll(), date, vendorCode ?? 'all', baselineMonths, companyId ?? 'own'] as const,
   noOrderReasons: (date: string, range: string, companyId?: string | null) =>
     [...intelKeys.all, 'no-order-reasons', date, range, companyId ?? 'own'] as const,
+  teamPortfolio: (companyId?: string | null) =>
+    [...intelKeys.all, 'team-portfolio', companyId ?? 'own'] as const,
 }
 
 // Params de tenant das rotas /intel/*: só SUPERADMIN manda companyId na query
@@ -507,6 +510,31 @@ export function useAddToPlan() {
       queryClient.invalidateQueries({ queryKey: intelKeys.teamMapAll() })
       queryClient.invalidateQueries({ queryKey: [...intelKeys.all, 'team'] })
     },
+  })
+}
+
+// ─── Fase 2 · Carteira da equipe (E8) — card "Carteira da equipe" ───
+
+/**
+ * GET /intel/manager/customers/signals — só o campo `portfolio` (os seis
+ * números do card acima dos cards de vendedor); a lista em si fica para uma
+ * tela própria mais tarde. Usa o mesmo scopeFor das rotas vizinhas desta
+ * página — ao contrário de /intel/manager/home (fixo na equipe direta de
+ * quem chama, decisão da home do app), aqui ADMIN/SUPERADMIN veem a empresa
+ * inteira, coerente com o resto de Equipe em campo.
+ */
+export function useTeamPortfolio() {
+  const companyParams = useIntelCompanyParam()
+  const ready = useIntelReady()
+  return useQuery({
+    enabled: ready,
+    queryKey: intelKeys.teamPortfolio(companyParams.companyId),
+    queryFn: () =>
+      api
+        .get<{ portfolio: TeamPortfolioDto }>('/intel/manager/customers/signals', {
+          params: companyParams,
+        })
+        .then((r) => r.data.portfolio),
   })
 }
 
