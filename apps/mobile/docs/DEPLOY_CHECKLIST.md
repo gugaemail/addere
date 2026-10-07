@@ -126,12 +126,38 @@ existe na máquina de quem publicou, em `http://` (que o Android bloqueia por
 cleartext). O app fica sem backend até o próximo update, e quem está em campo
 não tem como voltar atrás sozinho.
 
-- [ ] Env explícita no comando, nunca confiando no `.env` do disco:
+São **três** variáveis, e esquecer a terceira é a falha mais silenciosa das
+duas. `runtimeVersion` usa a política `appVersion`, e o `version` do app vem de
+`EXPO_PUBLIC_APP_VERSION ?? '1.0.0'` (`app.config.js`). Sem ela, o update sai
+marcado como runtime **1.0.0** e **não chega em nenhum aparelho** — o build da
+loja tem o runtime da versão dele. O comando termina verde, o dashboard mostra
+o update publicado, e ninguém recebe nada.
+
+Já aconteceu: em 07/10/2026 o canal `production` ainda tinha, como update mais
+recente, um de **três meses antes marcado com runtime 1.0.0**, enquanto a loja
+estava na 1.1.1. Nunca chegou a ninguém.
+
+- [ ] Env explícita no comando, nunca confiando no `.env` do disco, e com a
+      versão **igual à que está publicada na loja**:
 
 ```bash
-EXPO_PUBLIC_API_URL=https://api.addere.com.br EXPO_PUBLIC_APP_ENV=production npx eas update --channel production --message "<o que mudou>"
+EXPO_PUBLIC_API_URL=https://api.addere.com.br \
+EXPO_PUBLIC_APP_ENV=production \
+EXPO_PUBLIC_APP_VERSION=1.1.1 \
+npx eas-cli@latest update --channel production --message "<o que mudou>"
 ```
 
+- [ ] Antes de publicar, conferir o que a config resolve com essa env — se sair
+      `Addere Dev` ou `com.addere.app.dev`, a env não foi aplicada:
+
+```bash
+EXPO_PUBLIC_APP_ENV=production EXPO_PUBLIC_APP_VERSION=1.1.1 node -e "const c=require('./app.config.js').expo; console.log(c.name, c.version, c.ios.bundleIdentifier)"
+```
+
+- [ ] A versão da loja é a de verdade, não a do `eas.json`. Conferir com
+      `npx eas-cli@latest channel:view production` (mostra o runtime do último
+      update) e com a ficha da loja — na App Store dá para ler sem login em
+      `https://itunes.apple.com/lookup?id=6803013404&country=BR`
 - [ ] O canal bate com o do build que está na loja (`channel` do perfil no
       `eas.json`: `production` para loja, `preview` para staging). Update no
       canal errado não chega em ninguém — ou chega em quem não devia
