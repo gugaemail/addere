@@ -17,6 +17,7 @@ import type {
   ReconciliationSpec,
   TeamMapDto,
   TeamPortfolioDto,
+  TeamVisitHistoryDto,
 } from '@addere/types'
 import { api } from '@/lib/api'
 import type { ReferenceSqlOption } from '@/lib/query-reference'
@@ -56,6 +57,10 @@ export const intelKeys = {
     [...intelKeys.all, 'no-order-reasons', date, range, companyId ?? 'own'] as const,
   teamPortfolio: (companyId?: string | null) =>
     [...intelKeys.all, 'team-portfolio', companyId ?? 'own'] as const,
+  // Histórico de visitas da equipe (E24, plano 003) — GET /intel/manager/visits
+  teamVisitsAll: () => [...intelKeys.all, 'team-visits'] as const,
+  teamVisits: (from: string, to: string, vendorCode: string | null, companyId?: string | null) =>
+    [...intelKeys.teamVisitsAll(), from, to, vendorCode ?? 'all', companyId ?? 'own'] as const,
 }
 
 // Params de tenant das rotas /intel/*: só SUPERADMIN manda companyId na query
@@ -535,6 +540,41 @@ export function useTeamPortfolio() {
           params: companyParams,
         })
         .then((r) => r.data.portfolio),
+  })
+}
+
+// ─── Fase 2 · Histórico de visitas da equipe (E24, plano 003) ───
+
+export interface TeamVisitHistoryQuery {
+  /** 'YYYY-MM-DD'. */
+  from: string
+  to: string
+  /** null/'' = equipe inteira (dentro do escopo do gerente). */
+  vendorCode?: string | null
+}
+
+/**
+ * GET /intel/manager/visits?from&to[&vendorCode] → TeamVisitHistoryDto. O
+ * card de cada vendedor em Equipe em campo chama isto com o vendorCode do
+ * card — vendorCode de fora do escopo do gerente volta 403 (checagem na
+ * API, não aqui), igual a useTeamSignals do app.
+ */
+export function useTeamVisitHistory(
+  { from, to, vendorCode }: TeamVisitHistoryQuery,
+  enabled = true
+) {
+  const companyParams = useIntelCompanyParam()
+  const ready = useIntelReady()
+  const vendor = vendorCode || null
+  return useQuery({
+    enabled: enabled && ready,
+    queryKey: intelKeys.teamVisits(from, to, vendor, companyParams.companyId),
+    queryFn: () =>
+      api
+        .get<TeamVisitHistoryDto>('/intel/manager/visits', {
+          params: { from, to, ...(vendor ? { vendorCode: vendor } : {}), ...companyParams },
+        })
+        .then((r) => r.data),
   })
 }
 
