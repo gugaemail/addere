@@ -13,6 +13,7 @@ const PLAN_ID = '33333333-3333-4333-8333-333333333333'
 const ITEM_ID = '44444444-4444-4444-8444-444444444444'
 const CLIENT_ID = '55555555-5555-4555-8555-555555555555'
 const ORDER_ID = '66666666-6666-4666-8666-666666666666'
+const CLIENT_ID_2 = '77777777-7777-4777-8777-777777777777'
 
 let app: FastifyInstance
 
@@ -228,6 +229,149 @@ describe('visitas — idempotência offline e posse', () => {
     })
     expect(res.statusCode).toBe(422)
     expect(res.json().message).toContain('Pedido')
+  })
+
+  // Plano 006: o pedido passa a valer como check-in. A visita implícita nasce
+  // sem GPS/duração (source: 'ORDER') e precisa deduplicar por dia civil —
+  // senão a aderência passa a contar o mesmo atendimento duas vezes.
+  describe('visita implícita (plano 006) — source e deduplicação por dia civil', () => {
+    it('POST com source "ORDER" cria a visita com o source gravado', async () => {
+      prismaMock.visit.create.mockResolvedValue({ id: 'visit-order-1' })
+      const res = await app.inject({
+        method: 'POST',
+        url: '/intel/app/visits',
+        headers: auth(),
+        payload: { ...visitPayload, clientId: CLIENT_ID_2, source: 'ORDER', result: 'ORDER' },
+      })
+      expect(res.statusCode).toBe(201)
+      expect(prismaMock.visit.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ source: 'ORDER', result: 'ORDER' }),
+        })
+      )
+    })
+
+    it('segundo POST ao mesmo cliente no mesmo dia não cria outra visita: atualiza a existente e preserva o arrivedAt do primeiro', async () => {
+      prismaMock.visit.findMany.mockResolvedValue([
+        {
+          id: 'visit-same-day',
+          clientId: CLIENT_ID,
+          vendorCode: 'V1',
+          customerCode: 'A',
+          loja: '01',
+          arrivedAt: new Date('2026-08-21T10:00:00.000Z'), // check-in da manhã
+          result: null,
+          orderId: null,
+          source: 'CHECKIN',
+        },
+      ])
+      prismaMock.order.findFirst.mockResolvedValue({ id: ORDER_ID })
+      const res = await app.inject({
+        method: 'POST',
+        url: '/intel/app/visits',
+        headers: auth(),
+        payload: {
+          ...visitPayload,
+          clientId: CLIENT_ID_2, // pedido criado depois, pela aba Clientes
+          arrivedAt: '2026-08-21T14:00:00.000Z',
+          result: 'ORDER',
+          orderId: ORDER_ID,
+          source: 'ORDER',
+        },
+      })
+      expect(res.statusCode).toBe(200)
+      expect(res.json()).toEqual({ id: 'visit-same-day', clientId: CLIENT_ID, updated: true })
+      expect(prismaMock.visit.create).not.toHaveBeenCalled()
+      // Só result e orderId mudam — arrivedAt e source do check-in original
+      // não entram no update, portanto ficam como estavam.
+      expect(prismaMock.visit.update).toHaveBeenCalledWith({
+        where: { id: 'visit-same-day' },
+        data: { result: 'ORDER', orderId: ORDER_ID },
+      })
+    })
+
+    it('mesmo cliente em dia civil diferente cria uma visita nova', async () => {
+      prismaMock.visit.findMany.mockResolvedValue([
+        {
+          id: 'visit-day-before',
+          clientId: CLIENT_ID,
+          vendorCode: 'V1',
+          customerCode: 'A',
+          loja: '01',
+          arrivedAt: new Date('2026-08-20T23:50:00.000Z'), // 20:50 em SP, dia 20
+          result: null,
+          orderId: null,
+          source: 'CHECKIN',
+        },
+      ])
+      prismaMock.visit.create.mockResolvedValue({ id: 'visit-new-day' })
+      const res = await app.inject({
+        method: 'POST',
+        url: '/intel/app/visits',
+        headers: auth(),
+        payload: { ...visitPayload, clientId: CLIENT_ID_2, arrivedAt: '2026-08-21T14:00:00.000Z' },
+      })
+      expect(res.statusCode).toBe(201)
+      expect(prismaMock.visit.create).toHaveBeenCalled()
+      expect(prismaMock.visit.update).not.toHaveBeenCalled()
+    })
+
+    it('visita implícita com planItemId promove o plano GENERATED → IN_PROGRESS mesmo passando pela deduplicação', async () => {
+      const PLAN_ITEM_ID = '7c1f9c0e-6d0e-4d8a-9f3b-2a1b3c4d5e6f'
+      prismaMock.visitPlanItem.findFirst.mockResolvedValue({ id: PLAN_ITEM_ID, planId: 'plan-1' })
+      prismaMock.visit.findMany.mockResolvedValue([
+        {
+          id: 'visit-same-day-2',
+          clientId: CLIENT_ID,
+          vendorCode: 'V1',
+          customerCode: 'A',
+          loja: '01',
+          arrivedAt: new Date('2026-08-21T10:00:00.000Z'),
+          result: null,
+          orderId: null,
+          planItemId: null,
+          source: 'CHECKIN',
+        },
+      ])
+      const res = await app.inject({
+        method: 'POST',
+        url: '/intel/app/visits',
+        headers: auth(),
+        payload: {
+          ...visitPayload,
+          clientId: CLIENT_ID_2,
+          arrivedAt: '2026-08-21T14:00:00.000Z',
+          result: 'ORDER',
+          source: 'ORDER',
+          planItemId: PLAN_ITEM_ID,
+        },
+      })
+      expect(res.statusCode).toBe(200)
+      expect(prismaMock.visitPlan.updateMany).toHaveBeenCalledWith({
+        where: { id: 'plan-1', status: 'GENERATED' },
+        data: { status: 'IN_PROGRESS' },
+      })
+    })
+
+    it('orderId de outro usuário continua rejeitado para a visita implícita (source ORDER), sem tocar na deduplicação', async () => {
+      prismaMock.order.findFirst.mockResolvedValue(null)
+      const res = await app.inject({
+        method: 'POST',
+        url: '/intel/app/visits',
+        headers: auth(),
+        payload: {
+          ...visitPayload,
+          clientId: CLIENT_ID_2,
+          result: 'ORDER',
+          source: 'ORDER',
+          orderId: ORDER_ID,
+        },
+      })
+      expect(res.statusCode).toBe(422)
+      expect(res.json().message).toContain('Pedido')
+      expect(prismaMock.visit.findMany).not.toHaveBeenCalled()
+      expect(prismaMock.visit.create).not.toHaveBeenCalled()
+    })
   })
 
   it('PATCH fecha a visita própria; de outro vendedor → 404', async () => {
