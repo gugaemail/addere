@@ -372,6 +372,102 @@ describe('visitas — idempotência offline e posse', () => {
       expect(prismaMock.visit.findMany).not.toHaveBeenCalled()
       expect(prismaMock.visit.create).not.toHaveBeenCalled()
     })
+
+    it('visita implícita (ORDER) existente + check-in explícito (CHECKIN) no mesmo dia: a linha adota o clientId novo, vira CHECKIN, e um PATCH nesse clientId acha a visita', async () => {
+      prismaMock.visit.findMany.mockResolvedValue([
+        {
+          id: 'visit-implicit',
+          clientId: CLIENT_ID, // gerado quando o pedido criou a visita implícita
+          vendorCode: 'V1',
+          customerCode: 'A',
+          loja: '01',
+          arrivedAt: new Date('2026-08-21T10:00:00.000Z'), // instante do pedido
+          result: 'ORDER',
+          orderId: ORDER_ID,
+          source: 'ORDER',
+        },
+      ])
+      const res = await app.inject({
+        method: 'POST',
+        url: '/intel/app/visits',
+        headers: auth(),
+        payload: {
+          ...visitPayload,
+          clientId: CLIENT_ID_2, // gerado pelo app ao tocar em "Cheguei"
+          arrivedAt: '2026-08-21T14:00:00.000Z',
+          source: 'CHECKIN',
+          lat: -22.9,
+          lng: -47.0,
+          accuracyM: 15,
+        },
+      })
+      expect(res.statusCode).toBe(200)
+      expect(res.json()).toEqual({ id: 'visit-implicit', clientId: CLIENT_ID_2, updated: true })
+      expect(prismaMock.visit.update).toHaveBeenCalledWith({
+        where: { id: 'visit-implicit' },
+        data: {
+          result: 'ORDER', // preservado — a venda já estava registrada
+          orderId: ORDER_ID,
+          clientId: CLIENT_ID_2,
+          source: 'CHECKIN',
+          lat: -22.9,
+          lng: -47.0,
+          accuracyM: 15,
+        },
+      })
+
+      // O PATCH que a tela de Rota faz ao concluir a visita usa o clientId
+      // que ela mesma gerou (CLIENT_ID_2) — sem a adoção acima, dava 404 e
+      // leftAt/result/notes do check-in explícito se perdiam.
+      resetPrismaMock()
+      prismaMock.user.findUnique.mockResolvedValue(USER_ROWS['seller-a'])
+      prismaMock.visit.findFirst.mockResolvedValue({ id: 'visit-implicit' })
+      const patchRes = await app.inject({
+        method: 'PATCH',
+        url: `/intel/app/visits/${CLIENT_ID_2}`,
+        headers: auth(),
+        payload: { result: 'NO_ORDER', leftAt: '2026-08-21T14:20:00.000Z' },
+      })
+      expect(patchRes.statusCode).toBe(200)
+    })
+
+    it('visita explícita (CHECKIN) existente + pedido implícito (ORDER) no mesmo dia: o clientId e o source da existente NÃO mudam', async () => {
+      prismaMock.visit.findMany.mockResolvedValue([
+        {
+          id: 'visit-explicit',
+          clientId: CLIENT_ID, // do check-in, ainda pendente de PATCH na tela de visita
+          vendorCode: 'V1',
+          customerCode: 'A',
+          loja: '01',
+          arrivedAt: new Date('2026-08-21T08:00:00.000Z'),
+          result: null,
+          orderId: null,
+          source: 'CHECKIN',
+        },
+      ])
+      prismaMock.order.findFirst.mockResolvedValue({ id: ORDER_ID })
+      const res = await app.inject({
+        method: 'POST',
+        url: '/intel/app/visits',
+        headers: auth(),
+        payload: {
+          ...visitPayload,
+          clientId: CLIENT_ID_2, // visita implícita nascida do pedido, pela aba Clientes
+          arrivedAt: '2026-08-21T14:00:00.000Z',
+          result: 'ORDER',
+          source: 'ORDER',
+          orderId: ORDER_ID,
+        },
+      })
+      expect(res.statusCode).toBe(200)
+      // O clientId e o source continuam os do check-in: a tela de visita pode
+      // concluir mais tarde com um PATCH nesse clientId, e ele não pode sumir.
+      expect(res.json()).toEqual({ id: 'visit-explicit', clientId: CLIENT_ID, updated: true })
+      expect(prismaMock.visit.update).toHaveBeenCalledWith({
+        where: { id: 'visit-explicit' },
+        data: { result: 'ORDER', orderId: ORDER_ID },
+      })
+    })
   })
 
   it('PATCH fecha a visita própria; de outro vendedor → 404', async () => {

@@ -136,17 +136,40 @@ export default async function visitsRoutes(app: FastifyInstance) {
     const sameDay = sameDayCandidates.find((v) => ymdSaoPaulo(v.arrivedAt) === targetYmd)
 
     if (sameDay) {
-      // Preserva arrivedAt e source originais; só o resultado e o pedido
-      // chegam de novo (e só sobrescrevem se vierem informados).
+      // A visita implícita (ORDER) nunca tem PATCH pendente; a explícita
+      // (CHECKIN) sempre pode ter — quem vai concluir a visita na tela de
+      // Rota guarda o clientId que ACABOU de gerar e faz PATCH nele depois.
+      // Se a existente é ORDER e a que chega é CHECKIN, a existente precisa
+      // adotar esse clientId (é seguro: o findUnique acima já provou que ele
+      // não pertence a nenhuma linha) e virar CHECKIN, capturando o GPS real
+      // que veio com o check-in. arrivedAt não muda (decisão de desenho 1).
+      // No sentido contrário (existente CHECKIN, chegando ORDER) o clientId
+      // e o source da existente ficam como estão — o vendedor pode concluir
+      // a visita explícita mais tarde, e trocar o clientId ali quebraria
+      // esse PATCH futuro.
+      const adopting = sameDay.source === 'ORDER' && body.source === 'CHECKIN'
       await prisma.visit.update({
         where: { id: sameDay.id },
         data: {
           result: body.result ?? sameDay.result,
           orderId: body.orderId ?? sameDay.orderId,
+          ...(adopting
+            ? {
+                clientId: body.clientId,
+                source: body.source,
+                lat: body.lat ?? null,
+                lng: body.lng ?? null,
+                accuracyM: body.accuracyM ?? null,
+              }
+            : {}),
         },
       })
       await markPlanInProgress(planId)
-      return reply.send({ id: sameDay.id, clientId: sameDay.clientId, updated: true })
+      return reply.send({
+        id: sameDay.id,
+        clientId: adopting ? body.clientId : sameDay.clientId,
+        updated: true,
+      })
     }
 
     const visit = await prisma.visit.create({
