@@ -1,26 +1,30 @@
 // Histórico de visitas (E24, plano 003) — o espelho que faltava: o vendedor
 // registra cada visita no "Cheguei" e nunca mais vê nenhuma delas. Agrupado
 // por dia civil (ymd do DTO, já em 'YYYY-MM-DD' de São Paulo), com os
-// contadores do período no topo e um seletor de janela (7/30/90 dias).
+// contadores do período no topo e um seletor de mês civil (Este mês / Mês
+// passado) — unidade de apuração, não janela de N dias corridos: a meta é
+// mensal, e janela móvel nunca fecha com o período pelo qual o vendedor é
+// cobrado (ver nota de revisão em src/utils/visitHistory.ts).
 import { useMemo, useState } from 'react'
 import { View, Text, SectionList, TouchableOpacity, StyleSheet } from 'react-native'
 import { useRouter } from 'expo-router'
 import { Check, RotateCcw, X } from 'lucide-react-native'
 import type { VisitHistoryItemDto } from '@addere/types'
 import { useVisitHistory } from '../../../src/hooks/useIntel'
-import { addDays, saoPauloYmd } from '../../../src/utils/calendar'
-import { sectionsByDay, visitMetaLine, type VisitHistoryDaySection } from '../../../src/utils/visitHistory'
+import { saoPauloYmd } from '../../../src/utils/calendar'
+import {
+  historyPeriodLabel,
+  historyPeriodRange,
+  sectionsByDay,
+  visitMetaLine,
+  type HistoryPeriod,
+  type VisitHistoryDaySection,
+} from '../../../src/utils/visitHistory'
 import { EmptyState } from '../../../src/components/ui/EmptyState'
 import { LoadingState } from '../../../src/components/Skeleton'
 import { colors, spacing, radius, typography } from '../../../src/theme'
 
-const PERIODS = [
-  { label: '7 dias', days: 7 },
-  { label: '30 dias', days: 30 },
-  { label: '90 dias', days: 90 },
-] as const
-
-type PeriodDays = (typeof PERIODS)[number]['days']
+const PERIODS: HistoryPeriod[] = ['current', 'previous']
 
 const RESULT_META: Partial<
   Record<NonNullable<VisitHistoryItemDto['result']>, { label: string; color: string; Icon: typeof Check }>
@@ -71,10 +75,10 @@ function SummaryCard({
 
 export default function HistoricoScreen() {
   const router = useRouter()
-  const [days, setDays] = useState<PeriodDays>(30)
+  const [period, setPeriod] = useState<HistoryPeriod>('current')
   const today = useMemo(() => saoPauloYmd(), [])
-  const from = useMemo(() => addDays(today, -(days - 1)), [today, days])
-  const { data, isLoading } = useVisitHistory(from, today)
+  const { from, to } = useMemo(() => historyPeriodRange(period, today), [today, period])
+  const { data, isLoading } = useVisitHistory(from, to)
 
   const sections = useMemo(() => sectionsByDay(data?.items ?? []), [data])
 
@@ -121,15 +125,15 @@ export default function HistoricoScreen() {
   return (
     <View style={s.container} testID="screen-historico">
       <View style={s.periodRow}>
-        {PERIODS.map((period) => (
+        {PERIODS.map((p) => (
           <TouchableOpacity
-            key={period.days}
-            testID={`historico-periodo-${period.days}`}
-            style={[s.periodPill, days === period.days && s.periodPillActive]}
-            onPress={() => setDays(period.days)}
+            key={p}
+            testID={`historico-periodo-${p}`}
+            style={[s.periodPill, period === p && s.periodPillActive]}
+            onPress={() => setPeriod(p)}
           >
-            <Text style={[s.periodText, days === period.days && s.periodTextActive]}>
-              {period.label}
+            <Text style={[s.periodText, period === p && s.periodTextActive]}>
+              {historyPeriodLabel(p)}
             </Text>
           </TouchableOpacity>
         ))}
@@ -143,7 +147,11 @@ export default function HistoricoScreen() {
         <EmptyState
           illustration="orders"
           title="Sem visitas neste período"
-          subtitle={`Nenhuma visita registrada nos últimos ${days} dias. Toque em Cheguei na Rota para registrar a primeira.`}
+          subtitle={
+            period === 'current'
+              ? 'Nenhuma visita registrada neste mês. Toque em Cheguei na Rota para registrar a primeira.'
+              : 'Nenhuma visita registrada no mês passado.'
+          }
         />
       ) : (
         <SectionList<VisitHistoryItemDto, VisitHistoryDaySection>

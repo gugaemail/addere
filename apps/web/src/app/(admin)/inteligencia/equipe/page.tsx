@@ -87,14 +87,13 @@ const PORTFOLIO_STATUS_ORDER: Array<{ status: CustomerStatus; label: string; cla
 ]
 
 // Histórico de visitas do vendedor (E24, plano 003) — card expansível em
-// cada SellerCard, janela fixa dos últimos 30 dias (o seletor de período é
-// coisa da tela do app; aqui é só o espelho em tabela).
-const HISTORY_WINDOW_DAYS = 30
-
-function isoDaysAgo(days: number, today = todayInSaoPaulo()): string {
-  const d = new Date(`${today}T00:00:00Z`)
-  d.setUTCDate(d.getUTCDate() - days)
-  return d.toISOString().slice(0, 10)
+// cada SellerCard. Unidade de apuração: mês civil, nunca janela de N dias
+// corridos (revisão do plano 003) — a meta do vendedor é mensal, e a tela
+// mostra conversão (visitas → pedido), que é apuração, não só log. Mês
+// corrente, do dia 1 até hoje (o seletor Este mês/Mês passado é da tela do
+// app; aqui é só o espelho em tabela).
+function currentMonthToDate(today = todayInSaoPaulo()): { from: string; to: string } {
+  return { from: `${today.slice(0, 7)}-01`, to: today }
 }
 
 /** 'YYYY-MM-DD' → 'DD/MM' — o `ymd` deste DTO vem com hífen (diferente do
@@ -572,10 +571,9 @@ function SellerCard({
 
 // Espelho, em tabela, da tela de histórico do app — mesmo serviço
 // (GET /intel/manager/visits), vendorCode do card como filtro dentro do
-// escopo do gerente. Janela fixa de 30 dias.
+// escopo do gerente. Mês corrente (apuração, não janela de dias).
 function SellerHistoryPanel({ vendorCode }: { vendorCode: string }) {
-  const to = todayInSaoPaulo()
-  const from = isoDaysAgo(HISTORY_WINDOW_DAYS - 1, to)
+  const { from, to } = currentMonthToDate()
   const { data, isLoading } = useTeamVisitHistory({ from, to, vendorCode })
 
   if (isLoading) {
@@ -586,11 +584,7 @@ function SellerHistoryPanel({ vendorCode }: { vendorCode: string }) {
     )
   }
   if (!data || data.items.length === 0) {
-    return (
-      <p className="text-xs text-[var(--text-muted)]">
-        Nenhuma visita registrada nos últimos {HISTORY_WINDOW_DAYS} dias.
-      </p>
-    )
+    return <p className="text-xs text-[var(--text-muted)]">Nenhuma visita registrada neste mês.</p>
   }
 
   return (

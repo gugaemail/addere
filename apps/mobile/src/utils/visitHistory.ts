@@ -1,10 +1,64 @@
-// Histórico de visitas (E24, plano 003) — agrupamento por dia e formatação
-// de meta, puros. Hora sempre em America/Sao_Paulo (nunca o fuso do
-// aparelho): no campo quase sempre coincidem, mas não é garantido.
+// Histórico de visitas (E24, plano 003) — agrupamento por dia, seletor de
+// mês civil e formatação de meta, puros. Hora sempre em America/Sao_Paulo
+// (nunca o fuso do aparelho): no campo quase sempre coincidem, mas não é
+// garantido.
+//
+// Unidade de apuração: mês civil, nunca janela de N dias corridos (revisão
+// do plano 003) — a meta do vendedor é mensal e a do gerente é a soma das
+// metas da equipe, e meses têm 28/29/30/31 dias, então uma janela móvel
+// nunca fecha com o período pelo qual a pessoa é cobrada. Por isso só duas
+// opções (Este mês / Mês passado), nunca uma janela de dias: um mês civil
+// isolado nunca passa de 31 dias, bem dentro do teto de 90 da API.
 import type { VisitHistoryItemDto } from '@addere/types'
 import { weekdayOf } from './calendar'
 
 const WEEKDAY_FULL = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEXTA', 'SÁBADO'] as const
+
+export interface MonthRange {
+  from: string // 'YYYY-MM-DD'
+  to: string
+}
+
+/**
+ * Último dia de `month` (1-12) em `year`, sempre do calendário — nunca
+ * `dia1 + 30`. `Date.UTC(year, month, 0)` pede o "dia 0" do mês seguinte
+ * (índice 0 do JS Date já é 1-indexado aqui de propósito), que o próprio
+ * JS resolve como o último dia do mês anterior — cobre fevereiro bissexto
+ * (29), fevereiro comum (28) e os meses de 31 sem precisar de tabela.
+ */
+export function lastDayOfMonth(year: number, month: number): number {
+  return new Date(Date.UTC(year, month, 0)).getUTCDate()
+}
+
+/** Mês anterior ao de `ymd` — janeiro vira dezembro do ano anterior (virada explícita). */
+export function previousMonthOf(ymd: string): { year: number; month: number } {
+  const year = Number(ymd.slice(0, 4))
+  const month = Number(ymd.slice(5, 7))
+  return month === 1 ? { year: year - 1, month: 12 } : { year, month: month - 1 }
+}
+
+/** "Este mês": do dia 1 até `todayYmd` — o mês ainda não fechou, não vai até o fim dele. */
+export function currentMonthToDate(todayYmd: string): MonthRange {
+  return { from: `${todayYmd.slice(0, 7)}-01`, to: todayYmd }
+}
+
+/** "Mês passado": o mês civil anterior inteiro, do dia 1 ao último dia do calendário. */
+export function previousMonthRange(todayYmd: string): MonthRange {
+  const { year, month } = previousMonthOf(todayYmd)
+  const mm = String(month).padStart(2, '0')
+  const lastDay = String(lastDayOfMonth(year, month)).padStart(2, '0')
+  return { from: `${year}-${mm}-01`, to: `${year}-${mm}-${lastDay}` }
+}
+
+export type HistoryPeriod = 'current' | 'previous'
+
+export function historyPeriodRange(period: HistoryPeriod, todayYmd: string): MonthRange {
+  return period === 'current' ? currentMonthToDate(todayYmd) : previousMonthRange(todayYmd)
+}
+
+export function historyPeriodLabel(period: HistoryPeriod): string {
+  return period === 'current' ? 'Este mês' : 'Mês passado'
+}
 
 export interface VisitHistoryDaySection {
   ymd: string

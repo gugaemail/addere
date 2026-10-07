@@ -1,4 +1,15 @@
-import { dayHeaderLabel, durationLabel, sectionsByDay, visitMetaLine } from '../visitHistory'
+import {
+  currentMonthToDate,
+  dayHeaderLabel,
+  durationLabel,
+  historyPeriodLabel,
+  historyPeriodRange,
+  lastDayOfMonth,
+  previousMonthOf,
+  previousMonthRange,
+  sectionsByDay,
+  visitMetaLine,
+} from '../visitHistory'
 import type { VisitHistoryItemDto } from '@addere/types'
 
 const item = (over: Partial<VisitHistoryItemDto> = {}): VisitHistoryItemDto => ({
@@ -49,6 +60,60 @@ describe('visitMetaLine', () => {
     expect(visitMetaLine(item({ source: 'ORDER', durationMin: null }))).toBe(
       '08:12 · registrada pelo pedido'
     )
+  })
+})
+
+describe('lastDayOfMonth', () => {
+  it('fevereiro bissexto termina em 29', () => {
+    expect(lastDayOfMonth(2028, 2)).toBe(29) // 2028 é bissexto
+  })
+
+  it('fevereiro comum termina em 28', () => {
+    expect(lastDayOfMonth(2026, 2)).toBe(28)
+  })
+
+  it('mês de 31 dias não vira 30 — vem do calendário, não de dia1 + 30', () => {
+    expect(lastDayOfMonth(2026, 1)).toBe(31) // janeiro
+    expect(lastDayOfMonth(2026, 7)).toBe(31) // julho
+  })
+})
+
+describe('previousMonthOf', () => {
+  it('janeiro cai em dezembro do ano anterior (virada explícita)', () => {
+    expect(previousMonthOf('2026-01-15')).toEqual({ year: 2025, month: 12 })
+  })
+
+  it('mês comum só decresce, sem virar ano', () => {
+    expect(previousMonthOf('2026-03-10')).toEqual({ year: 2026, month: 2 })
+  })
+})
+
+describe('currentMonthToDate', () => {
+  it('do dia 1 do mês até hoje — não vai até o fim do mês', () => {
+    expect(currentMonthToDate('2026-09-23')).toEqual({ from: '2026-09-01', to: '2026-09-23' })
+  })
+})
+
+describe('previousMonthRange', () => {
+  it('mês anterior inteiro, do dia 1 ao último dia do calendário', () => {
+    expect(previousMonthRange('2026-03-10')).toEqual({ from: '2026-02-01', to: '2026-02-28' })
+  })
+
+  it('janeiro: mês anterior é dezembro do ano passado, com 31 dias', () => {
+    expect(previousMonthRange('2026-01-15')).toEqual({ from: '2025-12-01', to: '2025-12-31' })
+  })
+
+  it('fevereiro bissexto fecha em 29, não em 28', () => {
+    expect(previousMonthRange('2028-03-05')).toEqual({ from: '2028-02-01', to: '2028-02-29' })
+  })
+})
+
+describe('historyPeriodRange / historyPeriodLabel', () => {
+  it('"current" é Este mês; "previous" é Mês passado', () => {
+    expect(historyPeriodLabel('current')).toBe('Este mês')
+    expect(historyPeriodLabel('previous')).toBe('Mês passado')
+    expect(historyPeriodRange('current', '2026-09-23')).toEqual(currentMonthToDate('2026-09-23'))
+    expect(historyPeriodRange('previous', '2026-09-23')).toEqual(previousMonthRange('2026-09-23'))
   })
 })
 
