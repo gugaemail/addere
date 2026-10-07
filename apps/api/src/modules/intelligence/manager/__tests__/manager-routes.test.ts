@@ -203,6 +203,92 @@ describe('GET /intel/manager/home', () => {
   })
 })
 
+describe('GET /intel/manager/customers/signals', () => {
+  it('vendedor sem intel.* → 403', async () => {
+    const res = await app.inject({
+      method: 'GET',
+      url: '/intel/manager/customers/signals',
+      headers: auth('sales-a'),
+    })
+    expect(res.statusCode).toBe(403)
+  })
+
+  // O teste mais importante do plano: vendorCode é filtro DENTRO do escopo,
+  // nunca ampliação dele — pedir o código de um vendedor de outra equipe não
+  // pode virar lista vazia (isso esconderia o erro de permissão).
+  it('gerente A pedindo vendorCode de vendedor de outra equipe → 403', async () => {
+    // A equipe de manager-a só tem Ana (V1) — V9 é de outro gerente (manager-b)
+    prismaMock.user.findMany.mockResolvedValue([
+      { id: 'u-ana', name: 'Ana', idVendProt: 'V1', managerId: 'manager-a' },
+    ])
+    const res = await app.inject({
+      method: 'GET',
+      url: '/intel/manager/customers/signals?vendorCode=V9',
+      headers: auth('manager-a'),
+    })
+    expect(res.statusCode).toBe(403)
+    // O 403 corta antes de qualquer consulta de cliente/sinal
+    expect(prismaMock.customer.findMany).not.toHaveBeenCalled()
+  })
+
+  it('vendorCode dentro do escopo devolve 200 e cada item leva o vendedor do cliente', async () => {
+    prismaMock.user.findMany.mockResolvedValue([
+      { id: 'u-ana', name: 'Ana', idVendProt: 'V1', managerId: 'manager-a' },
+    ])
+    prismaMock.customer.findMany.mockResolvedValue([
+      { protheusCode: 'C1', loja: '01', name: 'Mercado Ponto Certo', vendorCode: 'V1' },
+    ])
+    prismaMock.customerSignal.findMany.mockResolvedValue([
+      {
+        customerCode: 'C1',
+        loja: '01',
+        status: 'AT_RISK',
+        daysSinceLastPurchase: 84,
+        avgTicket: '3100.00',
+      },
+    ])
+    const res = await app.inject({
+      method: 'GET',
+      url: '/intel/manager/customers/signals?vendorCode=V1',
+      headers: auth('manager-a'),
+    })
+    expect(res.statusCode).toBe(200)
+    expect(res.json().items).toEqual([
+      {
+        customerCode: 'C1',
+        loja: '01',
+        customerName: 'Mercado Ponto Certo',
+        vendorCode: 'V1',
+        sellerName: 'Ana',
+        status: 'AT_RISK',
+        daysSinceLastPurchase: 84,
+        avgTicket: '3100.00',
+      },
+    ])
+  })
+
+  it('status inválido → 400', async () => {
+    const res = await app.inject({
+      method: 'GET',
+      url: '/intel/manager/customers/signals?status=PURPLE',
+      headers: auth('manager-a'),
+    })
+    expect(res.statusCode).toBe(400)
+  })
+
+  it('sem vendedor na equipe devolve lista vazia sem consultar clientes', async () => {
+    prismaMock.user.findMany.mockResolvedValue([])
+    const res = await app.inject({
+      method: 'GET',
+      url: '/intel/manager/customers/signals',
+      headers: auth('manager-a'),
+    })
+    expect(res.statusCode).toBe(200)
+    expect(res.json().items).toEqual([])
+    expect(prismaMock.customer.findMany).not.toHaveBeenCalled()
+  })
+})
+
 describe('GET /intel/manager/pilot-metrics', () => {
   it('período invertido → 400', async () => {
     const res = await app.inject({

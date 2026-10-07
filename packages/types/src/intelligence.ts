@@ -443,6 +443,18 @@ export interface ManagerHomeSellerDto {
   adherencePct: number | null
 }
 
+// Carteira da equipe por status (E8 fase 2): soma dos clientes de todos os
+// vendedores do escopo, quebrada por CustomerStatus (sempre com as seis
+// chaves, zero quando não houver) — alimenta o bloco "Carteira da equipe" da
+// home do gerente (app) e o card equivalente no painel.
+export interface TeamPortfolioDto {
+  total: number
+  byStatus: Record<CustomerStatus, number>
+  /** Quantos vendedores distintos têm pelo menos um cliente em risco. */
+  sellersWithAtRisk: number
+  bySeller: Array<{ vendorCode: string; sellerName: string; total: number; atRisk: number }>
+}
+
 export interface ManagerHomeDto {
   period: string // YYYYMM
   goal: {
@@ -454,6 +466,7 @@ export interface ManagerHomeDto {
   }
   today: { ymd: string; planned: number; done: number }
   sellers: ManagerHomeSellerDto[]
+  portfolio: TeamPortfolioDto
   lastSyncAt: string | null
 }
 

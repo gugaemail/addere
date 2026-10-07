@@ -7,7 +7,8 @@ import { requireAnyPermission } from '../../../middleware/authenticate'
 import { resolveTenant } from '../../../middleware/resolve-tenant'
 import { resolveViewerScope, type ViewerScope } from '../../users/data-scope'
 import { ymdSaoPaulo } from '../engine/business-days'
-import { buildManagerHome, buildPilotReport, buildTeam } from './manager.service'
+import { buildManagerHome, buildPilotReport, buildTeam, loadSellers } from './manager.service'
+import { loadTeamPortfolio, loadTeamSignalsList } from './portfolio.service'
 import { compactYmd, ymdToUtcDate } from './range'
 import { buildTeamMapForDay } from './team-map.service'
 import { buildLossesReport } from './losses.service'
@@ -35,6 +36,11 @@ const lossesQuerySchema = z.object({
 const noOrderQuerySchema = z.object({
   date: isoDate.optional(),
   range: z.enum(['day', 'week', 'month']).default('day'),
+})
+
+const signalsQuerySchema = z.object({
+  status: z.enum(['NEW', 'ON_CYCLE', 'LATE', 'AT_RISK', 'INACTIVE', 'BLOCKED']).optional(),
+  vendorCode: z.string().min(1).max(20).optional(),
 })
 
 const planItemSchema = z
@@ -83,6 +89,33 @@ export default async function managerRoutes(app: FastifyInstance) {
     // loadSellers (via sellerWhere) só lê scope.managerId para o caso 'team'.
     const scope: ViewerScope = { kind: 'team', managerId: request.user.sub, ownVendorCode: null }
     return reply.send(await buildManagerHome(company.id, scope))
+  })
+
+  // GET /intel/manager/customers/signals?status=&vendorCode= — carteira da equipe
+  app.get('/customers/signals', { preHandler: [guard] }, async (request, reply) => {
+    const company = await resolveTenant(request, reply, 'query')
+    if (!company) return
+    const query = signalsQuerySchema.parse(request.query)
+    const scope = await scopeFor(request)
+
+    const sellers = await loadSellers(company.id, scope)
+    const vendorCodes = sellers.map((s) => s.idVendProt as string)
+
+    // vendorCode é filtro DENTRO do escopo, nunca ampliação dele: código fora
+    // da equipe → 403 (lista vazia esconderia o erro de permissão)
+    if (query.vendorCode && !vendorCodes.includes(query.vendorCode)) {
+      return reply.status(403).send({ message: 'Este vendedor não é da sua equipe' })
+    }
+
+    const codes = query.vendorCode ? [query.vendorCode] : vendorCodes
+    // portfolio é sempre o agregado do escopo inteiro (não filtra por
+    // status/vendorCode) — é o que alimenta o card/bloco de carteira da
+    // equipe, que não some com o filtro da lista abaixo dele.
+    const [items, portfolio] = await Promise.all([
+      loadTeamSignalsList(company.id, sellers, codes, query.status),
+      loadTeamPortfolio(company.id, sellers),
+    ])
+    return reply.send({ items, portfolio })
   })
 
   // GET /intel/manager/team-map?date= — Mapa da equipe (E20): paradas do dia e último check-in
