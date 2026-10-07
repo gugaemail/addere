@@ -529,3 +529,28 @@ export interface LossesReportDto {
   text: string | null // resumo do agente (fallback só-motor = null)
   lastSyncAt: string | null
 }
+
+// "Por que não vendeu" (E22, plano 002): agregação de Visit.noOrderReason por
+// normalização burra — ver apps/api/.../manager/no-order.ts.
+export interface NoOrderReasonBucketDto {
+  normalized: string // chave do agrupamento
+  sample: string // primeiro texto original do grupo, para exibir
+  count: number
+}
+
+export interface NoOrderVisitDto {
+  ymd: string
+  vendorCode: string
+  sellerName: string
+  customerName: string
+  reason: string // texto como digitado
+  planned: boolean // planItemId !== null
+}
+
+export interface NoOrderReportDto {
+  range: { fromYmd: string; toYmd: string }
+  total: number
+  buckets: NoOrderReasonBucketDto[] // só os com count >= 2, ordem decrescente
+  singletons: number // quantos motivos apareceram uma vez só
+  recent: NoOrderVisitDto[] // até 10, mais recentes primeiro
+}
