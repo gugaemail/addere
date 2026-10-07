@@ -19,14 +19,26 @@ import { prisma } from '@addere/db'
 import type { UserRole } from '@addere/types'
 import { getEffectivePermissions } from '../permissions/permissions.service'
 
+// ViewerScope carrega só a *decisão* — barata, sem consulta à equipe.
+// 'team' guarda managerId e o próprio idVendProt (ownVendorCode); quem precisa
+// da lista de vendedores da equipe pede explicitamente a customerWhere/
+// orderOwnerIds (únicos chamadores que tocam o banco para isso — a
+// Inteligência nunca precisa dessa lista, só de managerId via sellerWhere).
+// Correção de 07/10/2026 (ver plano 007): a forma original fazia
+// resolveViewerScope carregar a equipe inteira sempre que o escopo era
+// 'team', mesmo pra quem só ia usar sellerWhere (que lê só managerId) — uma
+// consulta extra e redundante em todo request de /intel/manager/* feito por
+// um gerente.
 export type ViewerScope =
   | { kind: 'company' }
-  | { kind: 'team'; managerId: string; userIds: string[]; vendorCodes: string[] }
+  | { kind: 'team'; managerId: string; ownVendorCode: string | null }
   | { kind: 'self'; userId: string; vendorCode: string | null }
 
 // Equipe do gerente, travada por companyId: sem isso, um managerId que por
 // acaso aponte para um usuário de outra empresa (dado sujo, import errado)
-// traria gente de fora para a equipe.
+// traria gente de fora para a equipe. Chamada só por quem precisa da lista
+// (customerWhere/orderOwnerIds) — nunca por resolveViewerScope nem por
+// sellerWhere.
 async function loadTeamInCompany(companyId: string, managerId: string) {
   return prisma.user.findMany({
     where: { companyId, active: true, managerId, idVendProt: { not: null } },
@@ -34,11 +46,8 @@ async function loadTeamInCompany(companyId: string, managerId: string) {
   })
 }
 
-export async function resolveViewerScope(
-  userId: string,
-  role: UserRole,
-  companyId: string
-): Promise<ViewerScope> {
+/** Barato: só permissões + o próprio idVendProt. NÃO consulta a equipe. */
+export async function resolveViewerScope(userId: string, role: UserRole): Promise<ViewerScope> {
   if (role === 'SUPERADMIN') return { kind: 'company' }
 
   const permissions = await getEffectivePermissions(userId, role)
@@ -47,41 +56,53 @@ export async function resolveViewerScope(
   const me = await prisma.user.findUnique({ where: { id: userId }, select: { idVendProt: true } })
   const ownCode = me?.idVendProt ?? null
 
-  if (permissions.has('intel.manager')) {
-    const team = await loadTeamInCompany(companyId, userId)
-    return {
-      kind: 'team',
-      managerId: userId,
-      userIds: [userId, ...team.map((s) => s.id)],
-      vendorCodes: [...(ownCode ? [ownCode] : []), ...team.map((s) => s.idVendProt as string)],
-    }
-  }
+  if (permissions.has('intel.manager')) return { kind: 'team', managerId: userId, ownVendorCode: ownCode }
 
   return { kind: 'self', userId, vendorCode: ownCode }
 }
 
-/** Trecho do `where` de Customer para o recorte. Equipe vazia → lista vazia. */
-export function customerWhere(scope: ViewerScope): { vendorCode?: string | { in: string[] } } {
+/**
+ * Trecho do `where` de Customer para o recorte. Carrega a equipe sob demanda
+ * (só para 'team') — só o núcleo do app (Clientes) chama isto.
+ */
+export async function customerWhere(
+  companyId: string,
+  scope: ViewerScope
+): Promise<{ vendorCode?: string | { in: string[] } }> {
   if (scope.kind === 'company') return {}
-  if (scope.kind === 'team') return { vendorCode: { in: scope.vendorCodes } }
+  if (scope.kind === 'team') {
+    const team = await loadTeamInCompany(companyId, scope.managerId)
+    const vendorCodes = [
+      ...(scope.ownVendorCode ? [scope.ownVendorCode] : []),
+      ...team.map((s) => s.idVendProt as string),
+    ]
+    return { vendorCode: { in: vendorCodes } }
+  }
   return scope.vendorCode ? { vendorCode: scope.vendorCode } : {}
 }
 
 /**
  * Ids de dono visíveis nos pedidos: o próprio e, para o gerente, a equipe.
- * 'company' não tem lista de donos para enumerar — quem chama resolve a
- * empresa inteira por fora (orders.routes.ts busca todo mundo ativo da
- * empresa antes de montar o filtro), por isso a assinatura exclui esse caso.
+ * `null` para 'company' significa "sem filtro de dono" — quem chama precisa
+ * omitir o filtro nesse caso (ver orders.routes.ts), e não construir uma
+ * lista de usuários ativos, que excluiria pedidos de quem foi desativado.
+ * Carrega a equipe sob demanda (só para 'team') — só orders.routes.ts chama.
  */
-export function orderOwnerIds(scope: Exclude<ViewerScope, { kind: 'company' }>): string[] {
-  return scope.kind === 'team' ? scope.userIds : [scope.userId]
+export async function orderOwnerIds(companyId: string, scope: ViewerScope): Promise<string[] | null> {
+  if (scope.kind === 'company') return null
+  if (scope.kind === 'team') {
+    const team = await loadTeamInCompany(companyId, scope.managerId)
+    return [scope.managerId, ...team.map((s) => s.id)]
+  }
+  return [scope.userId]
 }
 
 /**
  * Filtro de vendedores do recorte: a equipe do gerente (managerId = ele) e
  * ele mesmo; para 'self' (não devia ocorrer nas rotas de Inteligência, que
  * exigem intel.admin/intel.manager, mas a função fica total), só ele mesmo;
- * sem recorte (company), a empresa inteira.
+ * sem recorte (company), a empresa inteira. Puro — só lê `managerId`/
+ * `userId` do scope, nunca consulta o banco. É o que a Inteligência usa.
  */
 export function sellerWhere(scope: ViewerScope): { OR?: Array<{ managerId: string } | { id: string }> } {
   if (scope.kind === 'team') return { OR: [{ managerId: scope.managerId }, { id: scope.managerId }] }
