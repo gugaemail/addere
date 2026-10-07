@@ -89,6 +89,7 @@ export async function buildVisitHistoryItems(
     const ymd = ymdSaoPaulo(visit.arrivedAt)
     return ymd >= window.fromYmd && ymd <= window.toYmd
   })
+  if (inWindow.length === 0) return []
 
   const customers = await prisma.customer.findMany({
     where: { companyId, protheusCode: { in: inWindow.map((v) => v.customerCode) } },

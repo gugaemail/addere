@@ -13,6 +13,7 @@ import { compactYmd, ymdToUtcDate } from './range'
 import { buildTeamMapForDay } from './team-map.service'
 import { buildLossesReport } from './losses.service'
 import { buildNoOrderReasonsReport } from './no-order.service'
+import { buildTeamVisitHistory } from './visits.service'
 
 const DEFAULT_LOJA = '01'
 
@@ -26,6 +27,12 @@ const teamQuerySchema = z.object({
 const pilotQuerySchema = z.object({ from: isoDate, to: isoDate })
 
 const mapQuerySchema = z.object({ date: isoDate.optional() })
+
+const visitsQuerySchema = z.object({
+  from: isoDate.optional(),
+  to: isoDate.optional(),
+  vendorCode: z.string().min(1).max(20).optional(),
+})
 
 const lossesQuerySchema = z.object({
   date: isoDate.optional(),
@@ -126,6 +133,25 @@ export default async function managerRoutes(app: FastifyInstance) {
     const anchorYmd = query.date ? compactYmd(query.date) : ymdSaoPaulo(new Date())
     const scope = await scopeFor(request)
     return reply.send(await buildTeamMapForDay(company.id, scope, anchorYmd))
+  })
+
+  // GET /intel/manager/visits?from=&to=&vendorCode= — histórico de visitas da
+  // equipe (E24, plano 003). vendorCode é filtro DENTRO do escopo do gerente:
+  // código de fora da equipe → 403 (nunca lista vazia).
+  app.get('/visits', { preHandler: [guard] }, async (request, reply) => {
+    const company = await resolveTenant(request, reply, 'query')
+    if (!company) return
+    const query = visitsQuerySchema.parse(request.query)
+    const scope = await scopeFor(request)
+
+    const result = await buildTeamVisitHistory(company.id, scope, query)
+    if (!result.ok) {
+      if (result.reason === 'FORBIDDEN_VENDOR') {
+        return reply.status(403).send({ message: 'Este vendedor não é da sua equipe' })
+      }
+      return reply.status(400).send({ message: 'Período máximo de 90 dias' })
+    }
+    return reply.send(result.dto)
   })
 
   // GET /intel/manager/losses?date=&baselineMonths=&vendorCode= — Onde estou perdendo (E21)
