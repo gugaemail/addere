@@ -8,9 +8,11 @@ import { useSyncStore } from '../../../src/store/syncStore'
 import { useClientes } from '../../../src/hooks/useClientes'
 import { useCatalog } from '../../../src/hooks/useCatalog'
 import { useBranches } from '../../../src/hooks/useBranches'
+import { usePlan } from '../../../src/hooks/useIntel'
 import { useDebouncedValue } from '../../../src/hooks/useDebounce'
 import { submitOrder, startOrderSession } from '../../../src/utils/createOrder'
 import { cartFromMix, parseMixParam } from '../../../src/utils/orderPrefill'
+import { generateUuid } from '../../../src/utils/uuid'
 import { useTransportadoras } from '../../../src/hooks/useTransportadoras'
 import { useCondPags } from '../../../src/hooks/useCondPags'
 import { useFieldVisible, useFieldRequired } from '../../../src/hooks/useFieldConfig'
@@ -551,6 +553,10 @@ export default function NovoPedidoScreen() {
   const { data: allCustomers } = useClientes()
   const { data: allBranches } = useBranches()
   const { data: allProducts } = useCatalog()
+  // Plano do dia, só para casar a visita implícita (sem check-in) com o
+  // planItemId certo quando o cliente do pedido estiver nele (plano 006).
+  // Mesma chave de cache que a tela de Rota usa — nenhuma requisição a mais.
+  const { data: plan } = usePlan()
 
   // Reseta o formulário toda vez que a tela ganha foco.
   // Necessário porque o Tab Navigator mantém a tela montada em memória
@@ -669,12 +675,39 @@ export default function NovoPedidoScreen() {
 
       setIsPending(false)
 
-      // Pedido nascido de uma visita (E12): registra o resultado ORDER na fila
+      // O servidor dá 422 em orderId de pedido que não é do próprio usuário
+      // (assertOwnOrder) — nunca mande um id local de pedido offline.
+      const serverOrderId = result.data?.id
+
       if (visitParams.visitClientId) {
+        // Pedido nascido de uma visita (E12): registra o resultado ORDER na fila
         useSyncStore.getState().enqueue('visitResult', {
           clientId: visitParams.visitClientId,
           result: 'ORDER',
           leftAt: new Date().toISOString(),
+          ...(serverOrderId ? { orderId: serverOrderId } : {}),
+        })
+      } else if (customer.protheusCode && customer.loja) {
+        // Sem check-in prévio (plano 006): o pedido passa a valer como
+        // check-in. Visita implícita, sem GPS e sem duração — o servidor
+        // deduplica por dia civil, então não vira visita extra se o
+        // vendedor já tinha dado "Cheguei" nesse cliente hoje.
+        const planItem = plan?.items.find(
+          (item) => item.customerCode === customer.protheusCode && item.loja === customer.loja
+        )
+        useSyncStore.getState().enqueue('visit', {
+          clientId: generateUuid(),
+          customerCode: customer.protheusCode,
+          loja: customer.loja,
+          arrivedAt: new Date().toISOString(),
+          result: 'ORDER',
+          source: 'ORDER',
+          lat: null,
+          lng: null,
+          accuracyM: null,
+          leftAt: null,
+          planItemId: planItem?.id ?? null,
+          ...(serverOrderId ? { orderId: serverOrderId } : {}),
         })
       }
 

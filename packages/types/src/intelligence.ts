@@ -213,6 +213,9 @@ export type PlanStatus = 'GENERATED' | 'EDITED' | 'IN_PROGRESS' | 'CLOSED'
 export type PlanItemOrigin = 'ENGINE' | 'MANAGER' | 'SELLER'
 export type MessageTemplate = 'STALLED_PROPOSAL' | 'WENT_QUIET' | 'REACTIVATE'
 export type VisitResult = 'ORDER' | 'NO_ORDER' | 'NOT_FOUND' | 'RESCHEDULED'
+// CHECKIN: vendedor tocou em "Cheguei". ORDER: inferida — o pedido vale como
+// check-in (plano 006), sem GPS e sem duração.
+export type VisitSource = 'CHECKIN' | 'ORDER'
 export type FeedbackTargetType = 'PLAN' | 'ITEM' | 'MESSAGE' | 'ANSWER'
 export type GeoPrecision = 'ROOFTOP' | 'STREET' | 'CEP' | 'CITY'
 
@@ -378,6 +381,7 @@ export interface VisitInput {
   orderId?: string | null
   notes?: string | null
   createdOfflineAt?: string | null
+  source?: VisitSource
 }
 
 export interface FeedbackInput {

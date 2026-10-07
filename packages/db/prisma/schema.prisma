@@ -804,6 +804,11 @@ enum VisitResult {
   RESCHEDULED
 }
 
+enum VisitSource {
+  CHECKIN // vendedor tocou em "Cheguei"
+  ORDER // inferida: o pedido vale como check-in (plano 006)
+}
+
 enum FeedbackTargetType {
   PLAN
   ITEM
@@ -935,6 +940,7 @@ model Visit {
   lng              Decimal?     @db.Decimal(9, 6)
   accuracyM        Int?
   result           VisitResult?
+  source           VisitSource  @default(CHECKIN)
   noOrderReason    String?
   orderId          String? // Order.id quando result=ORDER
   notes            String?
