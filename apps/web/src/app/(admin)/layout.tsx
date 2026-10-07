@@ -18,6 +18,7 @@ import {
   Sparkles,
   Sun,
   TrendingDown,
+  TrendingUp,
   Users,
   X,
   type LucideIcon,
@@ -78,6 +79,13 @@ const NAV_GROUPS: NavGroup[] = [
         // Exato: senão a Visão geral fica destacada em todas as subtelas
         match: (p) => p === '/inteligencia',
         icon: Sparkles,
+        requires: { permission: ['intel.admin', 'intel.manager'], orAdmin: true },
+      },
+      {
+        href: '/inteligencia/resultado',
+        label: 'Resultado',
+        match: (p) => p.startsWith('/inteligencia/resultado'),
+        icon: TrendingUp,
         requires: { permission: ['intel.admin', 'intel.manager'], orAdmin: true },
       },
       {
