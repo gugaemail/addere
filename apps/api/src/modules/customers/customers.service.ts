@@ -12,13 +12,14 @@ export async function listCustomers(
 ) {
   // Vendedor vê a carteira; gerente, as carteiras da equipe; admin, a empresa
   // inteira (users/data-scope)
-  const scope = viewer ? await resolveViewerScope(viewer.id, viewer.role, companyId) : null
+  const scope = viewer ? await resolveViewerScope(viewer.id, viewer.role) : null
+  const scopeWhere = scope ? await customerWhere(companyId, scope) : {}
 
   return prisma.customer.findMany({
     where: {
       companyId,
       active: true,
-      ...(scope ? customerWhere(scope) : {}),
+      ...scopeWhere,
       ...(search && {
         OR: [
           { name: { contains: search, mode: 'insensitive' } },

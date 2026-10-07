@@ -1,5 +1,4 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify'
-import { prisma } from '@addere/db'
 import { authenticate, requirePermission } from '../../middleware/authenticate'
 import { requireCompany } from '../../middleware/require-company'
 import { unprocessable, AppError } from '../../lib/errors'
@@ -26,19 +25,14 @@ function toUnprocessable(err: unknown): never {
 }
 
 // Leituras: o vendedor vê os próprios pedidos; o gerente, os da equipe; o
-// admin (scope 'company'), a empresa inteira — sem lista de donos para
-// enumerar em orderOwnerIds, então busca todo mundo ativo da empresa aqui.
-async function ownersOf(request: FastifyRequest): Promise<string[]> {
+// admin (scope 'company'), a empresa inteira — orderOwnerIds devolve null
+// nesse caso, e quem consome (orders.service.ts) omite o filtro de dono em
+// vez de enumerar usuários ativos (o que excluiria pedidos de quem foi
+// desativado).
+async function ownersOf(request: FastifyRequest): Promise<string[] | null> {
   const companyId = request.user.companyId!
-  const scope = await resolveViewerScope(request.user.sub, request.user.role, companyId)
-  if (scope.kind === 'company') {
-    const users = await prisma.user.findMany({
-      where: { companyId, active: true },
-      select: { id: true },
-    })
-    return users.map((u) => u.id)
-  }
-  return orderOwnerIds(scope)
+  const scope = await resolveViewerScope(request.user.sub, request.user.role)
+  return orderOwnerIds(companyId, scope)
 }
 
 export default async function ordersRoutes(app: FastifyInstance) {
