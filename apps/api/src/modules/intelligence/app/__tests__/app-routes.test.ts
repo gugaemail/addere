@@ -468,6 +468,84 @@ describe('visitas — idempotência offline e posse', () => {
         data: { result: 'ORDER', orderId: ORDER_ID },
       })
     })
+
+    it('visita implícita sem planItemId + check-in no mesmo dia trazendo um planItemId válido: a linha ganha o vínculo com o plano', async () => {
+      // Cenário: pedido de manhã para cliente fora do plano (planItemId null);
+      // o gerente inclui o cliente no plano no meio do dia; à tarde o
+      // vendedor toca em "Cheguei" e o POST chega com o planItemId novo.
+      const PLAN_ITEM_ID = '7c1f9c0e-6d0e-4d8a-9f3b-2a1b3c4d5e6f'
+      prismaMock.visitPlanItem.findFirst.mockResolvedValue({ id: PLAN_ITEM_ID, planId: 'plan-1' })
+      prismaMock.visit.findMany.mockResolvedValue([
+        {
+          id: 'visit-no-plan',
+          clientId: CLIENT_ID,
+          vendorCode: 'V1',
+          customerCode: 'A',
+          loja: '01',
+          arrivedAt: new Date('2026-08-21T10:00:00.000Z'),
+          result: 'ORDER',
+          orderId: null,
+          planItemId: null, // fora do plano quando o pedido foi feito
+          source: 'ORDER',
+        },
+      ])
+      const res = await app.inject({
+        method: 'POST',
+        url: '/intel/app/visits',
+        headers: auth(),
+        payload: {
+          ...visitPayload,
+          clientId: CLIENT_ID_2,
+          arrivedAt: '2026-08-21T14:00:00.000Z',
+          planItemId: PLAN_ITEM_ID,
+        },
+      })
+      expect(res.statusCode).toBe(200)
+      expect(prismaMock.visit.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'visit-no-plan' },
+          data: expect.objectContaining({ planItemId: PLAN_ITEM_ID }),
+        })
+      )
+    })
+
+    it('visita existente com planItemId + POST no mesmo dia sem planItemId: o vínculo não é zerado', async () => {
+      const PLAN_ITEM_ID = '7c1f9c0e-6d0e-4d8a-9f3b-2a1b3c4d5e6f'
+      prismaMock.visit.findMany.mockResolvedValue([
+        {
+          id: 'visit-with-plan',
+          clientId: CLIENT_ID,
+          vendorCode: 'V1',
+          customerCode: 'A',
+          loja: '01',
+          arrivedAt: new Date('2026-08-21T10:00:00.000Z'),
+          result: null,
+          orderId: null,
+          planItemId: PLAN_ITEM_ID,
+          source: 'CHECKIN',
+        },
+      ])
+      const res = await app.inject({
+        method: 'POST',
+        url: '/intel/app/visits',
+        headers: auth(),
+        payload: {
+          ...visitPayload,
+          clientId: CLIENT_ID_2,
+          arrivedAt: '2026-08-21T14:00:00.000Z',
+          result: 'ORDER',
+          source: 'ORDER',
+          // sem planItemId no corpo
+        },
+      })
+      expect(res.statusCode).toBe(200)
+      expect(prismaMock.visit.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'visit-with-plan' },
+          data: expect.objectContaining({ planItemId: PLAN_ITEM_ID }),
+        })
+      )
+    })
   })
 
   it('PATCH fecha a visita própria; de outro vendedor → 404', async () => {

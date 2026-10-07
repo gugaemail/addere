@@ -153,6 +153,11 @@ export default async function visitsRoutes(app: FastifyInstance) {
         data: {
           result: body.result ?? sameDay.result,
           orderId: body.orderId ?? sameDay.orderId,
+          // Vale nas duas direções: nunca perde um planItemId já gravado,
+          // e ganha o vínculo quando a chegada traz um (ex.: o gerente
+          // incluiu o cliente no plano entre a visita implícita e o
+          // check-in). planId (acima) é o plano; isto é o item do plano.
+          planItemId: body.planItemId ?? sameDay.planItemId,
           ...(adopting
             ? {
                 clientId: body.clientId,
