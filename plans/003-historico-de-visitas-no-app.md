@@ -313,8 +313,16 @@ Regras obrigatórias:
 
 - `where` sempre com `companyId` **e** `vendorCode: request.vendorCode`. Sem
   exceção, sem parâmetro que permita outro vendedor.
-- Janela padrão: últimos 30 dias. Janela máxima aceita: 90 dias — acima disso,
-  responda 400 com `{ message: 'Período máximo de 90 dias' }`.
+- Janela máxima aceita: 90 dias — acima disso, responda 400 com
+  `{ message: 'Período máximo de 90 dias' }`. **A rota recebe `from`/`to`; quem
+  escolhe o período é a tela.**
+- **As telas trabalham em mês civil, nunca em janela de N dias corridos** — a
+  unidade de apuração deste produto é o mês, porque a meta do vendedor é mensal
+  e a do gerente é a soma das metas da equipe. O seletor da tela do app é
+  `Este mês` (padrão) e `Mês passado`; o painel usa o mês corrente. Só duas
+  opções de propósito: três meses civis podem passar de 90 dias (jul+ago+set dão
+  92) e bateriam no teto acima. O último dia do mês vem do calendário, nunca de
+  `início + 30`.
 - `orderBy: { arrivedAt: 'desc' }`, `take: 200`.
 - Sem dado no período, responda **200 com lista vazia** e os contadores em zero
   — não 404. Lista vazia é resposta legítima aqui, diferente do plano do dia.
