@@ -8,7 +8,7 @@ import { resolveTenant } from '../../../middleware/resolve-tenant'
 import { resolveViewerScope, type ViewerScope } from '../../users/data-scope'
 import { ymdSaoPaulo } from '../engine/business-days'
 import { buildManagerHome, buildPilotReport, buildTeam, loadSellers } from './manager.service'
-import { loadTeamSignalsList } from './portfolio.service'
+import { loadTeamPortfolio, loadTeamSignalsList } from './portfolio.service'
 import { compactYmd, ymdToUtcDate } from './range'
 import { buildTeamMapForDay } from './team-map.service'
 import { buildLossesReport } from './losses.service'
@@ -108,8 +108,14 @@ export default async function managerRoutes(app: FastifyInstance) {
     }
 
     const codes = query.vendorCode ? [query.vendorCode] : vendorCodes
-    const items = await loadTeamSignalsList(company.id, sellers, codes, query.status)
-    return reply.send({ items })
+    // portfolio é sempre o agregado do escopo inteiro (não filtra por
+    // status/vendorCode) — é o que alimenta o card/bloco de carteira da
+    // equipe, que não some com o filtro da lista abaixo dele.
+    const [items, portfolio] = await Promise.all([
+      loadTeamSignalsList(company.id, sellers, codes, query.status),
+      loadTeamPortfolio(company.id, sellers),
+    ])
+    return reply.send({ items, portfolio })
   })
 
   // GET /intel/manager/team-map?date= — Mapa da equipe (E20): paradas do dia e último check-in

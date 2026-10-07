@@ -11,13 +11,14 @@ import type {
   PlanPatchOp,
   PortfolioDto,
   StockDto,
+  TeamPortfolioDto,
   VisitPlanDto,
 } from '@addere/types'
 import { generateUuid } from '../utils/uuid'
 import { mondayOf, saoPauloYmd } from '../utils/calendar'
 import type { WindowInput } from '../utils/customerWindows'
 import { api } from '../lib/api'
-import { useHasVendorCode } from './useProfile'
+import { useHasVendorCode, useIsManager } from './useProfile'
 import { queryClient as globalQueryClient } from '../lib/query-client'
 import { useSyncStore } from '../store/syncStore'
 import { processSyncQueue } from '../services/syncEngine'
@@ -35,6 +36,9 @@ export const intelKeys = {
   portfolio: () => [...intelKeys.all, 'portfolio'] as const,
   windows: (code: string, loja: string) => [...intelKeys.all, 'windows', code, loja] as const,
   stock: (productCode: string) => [...intelKeys.all, 'stock', productCode] as const,
+  // Carteira da equipe (gerente) — GET /intel/manager/customers/signals
+  teamSignals: (status?: string, vendorCode?: string) =>
+    [...intelKeys.all, 'team-signals', status ?? 'all', vendorCode ?? 'all'] as const,
 }
 
 // ─── Tipos das respostas (rotas E7) ───
@@ -60,6 +64,25 @@ export interface HomeResponse {
 export interface SignalsListResponse {
   items: CustomerSignalListItem[]
   freshness: IntelFreshness
+}
+
+// Carteira da equipe, lista (E8 fase 2, gerente) — cada item leva de qual
+// vendedor é o cliente: sem isso o gerente não sabe com quem falar.
+export interface TeamSignalListItem {
+  customerCode: string
+  loja: string
+  customerName: string
+  vendorCode: string
+  sellerName: string
+  status: CustomerStatus
+  daysSinceLastPurchase: number | null
+  avgTicket: string | null
+}
+
+export interface TeamSignalsListResponse {
+  items: TeamSignalListItem[]
+  /** Agregado do escopo inteiro — não filtra por status/vendorCode da lista. */
+  portfolio: TeamPortfolioDto
 }
 
 // Sem `import axios` aqui: o adapter fetch do axios sonda ReadableStream ao
@@ -136,6 +159,24 @@ export function usePortfolio() {
     queryKey: intelKeys.portfolio(),
     queryFn: () => api.get<PortfolioDto>('/intel/app/portfolio').then((r) => r.data),
     enabled: hasVendorCode,
+    staleTime: 5 * 60_000,
+  })
+}
+
+/**
+ * Carteira da equipe, lista (E8 fase 2) — GET /intel/manager/customers/signals.
+ * vendorCode é filtro dentro do escopo do gerente: código de outra equipe
+ * volta 403, não lista vazia (checagem na API, não aqui).
+ */
+export function useTeamSignals(filters: { status?: CustomerStatus; vendorCode?: string } = {}) {
+  const isManager = useIsManager()
+  return useQuery({
+    queryKey: intelKeys.teamSignals(filters.status, filters.vendorCode),
+    queryFn: () =>
+      api
+        .get<TeamSignalsListResponse>('/intel/manager/customers/signals', { params: filters })
+        .then((r) => r.data),
+    enabled: isManager,
     staleTime: 5 * 60_000,
   })
 }

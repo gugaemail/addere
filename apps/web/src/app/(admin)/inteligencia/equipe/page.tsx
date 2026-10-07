@@ -16,11 +16,13 @@ import {
   TrendingDown,
   Users,
 } from 'lucide-react'
+import type { CustomerStatus, TeamPortfolioDto } from '@addere/types'
 import { useAuth } from '@/contexts/AuthContext'
 import { useCompanyContext } from '@/contexts/CompanyContext'
 import {
   useNoOrderReasons,
   useTeamMap,
+  useTeamPortfolio,
   useTeamReport,
   type TeamAlert,
   type TeamRange,
@@ -67,6 +69,19 @@ const MAP_LEGEND = [
   { label: 'Novo', className: 'bg-status-new' },
 ]
 
+// Carteira da equipe (card acima dos cards de vendedor) — todas as seis
+// chaves de CustomerStatus, sempre: uma que some da tela faz o gerente achar
+// que não existe cliente naquele estado. Mesmas cores do StatusPill (tokens
+// status.*; INACTIVE usa --muted, como lá).
+const PORTFOLIO_STATUS_ORDER: Array<{ status: CustomerStatus; label: string; className: string }> = [
+  { status: 'ON_CYCLE', label: 'Em ciclo', className: 'bg-status-onCycle' },
+  { status: 'LATE', label: 'Atrasado', className: 'bg-status-late' },
+  { status: 'AT_RISK', label: 'Em risco', className: 'bg-status-atRisk' },
+  { status: 'INACTIVE', label: 'Inativo', className: 'bg-muted' },
+  { status: 'NEW', label: 'Novo', className: 'bg-status-new' },
+  { status: 'BLOCKED', label: 'Bloqueado', className: 'bg-status-blocked' },
+]
+
 export default function EquipePage() {
   const { isSuperAdmin, isAdmin, hasPermission } = useAuth()
   // Gerente vê só os vendedores associados a ele (D3b): equipe vazia, para
@@ -79,6 +94,7 @@ export default function EquipePage() {
   const [dismissed, setDismissed] = useState<string[]>([])
 
   const { data, isLoading } = useTeamReport(date, range)
+  const { data: portfolio } = useTeamPortfolio()
 
   const onRoute = useMemo(
     () => (data?.sellers ?? []).filter((seller) => seller.done > 0).length,
@@ -172,6 +188,8 @@ export default function EquipePage() {
               </p>
             </Card>
           )}
+
+          {portfolio && <TeamPortfolioCard portfolio={portfolio} />}
 
           {data.sellers.length === 0 ? (
             <Card>
@@ -480,6 +498,40 @@ function SellerCard({
           </button>
         </div>
       ))}
+    </Card>
+  )
+}
+
+// Carteira da equipe (esboço C): os mesmos cinco/seis números do bloco do
+// app, acima dos cards de vendedor — para o gerente ver quem está esfriando
+// sem abrir cada cliente um por um.
+function TeamPortfolioCard({ portfolio }: { portfolio: TeamPortfolioDto }) {
+  const atRisk = portfolio.byStatus.AT_RISK
+  return (
+    <Card className="space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h2 className="text-sm font-semibold text-[var(--text-primary)]">Carteira da equipe</h2>
+        <Badge variant="neutral">
+          {portfolio.total} cliente{portfolio.total === 1 ? '' : 's'}
+        </Badge>
+      </div>
+      <ul className="flex flex-wrap gap-x-5 gap-y-1.5 text-sm">
+        {PORTFOLIO_STATUS_ORDER.map(({ status, label, className }) => (
+          <li key={status} className="flex items-center gap-1.5">
+            <span className={`inline-block h-2.5 w-2.5 rounded-full ${className}`} aria-hidden />
+            <span className="text-[var(--text-secondary)]">{label}</span>
+            <span className="font-semibold text-[var(--text-primary)]">
+              {portfolio.byStatus[status]}
+            </span>
+          </li>
+        ))}
+      </ul>
+      {atRisk > 0 && (
+        <p className="text-xs text-[var(--text-muted)]">
+          {atRisk} cliente{atRisk === 1 ? '' : 's'} em risco em {portfolio.sellersWithAtRisk} vendedor
+          {portfolio.sellersWithAtRisk === 1 ? '' : 'es'}
+        </p>
+      )}
     </Card>
   )
 }
