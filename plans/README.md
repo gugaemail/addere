@@ -25,7 +25,7 @@ continua acontecendo plano a plano — esses são baratos e independentes.
 | 001 | Dar tela às métricas de conversão que já existem na API | P1 | S | não | — | **DONE** |
 | 002 | Fazer o `noOrderReason` sair do banco e virar informação | P1 | M | não | — | **DONE** |
 
-### Fase 2 — CONCLUÍDA em 07/10/2026; falta só o build do app
+### Fase 2 — CONCLUÍDA e **no ar** desde 07/10/2026
 
 | Plano | Título | Prioridade | Esforço | O que muda no app | Depende de | Status |
 |-------|--------|------------|---------|-------------------|------------|--------|
@@ -71,6 +71,21 @@ corretamente.
 Os worktrees de revisão (`../addere-wt-001`, `../addere-wt-002`,
 `../addere-wt-007`) continuam no disco. Tudo que há neles já está na `main`;
 podem ser removidos com `git worktree remove`.
+
+**Fase 2 publicada em 07/10/2026 por OTA** (`eas update`), canal `production`,
+runtime **1.1.1**, Android e iOS, a partir do commit `55929e765206` —
+update group `af95cb65-f129-4e0d-852e-ab58f399115d`. Nenhum build de loja foi
+necessário: as quatro entregas da fase 2 são só JavaScript, nenhuma toca config
+nativa, plugin ou permissão.
+
+**Armadilha encontrada na publicação, agora documentada em
+`apps/mobile/docs/DEPLOY_CHECKLIST.md`:** o comando de OTA precisa de **três**
+variáveis de ambiente, não duas. Além da URL da API e do `APP_ENV`, o
+`EXPO_PUBLIC_APP_VERSION` decide o `runtimeVersion` (política `appVersion`), e
+sem ele o update sai como runtime `1.0.0` e **não chega em nenhum aparelho** —
+termina verde, aparece no dashboard, e ninguém recebe. O canal `production`
+tinha, como update mais recente, exatamente isso: um de três meses antes
+marcado com runtime 1.0.0, enquanto a loja estava na 1.1.1.
 
 **004 — DONE em 07/10/2026**, branch `advisor/004-conversao-em-reais`, 4 commits,
 7 arquivos, 809 linhas. **Ainda não mergeado.** Aprovado sem rodada de revisão.
