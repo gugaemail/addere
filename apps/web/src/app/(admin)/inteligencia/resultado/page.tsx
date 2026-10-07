@@ -165,9 +165,14 @@ function LiftBanner({ liftPp, lift }: { liftPp: number | null; lift: LiftLabel }
 
   if (lift.tone === 'negativo') {
     return (
-      <Card className="flex items-center gap-3 border-warning/30 bg-warning/5">
-        <ArrowDownRight size={20} strokeWidth={1.75} className="shrink-0 text-warning" aria-hidden />
-        <p className="text-sm font-medium text-[var(--text-primary)]">{lift.text}</p>
+      <Card className="flex items-start gap-3 border-warning/30 bg-warning/5">
+        <ArrowDownRight size={20} strokeWidth={1.75} className="mt-0.5 shrink-0 text-warning" aria-hidden />
+        <div>
+          <p className="text-sm font-semibold text-[var(--text-primary)]">
+            {ppLabel(liftPp)} contra a sugestão do motor
+          </p>
+          <p className="mt-0.5 text-sm text-[var(--text-secondary)]">{lift.text}</p>
+        </div>
       </Card>
     )
   }
