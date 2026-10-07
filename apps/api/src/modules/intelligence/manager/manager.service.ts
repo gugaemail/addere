@@ -20,6 +20,8 @@ import {
 } from './team'
 import { buildPilotMetrics, type PilotMetrics } from './pilot-metrics'
 import { buildTeamGoal, type TeamGoal } from './team-goal'
+import { loadTeamPortfolio } from './portfolio.service'
+import type { TeamPortfolio } from './portfolio'
 import { addDays, rangeWindow, ymdToUtcDate, type DateWindow, type TeamRange } from './range'
 
 const CONVERSION_DAYS = 7
@@ -38,7 +40,7 @@ function customerKey(row: { customerCode: string; loja: string }): string {
   return `${row.customerCode}|${row.loja}`
 }
 
-async function loadSellers(companyId: string, scope: ViewerScope) {
+export async function loadSellers(companyId: string, scope: ViewerScope) {
   return prisma.user.findMany({
     where: {
       companyId,
@@ -323,6 +325,7 @@ export interface ManagerHome {
   sellers: Array<
     TeamGoal['sellers'][number] & { planned: number; done: number; adherencePct: number | null }
   >
+  portfolio: TeamPortfolio
   lastSyncAt: string | null
 }
 
@@ -343,7 +346,7 @@ export async function buildManagerHome(companyId: string, scope: ViewerScope): P
   const sellers = await loadSellers(companyId, scope)
   const vendorCodes = sellers.map((s) => s.idVendProt as string)
 
-  const [snapshots, team] = await Promise.all([
+  const [snapshots, team, portfolio] = await Promise.all([
     vendorCodes.length === 0
       ? Promise.resolve([])
       : prisma.goalSnapshot.findMany({
@@ -351,6 +354,7 @@ export async function buildManagerHome(companyId: string, scope: ViewerScope): P
           select: { vendorCode: true, goalAmount: true, soldAmount: true, capturedAt: true },
         }),
     buildTeam(companyId, scope, todayYmd, 'day'),
+    loadTeamPortfolio(companyId, sellers),
   ])
 
   const goal = buildTeamGoal(
@@ -377,6 +381,7 @@ export async function buildManagerHome(companyId: string, scope: ViewerScope): P
         adherencePct: card?.adherencePct ?? null,
       }
     }),
+    portfolio,
     lastSyncAt: team.lastSyncAt,
   }
 }
