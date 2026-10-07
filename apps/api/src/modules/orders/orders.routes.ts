@@ -1,4 +1,5 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify'
+import { prisma } from '@addere/db'
 import { authenticate, requirePermission } from '../../middleware/authenticate'
 import { requireCompany } from '../../middleware/require-company'
 import { unprocessable, AppError } from '../../lib/errors'
@@ -13,7 +14,7 @@ import {
   resetOrderToPending,
 } from './orders.service'
 import { getEffectivePermissions } from '../permissions/permissions.service'
-import { resolveOrderOwners } from '../users/data-scope'
+import { orderOwnerIds, resolveViewerScope } from '../users/data-scope'
 import { syncOrderToProtheus, consultOrderStatus } from '../sync/sync.service'
 import { notFound } from '../../lib/errors'
 
@@ -24,9 +25,20 @@ function toUnprocessable(err: unknown): never {
   throw unprocessable((err as Error).message)
 }
 
-// Leituras: o vendedor vê os próprios pedidos; o gerente, os da equipe
-function ownersOf(request: FastifyRequest): Promise<string[]> {
-  return resolveOrderOwners(request.user.sub, request.user.role)
+// Leituras: o vendedor vê os próprios pedidos; o gerente, os da equipe; o
+// admin (scope 'company'), a empresa inteira — sem lista de donos para
+// enumerar em orderOwnerIds, então busca todo mundo ativo da empresa aqui.
+async function ownersOf(request: FastifyRequest): Promise<string[]> {
+  const companyId = request.user.companyId!
+  const scope = await resolveViewerScope(request.user.sub, request.user.role, companyId)
+  if (scope.kind === 'company') {
+    const users = await prisma.user.findMany({
+      where: { companyId, active: true },
+      select: { id: true },
+    })
+    return users.map((u) => u.id)
+  }
+  return orderOwnerIds(scope)
 }
 
 export default async function ordersRoutes(app: FastifyInstance) {
