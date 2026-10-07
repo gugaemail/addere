@@ -11,6 +11,7 @@ import type {
   IntelQueryDto,
   IntelligenceConfig,
   LossesReportDto,
+  NoOrderReportDto,
   QueryPreviewResult,
   ReconciliationResult,
   ReconciliationSpec,
@@ -50,6 +51,8 @@ export const intelKeys = {
     companyId?: string | null
   ) =>
     [...intelKeys.lossesAll(), date, vendorCode ?? 'all', baselineMonths, companyId ?? 'own'] as const,
+  noOrderReasons: (date: string, range: string, companyId?: string | null) =>
+    [...intelKeys.all, 'no-order-reasons', date, range, companyId ?? 'own'] as const,
 }
 
 // Params de tenant das rotas /intel/*: só SUPERADMIN manda companyId na query
@@ -452,6 +455,28 @@ export function useLosses({ date, vendorCode, baselineMonths }: LossesQuery, ena
       api
         .get<LossesReportDto>('/intel/manager/losses', {
           params: { date, baselineMonths, ...(vendor ? { vendorCode: vendor } : {}), ...companyParams },
+        })
+        .then((r) => r.data),
+  })
+}
+
+// ─── Fase 2 · Por que não vendeu (E22, plano 002) ───
+
+/**
+ * GET /intel/manager/no-order-reasons?date&range → NoOrderReportDto
+ * @param date 'YYYY-MM-DD' — mesmo seletor Hoje/Semana/Mês da Equipe; esta
+ *   seção não tem seletor de período próprio.
+ */
+export function useNoOrderReasons(date: string, range: TeamRange, enabled = true) {
+  const companyParams = useIntelCompanyParam()
+  const ready = useIntelReady()
+  return useQuery({
+    enabled: enabled && ready,
+    queryKey: intelKeys.noOrderReasons(date, range, companyParams.companyId),
+    queryFn: () =>
+      api
+        .get<NoOrderReportDto>('/intel/manager/no-order-reasons', {
+          params: { date, range, ...companyParams },
         })
         .then((r) => r.data),
   })
