@@ -11,6 +11,7 @@ import { buildManagerHome, buildPilotReport, buildTeam } from './manager.service
 import { compactYmd, ymdToUtcDate } from './range'
 import { buildTeamMapForDay } from './team-map.service'
 import { buildLossesReport } from './losses.service'
+import { buildNoOrderReasonsReport } from './no-order.service'
 
 const DEFAULT_LOJA = '01'
 
@@ -29,6 +30,11 @@ const lossesQuerySchema = z.object({
   date: isoDate.optional(),
   baselineMonths: z.coerce.number().int().min(1).max(12).default(3),
   vendorCode: z.string().min(1).max(20).optional(),
+})
+
+const noOrderQuerySchema = z.object({
+  date: isoDate.optional(),
+  range: z.enum(['day', 'week', 'month']).default('day'),
 })
 
 const planItemSchema = z
@@ -116,6 +122,17 @@ export default async function managerRoutes(app: FastifyInstance) {
         vendorCode: query.vendorCode ?? null,
       })
     )
+  })
+
+  // GET /intel/manager/no-order-reasons?date=&range= — Por que não vendeu (E22)
+  app.get('/no-order-reasons', { preHandler: [guard] }, async (request, reply) => {
+    const company = await resolveTenant(request, reply, 'query')
+    if (!company) return
+    const query = noOrderQuerySchema.parse(request.query)
+
+    const anchorYmd = query.date ? compactYmd(query.date) : ymdSaoPaulo(new Date())
+    const scope = await scopeFor(request)
+    return reply.send(await buildNoOrderReasonsReport(company.id, scope, anchorYmd, query.range))
   })
 
   // GET /intel/manager/pilot-metrics?from=&to= — as 3 métricas do dry-run
