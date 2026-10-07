@@ -3,10 +3,18 @@
 import { FastifyInstance } from 'fastify'
 import { z } from 'zod'
 import { prisma } from '@addere/db'
+import type { VisitHistoryDto } from '@addere/types'
 import { authenticate } from '../../../middleware/authenticate'
 import { requireCompany } from '../../../middleware/require-company'
 import { requireVendorCode } from '../../../middleware/require-vendor-code'
 import { ymdSaoPaulo } from '../engine/business-days'
+import {
+  buildVisitHistoryItems,
+  loadVisitRows,
+  resolveHistoryWindow,
+  summarizeVisitHistory,
+  windowRangeDto,
+} from './visits.service'
 
 const visitSchema = z.object({
   clientId: z.string().uuid(),
@@ -47,8 +55,43 @@ async function markPlanInProgress(planId: string | null): Promise<void> {
   })
 }
 
+const historyQuerySchema = z.object({
+  from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+})
+
 export default async function visitsRoutes(app: FastifyInstance) {
   const guard = [authenticate, requireCompany, requireVendorCode]
+
+  // GET /intel/app/visits — histórico de visitas do próprio vendedor (E24).
+  // SEM parâmetro vendorCode: o filtro é sempre request.vendorCode, sem
+  // exceção — rota /intel/app é estritamente do dono do token (plano 003).
+  app.get('/visits', { preHandler: guard }, async (request, reply) => {
+    const query = historyQuerySchema.parse(request.query)
+    const companyId = request.user.companyId as string
+    const vendorCode = request.vendorCode as string
+
+    const window = resolveHistoryWindow(query.from, query.to)
+    if (!window) {
+      return reply.status(400).send({ message: 'Período máximo de 90 dias' })
+    }
+
+    const rows = await loadVisitRows(companyId, [vendorCode], window)
+    const items = await buildVisitHistoryItems(companyId, rows, window)
+    const { withOrder, outOfPlan, total } = summarizeVisitHistory(items)
+
+    const dto: VisitHistoryDto = {
+      range: windowRangeDto(window),
+      total,
+      withOrder,
+      outOfPlan,
+      // vendorCode só serve para a montagem interna (não entra no DTO do
+      // vendedor — ele já sabe de quem é a visita; quem usa é a rota do
+      // gerente, que lê o mesmo item para resolver sellerName)
+      items: items.map(({ vendorCode: _vendorCode, ...item }) => item),
+    }
+    return reply.send(dto)
+  })
 
   // Pedido citado na visita precisa ser do próprio usuário (padrão de posse)
   async function assertOwnOrder(

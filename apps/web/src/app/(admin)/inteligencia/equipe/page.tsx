@@ -11,12 +11,15 @@ import {
   ArrowUpRight,
   CalendarCheck,
   CheckCircle2,
+  ChevronDown,
+  ChevronUp,
+  History,
   Map,
   ShoppingCart,
   TrendingDown,
   Users,
 } from 'lucide-react'
-import type { CustomerStatus, TeamPortfolioDto } from '@addere/types'
+import type { CustomerStatus, TeamPortfolioDto, TeamVisitHistoryDto, VisitResult } from '@addere/types'
 import { useAuth } from '@/contexts/AuthContext'
 import { useCompanyContext } from '@/contexts/CompanyContext'
 import {
@@ -24,6 +27,7 @@ import {
   useTeamMap,
   useTeamPortfolio,
   useTeamReport,
+  useTeamVisitHistory,
   type TeamAlert,
   type TeamRange,
   type TeamSellerCard,
@@ -81,6 +85,51 @@ const PORTFOLIO_STATUS_ORDER: Array<{ status: CustomerStatus; label: string; cla
   { status: 'NEW', label: 'Novo', className: 'bg-status-new' },
   { status: 'BLOCKED', label: 'Bloqueado', className: 'bg-status-blocked' },
 ]
+
+// Histórico de visitas do vendedor (E24, plano 003) — card expansível em
+// cada SellerCard. Unidade de apuração: mês civil, nunca janela de N dias
+// corridos (revisão do plano 003) — a meta do vendedor é mensal, e a tela
+// mostra conversão (visitas → pedido), que é apuração, não só log. Mês
+// corrente, do dia 1 até hoje (o seletor Este mês/Mês passado é da tela do
+// app; aqui é só o espelho em tabela).
+function currentMonthToDate(today = todayInSaoPaulo()): { from: string; to: string } {
+  return { from: `${today.slice(0, 7)}-01`, to: today }
+}
+
+/** 'YYYY-MM-DD' → 'DD/MM' — o `ymd` deste DTO vem com hífen (diferente do
+ * `dayLabel` de intel-helpers, que é para o 'YYYYMMDD' compacto dos outros
+ * relatórios da Inteligência). */
+function shortDay(ymdDashed: string): string {
+  const [, month, day] = ymdDashed.split('-')
+  return `${day}/${month}`
+}
+
+function timeInSaoPaulo(iso: string): string {
+  return new Intl.DateTimeFormat('pt-BR', {
+    timeZone: 'America/Sao_Paulo',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(new Date(iso))
+}
+
+/** "08:12 · 24 min" — sem leftAt, só a hora; visita nascida do pedido
+ * (source ORDER, plano 006) não tem GPS/duração por desenho: "registrada
+ * pelo pedido" no lugar do tempo, nunca "0 min" (mesma regra do app). */
+function visitMetaLine(item: TeamVisitHistoryDto['items'][number]): string {
+  const time = timeInSaoPaulo(item.arrivedAt)
+  if (item.source === 'ORDER') return `${time} · registrada pelo pedido`
+  if (item.durationMin === null) return time
+  return `${time} · ${item.durationMin} min`
+}
+
+const RESULT_BADGE: Partial<
+  Record<VisitResult, { label: string; variant: 'success' | 'warning' | 'danger' | 'neutral' }>
+> = {
+  ORDER: { label: 'Pedido', variant: 'success' },
+  NO_ORDER: { label: 'Sem pedido', variant: 'danger' },
+  RESCHEDULED: { label: 'Remarcada', variant: 'warning' },
+  NOT_FOUND: { label: 'Não encontrado', variant: 'neutral' },
+}
 
 export default function EquipePage() {
   const { isSuperAdmin, isAdmin, hasPermission } = useAuth()
@@ -462,6 +511,7 @@ function SellerCard({
   onDismiss: (id: string) => void
 }) {
   const alerts = seller.alerts.filter((a) => !dismissed.includes(`${seller.userId}:${a.kind}`))
+  const [showHistory, setShowHistory] = useState(false)
 
   return (
     <Card className="space-y-3">
@@ -498,7 +548,90 @@ function SellerCard({
           </button>
         </div>
       ))}
+
+      <button
+        type="button"
+        onClick={() => setShowHistory((v) => !v)}
+        className="flex w-full items-center justify-between gap-2 rounded-lg border border-[var(--border)] px-3 py-2 text-xs font-medium text-[var(--text-secondary)] hover:bg-[var(--bg-page)]"
+      >
+        <span className="flex items-center gap-1.5">
+          <History size={14} strokeWidth={1.5} aria-hidden />
+          Histórico de visitas
+        </span>
+        {showHistory ? (
+          <ChevronUp size={14} strokeWidth={1.5} aria-hidden />
+        ) : (
+          <ChevronDown size={14} strokeWidth={1.5} aria-hidden />
+        )}
+      </button>
+      {showHistory && <SellerHistoryPanel vendorCode={seller.vendorCode} />}
     </Card>
+  )
+}
+
+// Espelho, em tabela, da tela de histórico do app — mesmo serviço
+// (GET /intel/manager/visits), vendorCode do card como filtro dentro do
+// escopo do gerente. Mês corrente (apuração, não janela de dias).
+function SellerHistoryPanel({ vendorCode }: { vendorCode: string }) {
+  const { from, to } = currentMonthToDate()
+  const { data, isLoading } = useTeamVisitHistory({ from, to, vendorCode })
+
+  if (isLoading) {
+    return (
+      <div className="flex justify-center py-6">
+        <Spinner />
+      </div>
+    )
+  }
+  if (!data || data.items.length === 0) {
+    return <p className="text-xs text-[var(--text-muted)]">Nenhuma visita registrada neste mês.</p>
+  }
+
+  return (
+    <div className="space-y-2">
+      <div className="flex flex-wrap items-center gap-2 text-xs text-[var(--text-muted)]">
+        <Badge variant="neutral">{data.total} visita(s)</Badge>
+        <Badge variant="success">{data.withOrder} com pedido</Badge>
+        {data.outOfPlan > 0 && <Badge variant="info">{data.outOfPlan} fora do plano</Badge>}
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-left text-xs">
+          <thead>
+            <tr className="text-[var(--text-muted)]">
+              <th className="py-1 pr-2 font-medium">Dia</th>
+              <th className="py-1 pr-2 font-medium">Cliente</th>
+              <th className="py-1 pr-2 font-medium">Chegada</th>
+              <th className="py-1 pr-2 font-medium">Resultado</th>
+            </tr>
+          </thead>
+          <tbody>
+            {data.items.map((item) => {
+              const badge = item.result ? RESULT_BADGE[item.result] : null
+              return (
+                <tr key={item.id} className="border-t border-[var(--border)]">
+                  <td className="py-1.5 pr-2 text-[var(--text-secondary)]">{shortDay(item.ymd)}</td>
+                  <td className="py-1.5 pr-2 text-[var(--text-primary)]">
+                    {item.customerName}
+                    {!item.planned && (
+                      <span className="ml-1.5 text-[var(--text-muted)]">· fora do plano</span>
+                    )}
+                    {item.result === 'NO_ORDER' && item.noOrderReason && (
+                      <span className="ml-1.5 italic text-[var(--text-muted)]">
+                        &ldquo;{item.noOrderReason}&rdquo;
+                      </span>
+                    )}
+                  </td>
+                  <td className="py-1.5 pr-2 text-[var(--text-secondary)]">{visitMetaLine(item)}</td>
+                  <td className="py-1.5 pr-2">
+                    {badge ? <Badge variant={badge.variant}>{badge.label}</Badge> : '—'}
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
   )
 }
 
