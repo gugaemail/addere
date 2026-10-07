@@ -25,14 +25,14 @@ continua acontecendo plano a plano — esses são baratos e independentes.
 | 001 | Dar tela às métricas de conversão que já existem na API | P1 | S | não | — | **DONE** |
 | 002 | Fazer o `noOrderReason` sair do banco e virar informação | P1 | M | não | — | **DONE** |
 
-### Fase 2 — tocam o app; acumulam até o build final
+### Fase 2 — CONCLUÍDA em 07/10/2026; falta só o build do app
 
 | Plano | Título | Prioridade | Esforço | O que muda no app | Depende de | Status |
 |-------|--------|------------|---------|-------------------|------------|--------|
-| 006 | Fazer o pedido valer como check-in | P1 | M | comportamento, nenhuma tela | — | TODO |
-| 005 | Dar ao gerente a carteira da equipe com os sinais da Inteligência | P1 | M | **tela nova** + bloco na home do gerente | — | TODO |
-| 003 | Devolver ao vendedor o histórico do próprio trabalho (e ao gerente, o da equipe) | P2 | L | **tela nova** em Rota | — | TODO |
-| 004 | Medir a conversão em reais, não só em "comprou ou não" | P2 | L | uma linha, invisível | 001, 006 | TODO |
+| 006 | Fazer o pedido valer como check-in | P1 | M | comportamento, nenhuma tela | — | **DONE** |
+| 005 | Dar ao gerente a carteira da equipe com os sinais da Inteligência | P1 | M | **tela nova** + bloco na home do gerente | — | **DONE** |
+| 003 | Devolver ao vendedor o histórico do próprio trabalho (e ao gerente, o da equipe) | P2 | L | **tela nova** em Rota | — | **DONE** |
+| 004 | Medir a conversão em reais, não só em "comprou ou não" | P2 | L | nenhuma (passo 1 já feito pelo 006) | 001, 006 | **DONE** |
 
 **Nenhum executor publica build.** Ao terminar um plano da fase 2, pare no
 código: o build é um passo de operação, manual, depois que os quatro estiverem
@@ -71,6 +71,77 @@ corretamente.
 Os worktrees de revisão (`../addere-wt-001`, `../addere-wt-002`,
 `../addere-wt-007`) continuam no disco. Tudo que há neles já está na `main`;
 podem ser removidos com `git worktree remove`.
+
+**004 — DONE em 07/10/2026**, branch `advisor/004-conversao-em-reais`, 4 commits,
+7 arquivos, 809 linhas. **Ainda não mergeado.** Aprovado sem rodada de revisão.
+O passo 1 foi corretamente **pulado**: o 006 já fazia o app gravar `Visit.orderId`,
+então este plano não tocou `apps/mobile` — é o único da fase 2 que não mexe no app.
+Verificação: type-check e lint exit 0, 612 testes da API, `build:web` exit 0;
+`schema.prisma`, `engine/`, `intelligence/app/` e `apps/mobile/` com diff vazio.
+As duas frases obrigatórias estão literalmente na tela: a nota de que o valor
+esperado é ticket médio × probabilidade (e por isso não há comparação por
+cliente) e o rodapé que declara quantos pedidos foram conciliados por data.
+`CANCELLED` vira `orderTotal: null` nos dois caminhos de conciliação.
+O executor acrescentou uma camada de teste que o plano não pedia — testes de
+rota além dos de função pura —, com o argumento certo: a tradução de
+`CANCELLED` e a conciliação por data acontecem no serviço, não no cálculo puro,
+então testar só o puro não provaria que as regras funcionam.
+**Nota de ambiente:** `npm run build:web` exige `apps/web/.env.local` (copiado do
+`.env.local.example`); sem ele o build falha em `/inteligencia/saude` com
+"NEXT_PUBLIC_API_URL não está definida". O arquivo é ignorado pelo git.
+
+**003 — DONE em 07/10/2026**, branch `advisor/003-historico-de-visitas` (base: a
+branch do 005), 15 arquivos, 5 commits. **Ainda não mergeado.** Uma rodada de
+revisão, por **falha do plano, não do executor**: o 003 não tinha sido
+atualizado para a regra do mês civil quando ela foi fixada, e saiu com pílulas
+de 7/30/90 dias. Como a tela mostra conversão — apuração, não só log —, ela
+precisa reconciliar com a tela de Resultado e com a meta mensal. Corrigido para
+`Este mês`/`Mês passado`, com o último dia vindo do calendário e teste para
+fevereiro bissexto e virada de ano. **Duas opções, não três, por cálculo:** três
+meses civis podem dar 92 dias (jul+ago+set) e bateriam no `MAX_WINDOW_DAYS = 90`
+da própria API. O plano 003 foi corrigido junto, para o erro não sobreviver no
+registro.
+Verificação: type-check e lint exit 0, 602 testes da API, 177 do mobile,
+`build:web` exit 0; `require-vendor-code.ts`, `(app)/_layout.tsx` e
+`schema.prisma` intocados; a rota do vendedor confirmadamente sem parâmetro
+`vendorCode` de query; nenhum resolvedor de escopo novo.
+Dois acertos do executor além do plano: acrescentou `source` ao DTO porque
+`durationMin: null` é ambíguo entre "nasceu do pedido" e "ainda não concluiu" —
+lacuna real do meu esboço; e trocou o "[ carregar mais ]" por seletor de
+período, já que a API não tem paginação, em vez de inventar um parâmetro.
+
+**005 — DONE em 07/10/2026**, branch `advisor/005-carteira-da-equipe` (base: a
+branch do 006), 14 arquivos, 834 linhas. **Ainda não mergeado.** Aprovado sem
+rodada de revisão. Verificação: type-check e lint exit 0, 590 testes da API, 159
+do mobile, `build:web` exit 0; `require-vendor-code.ts`, `schema.prisma`,
+`users/data-scope.ts` e `intelligence/app/` com diff vazio; nenhum resolvedor de
+escopo novo foi criado.
+Quatro desvios documentados e aceitos. O mais valioso: o executor percebeu que
+`/intel/manager/home` é fixo na equipe direta de quem chama (decisão correta,
+vinda do 007) e que reaproveitá-la no painel devolveria carteira **vazia** para
+ADMIN/SUPERADMIN. Resolveu usando a rota da lista, que passa por `scopeFor`, sem
+tocar a `/home` — evitou um card quebrado em produção. Os outros três:
+`(app)/_layout.tsx` ganhou `href: null` para a pasta `equipe` não virar uma sexta
+aba (o plano proíbe a sexta aba, então a mudança serve à intenção dele); o teste
+de posse entrou no `manager-routes.test.ts` existente, onde o fixture
+`manager-b` já existia; e `byStatus` mostra as seis chaves de `CustomerStatus`,
+não as cinco do esboço, porque nenhum status pode sumir da tela.
+O teste de 403 vai além do pedido: prova também que o corte acontece **antes de
+qualquer consulta de cliente**.
+
+**006 — DONE em 07/10/2026**, branch `advisor/006-pedido-vale-check-in`, 6
+commits, 6 arquivos, 439 linhas. **Ainda não mergeado.** Duas rodadas de revisão:
+(1) a deduplicação fazia o PATCH posterior do check-in explícito cair em 404,
+perdendo resultado, duração e observação da visita — corrigido com adoção
+direcional do `clientId` (ORDER→CHECKIN adota; o inverso nunca, porque a visita
+explícita pode ter PATCH pendente); (2) o ramo de dedup descartava o
+`planItemId` que chegava, fazendo a aderência contar visita planejada como fora
+do plano. Verificação do revisor: nenhum `.env` no worktree e nenhum comando de
+banco em commit nenhum (a migration foi escrita à mão), type-check e lint exit 0,
+580 testes da API e 159 do mobile passando, `engine/` e `orders/` com diff vazio.
+O executor melhorou o plano num ponto: usou `body.result ?? sameDay.result` em
+vez do literal do texto, evitando que um check-in posterior zerasse um
+`result: ORDER` já gravado.
 
 **002 — DONE em 07/10/2026**, branch `advisor/002-motivos-de-nao-venda`
 (worktree `../addere-wt-002`), 5 commits, 8 arquivos, 451 linhas. **Mergeado na
