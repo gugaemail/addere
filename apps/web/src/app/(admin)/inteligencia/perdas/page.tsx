@@ -128,19 +128,19 @@ export default function PerdasPage() {
     {
       key: 'baseline',
       header: 'Base',
-      className: 'text-right tabular-nums',
+      className: 'whitespace-nowrap text-right tabular-nums',
       render: (c) => brl(c.baselineAmount),
     },
     {
       key: 'current',
       header: 'Atual',
-      className: 'text-right tabular-nums',
+      className: 'whitespace-nowrap text-right tabular-nums',
       render: (c) => brl(c.currentAmount),
     },
     {
       key: 'diff',
       header: 'Diferença',
-      className: 'text-right tabular-nums',
+      className: 'whitespace-nowrap text-right tabular-nums',
       render: (c) => (
         <span className={cn('font-semibold', TONE_TEXT[diffTone(c.diffAmount)])}>
           {signedBrl(c.diffAmount)}
@@ -150,7 +150,8 @@ export default function PerdasPage() {
     {
       key: 'reason',
       header: 'Motivo',
-      render: (c) => <span className="text-xs">{c.reason}</span>,
+      // Largura mínima: no celular a tabela rola e o motivo não vira uma palavra por linha
+      render: (c) => <span className="block min-w-48 text-xs">{c.reason}</span>,
     },
     {
       key: 'action',
@@ -205,19 +206,19 @@ export default function PerdasPage() {
     {
       key: 'baseline',
       header: 'Base',
-      className: 'text-right tabular-nums',
+      className: 'whitespace-nowrap text-right tabular-nums',
       render: (p) => brl(p.baselineAmount),
     },
     {
       key: 'current',
       header: 'Atual',
-      className: 'text-right tabular-nums',
+      className: 'whitespace-nowrap text-right tabular-nums',
       render: (p) => brl(p.currentAmount),
     },
     {
       key: 'diffPct',
       header: 'Variação',
-      className: 'text-right tabular-nums',
+      className: 'whitespace-nowrap text-right tabular-nums',
       render: (p) => (
         <span className={cn('font-semibold', TONE_TEXT[diffTone(p.diffPct)])}>
           {formatDiffPct(p.diffPct)}
