@@ -19,7 +19,7 @@ import {
   TrendingDown,
   Users,
 } from 'lucide-react'
-import type { CustomerStatus, TeamPortfolioDto, TeamVisitHistoryDto, VisitResult } from '@addere/types'
+import type { CustomerStatus, TeamPortfolioDto, VisitResult } from '@addere/types'
 import { useAuth } from '@/contexts/AuthContext'
 import { useCompanyContext } from '@/contexts/CompanyContext'
 import {
@@ -40,6 +40,7 @@ import {
   todayInSaoPaulo,
 } from '@/lib/intel-helpers'
 import { filterMapSellers, mapBounds, withoutPinLabel, withoutPinRows } from '@/lib/team-map'
+import { visitMetaLine } from '@/lib/visit-history'
 import { SelectCompanyNotice } from '@/components/intel/SelectCompanyNotice'
 import { Badge } from '@/components/ui/Badge'
 import { Card } from '@/components/ui/Card'
@@ -102,24 +103,6 @@ function currentMonthToDate(today = todayInSaoPaulo()): { from: string; to: stri
 function shortDay(ymdDashed: string): string {
   const [, month, day] = ymdDashed.split('-')
   return `${day}/${month}`
-}
-
-function timeInSaoPaulo(iso: string): string {
-  return new Intl.DateTimeFormat('pt-BR', {
-    timeZone: 'America/Sao_Paulo',
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(new Date(iso))
-}
-
-/** "08:12 · 24 min" — sem leftAt, só a hora; visita nascida do pedido
- * (source ORDER, plano 006) não tem GPS/duração por desenho: "registrada
- * pelo pedido" no lugar do tempo, nunca "0 min" (mesma regra do app). */
-function visitMetaLine(item: TeamVisitHistoryDto['items'][number]): string {
-  const time = timeInSaoPaulo(item.arrivedAt)
-  if (item.source === 'ORDER') return `${time} · registrada pelo pedido`
-  if (item.durationMin === null) return time
-  return `${time} · ${item.durationMin} min`
 }
 
 const RESULT_BADGE: Partial<

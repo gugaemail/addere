@@ -548,6 +548,164 @@ describe('visitas — idempotência offline e posse', () => {
     })
   })
 
+  describe('atendimento à distância (plano 011) — sem GPS, canal e prioridade no dia', () => {
+    const sameDayVisit = (over: Record<string, unknown>) => ({
+      id: 'visit-existing',
+      clientId: CLIENT_ID,
+      vendorCode: 'V1',
+      customerCode: 'A',
+      loja: '01',
+      arrivedAt: new Date('2026-08-21T10:00:00.000Z'),
+      result: null,
+      orderId: null,
+      channel: null,
+      ...over,
+    })
+    const post = (payload: Record<string, unknown>) =>
+      app.inject({
+        method: 'POST',
+        url: '/intel/app/visits',
+        headers: auth(),
+        payload: {
+          ...visitPayload,
+          clientId: CLIENT_ID_2,
+          arrivedAt: '2026-08-21T14:00:00.000Z',
+          ...payload,
+        },
+      })
+
+    it('REMOTE grava o canal e descarta a posição que o app mandou', async () => {
+      prismaMock.visit.create.mockResolvedValue({ id: 'visit-remote' })
+      const res = await post({
+        source: 'REMOTE',
+        channel: 'WHATSAPP',
+        lat: -23.5,
+        lng: -46.6,
+        accuracyM: 10,
+      })
+      expect(res.statusCode).toBe(201)
+      expect(prismaMock.visit.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            source: 'REMOTE',
+            channel: 'WHATSAPP',
+            lat: null,
+            lng: null,
+            accuracyM: null,
+          }),
+        })
+      )
+    })
+
+    it('CHECKIN com channel no corpo grava channel null', async () => {
+      prismaMock.visit.create.mockResolvedValue({ id: 'visit-checkin' })
+      await post({ source: 'CHECKIN', channel: 'PHONE', lat: -23.5, lng: -46.6 })
+      expect(prismaMock.visit.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            source: 'CHECKIN',
+            channel: null,
+            lat: -23.5,
+            lng: -46.6,
+          }),
+        })
+      )
+    })
+
+    it('existente ORDER + chega REMOTE: adota o clientId e vira REMOTE, mantendo o pedido', async () => {
+      prismaMock.visit.findMany.mockResolvedValue([
+        sameDayVisit({ source: 'ORDER', result: 'ORDER', orderId: ORDER_ID }),
+      ])
+      const res = await post({ source: 'REMOTE', channel: 'PHONE' })
+      expect(res.json()).toEqual({ id: 'visit-existing', clientId: CLIENT_ID_2, updated: true })
+      expect(prismaMock.visit.update).toHaveBeenCalledWith({
+        where: { id: 'visit-existing' },
+        data: {
+          result: 'ORDER',
+          orderId: ORDER_ID,
+          clientId: CLIENT_ID_2,
+          source: 'REMOTE',
+          lat: null,
+          lng: null,
+          accuracyM: null,
+          channel: 'PHONE',
+        },
+      })
+    })
+
+    it('existente REMOTE + chega CHECKIN (ligou de manhã, foi à tarde): vira presencial com o GPS e sem canal', async () => {
+      prismaMock.visit.findMany.mockResolvedValue([
+        sameDayVisit({ source: 'REMOTE', channel: 'WHATSAPP', result: 'RESCHEDULED' }),
+      ])
+      const res = await post({ source: 'CHECKIN', lat: -22.9, lng: -47.0, accuracyM: 15 })
+      expect(res.json()).toEqual({ id: 'visit-existing', clientId: CLIENT_ID_2, updated: true })
+      expect(prismaMock.visit.update).toHaveBeenCalledWith({
+        where: { id: 'visit-existing' },
+        data: {
+          result: 'RESCHEDULED',
+          orderId: null,
+          clientId: CLIENT_ID_2,
+          source: 'CHECKIN',
+          lat: -22.9,
+          lng: -47.0,
+          accuracyM: 15,
+          channel: null,
+        },
+      })
+    })
+
+    it('existente REMOTE + chega ORDER: continua REMOTE (clientId e canal intactos) e ganha o pedido', async () => {
+      prismaMock.visit.findMany.mockResolvedValue([
+        sameDayVisit({ source: 'REMOTE', channel: 'PHONE' }),
+      ])
+      prismaMock.order.findFirst.mockResolvedValue({ id: ORDER_ID })
+      const res = await post({ source: 'ORDER', result: 'ORDER', orderId: ORDER_ID })
+      expect(res.json()).toEqual({ id: 'visit-existing', clientId: CLIENT_ID, updated: true })
+      expect(prismaMock.visit.update).toHaveBeenCalledWith({
+        where: { id: 'visit-existing' },
+        data: { result: 'ORDER', orderId: ORDER_ID },
+      })
+    })
+
+    it('existente CHECKIN + chega REMOTE: continua presencial', async () => {
+      prismaMock.visit.findMany.mockResolvedValue([
+        sameDayVisit({ source: 'CHECKIN', lat: -22.9, lng: -47.0 }),
+      ])
+      const res = await post({ source: 'REMOTE', channel: 'WHATSAPP' })
+      expect(res.json()).toEqual({ id: 'visit-existing', clientId: CLIENT_ID, updated: true })
+      expect(prismaMock.visit.update).toHaveBeenCalledWith({
+        where: { id: 'visit-existing' },
+        data: { result: null, orderId: null },
+      })
+    })
+
+    it('PATCH com channel grava o canal na visita REMOTE e ignora na CHECKIN', async () => {
+      prismaMock.visit.findFirst.mockResolvedValue({ id: 'visit-remote', source: 'REMOTE' })
+      await app.inject({
+        method: 'PATCH',
+        url: `/intel/app/visits/${CLIENT_ID}`,
+        headers: auth(),
+        payload: { result: 'ORDER', channel: 'WHATSAPP' },
+      })
+      expect(prismaMock.visit.update).toHaveBeenLastCalledWith({
+        where: { id: 'visit-remote' },
+        data: { result: 'ORDER', channel: 'WHATSAPP' },
+      })
+
+      prismaMock.visit.findFirst.mockResolvedValue({ id: 'visit-checkin', source: 'CHECKIN' })
+      await app.inject({
+        method: 'PATCH',
+        url: `/intel/app/visits/${CLIENT_ID}`,
+        headers: auth(),
+        payload: { result: 'ORDER', channel: 'WHATSAPP' },
+      })
+      expect(prismaMock.visit.update).toHaveBeenLastCalledWith({
+        where: { id: 'visit-checkin' },
+        data: { result: 'ORDER' },
+      })
+    })
+  })
+
   it('PATCH fecha a visita própria; de outro vendedor → 404', async () => {
     prismaMock.visit.findFirst.mockResolvedValue({ id: 'visit-1' })
     const ok = await app.inject({
