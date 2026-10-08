@@ -67,7 +67,10 @@ describe('syncContract — OPEN_TITLES incremental', () => {
   it('sem cursor: foto completa (INCREMENTAL = 0) e cria o cursor com o maior carimbo', async () => {
     publish(TITLES_SQL)
     runMock.mockResolvedValue({
-      rows: [title('T1', 100, '2026-10-01 11:43:19.920'), title('T2', 50, '2026-10-02 08:00:00.000')],
+      rows: [
+        title('T1', 100, '2026-10-01 11:43:19.920'),
+        title('T2', 50, '2026-10-02 08:00:00.000'),
+      ],
       ms: 5,
     })
 
@@ -157,7 +160,10 @@ describe('syncContract — OPEN_TITLES incremental', () => {
   it('primeira carga com todos os carimbos NULL cria o cursor no piso — não fica preso no completo', async () => {
     publish(TITLES_SQL)
     runMock.mockResolvedValue({
-      rows: [{ ...title('T1', 10, ''), stamp: null }, { ...title('T2', 20, ''), stamp: null }],
+      rows: [
+        { ...title('T1', 10, ''), stamp: null },
+        { ...title('T2', 20, ''), stamp: null },
+      ],
       ms: 5,
     })
 
@@ -259,7 +265,10 @@ describe('syncContract — apagado e incluído de novo, e paginação instável'
     publish(TITLES_SQL)
     prismaMock.intelSyncCursor.findUnique.mockResolvedValue({ stamp: '2026-10-08 11:43:19.920' })
     const row = title('T1', 100, '2026-10-08 12:00:00.000')
-    runMock.mockResolvedValue({ rows: [row, { ...row }, title('T2', 5, '2026-10-08 12:01:00.000')], ms: 5 })
+    runMock.mockResolvedValue({
+      rows: [row, { ...row }, title('T2', 5, '2026-10-08 12:01:00.000')],
+      ms: 5,
+    })
 
     await expect(syncContract(COMPANY, 'OPEN_TITLES')).rejects.toThrow(/ORDER BY R_E_C_N_O_/)
     expect(prismaMock.openTitle.upsert).not.toHaveBeenCalled()
@@ -294,7 +303,9 @@ describe('syncContract — SALES incremental', () => {
 
     expect(result.mode).toBe('incremental')
     // Janela larga no incremental: o filtro de verdade é o carimbo
-    const [ini] = executedSql().match(/BETWEEN '(\d{8})'/)!.slice(1)
+    const [ini] = executedSql()
+      .match(/BETWEEN '(\d{8})'/)!
+      .slice(1)
     expect(Number(ini)).toBeLessThan(20251001)
     expect(prismaMock.salesItem.deleteMany).toHaveBeenCalledWith({
       where: {
@@ -303,6 +314,39 @@ describe('syncContract — SALES incremental', () => {
       },
     })
     expect(prismaMock.salesItem.upsert).not.toHaveBeenCalled()
+  })
+
+  it('item excluído N vezes ligado à mesma nota viva: cópias idênticas não travam e o vivo vale', async () => {
+    publish(SALES_SQL)
+    prismaMock.intelSyncCursor.findUnique.mockResolvedValue({ stamp: '2026-10-08 11:43:19.920' })
+    const item = {
+      pedido: 'NF000123001',
+      item: '01',
+      data: '20261001',
+      cliente_cod: 'C1',
+      cliente_loja: '01',
+      vendedor_cod: 'V1',
+      produto_cod: 'P1',
+      quantidade: 2,
+      valor: 300,
+    }
+    // A nota mudou depois: as cópias excluídas do item saem com o carimbo dela
+    const deletedCopy = { ...item, excluido: '*', stamp: '2026-10-08 12:30:00.000' }
+    runMock.mockResolvedValue({
+      rows: [
+        deletedCopy,
+        { ...deletedCopy },
+        { ...deletedCopy },
+        { ...item, excluido: ' ', stamp: '2026-10-08 12:30:00.000' },
+      ],
+      ms: 5,
+    })
+
+    const result = await syncContract(COMPANY, 'SALES')
+
+    expect(result.errors).toEqual([])
+    expect(prismaMock.salesItem.deleteMany).not.toHaveBeenCalled()
+    expect(prismaMock.salesItem.upsert).toHaveBeenCalledTimes(1)
   })
 })
 
@@ -313,7 +357,12 @@ describe('syncContract — CUSTOMERS incremental', () => {
     prismaMock.intelSyncCursor.findUnique.mockResolvedValue({ stamp: '2026-10-08 11:43:19.920' })
     runMock.mockResolvedValue({
       rows: [
-        { cliente_cod: 'GONE', cliente_loja: '01', excluido: '*', stamp: '2026-10-08 12:00:00.000' },
+        {
+          cliente_cod: 'GONE',
+          cliente_loja: '01',
+          excluido: '*',
+          stamp: '2026-10-08 12:00:00.000',
+        },
         {
           cliente_cod: 'LIVE',
           cliente_loja: '01',

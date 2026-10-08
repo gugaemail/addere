@@ -32,6 +32,9 @@ export interface QueryContract {
    * A primeira é a recomendada e a que abre no editor vazio (incremental, se
    * houver). Toda referência termina em ORDER BY R_E_C_N_O_: o endpoint pagina, e
    * sem ordem estável a mesma linha vem em duas páginas e outra fica de fora.
+   * Tabela que só filtra (SF4) entra por EXISTS e cadastro (SB1) por OUTER APPLY
+   * TOP 1: registro excluído e reincluído N vezes, ou exclusivo por filial,
+   * num JOIN multiplicaria o item N vezes.
    */
   referenceSql: ReferenceSql[]
   helpText: string
@@ -147,10 +150,12 @@ ORDER BY R_E_C_N_O_`,
          THEN F2.S_T_A_M_P_ ELSE D2.S_T_A_M_P_ END, 121) AS stamp
 FROM SD2010 D2
 JOIN SF2010 F2 ON F2_FILIAL=D2_FILIAL AND F2_DOC=D2_DOC AND F2_SERIE=D2_SERIE
-JOIN SB1010 B1 ON B1_COD=D2_COD AND B1.D_E_L_E_T_=' '
-JOIN SF4010 F4 ON F4_CODIGO=D2_TES AND F4_DUPLIC='S'
+OUTER APPLY (SELECT TOP 1 B1_DESC, B1_GRUPO FROM SB1010 B1
+             WHERE B1_COD=D2_COD AND B1.D_E_L_E_T_=' ' ORDER BY B1.R_E_C_N_O_ DESC) B1
 WHERE D2_FILIAL IN ({{FILIAL}})
   AND D2_EMISSAO BETWEEN {{DATA_INI}} AND {{DATA_FIM}}
+  AND EXISTS (SELECT 1 FROM SF4010 F4
+              WHERE F4_CODIGO=D2_TES AND F4_DUPLIC='S' AND F4.D_E_L_E_T_=' ')
   AND (  ({{INCREMENTAL}} = 1 AND (D2.S_T_A_M_P_ > {{DESDE}} OR F2.S_T_A_M_P_ > {{DESDE}}))
       OR ({{INCREMENTAL}} = 0 AND D2.D_E_L_E_T_=' ' AND F2.D_E_L_E_T_=' '))
 ORDER BY D2.R_E_C_N_O_`,
@@ -163,10 +168,12 @@ ORDER BY D2.R_E_C_N_O_`,
        D2_VALBRUT AS valor, B1_GRUPO AS grupo_produto
 FROM SD2010 D2
 JOIN SF2010 F2 ON F2_FILIAL=D2_FILIAL AND F2_DOC=D2_DOC AND F2_SERIE=D2_SERIE AND F2.D_E_L_E_T_=' '
-JOIN SB1010 B1 ON B1_COD=D2_COD AND B1.D_E_L_E_T_=' '
-JOIN SF4010 F4 ON F4_CODIGO=D2_TES AND F4_DUPLIC='S'
+OUTER APPLY (SELECT TOP 1 B1_DESC, B1_GRUPO FROM SB1010 B1
+             WHERE B1_COD=D2_COD AND B1.D_E_L_E_T_=' ' ORDER BY B1.R_E_C_N_O_ DESC) B1
 WHERE D2.D_E_L_E_T_=' ' AND D2_FILIAL IN ({{FILIAL}})
   AND D2_EMISSAO BETWEEN {{DATA_INI}} AND {{DATA_FIM}}
+  AND EXISTS (SELECT 1 FROM SF4010 F4
+              WHERE F4_CODIGO=D2_TES AND F4_DUPLIC='S' AND F4.D_E_L_E_T_=' ')
 ORDER BY D2.R_E_C_N_O_`,
       },
       {

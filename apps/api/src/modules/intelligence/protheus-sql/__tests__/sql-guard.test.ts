@@ -154,7 +154,9 @@ describe('sql-guard', () => {
 
   it('títulos: as duas referências usam a chave completa (E1_NUM sozinho junta parcelas)', () => {
     for (const ref of QUERY_CONTRACTS.OPEN_TITLES.referenceSql) {
-      expect(ref.sql, ref.label).toContain('E1_FILIAL+E1_PREFIXO+E1_NUM+E1_PARCELA+E1_TIPO AS titulo')
+      expect(ref.sql, ref.label).toContain(
+        'E1_FILIAL+E1_PREFIXO+E1_NUM+E1_PARCELA+E1_TIPO AS titulo'
+      )
     }
   })
 
@@ -163,6 +165,16 @@ describe('sql-guard', () => {
       for (const ref of QUERY_CONTRACTS[name].referenceSql) {
         expect(ref.sql.trim(), ref.label).toMatch(/ORDER BY (\w+\.)?R_E_C_N_O_$/)
       }
+    }
+  })
+
+  it('vendas: SF4 por EXISTS e SB1 por OUTER APPLY — JOIN multiplicava o item', () => {
+    // TES excluída e reincluída N vezes (ou cadastro exclusivo por filial) num
+    // JOIN repete o mesmo item N vezes, idêntico em todas as colunas
+    for (const ref of QUERY_CONTRACTS.SALES.referenceSql) {
+      expect(ref.sql, ref.label).not.toMatch(/JOIN SF4|JOIN SB1/)
+      if (ref.sql.includes('SF4010')) expect(ref.sql, ref.label).toContain("F4.D_E_L_E_T_=' '")
+      expect(codes(ref.sql, QUERY_CONTRACTS.SALES), ref.label).toEqual([])
     }
   })
 
