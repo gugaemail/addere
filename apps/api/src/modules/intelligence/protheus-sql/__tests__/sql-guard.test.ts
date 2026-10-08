@@ -146,6 +146,18 @@ describe('sql-guard', () => {
     }
   })
 
+  it('a referência incremental vem primeiro — é a que abre no editor vazio', () => {
+    for (const name of ['CUSTOMERS', 'SALES', 'OPEN_TITLES', 'PRODUCTS'] as const) {
+      expect(QUERY_CONTRACTS[name].referenceSql[0].sql, name).toContain('{{DESDE}}')
+    }
+  })
+
+  it('títulos: as duas referências usam a chave completa (E1_NUM sozinho junta parcelas)', () => {
+    for (const ref of QUERY_CONTRACTS.OPEN_TITLES.referenceSql) {
+      expect(ref.sql, ref.label).toContain('E1_FILIAL+E1_PREFIXO+E1_NUM+E1_PARCELA+E1_TIPO AS titulo')
+    }
+  })
+
   it('STOCK exige {{PRODUTO}}', () => {
     expect(codes('SELECT B2_COD AS produto_cod, B2_QATU AS saldo FROM SB2010', STOCK)).toContain(
       'missing_placeholder'

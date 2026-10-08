@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   initialEditorSql,
   isBrokenSql,
+  isIncrementalReference,
   matchingReference,
   normalizeReferenceSql,
   referenceButtonLabel,
@@ -66,5 +67,14 @@ describe('referenceButtonLabel', () => {
   it('uma opção usa o texto genérico; várias usam o rótulo', () => {
     expect(referenceButtonLabel(SALES_REFS[0], 1)).toBe('Usar SQL de referência')
     expect(referenceButtonLabel(SALES_REFS[1], 2)).toBe('Usar SC5/SC6 (pedidos)')
+  })
+})
+
+describe('isIncrementalReference', () => {
+  it('reconhece a referência do sync incremental pelo {{DESDE}}', () => {
+    expect(
+      isIncrementalReference({ label: 'SE1 incremental', sql: 'WHERE S_T_A_M_P_ > {{ desde }}' })
+    ).toBe(true)
+    expect(isIncrementalReference({ label: 'SE1', sql: 'WHERE E1_SALDO > 0' })).toBe(false)
   })
 })
