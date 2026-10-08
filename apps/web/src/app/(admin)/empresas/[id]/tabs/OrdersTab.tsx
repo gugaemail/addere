@@ -37,42 +37,44 @@ function OrderStatusBadge({ status }: { status: OrderStatus | string }) {
 function OrderDetail({ order }: { order: CompanyOrder }) {
   return (
     <div className="rounded-lg border border-[var(--border)] overflow-hidden mt-1">
-      <table className="w-full text-xs">
-        <thead className="bg-[var(--bg-surface)]">
-          <tr>
-            <th className="text-left px-3 py-2 font-medium text-[var(--text-secondary)]">
-              Produto
-            </th>
-            <th className="text-right px-3 py-2 font-medium text-[var(--text-secondary)]">Qtd</th>
-            <th className="text-right px-3 py-2 font-medium text-[var(--text-secondary)]">
-              Preço unit.
-            </th>
-            <th className="text-right px-3 py-2 font-medium text-[var(--text-secondary)]">
-              Desc. %
-            </th>
-            <th className="text-right px-3 py-2 font-medium text-[var(--text-secondary)]">Total</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-[var(--border)]">
-          {order.items.map((item) => (
-            <tr key={item.id}>
-              <td className="px-3 py-2 text-[var(--text-primary)]">{item.product.name}</td>
-              <td className="px-3 py-2 text-right text-[var(--text-secondary)]">
-                {Number(item.quantity).toFixed(3)} {item.product.unit}
-              </td>
-              <td className="px-3 py-2 text-right text-[var(--text-secondary)]">
-                R$ {Number(item.unitPrice).toFixed(2)}
-              </td>
-              <td className="px-3 py-2 text-right text-[var(--text-secondary)]">
-                {Number(item.discount).toFixed(1)}%
-              </td>
-              <td className="px-3 py-2 text-right font-medium text-[var(--text-primary)]">
-                R$ {Number(item.total).toFixed(2)}
-              </td>
+      <div className="overflow-x-auto overscroll-x-contain">
+        <table className="w-full text-xs">
+          <thead className="bg-[var(--bg-surface)]">
+            <tr>
+              <th className="text-left px-3 py-2 font-medium text-[var(--text-secondary)]">
+                Produto
+              </th>
+              <th className="text-right px-3 py-2 font-medium text-[var(--text-secondary)]">Qtd</th>
+              <th className="text-right px-3 py-2 font-medium text-[var(--text-secondary)]">
+                Preço unit.
+              </th>
+              <th className="text-right px-3 py-2 font-medium text-[var(--text-secondary)]">
+                Desc. %
+              </th>
+              <th className="text-right px-3 py-2 font-medium text-[var(--text-secondary)]">Total</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody className="divide-y divide-[var(--border)]">
+            {order.items.map((item) => (
+              <tr key={item.id}>
+                <td className="px-3 py-2 text-[var(--text-primary)]">{item.product.name}</td>
+                <td className="px-3 py-2 text-right text-[var(--text-secondary)]">
+                  {Number(item.quantity).toFixed(3)} {item.product.unit}
+                </td>
+                <td className="px-3 py-2 text-right text-[var(--text-secondary)]">
+                  R$ {Number(item.unitPrice).toFixed(2)}
+                </td>
+                <td className="px-3 py-2 text-right text-[var(--text-secondary)]">
+                  {Number(item.discount).toFixed(1)}%
+                </td>
+                <td className="px-3 py-2 text-right font-medium text-[var(--text-primary)]">
+                  R$ {Number(item.total).toFixed(2)}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
       {(order.protheusOrderId || order.notes) && (
         <div className="px-3 py-2 bg-[var(--bg-surface)] border-t border-[var(--border)] flex gap-6 text-xs text-[var(--text-muted)]">
           {order.protheusOrderId && (

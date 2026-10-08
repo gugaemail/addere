@@ -33,6 +33,7 @@ continua acontecendo plano a plano — esses são baratos e independentes.
 | 005 | Dar ao gerente a carteira da equipe com os sinais da Inteligência | P1 | M | **tela nova** + bloco na home do gerente | — | **DONE** |
 | 003 | Devolver ao vendedor o histórico do próprio trabalho (e ao gerente, o da equipe) | P2 | L | **tela nova** em Rota | — | **DONE** |
 | 004 | Medir a conversão em reais, não só em "comprou ou não" | P2 | L | nenhuma (passo 1 já feito pelo 006) | 001, 006 | **DONE** |
+| 008 | Conter a rolagem lateral e o corte silencioso no painel | P2 | S | não | — | **DONE** |
 
 **Nenhum executor publica build.** Ao terminar um plano da fase 2, pare no
 código: o build é um passo de operação, manual, depois que os quatro estiverem
@@ -86,6 +87,26 @@ sem ele o update sai como runtime `1.0.0` e **não chega em nenhum aparelho** �
 termina verde, aparece no dashboard, e ninguém recebe. O canal `production`
 tinha, como update mais recente, exatamente isso: um de três meses antes
 marcado com runtime 1.0.0, enquanto a loja estava na 1.1.1.
+
+**008 — DONE em 07/10/2026**, branch `fix/responsividade-do-painel`, 3 commits,
+5 arquivos. **Ainda não mergeado.** Aprovado sem rodada de revisão.
+Origem: um print do painel no celular com o título cortado. A suspeita era
+layout estourando a largura; **não era**. A 393px no emulador a `/users` não
+vaza — é **scroll chaining do WebKit**, o gesto escapando da tabela para o
+`<main>` quando ela chega ao fim. Corrigido com `overscroll-x-contain`, não
+com mudança de largura.
+A varredura das 14 telas achou mais dois, de naturezas diferentes: o
+`OrderDetail` cortava colunas em silêncio dentro de um `overflow-hidden` (único
+caso de dado invisível), e quatro modais punham campos de formulário em três
+colunas a 390px.
+Verificação: type-check, lint e `build:web` exit 0; 4 ocorrências de
+`overscroll-x-contain`; os 8 `grid-cols-2` do `EntityModals` intocados; o
+`<main>` do layout com diff vazio. No passo 2, confirmei por leitura do diff
+que o rodapé do Protheus ficou **fora** da área de rolagem — era o erro que
+compila sem reclamar.
+Um desvio do executor, bem julgado: o comentário que ele ia pôr no `Table.tsx`
+repetia o literal da classe e inflaria o grep de verificação que eu mesmo
+escrevi. Ele reescreveu descrevendo o comportamento sem citar o token.
 
 **004 — DONE em 07/10/2026**, branch `advisor/004-conversao-em-reais`, 4 commits,
 7 arquivos, 809 linhas. **Ainda não mergeado.** Aprovado sem rodada de revisão.

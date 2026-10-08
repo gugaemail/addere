@@ -260,7 +260,7 @@ function ConversionSection({
           </span>
         </div>
 
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto overscroll-x-contain">
           <table className="w-full text-left text-xs">
             <thead>
               <tr className="text-[var(--text-muted)]">
