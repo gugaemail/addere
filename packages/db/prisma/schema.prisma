@@ -695,7 +695,7 @@ model OpenTitle {
   loja         String
   dueDate      DateTime @db.Date
   balance      Decimal  @db.Decimal(14, 2)
-  daysOverdue  Int?
+  daysOverdue  Int? // obsoleto: o atraso é calculado de dueDate na leitura (daysOverdueOn)
   syncedAt     DateTime @default(now())
 
   company Company @relation(fields: [companyId], references: [id])

@@ -12,6 +12,7 @@ import {
   businessDaysLeftInWeek,
   businessDaysRemaining,
   dateToYmdUtc,
+  daysOverdueOn,
   mondayOf,
   weekdayOf,
   ymdSaoPaulo,
@@ -254,7 +255,7 @@ export async function runEngine(companyId: string, _runId: string): Promise<Engi
     }),
     prisma.openTitle.findMany({
       where: { companyId },
-      select: { customerCode: true, loja: true, balance: true, daysOverdue: true },
+      select: { customerCode: true, loja: true, balance: true, dueDate: true },
     }),
     prisma.visit.findMany({
       where: { companyId, arrivedAt: { gte: cooldownStart } },
@@ -296,7 +297,10 @@ export async function runEngine(companyId: string, _runId: string): Promise<Engi
   for (const title of titles) {
     const k = key(title.customerCode, title.loja)
     const list = titlesByCustomer.get(k) ?? []
-    list.push({ balance: Number(title.balance), daysOverdue: title.daysOverdue })
+    list.push({
+      balance: Number(title.balance),
+      daysOverdue: daysOverdueOn(title.dueDate, today),
+    })
     titlesByCustomer.set(k, list)
   }
 
