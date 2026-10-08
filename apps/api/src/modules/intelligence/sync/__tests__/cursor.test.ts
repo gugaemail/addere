@@ -1,10 +1,12 @@
 import { describe, it, expect } from 'vitest'
 import {
   FULL_DESDE,
+  countIdenticalRows,
   desdeFromCursor,
   inspectStamps,
   maxStamp,
   normalizeStamp,
+  resolveByKey,
   rowStamps,
   splitDeletedRows,
   stampProblem,
@@ -96,5 +98,62 @@ describe('inspectStamps / stampProblem', () => {
 
   it('sem linhas não há o que julgar', () => {
     expect(stampProblem([])).toBeNull()
+  })
+})
+
+describe('resolveByKey — registro apagado e incluído de novo N vezes', () => {
+  const key = (row: Record<string, unknown>) => (row.titulo as string) ?? null
+
+  it('N cópias excluídas + 1 viva: vale a viva, nada é excluído', () => {
+    const { live, deleted } = resolveByKey(
+      [
+        { titulo: 'T1', valor: 10, excluido: '*', stamp: '2026-10-01 10:00:00.000' },
+        { titulo: 'T1', valor: 20, excluido: '*', stamp: '2026-10-02 10:00:00.000' },
+        { titulo: 'T1', valor: 30, excluido: '*', stamp: '2026-10-03 10:00:00.000' },
+        { titulo: 'T1', valor: 40, excluido: ' ', stamp: '2026-10-04 10:00:00.000' },
+      ],
+      key
+    )
+    expect(live.map((r) => r.valor)).toEqual([40])
+    expect(deleted).toEqual([])
+  })
+
+  it('só cópias excluídas: a chave sai uma vez', () => {
+    const { live, deleted } = resolveByKey(
+      [
+        { titulo: 'T2', excluido: '*', stamp: '2026-10-01 10:00:00.000' },
+        { titulo: 'T2', excluido: '*', stamp: '2026-10-05 10:00:00.000' },
+      ],
+      key
+    )
+    expect(live).toEqual([])
+    expect(deleted).toHaveLength(1)
+  })
+
+  it('vivas repetidas: fica a de carimbo mais novo; sem chave passa adiante', () => {
+    const { live } = resolveByKey(
+      [
+        { titulo: 'T3', valor: 1, excluido: ' ', stamp: '2026-10-01 10:00:00.000' },
+        { titulo: 'T3', valor: 2, excluido: ' ', stamp: '2026-10-09 10:00:00.000' },
+        { valor: 99 },
+      ],
+      key
+    )
+    expect(live.map((r) => r.valor)).toEqual([2, 99])
+  })
+})
+
+describe('countIdenticalRows — página devolvida duas vezes', () => {
+  it('conta só as idênticas em todas as colunas', () => {
+    const row = { titulo: 'T1', valor: 10, excluido: ' ', stamp: '2026-10-01 10:00:00.000' }
+    expect(
+      countIdenticalRows([
+        row,
+        { ...row },
+        { TITULO: 'T1', VALOR: 10, EXCLUIDO: ' ', STAMP: '2026-10-01 10:00:00.000' },
+        // cópia excluída difere em excluido e carimbo: não é repetição de página
+        { ...row, excluido: '*', stamp: '2026-10-02 10:00:00.000' },
+      ])
+    ).toBe(2)
   })
 })

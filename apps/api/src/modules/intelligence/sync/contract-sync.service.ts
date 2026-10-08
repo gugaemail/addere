@@ -25,7 +25,8 @@ import {
   inspectStamps,
   maxStamp,
   rowStamps,
-  splitDeletedRows,
+  countIdenticalRows,
+  resolveByKey,
   stampProblem,
 } from './cursor'
 
@@ -190,6 +191,32 @@ async function fetchContractRows(
 
 // ─── Persistência por contrato ───
 
+interface ResolvedRows {
+  live: SqlRow[]
+  deleted: SqlRow[]
+}
+
+/**
+ * Chave de cada contrato, com a mesma normalização dos mapeamentos — é por ela
+ * que as N cópias de um registro apagado e incluído de novo viram uma só.
+ */
+const ROW_KEY: Partial<Record<IntelQueryName, (row: SqlRow) => string | null>> = {
+  SALES: (row) => {
+    const get = rowReader(row)
+    const orderRef = toStr(get('pedido')).trim()
+    const productCode = toStr(get('produto_cod')).trim()
+    if (!orderRef || !productCode) return null
+    return `${orderRef}|${toStr(get('item'), '00').trim() || '00'}|${productCode}`
+  },
+  OPEN_TITLES: (row) => toStr(rowReader(row)('titulo')).trim() || null,
+  CUSTOMERS: (row) => {
+    const get = rowReader(row)
+    const code = toStr(get('cliente_cod')).trim()
+    return code ? `${code}|${toStr(get('cliente_loja'), '01').trim() || '01'}` : null
+  },
+  PRODUCTS: (row) => toStr(rowReader(row)('produto_cod')).trim() || null,
+}
+
 /** Apaga em lotes (um OR de milhares de chaves vira um SQL grande demais). */
 async function deleteInChunks<T>(keys: T[], run: (chunk: T[]) => Promise<unknown>) {
   for (let i = 0; i < keys.length; i += DELETE_CHUNK) await run(keys.slice(i, i + DELETE_CHUNK))
@@ -197,11 +224,10 @@ async function deleteInChunks<T>(keys: T[], run: (chunk: T[]) => Promise<unknown
 
 async function persistSales(
   company: Company,
-  rows: SqlRow[],
+  { live, deleted }: ResolvedRows,
   window: DateWindow,
   mode: ContractSyncMode
 ): Promise<PersistResult> {
-  const { live, deleted } = splitDeletedRows(rows)
   const { records, skipped } = mapSalesRows(company.id, live)
   const errors = skipped.map((ref) => `linha ignorada (chave incompleta): ${ref}`)
 
@@ -222,8 +248,8 @@ async function persistSales(
     return { synced: records.length, errors, complete: true }
   }
 
-  // Incremental: primeiro as exclusões (nota cancelada, de qualquer idade), depois
-  // o upsert — se a mesma chave vier excluída e viva, a viva prevalece
+  // Incremental: nota cancelada (de qualquer idade) sai pela chave; a viva é
+  // upsert. Chave com cópia viva nunca chega em `deleted` (resolveByKey)
   const removed = mapSalesRows(company.id, deleted).records
   await deleteInChunks(removed, (chunk) =>
     prisma.salesItem.deleteMany({
@@ -263,10 +289,9 @@ async function persistSales(
 
 async function persistOpenTitles(
   company: Company,
-  rows: SqlRow[],
+  { live, deleted }: ResolvedRows,
   mode: ContractSyncMode
 ): Promise<PersistResult> {
-  const { live, deleted } = splitDeletedRows(rows)
   const { records, skipped } = mapOpenTitleRows(company.id, live)
   const errors = skipped.map((ref) => `título ignorado (chave incompleta): ${ref}`)
   // A consulta legada já filtra saldo > 0; a incremental traz também os baixados
@@ -514,14 +539,27 @@ export async function syncContract(
     if (problem) throw unprocessable(`Sync incremental: ${problem}`)
   }
 
-  const { live, deleted } = splitDeletedRows(rows)
+  // Mesma linha em duas páginas: a paginação do endpoint está instável e outra
+  // linha ficou de fora. Gravar assim perderia dado em silêncio — falha alto
+  if (mode !== 'legacy') {
+    const repeated = countIdenticalRows(rows)
+    if (repeated > 0) {
+      throw unprocessable(
+        `${repeated} linha(s) idêntica(s) repetida(s): a paginação do endpoint não está ` +
+          'estável e outras linhas ficaram de fora. Inclua ORDER BY R_E_C_N_O_ na consulta'
+      )
+    }
+  }
+
+  const resolved = resolveByKey(rows, ROW_KEY[name] ?? (() => null))
+  const { live, deleted } = resolved
   let persisted: PersistResult
   switch (name) {
     case 'SALES':
-      persisted = await persistSales(company, rows, effectiveWindow, mode)
+      persisted = await persistSales(company, resolved, effectiveWindow, mode)
       break
     case 'OPEN_TITLES':
-      persisted = await persistOpenTitles(company, rows, mode)
+      persisted = await persistOpenTitles(company, resolved, mode)
       break
     case 'CUSTOMERS': {
       const enriched = await persistCustomerEnrichment(company, live)
