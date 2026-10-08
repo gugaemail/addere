@@ -18,7 +18,7 @@ import {
 import { useAuthStore } from '../store/auth.store'
 import { useFeedback, useHome, usePlan } from '../hooks/useIntel'
 import { openRouteInMaps } from '../services/navigationLinks'
-import { activeAddresses, goalCardModel, planFallbackLine } from '../utils/intelText'
+import { routeStops, goalCardModel, planFallbackLine } from '../utils/intelText'
 import { Card } from '../components/ui/Card'
 import { SyncPill } from '../components/intel/SyncPill'
 import { FreshnessFooter } from '../components/intel/FreshnessFooter'
@@ -115,7 +115,7 @@ export function HojeScreen() {
             <TouchableOpacity
               testID="btn-abrir-rota"
               style={[s.planButton, s.planButtonGhost]}
-              onPress={() => openRouteInMaps(activeAddresses(plan))}
+              onPress={() => openRouteInMaps(routeStops(plan))}
             >
               <Navigation size={13} color={colors.brand.primary} strokeWidth={1.5} />
               <Text style={[s.planButtonText, { color: colors.brand.primary }]}>Abrir rota</Text>

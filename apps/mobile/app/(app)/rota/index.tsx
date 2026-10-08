@@ -29,7 +29,7 @@ import { makePlanOp, prefetchBriefings, usePlan, usePlanPatch, useVisitMutation 
 import { getVisitPosition } from '../../../src/services/location'
 import { openMaps, openRouteInMaps } from '../../../src/services/navigationLinks'
 import { pilotTracker } from '../../../src/services/pilotTracking'
-import { activeAddresses, stopMetaLine } from '../../../src/utils/intelText'
+import { routeStops, stopMetaLine } from '../../../src/utils/intelText'
 import { generateUuid } from '../../../src/utils/uuid'
 import { StatusPill } from '../../../src/components/intel/StatusPill'
 import { PlanMap } from '../../../src/components/intel/PlanMap'
@@ -434,7 +434,7 @@ export default function RotaScreen() {
             <TouchableOpacity
               testID="btn-rota-completa-mapa"
               style={s.mapRouteButton}
-              onPress={() => openRouteInMaps(activeAddresses(plan))}
+              onPress={() => openRouteInMaps(routeStops(plan))}
             >
               <Navigation size={14} color={colors.neutral.white} strokeWidth={1.5} />
               <Text style={s.mapRouteText}>Abrir rota completa</Text>
@@ -573,7 +573,7 @@ export default function RotaScreen() {
                 <TouchableOpacity
                   testID="btn-rota-completa"
                   style={s.fullRoute}
-                  onPress={() => openRouteInMaps(activeAddresses(plan))}
+                  onPress={() => openRouteInMaps(routeStops(plan))}
                 >
                   <Navigation size={14} color={colors.brand.primary} strokeWidth={1.5} />
                   <Text style={s.fullRouteText}>Abrir rota completa no Maps</Text>
