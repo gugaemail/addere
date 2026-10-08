@@ -8,6 +8,7 @@ import {
   Activity,
   Building2,
   BarChart3,
+  CircleUser,
   Database,
   LogOut,
   Menu,
@@ -30,9 +31,11 @@ import { useAuth } from '@/contexts/AuthContext'
 import { useCompanyContext } from '@/contexts/CompanyContext'
 import { useCompanies } from '@/hooks/useCompanies'
 import { canAccessPanel } from '@/lib/home-redirect'
+import { profileLabel } from '@/lib/user-profile'
 import { filterNavGroups, type NavRequirement } from '@/lib/nav-gating'
 import { Logo } from '@/components/Logo'
 import { Spinner } from '@/components/ui/Spinner'
+import type { UserPublic } from '@addere/types'
 
 interface NavItem {
   href: string
@@ -199,6 +202,41 @@ function CompanySelector() {
   )
 }
 
+// Quem está logado e em qual empresa — o painel atende vários perfis e
+// empresas, e sem isso não havia como saber de qual sessão se tratava.
+// O SUPERADMIN não pertence a uma empresa: a dele é a do seletor no topo.
+function SessionInfo({ user, isSuperAdmin }: { user: UserPublic; isSuperAdmin: boolean }) {
+  const { companyId } = useCompanyContext()
+  const { data: companies = [] } = useCompanies()
+
+  const companyName = isSuperAdmin
+    ? (companies.find((company) => company.id === companyId)?.name ?? null)
+    : (user.companyName ?? null)
+
+  return (
+    <div className="flex items-start gap-2.5 px-3 pb-3 mb-2 border-b border-white/5">
+      <CircleUser
+        size={16}
+        strokeWidth={1.5}
+        className="shrink-0 mt-0.5 text-white/60"
+        aria-hidden
+      />
+      <div className="min-w-0 text-xs">
+        <p className="truncate text-sm font-medium text-white" title={user.name}>
+          {user.name}
+        </p>
+        <p className="truncate text-white/50" title={user.email}>
+          {user.email}
+        </p>
+        <p className="break-words text-white/70">
+          {profileLabel(user)}
+          {companyName && ` · ${companyName}`}
+        </p>
+      </div>
+    </div>
+  )
+}
+
 // Wordmark ao lado da logo (sidebar e barra superior do celular)
 const WORDMARK_STYLE: React.CSSProperties = {
   fontFamily: 'var(--font-heading), sans-serif',
@@ -337,6 +375,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
         {/* Footer */}
         <div className="px-3 py-4 border-t border-white/5 space-y-0.5">
+          {user && <SessionInfo user={user} isSuperAdmin={isSuperAdmin} />}
+
           {/* Toggle tema */}
           <button
             type="button"
