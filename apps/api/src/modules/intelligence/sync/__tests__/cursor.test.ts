@@ -2,10 +2,12 @@ import { describe, it, expect } from 'vitest'
 import {
   FULL_DESDE,
   desdeFromCursor,
+  inspectStamps,
   maxStamp,
   normalizeStamp,
   rowStamps,
   splitDeletedRows,
+  stampProblem,
 } from '../cursor'
 
 describe('normalizeStamp', () => {
@@ -68,5 +70,31 @@ describe('rowStamps', () => {
     ])
     expect(stamps).toEqual(['2026-10-01 11:43:19.920', '2026-10-01 11:44:00.000'])
     expect(missing).toBe(2)
+  })
+})
+
+describe('inspectStamps / stampProblem', () => {
+  it('carimbo NULL ou vazio é normal (registro intocado desde a ativação do S_T_A_M_P_)', () => {
+    const rows = [
+      { stamp: '2026-07-14 12:15:51.880' },
+      { stamp: null },
+      { stamp: '' },
+      { stamp: '   ' },
+    ]
+    expect(inspectStamps(rows)).toEqual({ hasColumn: true, valid: 1, empty: 3, invalid: 0 })
+    expect(stampProblem(rows)).toBeNull()
+  })
+
+  it('todos NULL ainda é ok — a coluna existe', () => {
+    expect(stampProblem([{ stamp: null }, { STAMP: null }])).toBeNull()
+  })
+
+  it('falha se a coluna não vier ou vier em formato errado', () => {
+    expect(stampProblem([{ titulo: 'A' }])).toMatch(/não devolve a coluna stamp/)
+    expect(stampProblem([{ stamp: '14/07/2026 12:15' }])).toMatch(/formato inesperado/)
+  })
+
+  it('sem linhas não há o que julgar', () => {
+    expect(stampProblem([])).toBeNull()
   })
 })
