@@ -35,12 +35,41 @@ export function goalPeriods(ref: Date = new Date()): [string, string] {
   return [`${year}${String(month).padStart(2, '0')}`, previous]
 }
 
+/**
+ * Período devolvido pelo endpoint → ANOMES (AAAAMM), que é como a tela Hoje
+ * procura a meta. Gravado do jeito que veio ("10/2026", "2026-10"), a meta
+ * existia e nunca era encontrada. Formato desconhecido → o ANOMES pedido.
+ */
+export function normalizeGoalPeriod(raw: unknown, requested: string): string {
+  const s = toStr(raw).trim()
+  const yearFirst = s.match(/^(\d{4})[-/]?(\d{2})(?:[-/]?\d{2})?$/) // AAAAMM, AAAA-MM, AAAAMMDD
+  const monthFirst = s.match(/^(\d{2})[-/]?(\d{4})$/) // MM/AAAA, MMAAAA
+  return (
+    (yearFirst && validPeriod(yearFirst[1], yearFirst[2])) ||
+    (monthFirst && validPeriod(monthFirst[2], monthFirst[1])) ||
+    requested
+  )
+}
+
+function validPeriod(year: string, month: string): string | null {
+  const y = Number(year)
+  const m = Number(month)
+  return y >= 2000 && y <= 2099 && m >= 1 && m <= 12 ? `${year}${month}` : null
+}
+
 export interface GoalsCaptureResult {
   captured: number
   errors: string[]
 }
 
-export async function captureGoals(company: Company): Promise<GoalsCaptureResult> {
+/**
+ * `currentOnly`: só o mês atual — o refresh intradiário usa para a meta nova
+ * (e o vendido) aparecerem na tela Hoje sem esperar a noite.
+ */
+export async function captureGoals(
+  company: Company,
+  opts: { currentOnly?: boolean } = {}
+): Promise<GoalsCaptureResult> {
   if (!company.apiMetaVend) {
     return { captured: 0, errors: ['apiMetaVend não configurada — captura de metas pulada'] }
   }
@@ -52,7 +81,7 @@ export async function captureGoals(company: Company): Promise<GoalsCaptureResult
   if (sellers.length === 0) return { captured: 0, errors: [] }
 
   const creds = getCredentials(company)
-  const periods = goalPeriods()
+  const periods = opts.currentOnly ? goalPeriods().slice(0, 1) : goalPeriods()
   let captured = 0
   const errors: string[] = []
 
@@ -72,7 +101,7 @@ export async function captureGoals(company: Company): Promise<GoalsCaptureResult
           data: {
             companyId: company.id,
             vendorCode: codVend,
-            period: toStr(raw['periodo']) || anomes,
+            period: normalizeGoalPeriod(raw['periodo'], anomes),
             goalAmount: parseMetaNumber(raw['meta']),
             soldAmount: parseMetaNumber(raw['vendido']),
           },
