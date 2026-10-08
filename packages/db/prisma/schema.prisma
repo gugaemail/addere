@@ -826,6 +826,12 @@ enum VisitResult {
 enum VisitSource {
   CHECKIN // vendedor tocou em "Cheguei"
   ORDER // inferida: o pedido vale como check-in (plano 006)
+  REMOTE // atendimento à distância: telefone ou WhatsApp, sem GPS (plano 011)
+}
+
+enum ContactChannel {
+  PHONE
+  WHATSAPP
 }
 
 enum FeedbackTargetType {
@@ -960,6 +966,7 @@ model Visit {
   accuracyM        Int?
   result           VisitResult?
   source           VisitSource  @default(CHECKIN)
+  channel          ContactChannel? // só em source=REMOTE (plano 011)
   noOrderReason    String?
   orderId          String? // Order.id quando result=ORDER
   notes            String?

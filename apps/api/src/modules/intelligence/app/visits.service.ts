@@ -107,6 +107,7 @@ export async function buildVisitHistoryItems(
         ? Math.round((visit.leftAt.getTime() - visit.arrivedAt.getTime()) / 60_000)
         : null,
       source: visit.source,
+      channel: visit.channel,
       customerCode: visit.customerCode,
       loja: visit.loja,
       customerName: customer?.name ?? visit.customerCode,

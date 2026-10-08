@@ -5,6 +5,7 @@ import { useMemo } from 'react'
 import { useMutation, useQuery, useQueryClient, type QueryKey } from '@tanstack/react-query'
 import type {
   BriefingDto,
+  ContactChannel,
   CustomerSignalListItem,
   CustomerStatus,
   CustomerWindowDto,
@@ -14,6 +15,7 @@ import type {
   TeamPortfolioDto,
   VisitHistoryDto,
   VisitPlanDto,
+  VisitSource,
 } from '@addere/types'
 import { generateUuid } from '../utils/uuid'
 import { mondayOf, saoPauloYmd } from '../utils/calendar'
@@ -348,6 +350,8 @@ export function useVisitMutation() {
       lat?: number | null
       lng?: number | null
       accuracyM?: number | null
+      source?: VisitSource
+      channel?: ContactChannel | null
     }) => enqueueAndSync('visit', payload),
     setResult: (payload: {
       clientId: string
@@ -356,6 +360,7 @@ export function useVisitMutation() {
       noOrderReason?: string | null
       orderId?: string | null
       notes?: string | null
+      channel?: ContactChannel | null
     }) => enqueueAndSync('visitResult', payload),
   }
 }

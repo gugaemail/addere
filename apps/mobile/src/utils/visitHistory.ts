@@ -9,7 +9,7 @@
 // nunca fecha com o período pelo qual a pessoa é cobrada. Por isso só duas
 // opções (Este mês / Mês passado), nunca uma janela de dias: um mês civil
 // isolado nunca passa de 31 dias, bem dentro do teto de 90 da API.
-import type { VisitHistoryItemDto } from '@addere/types'
+import type { ContactChannel, VisitHistoryItemDto } from '@addere/types'
 import { weekdayOf } from './calendar'
 
 const WEEKDAY_FULL = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEXTA', 'SÁBADO'] as const
@@ -97,11 +97,19 @@ export function durationLabel(min: number): string {
   return m === 0 ? `${h}h` : `${h}h${String(m).padStart(2, '0')}min`
 }
 
+/** Atendimento à distância (plano 011): o canal no lugar da duração */
+export function remoteContactLabel(channel: ContactChannel | null): string {
+  if (channel === 'PHONE') return 'por telefone'
+  if (channel === 'WHATSAPP') return 'por WhatsApp'
+  return 'à distância'
+}
+
 /**
  * "08:12 · 24 min" — hora de chegada (São Paulo) + duração. Sem leftAt, só a
  * hora: nunca inventa duração. Visita nascida do pedido (source ORDER, plano
  * 006) não tem GPS nem duração por desenho — mostra "registrada pelo
- * pedido" no lugar do tempo, nunca "0 min".
+ * pedido" no lugar do tempo, nunca "0 min". À distância (REMOTE, plano 011)
+ * não houve permanência no cliente: o canal, nunca a duração.
  */
 export function visitMetaLine(item: VisitHistoryItemDto): string {
   const time = new Intl.DateTimeFormat('pt-BR', {
@@ -110,6 +118,7 @@ export function visitMetaLine(item: VisitHistoryItemDto): string {
     minute: '2-digit',
   }).format(new Date(item.arrivedAt))
   if (item.source === 'ORDER') return `${time} · registrada pelo pedido`
+  if (item.source === 'REMOTE') return `${time} · ${remoteContactLabel(item.channel)}`
   if (item.durationMin === null) return time
   return `${time} · ${durationLabel(item.durationMin)}`
 }

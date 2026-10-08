@@ -3,7 +3,7 @@
 import { FastifyInstance } from 'fastify'
 import { z } from 'zod'
 import { prisma } from '@addere/db'
-import type { VisitHistoryDto } from '@addere/types'
+import type { VisitHistoryDto, VisitSource } from '@addere/types'
 import { authenticate } from '../../../middleware/authenticate'
 import { requireCompany } from '../../../middleware/require-company'
 import { requireVendorCode } from '../../../middleware/require-vendor-code'
@@ -31,8 +31,10 @@ const visitSchema = z.object({
   notes: z.string().max(1000).nullish(),
   createdOfflineAt: z.string().datetime().nullish(),
   // CHECKIN = "Cheguei" explícito; ORDER = visita implícita, o pedido valendo
-  // como check-in (plano 006). Default preserva o comportamento de hoje.
-  source: z.enum(['CHECKIN', 'ORDER']).default('CHECKIN'),
+  // como check-in (plano 006); REMOTE = atendimento à distância (plano 011).
+  // Default preserva o comportamento de hoje (app antigo não manda source).
+  source: z.enum(['CHECKIN', 'ORDER', 'REMOTE']).default('CHECKIN'),
+  channel: z.enum(['PHONE', 'WHATSAPP']).nullish(),
 })
 
 const patchSchema = z.object({
@@ -41,7 +43,21 @@ const patchSchema = z.object({
   noOrderReason: z.string().max(200).nullish(),
   orderId: z.string().uuid().nullish(),
   notes: z.string().max(1000).nullish(),
+  // O canal do atendimento à distância é escolhido na tela e chega na conclusão
+  channel: z.enum(['PHONE', 'WHATSAPP']).nullish(),
 })
+
+/**
+ * Deduplicação do dia (planos 006 e 011): a visita existente adota o clientId
+ * (e o GPS, quando vem) da que chega só se a que chega vale mais — presencial
+ * > à distância > inferida do pedido. Ligou de manhã e foi à tarde: fica a
+ * presencial. Pedido depois do atendimento remoto: fica o remoto, com o pedido.
+ */
+const SOURCE_RANK: Record<VisitSource, number> = { CHECKIN: 3, REMOTE: 2, ORDER: 1 }
+
+export function incomingOutranks(existing: VisitSource, incoming: VisitSource): boolean {
+  return SOURCE_RANK[incoming] > SOURCE_RANK[existing]
+}
 
 // Primeiro check-in do dia: o plano deixa de ser GENERATED. O motor só
 // recria planos GENERATED — sem esta promoção, um "Rodar sync agora" no meio
@@ -135,16 +151,19 @@ export default async function visitsRoutes(app: FastifyInstance) {
       return reply.status(409).send({ message: 'Visita já registrada por outro vendedor' })
     }
 
+    // À distância não tem GPS: a posição do vendedor não diz nada do cliente
+    const remote = body.source === 'REMOTE'
     const data = {
       planItemId: body.planItemId ?? null,
       customerCode: body.customerCode,
       loja: body.loja,
       arrivedAt: new Date(body.arrivedAt),
-      lat: body.lat ?? null,
-      lng: body.lng ?? null,
-      accuracyM: body.accuracyM ?? null,
+      lat: remote ? null : (body.lat ?? null),
+      lng: remote ? null : (body.lng ?? null),
+      accuracyM: remote ? null : (body.accuracyM ?? null),
       result: body.result ?? null,
       source: body.source,
+      channel: remote ? (body.channel ?? null) : null,
       noOrderReason: body.noOrderReason ?? null,
       orderId: body.orderId ?? null,
       notes: body.notes ?? null,
@@ -190,7 +209,7 @@ export default async function visitsRoutes(app: FastifyInstance) {
       // e o source da existente ficam como estão — o vendedor pode concluir
       // a visita explícita mais tarde, e trocar o clientId ali quebraria
       // esse PATCH futuro.
-      const adopting = sameDay.source === 'ORDER' && body.source === 'CHECKIN'
+      const adopting = incomingOutranks(sameDay.source, body.source)
       await prisma.visit.update({
         where: { id: sameDay.id },
         data: {
@@ -205,9 +224,11 @@ export default async function visitsRoutes(app: FastifyInstance) {
             ? {
                 clientId: body.clientId,
                 source: body.source,
-                lat: body.lat ?? null,
-                lng: body.lng ?? null,
-                accuracyM: body.accuracyM ?? null,
+                lat: data.lat,
+                lng: data.lng,
+                accuracyM: data.accuracyM,
+                // Canal só existe no remoto: entra ao virar REMOTE, sai ao deixar
+                ...(remote || sameDay.source === 'REMOTE' ? { channel: data.channel } : {}),
               }
             : {}),
         },
@@ -249,6 +270,8 @@ export default async function visitsRoutes(app: FastifyInstance) {
         ...(body.noOrderReason === undefined ? {} : { noOrderReason: body.noOrderReason }),
         ...(body.orderId === undefined ? {} : { orderId: body.orderId }),
         ...(body.notes === undefined ? {} : { notes: body.notes }),
+        // Canal só faz sentido no atendimento à distância
+        ...(body.channel === undefined || visit.source !== 'REMOTE' ? {} : { channel: body.channel }),
       },
     })
     return reply.send({ ok: true })
