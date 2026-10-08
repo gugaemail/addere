@@ -16,8 +16,13 @@ import { badRequest, notFound, unprocessable } from '../../../lib/errors'
 import { env } from '../../../lib/env'
 import { QUERY_CONTRACTS } from '../protheus-sql/contracts'
 import { validateSql } from '../protheus-sql/sql-guard'
-import { substitutePlaceholders, formatDateYmdSaoPaulo } from '../protheus-sql/placeholders'
+import {
+  findPlaceholders,
+  substitutePlaceholders,
+  formatDateYmdSaoPaulo,
+} from '../protheus-sql/placeholders'
 import { buildPlaceholderValues } from '../protheus-sql/placeholder-values'
+import { rowStamps, splitDeletedRows } from '../sync/cursor'
 import { periodWindow, type DateWindow } from '../sync/windows'
 import { resolveSqlAdapter, resolveSqlApiConfig, type SqlRow } from '../protheus-sql/sql-api.adapter'
 import { isDemoTenant } from '../demo-tenant'
@@ -264,7 +269,9 @@ export async function previewQuery(
       timeoutMs: PREVIEW_TIMEOUT_MS,
       maxRows: PREVIEW_MAX_ROWS,
     })
-    rows = result.rows
+    // Exclusões não são dados: a foto ({{INCREMENTAL}} = 0) já as filtra, mas
+    // consulta que só usa {{DESDE}} as traria
+    rows = splitDeletedRows(result.rows).live
     ms = result.ms
   } catch (err) {
     // Mensagem sanitizada — nunca o corpo da resposta do ERP
@@ -284,6 +291,20 @@ export async function previewQuery(
   // 5. Contrato: colunas obrigatórias, tipos, duplicidade e fan-out
   const contractResult = validateResultAgainstContract(contract, rows)
   checks.push(...contractResult.checks)
+
+  // 6. Sync incremental (plano 009): sem carimbo válido o cursor não anda
+  if (findPlaceholders(latest.sql).includes('DESDE') && rows.length > 0) {
+    const { missing } = rowStamps(rows)
+    checks.push({
+      key: 'incremental_stamp',
+      label: 'Coluna stamp (sync incremental)',
+      ok: missing === 0,
+      detail:
+        missing === 0
+          ? undefined
+          : `${missing} linha(s) sem carimbo — use CONVERT(VARCHAR(23), S_T_A_M_P_, 121) AS stamp`,
+    })
+  }
 
   const ok = checks.every((c) => c.ok)
 
@@ -436,7 +457,7 @@ async function runForReconciliation(
     timeoutMs: RECONCILE_TIMEOUT_MS,
   })
   return {
-    rows: result.rows,
+    rows: splitDeletedRows(result.rows).live,
     executedSql: substituted.sql,
     window,
     period: effectivePeriod,
@@ -552,6 +573,8 @@ export async function publishQuery(company: Company, name: IntelQueryName, userI
     }
   }
 
+  // Versão nova zera a marca d'água (plano 009): SQL novo pode trazer linhas que
+  // o antigo filtrava, então a próxima execução é a carga completa
   const [, published] = await prisma.$transaction([
     prisma.intelQuery.updateMany({
       where: { companyId: company.id, name, published: true },
@@ -561,6 +584,7 @@ export async function publishQuery(company: Company, name: IntelQueryName, userI
       where: { id: latest.id },
       data: { published: true, publishedAt: new Date(), validatedBy: userId },
     }),
+    prisma.intelSyncCursor.deleteMany({ where: { companyId: company.id, name } }),
   ])
 
   return toQueryDtoNamed(published)

@@ -54,6 +54,29 @@ describe('placeholders', () => {
     expect(r.sql).toBe("IN ('01')")
   })
 
+  it('DESDE vira carimbo ISO quotado e INCREMENTAL vira 0/1 sem aspas (plano 009)', () => {
+    const r = substitutePlaceholders(
+      'WHERE ({{INCREMENTAL}} = 1 AND S_T_A_M_P_ > {{DESDE}})',
+      { desde: '2026-10-08T11:33:19.920', incremental: 1 }
+    )
+    expect(r.errors).toEqual([])
+    expect(r.sql).toBe("WHERE (1 = 1 AND S_T_A_M_P_ > '2026-10-08T11:33:19.920')")
+  })
+
+  it('rejeita DESDE fora do formato ISO com T (injeção ou DATEFORMAT ambíguo)', () => {
+    for (const desde of ["2026-10-08 11:33:19.920", "2026-10-08T11:33:19.920' OR 1=1 --"]) {
+      const r = substitutePlaceholders('S_T_A_M_P_ > {{DESDE}}', { desde })
+      expect(r.errors[0]).toMatch(/DESDE/)
+    }
+  })
+
+  it('rejeita INCREMENTAL diferente de 0 ou 1', () => {
+    const r = substitutePlaceholders('{{INCREMENTAL}} = 1', {
+      incremental: 2 as unknown as 0,
+    })
+    expect(r.errors[0]).toMatch(/INCREMENTAL/)
+  })
+
   it('findPlaceholders normaliza para maiúsculas e deduplica', () => {
     expect(findPlaceholders('{{filial}} {{FILIAL}} {{hoje}}')).toEqual(['FILIAL', 'HOJE'])
   })

@@ -48,7 +48,7 @@ export const QUERY_CONTRACTS: Record<IntelQueryName, QueryContract> = {
     incrementalWindowDays: null,
     allowedScopes: ['ALL'],
     requiredPlaceholders: ['FILIAL'],
-    optionalPlaceholders: ['HOJE'],
+    optionalPlaceholders: ['HOJE', 'DESDE', 'INCREMENTAL'],
     columns: [
       col('cliente_cod', true, 'string'),
       col('cliente_loja', true, 'string'),
@@ -64,6 +64,8 @@ export const QUERY_CONTRACTS: Record<IntelQueryName, QueryContract> = {
       col('limite_credito', false, 'number'),
       col('segmento', false, 'string'),
       col('ultima_compra', false, 'date'),
+      col('excluido', false, 'string'),
+      col('stamp', false, 'string'),
     ],
     referenceSql: [
       {
@@ -75,9 +77,21 @@ export const QUERY_CONTRACTS: Record<IntelQueryName, QueryContract> = {
 FROM SA1010
 WHERE D_E_L_E_T_ = ' ' AND A1_FILIAL IN ({{FILIAL}})`,
       },
+      {
+        label: 'SA1 incremental (S_T_A_M_P_ — só o que mudou)',
+        sql: `SELECT A1_COD AS cliente_cod, A1_LOJA AS cliente_loja, A1_NOME AS cliente_nome,
+       A1_VEND AS vendedor_cod, A1_MUN AS cidade, A1_EST AS uf, A1_BAIRRO AS bairro,
+       A1_END AS endereco, A1_CEP AS cep, A1_CGC AS cnpj, A1_MSBLQL AS bloqueado,
+       A1_LC AS limite_credito, A1_ULTCOM AS ultima_compra,
+       D_E_L_E_T_ AS excluido, CONVERT(VARCHAR(23), S_T_A_M_P_, 121) AS stamp
+FROM SA1010
+WHERE A1_FILIAL IN ({{FILIAL}})
+  AND (  ({{INCREMENTAL}} = 1 AND S_T_A_M_P_ > {{DESDE}})
+      OR ({{INCREMENTAL}} = 0 AND D_E_L_E_T_ = ' '))`,
+      },
     ],
     helpText:
-      'Enriquece o cadastro sincronizado via apiCliente com limite de crédito, segmento e última compra. A fronteira de segurança é o endpoint do Protheus (só aceita SELECT) — confirme com o consultor o usuário de banco somente-leitura.',
+      'Enriquece o cadastro sincronizado via apiCliente com limite de crédito, segmento e última compra. A fronteira de segurança é o endpoint do Protheus (só aceita SELECT) — confirme com o consultor o usuário de banco somente-leitura. Para sincronizar só o que mudou, use a referência incremental: {{INCREMENTAL}} = 1 traz o que mudou desde {{DESDE}} (inclusive exclusões, na coluna excluido); 0 traz a foto completa, usada na prévia, na reconciliação e na carga semanal.',
     reconciliation: {
       kind: 'COUNT_SNAPSHOT',
       column: null,
@@ -97,7 +111,7 @@ WHERE D_E_L_E_T_ = ' ' AND A1_FILIAL IN ({{FILIAL}})`,
     incrementalWindowDays: 7,
     allowedScopes: ['ALL'],
     requiredPlaceholders: ['FILIAL', 'DATA_INI', 'DATA_FIM'],
-    optionalPlaceholders: ['HOJE'],
+    optionalPlaceholders: ['HOJE', 'DESDE', 'INCREMENTAL'],
     columns: [
       col('pedido', true, 'string'),
       col('data', true, 'date'),
@@ -110,6 +124,8 @@ WHERE D_E_L_E_T_ = ' ' AND A1_FILIAL IN ({{FILIAL}})`,
       col('item', false, 'string'),
       col('produto_desc', false, 'string'),
       col('grupo_produto', false, 'string'),
+      col('excluido', false, 'string'),
+      col('stamp', false, 'string'),
     ],
     referenceSql: [
       {
@@ -126,6 +142,24 @@ WHERE D2.D_E_L_E_T_=' ' AND D2_FILIAL IN ({{FILIAL}})
   AND D2_EMISSAO BETWEEN {{DATA_INI}} AND {{DATA_FIM}}`,
       },
       {
+        label: 'SD2/SF2 incremental (S_T_A_M_P_ — só o que mudou)',
+        sql: `SELECT D2_DOC+D2_SERIE AS pedido, D2_ITEM AS item, D2_EMISSAO AS data,
+       D2_CLIENTE AS cliente_cod, D2_LOJA AS cliente_loja, F2_VEND1 AS vendedor_cod,
+       D2_COD AS produto_cod, B1_DESC AS produto_desc, D2_QUANT AS quantidade,
+       D2_VALBRUT AS valor, B1_GRUPO AS grupo_produto,
+       CASE WHEN D2.D_E_L_E_T_='*' OR F2.D_E_L_E_T_='*' THEN '*' ELSE ' ' END AS excluido,
+       CONVERT(VARCHAR(23), CASE WHEN F2.S_T_A_M_P_ > D2.S_T_A_M_P_
+         THEN F2.S_T_A_M_P_ ELSE D2.S_T_A_M_P_ END, 121) AS stamp
+FROM SD2010 D2
+JOIN SF2010 F2 ON F2_FILIAL=D2_FILIAL AND F2_DOC=D2_DOC AND F2_SERIE=D2_SERIE
+JOIN SB1010 B1 ON B1_COD=D2_COD AND B1.D_E_L_E_T_=' '
+JOIN SF4010 F4 ON F4_CODIGO=D2_TES AND F4_DUPLIC='S'
+WHERE D2_FILIAL IN ({{FILIAL}})
+  AND D2_EMISSAO BETWEEN {{DATA_INI}} AND {{DATA_FIM}}
+  AND (  ({{INCREMENTAL}} = 1 AND (D2.S_T_A_M_P_ > {{DESDE}} OR F2.S_T_A_M_P_ > {{DESDE}}))
+      OR ({{INCREMENTAL}} = 0 AND D2.D_E_L_E_T_=' ' AND F2.D_E_L_E_T_=' '))`,
+      },
+      {
         label: 'SC5/SC6 (pedidos)',
         sql: `SELECT C5_NUM AS pedido, C6_ITEM AS item, C5_EMISSAO AS data,
        C5_CLIENTE AS cliente_cod, C5_LOJACLI AS cliente_loja, C5_VEND1 AS vendedor_cod,
@@ -137,7 +171,7 @@ WHERE C6.D_E_L_E_T_=' ' AND C6_BLQ<>'R' AND C6_FILIAL IN ({{FILIAL}})
       },
     ],
     helpText:
-      'Confirme que a consulta EXCLUI devoluções, bonificações e remessas (verifique F4_DUPLIC e os TES usados). A coluna opcional "item" (D2_ITEM/C6_ITEM) evita colapsar o mesmo produto repetido no pedido. Reconciliação contra o faturamento oficial é obrigatória antes de publicar.',
+      'Confirme que a consulta EXCLUI devoluções, bonificações e remessas (verifique F4_DUPLIC e os TES usados). A coluna opcional "item" (D2_ITEM/C6_ITEM) evita colapsar o mesmo produto repetido no pedido. Reconciliação contra o faturamento oficial é obrigatória antes de publicar. Para sincronizar só o que mudou, use a referência incremental: {{INCREMENTAL}} = 1 traz o que mudou desde {{DESDE}} (inclusive exclusões, na coluna excluido); 0 traz a foto completa, usada na prévia, na reconciliação e na carga semanal.',
     reconciliation: {
       kind: 'SUM_MONTH',
       column: 'valor',
@@ -157,7 +191,7 @@ WHERE C6.D_E_L_E_T_=' ' AND C6_BLQ<>'R' AND C6_FILIAL IN ({{FILIAL}})
     incrementalWindowDays: null,
     allowedScopes: ['ALL'],
     requiredPlaceholders: ['FILIAL'],
-    optionalPlaceholders: ['HOJE'],
+    optionalPlaceholders: ['HOJE', 'DESDE', 'INCREMENTAL'],
     columns: [
       col('titulo', true, 'string'),
       col('cliente_cod', true, 'string'),
@@ -165,6 +199,8 @@ WHERE C6.D_E_L_E_T_=' ' AND C6_BLQ<>'R' AND C6_FILIAL IN ({{FILIAL}})
       col('vencimento', true, 'date'),
       col('valor_saldo', true, 'number'),
       col('dias_atraso', false, 'number'),
+      col('excluido', false, 'string'),
+      col('stamp', false, 'string'),
     ],
     referenceSql: [
       {
@@ -175,9 +211,20 @@ FROM SE1010
 WHERE D_E_L_E_T_=' ' AND E1_FILIAL IN ({{FILIAL}}) AND E1_SALDO > 0
   AND E1_TIPO NOT IN ('NCC','RA','AB-','PA')`,
       },
+      {
+        label: 'SE1 incremental (S_T_A_M_P_ — só o que mudou)',
+        sql: `SELECT E1_FILIAL+E1_PREFIXO+E1_NUM+E1_PARCELA+E1_TIPO AS titulo,
+       E1_CLIENTE AS cliente_cod, E1_LOJA AS cliente_loja, E1_VENCREA AS vencimento,
+       E1_SALDO AS valor_saldo,
+       D_E_L_E_T_ AS excluido, CONVERT(VARCHAR(23), S_T_A_M_P_, 121) AS stamp
+FROM SE1010
+WHERE E1_FILIAL IN ({{FILIAL}}) AND E1_TIPO NOT IN ('NCC','RA','AB-','PA')
+  AND (  ({{INCREMENTAL}} = 1 AND S_T_A_M_P_ > {{DESDE}})
+      OR ({{INCREMENTAL}} = 0 AND E1_SALDO > 0 AND D_E_L_E_T_ = ' '))`,
+      },
     ],
     helpText:
-      'Só títulos com saldo > 0. Excluir tipos que não são cobrança (NCC, RA, AB-, PA). Gera o status Bloqueado quando vencido além do parâmetro da empresa.',
+      'Só títulos com saldo > 0. Excluir tipos que não são cobrança (NCC, RA, AB-, PA). Gera o status Bloqueado quando vencido além do parâmetro da empresa. Para sincronizar só o que mudou, use a referência incremental: {{INCREMENTAL}} = 1 traz o que mudou desde {{DESDE}} (inclusive exclusões, na coluna excluido); 0 traz a foto completa, usada na prévia, na reconciliação e na carga semanal.',
     reconciliation: {
       kind: 'SUM_SNAPSHOT',
       column: 'valor_saldo',
@@ -197,13 +244,15 @@ WHERE D_E_L_E_T_=' ' AND E1_FILIAL IN ({{FILIAL}}) AND E1_SALDO > 0
     incrementalWindowDays: null,
     allowedScopes: ['ALL'],
     requiredPlaceholders: [],
-    optionalPlaceholders: ['FILIAL', 'HOJE'],
+    optionalPlaceholders: ['FILIAL', 'HOJE', 'DESDE', 'INCREMENTAL'],
     columns: [
       col('produto_cod', true, 'string'),
       col('produto_desc', true, 'string'),
       col('grupo', true, 'string'),
       col('ativo', true, 'string'),
       col('preco_tabela', false, 'number'),
+      col('excluido', false, 'string'),
+      col('stamp', false, 'string'),
     ],
     referenceSql: [
       {
@@ -213,9 +262,18 @@ WHERE D_E_L_E_T_=' ' AND E1_FILIAL IN ({{FILIAL}}) AND E1_SALDO > 0
 FROM SB1010
 WHERE D_E_L_E_T_=' '`,
       },
+      {
+        label: 'SB1 incremental (S_T_A_M_P_ — só o que mudou)',
+        sql: `SELECT B1_COD AS produto_cod, B1_DESC AS produto_desc, B1_GRUPO AS grupo,
+       CASE WHEN B1_MSBLQL = '1' THEN 'N' ELSE 'S' END AS ativo,
+       D_E_L_E_T_ AS excluido, CONVERT(VARCHAR(23), S_T_A_M_P_, 121) AS stamp
+FROM SB1010
+WHERE (  ({{INCREMENTAL}} = 1 AND S_T_A_M_P_ > {{DESDE}})
+      OR ({{INCREMENTAL}} = 0 AND D_E_L_E_T_ = ' '))`,
+      },
     ],
     helpText:
-      'Enriquece o catálogo sincronizado via apiPord com o grupo (base do cross-sell na fase 2).',
+      'Enriquece o catálogo sincronizado via apiPord com o grupo (base do cross-sell na fase 2). Para sincronizar só o que mudou, use a referência incremental: {{INCREMENTAL}} = 1 traz o que mudou desde {{DESDE}} (inclusive exclusões, na coluna excluido); 0 traz a foto completa, usada na prévia, na reconciliação e na carga semanal.',
     reconciliation: {
       kind: 'COUNT_SNAPSHOT',
       column: null,

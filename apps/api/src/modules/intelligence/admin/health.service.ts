@@ -210,6 +210,12 @@ export async function buildHealthReport(
     _count: { id: true },
   })
 
+  // ─── Marca d'água do sync incremental (plano 009) ───
+  const cursors = await prisma.intelSyncCursor.findMany({
+    where: { companyId },
+    orderBy: { name: 'asc' },
+  })
+
   const pctCity = customersTotal === 0 ? 100 : Math.round(((customersTotal - customersNoCity) / customersTotal) * 100)
   const pctVendor = salesTotal === 0 ? 100 : Math.round(((salesTotal - salesNoVendor) / salesTotal) * 100)
   const pctKnown = salesTotal === 0 ? 100 : Math.round(((salesTotal - unknownSalesCount) / salesTotal) * 100)
@@ -270,6 +276,12 @@ export async function buildHealthReport(
       outputTokens: llm._sum.outputTokens ?? 0,
       calls: llm._count.id,
     },
+    syncCursors: cursors.map((c) => ({
+      name: c.name,
+      stamp: c.stamp,
+      lastFullAt: c.lastFullAt?.toISOString() ?? null,
+      updatedAt: c.updatedAt.toISOString(),
+    })),
     fixes,
     config,
   }
