@@ -76,7 +76,14 @@ export async function nightlyHandler(companyId: string, runId: string): Promise<
   }
 
   // 3. Metas por vendedor (mês atual + anterior)
-  await record('goals', () => captureGoals(company))
+  await record('goals', async () => {
+    const result = await captureGoals(company)
+    // Todas as chamadas falharam: o passo aparece com erro na Saúde, não como ok
+    if (result.captured === 0 && result.errors.length > 0) {
+      throw new Error(result.errors.slice(0, 3).join(' | '))
+    }
+    return result
+  })
 
   // 4. Motor de sinais e resumo do plano — handlers chegam na E5/E6
   for (const dependent of ['ENGINE', 'PLAN'] as IntelJob[]) {
