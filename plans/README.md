@@ -97,12 +97,26 @@ Ordem de merge indiferente. O 010 toca o app: entra no próximo OTA, sem build.
 
 | Plano | Título | Prioridade | Esforço | Toca o app? | Depende de | Status |
 |-------|--------|------------|---------|-------------|------------|--------|
-| 011 | Atendimento à distância — registrar contato por telefone ou WhatsApp | P2 | M | **sim**, só JS (OTA, sem build) | — | TODO |
+| 011 | Atendimento à distância — registrar contato por telefone ou WhatsApp | P2 | M | **sim**, só JS (OTA, sem build) | — | **DONE** |
 
 **Decisão de produto (08/10/2026):** o cliente distante **continua no plano de
 visitas** e o raio de distância do ranking **não** será mudado agora — só se
 acrescenta a opção de registrar o atendimento como feito à distância. Tem
 migration (valor de enum + coluna), gerada por último.
+
+**011 — DONE em 08/10/2026**, branch `feat/atendimento-a-distancia`: API e
+histórico (`3e36f8a`), app (`ce21408`) e migration em commit separado.
+Verificação: tipos, lint, 683 testes da API (7 novos), 171 do web (3 novos),
+196 do mobile (9 novos); os testes do plano 006 passaram sem alteração;
+mutação deliberada na regra de prioridade derrubou 7 testes. Migration com
+exatamente as três instruções previstas, validada num banco local descartável
+(as migrations do zero reproduzem o schema; sem a nova, a diferença aparece).
+Desvio pequeno: a linha da visita do painel saiu da página para
+`apps/web/src/lib/visit-history.ts`, como o passo 4 previa para poder testar.
+"À distância" e "Cheguei" ficam num grupo, para descerem juntos na quebra de
+linha — não conferido em aparelho de 375 pt. **Ordem de publicação:** API
+(com a migration) antes do OTA — app novo mandando `REMOTE` para API antiga
+leva 400 e a visita fica presa na fila até a API subir.
 
 Valores de status: TODO | IN PROGRESS | DONE | BLOCKED (com o motivo em uma linha) | REJECTED (com a justificativa em uma linha)
 
