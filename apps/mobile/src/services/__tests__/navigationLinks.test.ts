@@ -1,4 +1,12 @@
-import { wazeUrl, mapsUrl, routeUrl, whatsappUrl } from '../navigationLinks'
+import {
+  wazeUrl,
+  appleMapsUrl,
+  googleMapsUrl,
+  routeUrl,
+  stopChoices,
+  routeChoices,
+  whatsappUrl,
+} from '../navigationLinks'
 
 describe('navigationLinks (builders puros)', () => {
   it('Waze prioriza coordenadas e cai para endereço', () => {
@@ -11,14 +19,58 @@ describe('navigationLinks (builders puros)', () => {
     expect(wazeUrl({})).toBeNull()
   })
 
-  it('Maps usa Apple no iOS e Google nos demais', () => {
-    expect(mapsUrl({ lat: -22.9, lng: -47.06 }, 'ios')).toBe(
+  it('Apple e Google Maps priorizam coordenadas e caem para endereço', () => {
+    expect(appleMapsUrl({ lat: -22.9, lng: -47.06 })).toBe(
       'https://maps.apple.com/?daddr=-22.9,-47.06'
     )
-    expect(mapsUrl({ address: 'Rua A' }, 'android')).toBe(
+    expect(googleMapsUrl({ address: 'Rua A' })).toBe(
       'https://www.google.com/maps/dir/?api=1&destination=Rua%20A'
     )
-    expect(mapsUrl({}, 'android')).toBeNull()
+    expect(googleMapsUrl({})).toBeNull()
+  })
+
+  it('menu da parada: Apple Maps só no iOS; Android cabe nos 3 botões do Alert', () => {
+    const target = { lat: -23.6, lng: -46.66, address: 'Rua A, São Paulo - SP' }
+    expect(stopChoices(target, 'ios').map((c) => c.label)).toEqual([
+      'Abrir no Apple Maps',
+      'Abrir no Google Maps',
+      'Abrir no Waze',
+      'Copiar endereço',
+    ])
+    const android = stopChoices(target, 'android')
+    expect(android.map((c) => c.label)).toEqual([
+      'Abrir no Google Maps',
+      'Abrir no Waze',
+      'Copiar endereço',
+    ])
+    expect(android[2]).toEqual({ label: 'Copiar endereço', copy: 'Rua A, São Paulo - SP' })
+  })
+
+  it('menu da parada: sem endereço não oferece copiar; sem nada, nenhuma opção', () => {
+    expect(stopChoices({ lat: -23.6, lng: -46.66 }, 'ios').map((c) => c.label)).not.toContain(
+      'Copiar endereço'
+    )
+    expect(stopChoices({}, 'ios')).toEqual([])
+  })
+
+  it('menu da rota: Google com todas as paradas; Waze e Apple Maps só a 1ª', () => {
+    const stops = [
+      { lat: -23.6, lng: -46.66, address: 'A' },
+      { lat: -23.5, lng: -46.6, address: 'B' },
+    ]
+    const ios = routeChoices(stops, 'ios')
+    expect(ios.map((c) => c.label)).toEqual([
+      'Google Maps (todas as paradas)',
+      'Apple Maps (1ª parada)',
+      'Waze (1ª parada)',
+    ])
+    expect(ios[0]).toEqual({ label: ios[0].label, url: routeUrl(stops) })
+    expect(ios[2]).toEqual({ label: 'Waze (1ª parada)', url: wazeUrl(stops[0]) })
+    expect(routeChoices(stops, 'android').map((c) => c.label)).toEqual([
+      'Google Maps (todas as paradas)',
+      'Waze (1ª parada)',
+    ])
+    expect(routeChoices([], 'ios')).toEqual([])
   })
 
   it('rota completa põe a última parada como destino e as demais como waypoints', () => {
