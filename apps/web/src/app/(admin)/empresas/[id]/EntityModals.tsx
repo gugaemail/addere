@@ -160,7 +160,7 @@ export function BranchModal({ companyId, mode, branch, onClose, onSaved }: Branc
         <FormField label="Razão Social" placeholder="Opcional" {...register('razaoSocial')} />
 
         <p className={`${SECTION_TITLE} pt-1`}>Endereço</p>
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           <div className="col-span-2">
             <FormField label="Endereço" placeholder="Rua, número" {...register('endereco')} />
           </div>
@@ -170,7 +170,7 @@ export function BranchModal({ companyId, mode, branch, onClose, onSaved }: Branc
             {...register('complemento')}
           />
         </div>
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           <div className="col-span-2">
             <FormField label="Cidade" placeholder="Opcional" {...register('cidade')} />
           </div>
@@ -411,7 +411,7 @@ export function CustomerModal({ companyId, mode, customer, onClose, onSaved }: C
           <FormField label="Município" placeholder="Opcional" {...register('municipio')} />
           <FormField label="Bairro" placeholder="Opcional" {...register('bairro')} />
         </div>
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           <div className="col-span-2">
             <FormField
               label="CEP"
@@ -545,7 +545,7 @@ export function ProductModal({ companyId, mode, product, onClose, onSaved }: Pro
           <FormField label="Unidade" placeholder="UN" {...register('unit')} />
         </div>
         <FormField label="Descrição" placeholder="Opcional" {...register('description')} />
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           <FormField label="Preço (R$)" type="number" step="any" min="0" {...register('price')} />
           <FormField label="Estoque" type="number" step="any" min="0" {...register('stock')} />
           <FormField label="Saldo" type="number" step="any" min="0" {...register('saldo')} />

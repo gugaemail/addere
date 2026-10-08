@@ -35,7 +35,9 @@ export function Table<T>({
   rowClassName,
 }: TableProps<T>) {
   return (
-    <div className={cn('overflow-x-auto rounded-xl', className)}>
+    // Contém o gesto de arrasto: sem isso, ao chegar no fim do scroll horizontal
+    // o iOS repassa o gesto para o <main> e a página inteira desliza (scroll chaining).
+    <div className={cn('overflow-x-auto overscroll-x-contain rounded-xl', className)}>
       <table className="w-full text-sm">
         <thead className="sticky top-0 z-10 bg-[var(--bg-subtle)]">
           <tr className="text-left text-xs uppercase tracking-wider text-[var(--text-muted)]">
