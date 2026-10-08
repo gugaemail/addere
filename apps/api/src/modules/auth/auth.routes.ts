@@ -155,7 +155,7 @@ export default async function authRoutes(app: FastifyInstance) {
           companyId: true,
           servedCities: true,
           managerId: true,
-          company: { select: { intelligenceEnabled: true, intelligenceConfig: true } },
+          company: { select: { name: true, intelligenceEnabled: true, intelligenceConfig: true } },
         },
       })
       if (!user) return reply.status(404).send({ message: 'Usuário não encontrado' })
@@ -177,6 +177,8 @@ export default async function authRoutes(app: FastifyInstance) {
         companyId: user.companyId,
         servedCities: user.servedCities,
         managerId: user.managerId,
+        // O painel mostra no rodapé da sidebar em qual empresa a sessão está
+        companyName: user.company?.name ?? null,
         // Perfil "Gerente" (SALESPERSON + intel.manager) — o app troca a home e
         // esconde a Rota por este campo; SUPERADMIN tem o catálogo inteiro
         intelManager: user.role !== 'SUPERADMIN' && permissions.has('intel.manager'),

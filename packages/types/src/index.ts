@@ -39,7 +39,7 @@ export interface UserPublic {
   messageTone?: string | null
   managerId?: string | null
   intelManager?: boolean // tem a permissão intel.manager (D3b)
-  companyName?: string | null // devolvido por GET /users — o SUPERADMIN vê várias empresas
+  companyName?: string | null // devolvido por GET /users (o SUPERADMIN vê várias empresas) e GET /auth/me
 }
 
 // ─── Permissões dinâmicas ──────────────────────────────────────────────────
