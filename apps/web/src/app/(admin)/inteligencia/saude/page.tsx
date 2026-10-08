@@ -42,6 +42,21 @@ const PRECISION_LABELS: Record<string, string> = {
   CITY: 'só cidade (sem pino)',
 }
 
+const CONTRACT_LABELS: Record<string, string> = {
+  CUSTOMERS: 'clientes',
+  SALES: 'vendas',
+  OPEN_TITLES: 'títulos em aberto',
+  PRODUCTS: 'produtos',
+}
+
+// S_T_A_M_P_ do Protheus não tem fuso: formata o texto como veio, sem `new Date`
+// (que o leria como UTC e deslocaria a hora)
+function stampLabel(stamp: string): string {
+  const [date, time = ''] = stamp.split(' ')
+  const [, month, day] = date.split('-')
+  return `${day}/${month} ${time.slice(0, 5)}`
+}
+
 interface RunStep {
   step: string
   ok: boolean
@@ -216,6 +231,19 @@ export default function SaudePage() {
             <p className="mt-1 text-xs text-[var(--text-secondary)]">
               {data.geocoding.withoutPin} cliente(s) sem posição não aparecem no mapa · {data.geocoding.failed} falha(s)
             </p>
+          </div>
+        )}
+        {data.syncCursors && data.syncCursors.length > 0 && (
+          <div className="rounded-xl border border-[var(--border)] bg-[var(--bg-surface)] px-4 py-3">
+            <h3 className="text-sm font-semibold text-[var(--text-primary)]">
+              Sincronização incremental
+            </h3>
+            {data.syncCursors.map((c) => (
+              <p key={c.name} className="mt-1 text-xs text-[var(--text-secondary)]">
+                {CONTRACT_LABELS[c.name] ?? c.name}: lido até {stampLabel(c.stamp)} · carga
+                completa {c.lastFullAt ? new Date(c.lastFullAt).toLocaleDateString('pt-BR') : '—'}
+              </p>
+            ))}
           </div>
         )}
         {data.llmUsageMonth && (

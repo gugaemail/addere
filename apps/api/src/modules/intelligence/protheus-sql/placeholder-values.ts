@@ -6,17 +6,25 @@ import type { Company } from '@prisma/client'
 import type { QueryContract } from './contracts'
 import { formatDateYmdSaoPaulo, type PlaceholderValues } from './placeholders'
 import type { DateWindow } from '../sync/windows'
+import { FULL_DESDE } from '../sync/cursor'
 
 export async function buildPlaceholderValues(
   company: Company,
   contract: QueryContract,
-  window: DateWindow
+  window: DateWindow,
+  /**
+   * Marca d'água do sync incremental (plano 009). Ausente = foto completa: é o
+   * que a prévia, a reconciliação e a carga completa querem.
+   */
+  desde?: string
 ): Promise<{ values: PlaceholderValues; errors: string[] }> {
   const errors: string[] = []
   const values: PlaceholderValues = {
     dataIni: window.dataIni,
     dataFim: window.dataFim,
     hoje: formatDateYmdSaoPaulo(new Date()),
+    desde: desde ?? FULL_DESDE,
+    incremental: desde ? 1 : 0,
   }
 
   const needed = [...contract.requiredPlaceholders, ...contract.optionalPlaceholders]

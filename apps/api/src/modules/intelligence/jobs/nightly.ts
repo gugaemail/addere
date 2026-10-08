@@ -43,15 +43,23 @@ export async function nightlyHandler(companyId: string, runId: string): Promise<
     await updateRunMetadata(runId, { steps }).catch(() => undefined)
   }
 
-  // 1. Sync dos contratos: diários + semanais (domingo) + os de refresh (janela 7d)
-  const frequencies: Array<'DAILY' | 'REFRESH' | 'WEEKLY'> = isSundaySaoPaulo(new Date())
+  // 1. Sync dos contratos: diários + semanais (domingo) + os de refresh (janela 7d).
+  // Domingo é também a carga completa dos incrementais (plano 009): a rede de
+  // segurança contra o que o S_T_A_M_P_ não vê (alteração direto no banco)
+  const sunday = isSundaySaoPaulo(new Date())
+  const frequencies: Array<'DAILY' | 'REFRESH' | 'WEEKLY'> = sunday
     ? ['DAILY', 'REFRESH', 'WEEKLY']
     : ['DAILY', 'REFRESH']
   const contracts = await publishedContracts(companyId, frequencies)
   for (const name of contracts) {
     await record(`sync:${name}`, async () => {
-      const result = await syncContract(company, name)
-      return { rows: result.rows, synced: result.synced, errors: result.errors.slice(0, 5) }
+      const result = await syncContract(company, name, undefined, { full: sunday })
+      return {
+        mode: result.mode,
+        rows: result.rows,
+        synced: result.synced,
+        errors: result.errors.slice(0, 5),
+      }
     })
   }
   if (contracts.length === 0) {

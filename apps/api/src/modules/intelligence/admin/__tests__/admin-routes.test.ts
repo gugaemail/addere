@@ -363,6 +363,26 @@ describe('POST /intel/admin/queries/:name/publish', () => {
     expect(prismaMock.intelQuery.updateMany).toHaveBeenCalled()
   })
 
+  it('publicar versão nova zera a marca d\'água do sync incremental (plano 009)', async () => {
+    prismaMock.intelQuery.findFirst.mockResolvedValue(
+      fakeQueryRow({ validatedAt: new Date(), reconciliationDiffPct: 1.2 })
+    )
+    prismaMock.intelQuery.update.mockResolvedValue(
+      fakeQueryRow({ published: true, publishedAt: new Date() })
+    )
+    const res = await app.inject({
+      method: 'POST',
+      url: '/intel/admin/queries/SALES/publish',
+      headers: auth('admin-a'),
+      payload: {},
+    })
+    expect(res.statusCode).toBe(200)
+    // SQL novo pode trazer o que o antigo filtrava: a próxima execução é completa
+    expect(prismaMock.intelSyncCursor.deleteMany).toHaveBeenCalledWith({
+      where: { companyId: expect.any(String), name: 'SALES' },
+    })
+  })
+
   it('reconciliação fora da tolerância → 422', async () => {
     prismaMock.intelQuery.findFirst.mockResolvedValue(
       fakeQueryRow({ validatedAt: new Date(), reconciliationDiffPct: 7.5 })
