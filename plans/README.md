@@ -114,9 +114,11 @@ exatamente as três instruções previstas, validada num banco local descartáve
 Desvio pequeno: a linha da visita do painel saiu da página para
 `apps/web/src/lib/visit-history.ts`, como o passo 4 previa para poder testar.
 "À distância" e "Cheguei" ficam num grupo, para descerem juntos na quebra de
-linha — não conferido em aparelho de 375 pt. **Ordem de publicação:** API
-(com a migration) antes do OTA — app novo mandando `REMOTE` para API antiga
-leva 400 e a visita fica presa na fila até a API subir.
+linha — não conferido em aparelho de 375 pt. **Ordem de publicação
+obrigatória:** API (com a migration) no ar **antes** do OTA. App novo mandando
+`REMOTE` para API antiga leva 400, e a fila trata 4xx como rejeição permanente
+(`isPermanentRejection` em `syncEngine.ts`) — o atendimento se perde, não
+fica esperando.
 
 Valores de status: TODO | IN PROGRESS | DONE | BLOCKED (com o motivo em uma linha) | REJECTED (com a justificativa em uma linha)
 
