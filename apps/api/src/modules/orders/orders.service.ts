@@ -1,4 +1,5 @@
 import { prisma } from '@addere/db'
+import { isCustomerBlocked } from '@addere/types'
 import { notFound, forbidden, unprocessable } from '../../lib/errors'
 import { priceOrderItems } from './orders.pricing'
 import type { CreateOrderInput, UpdateOrderInput } from './orders.schema'
@@ -49,6 +50,20 @@ export async function assertCarrierAndPaymentTermsAllowed(
       throw forbidden('Você não tem permissão para alterar a condição de pagamento do pedido')
     }
   }
+}
+
+const BLOCKED_CUSTOMER_MESSAGE = 'Cliente bloqueado no Protheus — não é possível fazer pedido'
+
+// Pedido só para cliente da empresa, não excluído (active) e não bloqueado no
+// Protheus (A1_MSBLQL='1'). O app já não oferece o bloqueado — aqui é a garantia,
+// inclusive para pedido offline que chega depois do bloqueio
+async function assertCustomerAcceptsOrders(companyId: string, customerId: string): Promise<void> {
+  const customer = await prisma.customer.findFirst({
+    where: { id: customerId, companyId, active: true },
+    select: { msblql: true },
+  })
+  if (!customer) throw notFound('Cliente não encontrado')
+  if (isCustomerBlocked(customer.msblql)) throw unprocessable(BLOCKED_CUSTOMER_MESSAGE)
 }
 
 // Garante que filial, transportadora e condição de pagamento referenciadas
@@ -161,6 +176,7 @@ export async function updateOrder(
   if (!order) throw notFound('Pedido não encontrado')
   if (order.status !== 'PENDING') throw unprocessable('Apenas pedidos pendentes podem ser editados')
 
+  await assertCustomerAcceptsOrders(companyId, order.customerId)
   await assertCarrierAndPaymentTermsAllowed(companyId, order.customerId, input, permissions)
   await assertOrderRefsBelongToCompany(companyId, input)
 
@@ -200,6 +216,7 @@ export async function createOrder(
   input: CreateOrderInput,
   permissions: Set<string>
 ) {
+  await assertCustomerAcceptsOrders(companyId, input.customerId)
   await assertCarrierAndPaymentTermsAllowed(companyId, input.customerId, input, permissions)
   await assertOrderRefsBelongToCompany(companyId, input)
 
