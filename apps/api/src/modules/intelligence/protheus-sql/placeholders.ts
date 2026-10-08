@@ -5,7 +5,15 @@
 // no SQL, e mesmo eles passam por regex estrita + escape de aspas. Nunca
 // concatenar input de usuário.
 
-export type PlaceholderName = 'FILIAL' | 'DATA_INI' | 'DATA_FIM' | 'HOJE' | 'VENDEDOR' | 'PRODUTO'
+export type PlaceholderName =
+  | 'FILIAL'
+  | 'DATA_INI'
+  | 'DATA_FIM'
+  | 'HOJE'
+  | 'VENDEDOR'
+  | 'PRODUTO'
+  | 'DESDE'
+  | 'INCREMENTAL'
 
 export const KNOWN_PLACEHOLDERS: PlaceholderName[] = [
   'FILIAL',
@@ -14,12 +22,16 @@ export const KNOWN_PLACEHOLDERS: PlaceholderName[] = [
   'HOJE',
   'VENDEDOR',
   'PRODUTO',
+  'DESDE',
+  'INCREMENTAL',
 ]
 
 // Códigos Protheus (filial, vendedor, produto): alfanumérico + espaço, 1–20 chars.
 // Mesma regex do Zod de Branch.idProtheus/User.idVendProt (E1c).
 const CODE_PATTERN = /^[A-Za-z0-9 ]{1,20}$/
 const DATE_PATTERN = /^\d{8}$/ // YYYYMMDD
+// Carimbo do sync incremental em ISO com "T" (ver sync/cursor.ts: FULL_DESDE)
+const STAMP_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}$/
 
 export interface PlaceholderValues {
   /** Códigos das filiais ativas com idProtheus (vira `'01','02'`) */
@@ -29,6 +41,10 @@ export interface PlaceholderValues {
   hoje?: string // YYYYMMDD
   vendedor?: string
   produto?: string
+  /** Marca d'água do sync incremental (plano 009): 'AAAA-MM-DDThh:mm:ss.mmm' */
+  desde?: string
+  /** 1 = só o que mudou desde {{DESDE}}; 0 = foto completa (sem aspas no SQL) */
+  incremental?: 0 | 1
 }
 
 export interface SubstitutionResult {
@@ -99,6 +115,24 @@ export function substitutePlaceholders(sql: string, values: PlaceholderValues): 
       replacements.set(name, null)
     } else {
       replacements.set(name, quoteCode(value))
+    }
+  }
+
+  if (present.includes('DESDE')) {
+    if (!values.desde || !STAMP_PATTERN.test(values.desde)) {
+      errors.push('Valor inválido para {{DESDE}} (esperado AAAA-MM-DDThh:mm:ss.mmm)')
+      replacements.set('DESDE', null)
+    } else {
+      replacements.set('DESDE', quoteCode(values.desde))
+    }
+  }
+
+  if (present.includes('INCREMENTAL')) {
+    if (values.incremental !== 0 && values.incremental !== 1) {
+      errors.push('Valor inválido para {{INCREMENTAL}} (esperado 0 ou 1)')
+      replacements.set('INCREMENTAL', null)
+    } else {
+      replacements.set('INCREMENTAL', String(values.incremental))
     }
   }
 

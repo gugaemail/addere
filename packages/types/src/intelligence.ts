@@ -138,6 +138,14 @@ export interface HealthReport {
     failed: number
     withoutPin: number
   }
+  // Sync incremental (plano 009): um por contrato que já tem marca d'água.
+  // `stamp` é o S_T_A_M_P_ do Protheus, sem fuso ('AAAA-MM-DD hh:mm:ss.mmm')
+  syncCursors?: {
+    name: IntelQueryName
+    stamp: string
+    lastFullAt: string | null
+    updatedAt: string
+  }[]
 }
 
 // ─── Premissas do motor (W5) ───

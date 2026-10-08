@@ -98,6 +98,7 @@ model Company {
   intelParameterHistory IntelParameterHistory[]
   intelSalesItems       SalesItem[]
   intelOpenTitles       OpenTitle[]
+  syncCursors           IntelSyncCursor[]
   intelGoalSnapshots    GoalSnapshot[]
   intelJobRuns          IntelJobRun[]
   customerSignals       CustomerSignal[]
@@ -266,7 +267,7 @@ model Customer {
   cep           String?
   uf            String?
   ultcom        DateTime? // data da última compra no Protheus (A1_ULTCOM)
-  msblql        String? // A1_MSBLQL: "1"=bloqueado, "2"=liberado — inativa cliente se "1"
+  msblql        String? // A1_MSBLQL: "1"=bloqueado (aparece, sem pedido), "2"=liberado
   transpPadrao  String? // A1_TRANSP: código da transportadora padrão do cliente
   condPagPadrao String? // A1_COND: código da condição de pagamento padrão do cliente
   tes           String? // A1_TES: código TES (enviado ao Protheus no pedido)
@@ -703,6 +704,24 @@ model OpenTitle {
   @@id([companyId, titleRef])
   @@index([companyId, customerCode, loja])
   @@map("intel_open_titles")
+}
+
+// Marca d'água do sync incremental por contrato (plano 009): o maior S_T_A_M_P_
+// que o Protheus devolveu, na forma canônica 'AAAA-MM-DD hh:mm:ss.mmm' (texto
+// ordenável, sem fuso — é o datetime do SQL Server do cliente). Sem linha aqui,
+// a próxima execução do contrato é completa; publicar versão nova da consulta
+// apaga a linha.
+model IntelSyncCursor {
+  companyId  String
+  name       IntelQueryName
+  stamp      String
+  lastFullAt DateTime?
+  updatedAt  DateTime       @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id])
+
+  @@id([companyId, name])
+  @@map("intel_sync_cursors")
 }
 
 // ─────────────────────────────────────────

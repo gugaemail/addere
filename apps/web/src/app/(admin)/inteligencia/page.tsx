@@ -17,8 +17,15 @@ import { useAuth } from '@/contexts/AuthContext'
 import { useCompanyContext } from '@/contexts/CompanyContext'
 import { useIntelHealth, useTeamReport } from '@/hooks/useIntel'
 import { needsActiveCompany, pctLabel, todayInSaoPaulo } from '@/lib/intel-helpers'
+import { canSeeNavItem, INTEL_ADMIN_ONLY, type NavRequirement } from '@/lib/nav-gating'
 
-const SHORTCUTS = [
+const SHORTCUTS: {
+  icon: typeof Users
+  title: string
+  href: string
+  description: string
+  requires?: NavRequirement
+}[] = [
   {
     icon: Users,
     title: 'Equipe em campo',
@@ -35,6 +42,7 @@ const SHORTCUTS = [
     icon: Database,
     title: 'Consultas',
     href: '/inteligencia/consultas',
+    requires: INTEL_ADMIN_ONLY,
     description: 'Configurar e validar as consultas SQL que alimentam a Inteligência.',
   },
   {
@@ -47,12 +55,17 @@ const SHORTCUTS = [
     icon: SlidersHorizontal,
     title: 'Premissas',
     href: '/inteligencia/premissas',
+    requires: INTEL_ADMIN_ONLY,
     description: 'Régua do motor: ciclo, risco, capacidade de visitas e pesos do ranking.',
   },
 ]
 
 export default function IntelligenceHomePage() {
-  const { user, isSuperAdmin, intelligenceEnabled } = useAuth()
+  const { user, isSuperAdmin, isAdmin, hasPermission, intelligenceEnabled } = useAuth()
+  // Mesmo gating da sidebar: o gerente não vê os atalhos de configuração
+  const shortcuts = SHORTCUTS.filter((s) =>
+    canSeeNavItem(s.requires, { isSuperAdmin, isAdmin, hasPermission })
+  )
   const { companyId } = useCompanyContext()
 
   // SUPERADMIN sem empresa escolhida não tem tenant para resolver — os cards
@@ -106,7 +119,7 @@ export default function IntelligenceHomePage() {
       )}
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {SHORTCUTS.map(({ icon: Icon, title, href, description }) => (
+        {shortcuts.map(({ icon: Icon, title, href, description }) => (
           <Link key={title} href={href} className="group">
             <Card className="h-full space-y-2 transition-colors group-hover:border-brand/40">
               <span className="inline-flex items-center justify-center w-9 h-9 rounded-lg bg-brand/10">

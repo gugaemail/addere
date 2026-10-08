@@ -1,5 +1,5 @@
 // Job de refresh intradiário (E4): contratos de frequência REFRESH
-// (SALES incremental 7d + OPEN_TITLES foto do momento).
+// (SALES e OPEN_TITLES; só o que mudou quando a consulta usa {{DESDE}} — plano 009).
 import { prisma } from '@addere/db'
 import { unprocessable } from '../../../lib/errors'
 import { publishedContracts, syncContract } from '../sync/contract-sync.service'
@@ -17,7 +17,13 @@ export async function refreshHandler(companyId: string, runId: string): Promise<
   for (const name of contracts) {
     try {
       const result = await syncContract(company, name)
-      steps.push({ step: `sync:${name}`, ok: true, rows: result.rows, synced: result.synced })
+      steps.push({
+        step: `sync:${name}`,
+        ok: true,
+        mode: result.mode,
+        rows: result.rows,
+        synced: result.synced,
+      })
     } catch (err) {
       const message = (err as Error).message.slice(0, 300)
       steps.push({ step: `sync:${name}`, ok: false, error: message })

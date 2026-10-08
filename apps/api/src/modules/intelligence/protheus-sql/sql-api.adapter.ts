@@ -252,6 +252,14 @@ export class MockSqlAdapter implements SqlApiAdapter {
       })
     }
 
+    // Consulta incremental (plano 009): o dataset sintético não muda, então tudo
+    // sai com o carimbo do dia e nada excluído — o sync roda o caminho
+    // incremental de ponta a ponta, só sem nada de novo para gravar
+    if (/S_T_A_M_P_/i.test(sql)) {
+      const stamp = `${this.referenceDate.toISOString().slice(0, 10)} 00:00:00.000`
+      rows = rows.map((r) => ({ ...r, stamp, excluido: ' ' }))
+    }
+
     const maxRows = opts.maxRows ?? Infinity
     const truncated = rows.length > maxRows
     if (truncated) rows = rows.slice(0, maxRows)

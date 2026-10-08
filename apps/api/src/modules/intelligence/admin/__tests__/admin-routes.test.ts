@@ -101,13 +101,15 @@ describe('autenticação e permissões', () => {
     expect(res.statusCode).toBe(403)
   })
 
-  it('intel.manager lê consultas e parâmetros, mas não grava', async () => {
-    const read = await app.inject({
-      method: 'GET',
-      url: '/intel/admin/parameters',
-      headers: auth('manager-a'),
-    })
-    expect(read.statusCode).toBe(200)
+  it('intel.manager não lê nem grava consultas e parâmetros', async () => {
+    for (const url of [
+      '/intel/admin/queries',
+      '/intel/admin/parameters',
+      '/intel/admin/parameters/history',
+    ]) {
+      const read = await app.inject({ method: 'GET', url, headers: auth('manager-a') })
+      expect(read.statusCode, url).toBe(403)
+    }
 
     const write = await app.inject({
       method: 'PUT',
@@ -361,6 +363,26 @@ describe('POST /intel/admin/queries/:name/publish', () => {
     expect(res.json().published).toBe(true)
     // Despublica as versões anteriores na mesma transação
     expect(prismaMock.intelQuery.updateMany).toHaveBeenCalled()
+  })
+
+  it('publicar versão nova zera a marca d\'água do sync incremental (plano 009)', async () => {
+    prismaMock.intelQuery.findFirst.mockResolvedValue(
+      fakeQueryRow({ validatedAt: new Date(), reconciliationDiffPct: 1.2 })
+    )
+    prismaMock.intelQuery.update.mockResolvedValue(
+      fakeQueryRow({ published: true, publishedAt: new Date() })
+    )
+    const res = await app.inject({
+      method: 'POST',
+      url: '/intel/admin/queries/SALES/publish',
+      headers: auth('admin-a'),
+      payload: {},
+    })
+    expect(res.statusCode).toBe(200)
+    // SQL novo pode trazer o que o antigo filtrava: a próxima execução é completa
+    expect(prismaMock.intelSyncCursor.deleteMany).toHaveBeenCalledWith({
+      where: { companyId: expect.any(String), name: 'SALES' },
+    })
   })
 
   it('reconciliação fora da tolerância → 422', async () => {

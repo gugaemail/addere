@@ -18,6 +18,7 @@ import { colors, spacing, typography } from '../../../src/theme'
 import type { Order } from '@addere/types'
 import { fmtMoeda, fmtData, formatDocument } from '../../../src/utils/format'
 import { STATUS_LABEL, STATUS_BADGE } from '../../../src/utils/orderStatus'
+import { showRegistryBlockedBadge } from '../../../src/utils/customerBlock'
 
 // Remove caracteres não numéricos e adiciona +55 se necessário
 function toDialable(phone: string): string {
@@ -146,13 +147,23 @@ export default function ClienteDetailScreen() {
     )
 
   const orders = customer.orders ?? []
+  // Bloqueado no cadastro (A1_MSBLQL) aparece mesmo sem a Inteligência ou com o
+  // motor ainda não rodado depois do bloqueio — o selo é o mesmo do BLOCKED
+  const engineStatus = intelEnabled && briefing.data ? briefing.data.signals.status : null
+  const registryBlocked = showRegistryBlockedBadge(customer.msblql, engineStatus)
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={{ padding: spacing.md }}>
+      {registryBlocked && !engineStatus && (
+        <View style={{ marginBottom: spacing.md }}>
+          <StatusPill status="BLOCKED" testID="ficha-cliente-bloqueado" />
+        </View>
+      )}
       {intelEnabled && briefing.data && (
         <View style={{ gap: spacing.sm, marginBottom: spacing.md }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
             <StatusPill status={briefing.data.signals.status} />
+            {registryBlocked && <StatusPill status="BLOCKED" testID="ficha-cliente-bloqueado" />}
             <View style={{ marginLeft: 'auto' }}>
               <SyncPill />
             </View>
