@@ -49,3 +49,11 @@ export function matchingReference(sql: string, references: ReferenceSqlOption[])
 export function referenceButtonLabel(option: ReferenceSqlOption, total: number): string {
   return total > 1 ? `Usar ${option.label}` : 'Usar SQL de referência'
 }
+
+/**
+ * Referência do sync incremental (plano 009): a que usa {{DESDE}}. A API a manda
+ * primeiro, então é a que abre no editor vazio; exige S_T_A_M_P_ no Protheus.
+ */
+export function isIncrementalReference(option: ReferenceSqlOption): boolean {
+  return /\{\{\s*DESDE\s*\}\}/i.test(option.sql)
+}
