@@ -14,6 +14,9 @@ import type { SqlRow } from '../protheus-sql/sql-api.adapter'
  */
 export const FULL_DESDE = '1900-01-01T00:00:00.000'
 
+/** Cursor inicial quando nenhuma linha da carga completa tem carimbo (forma canônica). */
+export const STAMP_FLOOR = '1900-01-01 00:00:00.000'
+
 /** Folga relida a cada execução: transação longa pode comitar carimbo antigo. */
 export const CURSOR_OVERLAP_MINUTES = 10
 
@@ -81,11 +84,7 @@ export function splitDeletedRows(rows: SqlRow[]): { live: SqlRow[]; deleted: Sql
   return { live, deleted }
 }
 
-/**
- * Carimbos canônicos de todas as linhas. `missing` conta as que vieram sem
- * carimbo válido — consulta com `{{DESDE}}` sem a coluna `stamp` é erro de
- * configuração, e o cursor não pode andar às cegas.
- */
+/** Carimbos canônicos das linhas; `missing` conta as que vieram sem carimbo válido. */
 export function rowStamps(rows: SqlRow[]): { stamps: string[]; missing: number } {
   const stamps: string[] = []
   let missing = 0
@@ -95,4 +94,47 @@ export function rowStamps(rows: SqlRow[]): { stamps: string[]; missing: number }
     else missing++
   }
   return { stamps, missing }
+}
+
+/**
+ * Diagnóstico da coluna `stamp` para a prévia e o sync. Carimbo vazio (NULL) é
+ * normal: o DBAccess só carimba o que foi incluído ou alterado depois que o
+ * S_T_A_M_P_ foi ativado, e registro antigo intocado fica sem. Erro de verdade é
+ * a coluna não vir (`hasColumn` falso) ou vir num formato que não é carimbo.
+ */
+export function inspectStamps(rows: SqlRow[]): {
+  hasColumn: boolean
+  valid: number
+  empty: number
+  invalid: number
+} {
+  let hasColumn = false
+  let valid = 0
+  let empty = 0
+  let invalid = 0
+  for (const row of rows) {
+    if (Object.keys(row).some((key) => key.toLowerCase() === 'stamp')) hasColumn = true
+    const raw = column(row, 'stamp')
+    if (raw === null || raw === undefined || (typeof raw === 'string' && raw.trim() === '')) {
+      empty++
+    } else if (normalizeStamp(raw)) {
+      valid++
+    } else {
+      invalid++
+    }
+  }
+  return { hasColumn, valid, empty, invalid }
+}
+
+/** Problema que impede o sync incremental; null = a coluna stamp está ok. */
+export function stampProblem(rows: SqlRow[]): string | null {
+  if (rows.length === 0) return null
+  const { hasColumn, invalid } = inspectStamps(rows)
+  if (!hasColumn) {
+    return 'a consulta não devolve a coluna stamp — use CONVERT(VARCHAR(23), S_T_A_M_P_, 121) AS stamp'
+  }
+  if (invalid > 0) {
+    return `${invalid} linha(s) com carimbo em formato inesperado — use CONVERT(VARCHAR(23), S_T_A_M_P_, 121)`
+  }
+  return null
 }

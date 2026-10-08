@@ -22,7 +22,7 @@ import {
   formatDateYmdSaoPaulo,
 } from '../protheus-sql/placeholders'
 import { buildPlaceholderValues } from '../protheus-sql/placeholder-values'
-import { rowStamps, splitDeletedRows } from '../sync/cursor'
+import { inspectStamps, splitDeletedRows, stampProblem } from '../sync/cursor'
 import { periodWindow, type DateWindow } from '../sync/windows'
 import { resolveSqlAdapter, resolveSqlApiConfig, type SqlRow } from '../protheus-sql/sql-api.adapter'
 import { isDemoTenant } from '../demo-tenant'
@@ -293,16 +293,20 @@ export async function previewQuery(
   checks.push(...contractResult.checks)
 
   // 6. Sync incremental (plano 009): sem carimbo válido o cursor não anda
+  // Carimbo vazio é normal (registro intocado desde que o S_T_A_M_P_ foi ativado)
+  // e só é informado; falha é a coluna faltar ou vir em formato errado
   if (findPlaceholders(latest.sql).includes('DESDE') && rows.length > 0) {
-    const { missing } = rowStamps(rows)
+    const problem = stampProblem(rows)
+    const { empty } = inspectStamps(rows)
     checks.push({
       key: 'incremental_stamp',
       label: 'Coluna stamp (sync incremental)',
-      ok: missing === 0,
+      ok: problem === null,
       detail:
-        missing === 0
-          ? undefined
-          : `${missing} linha(s) sem carimbo — use CONVERT(VARCHAR(23), S_T_A_M_P_, 121) AS stamp`,
+        problem ??
+        (empty > 0
+          ? `${empty} linha(s) ainda sem carimbo — normal: não mudaram desde que o S_T_A_M_P_ foi ativado`
+          : undefined),
     })
   }
 

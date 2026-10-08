@@ -124,13 +124,61 @@ describe('syncContract — OPEN_TITLES incremental', () => {
     expect(prismaMock.intelSyncCursor.update).not.toHaveBeenCalled()
   })
 
-  it('linha sem carimbo falha alto em vez de andar o cursor às cegas', async () => {
+  it('consulta sem a coluna stamp falha alto em vez de andar o cursor às cegas', async () => {
     publish(TITLES_SQL)
     prismaMock.intelSyncCursor.findUnique.mockResolvedValue({ stamp: '2026-10-08 11:43:19.920' })
-    runMock.mockResolvedValue({ rows: [title('T1', 10, '')], ms: 5 })
+    const { stamp: _ignored, ...semCarimbo } = title('T1', 10, '')
+    runMock.mockResolvedValue({ rows: [semCarimbo], ms: 5 })
 
-    await expect(syncContract(COMPANY, 'OPEN_TITLES')).rejects.toThrow(/sem carimbo/)
+    await expect(syncContract(COMPANY, 'OPEN_TITLES')).rejects.toThrow(/coluna stamp/)
     expect(prismaMock.intelSyncCursor.update).not.toHaveBeenCalled()
+  })
+
+  it('carimbo NULL no incremental não é erro: grava a linha e o cursor anda pelos outros', async () => {
+    publish(TITLES_SQL)
+    prismaMock.intelSyncCursor.findUnique.mockResolvedValue({ stamp: '2026-10-08 11:43:19.920' })
+    runMock.mockResolvedValue({
+      rows: [
+        { ...title('VELHO', 10, ''), stamp: null },
+        title('NOVO', 20, '2026-10-08 12:00:00.000'),
+      ],
+      ms: 5,
+    })
+
+    await syncContract(COMPANY, 'OPEN_TITLES')
+
+    expect(prismaMock.openTitle.upsert).toHaveBeenCalledTimes(2)
+    expect(prismaMock.intelSyncCursor.update).toHaveBeenCalledWith({
+      where: { companyId_name: { companyId: 'c1', name: 'OPEN_TITLES' } },
+      data: { stamp: '2026-10-08 12:00:00.000' },
+    })
+  })
+
+  it('primeira carga com todos os carimbos NULL cria o cursor no piso — não fica preso no completo', async () => {
+    publish(TITLES_SQL)
+    runMock.mockResolvedValue({
+      rows: [{ ...title('T1', 10, ''), stamp: null }, { ...title('T2', 20, ''), stamp: null }],
+      ms: 5,
+    })
+
+    const result = await syncContract(COMPANY, 'OPEN_TITLES')
+
+    expect(result.mode).toBe('full')
+    expect(result.errors).toEqual([])
+    expect(prismaMock.intelSyncCursor.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ name: 'OPEN_TITLES', stamp: '1900-01-01 00:00:00.000' }),
+    })
+  })
+
+  it('carga completa sem a coluna stamp avisa e não cria cursor', async () => {
+    publish(TITLES_SQL)
+    const { stamp: _ignored, ...semCarimbo } = title('T1', 10, '')
+    runMock.mockResolvedValue({ rows: [semCarimbo], ms: 5 })
+
+    const result = await syncContract(COMPANY, 'OPEN_TITLES')
+
+    expect(result.errors.join(' ')).toMatch(/sem a coluna stamp/)
+    expect(prismaMock.intelSyncCursor.create).not.toHaveBeenCalled()
   })
 
   it('falha de gravação segura o cursor (a próxima execução relê)', async () => {
