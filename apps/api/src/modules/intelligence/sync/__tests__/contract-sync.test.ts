@@ -1,5 +1,9 @@
 import { describe, it, expect } from 'vitest'
-import { mapSalesRows, mapOpenTitleRows } from '../contract-sync.service'
+import {
+  mapSalesRows,
+  mapOpenTitleRows,
+  mapCustomerEnrichmentRows,
+} from '../contract-sync.service'
 
 describe('mapSalesRows', () => {
   it('mapeia linha completa com chave composta', () => {
@@ -92,5 +96,22 @@ describe('mapOpenTitleRows', () => {
     ])
     expect(records[0].daysOverdue).toBeNull()
     expect(skipped).toEqual(['B'])
+  })
+})
+
+describe('mapCustomerEnrichmentRows', () => {
+  it('grava a coluna bloqueado em msblql com a normalização do REST', () => {
+    const records = mapCustomerEnrichmentRows([
+      { cliente_cod: 'C1', cliente_loja: '01', bloqueado: '1' },
+      { cliente_cod: 'C2', cliente_loja: '01', bloqueado: '2' },
+      { cliente_cod: 'C3', cliente_loja: '01', bloqueado: ' ' },
+    ])
+    expect(records.map((r) => r.msblql)).toEqual(['1', '2', null])
+  })
+
+  it('consulta sem a coluna bloqueado não mexe no msblql', () => {
+    const [record] = mapCustomerEnrichmentRows([{ cliente_cod: 'C1', limite_credito: 5000 }])
+    expect(record.msblql).toBeUndefined()
+    expect(record).toMatchObject({ code: 'C1', loja: '01', creditLimit: 5000 })
   })
 })
