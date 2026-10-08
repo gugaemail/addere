@@ -1,5 +1,5 @@
 import {
-  activeAddresses,
+  routeStops,
   beforeEnterLines,
   confidenceLabel,
   formatDistanceM,
@@ -51,7 +51,9 @@ describe('goalCardModel', () => {
   })
 
   it('meta "0.00" (string truthy) não gera card', () => {
-    expect(goalCardModel(goal({ goalAmount: '0.00', gap: '0.00', perBusinessDay: '0.00' }))).toBeNull()
+    expect(
+      goalCardModel(goal({ goalAmount: '0.00', gap: '0.00', perBusinessDay: '0.00' }))
+    ).toBeNull()
     expect(goalCardModel(goal({ goalAmount: null }))).toBeNull()
     expect(goalCardModel(goal({ goalAmount: 'abc' }))).toBeNull()
     expect(goalCardModel(null)).toBeNull()
@@ -115,7 +117,13 @@ describe('offerSuffix / stockLabel', () => {
 
   it('rótulo do estoque diz a origem', () => {
     expect(
-      stockLabel({ productCode: 'P1', saldo: '120.000', local: null, source: 'live', checkedAt: '' })
+      stockLabel({
+        productCode: 'P1',
+        saldo: '120.000',
+        local: null,
+        source: 'live',
+        checkedAt: '',
+      })
     ).toBe('Estoque: 120 (ao vivo)')
     expect(
       stockLabel({ productCode: 'P1', saldo: '7.5', local: '01', source: 'sync', checkedAt: '' })
@@ -186,17 +194,22 @@ describe('confidenceLabel / localMessageFallback', () => {
   })
 })
 
-describe('activeAddresses', () => {
-  it('só paradas ativas com endereço, na ordem', () => {
+describe('routeStops', () => {
+  it('só paradas ativas com coordenada ou endereço, na ordem', () => {
     const plan = {
       items: [
-        { removedAt: null, customerAddress: 'Rua A' },
-        { removedAt: '2026-08-23', customerAddress: 'Rua B' },
-        { removedAt: null, customerAddress: null },
-        { removedAt: null, customerAddress: 'Rua C' },
+        { removedAt: null, customerAddress: 'Rua A', lat: null, lng: null },
+        { removedAt: '2026-08-23', customerAddress: 'Rua B', lat: -23, lng: -46 },
+        { removedAt: null, customerAddress: null, lat: null, lng: null },
+        { removedAt: null, customerAddress: null, lat: -23.5, lng: -46.6 },
+        { removedAt: null, customerAddress: 'Rua C', lat: -22.9, lng: -47 },
       ],
     } as unknown as VisitPlanDto
-    expect(activeAddresses(plan)).toEqual(['Rua A', 'Rua C'])
-    expect(activeAddresses(null)).toEqual([])
+    expect(routeStops(plan)).toEqual([
+      { lat: null, lng: null, address: 'Rua A' },
+      { lat: -23.5, lng: -46.6, address: null },
+      { lat: -22.9, lng: -47, address: 'Rua C' },
+    ])
+    expect(routeStops(null)).toEqual([])
   })
 })

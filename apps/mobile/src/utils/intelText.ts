@@ -169,10 +169,16 @@ export function localMessageFallback(
   }
 }
 
-/** Endereços das paradas ativas, na ordem do ranking (rota completa) */
-export function activeAddresses(plan: VisitPlanDto | null | undefined): string[] {
+/**
+ * Paradas ativas da rota completa, na ordem do ranking. Coordenada geocodificada
+ * quando houver — é o mesmo ponto do mapa do app; o texto do cadastro sozinho
+ * ("RUA DR TANCREDO..., cidade") o Google às vezes não acha.
+ */
+export function routeStops(
+  plan: VisitPlanDto | null | undefined
+): { lat: number | null; lng: number | null; address: string | null }[] {
   if (!plan) return []
   return plan.items
-    .filter((i) => !i.removedAt && i.customerAddress)
-    .map((i) => i.customerAddress as string)
+    .filter((i) => !i.removedAt && ((i.lat !== null && i.lng !== null) || i.customerAddress))
+    .map((i) => ({ lat: i.lat, lng: i.lng, address: i.customerAddress }))
 }
