@@ -26,6 +26,7 @@ import {
   maxStamp,
   rowStamps,
   countIdenticalRows,
+  splitDeletedRows,
   resolveByKey,
   stampProblem,
 } from './cursor'
@@ -539,14 +540,18 @@ export async function syncContract(
     if (problem) throw unprocessable(`Sync incremental: ${problem}`)
   }
 
-  // Mesma linha em duas páginas: a paginação do endpoint está instável e outra
-  // linha ficou de fora. Gravar assim perderia dado em silêncio — falha alto
+  // Linha viva repetida idêntica: paginação instável (outra linha ficou de
+  // fora) ou JOIN multiplicando. Gravar assim perderia ou dobraria dado em
+  // silêncio — falha alto. Cópias excluídas idênticas são inofensivas (viram
+  // uma exclusão por chave): o mesmo item excluído N vezes, ligado à mesma nota
+  // viva, sai com o carimbo da nota e não tem como diferir
   if (mode !== 'legacy') {
-    const repeated = countIdenticalRows(rows)
+    const repeated = countIdenticalRows(splitDeletedRows(rows).live)
     if (repeated > 0) {
       throw unprocessable(
-        `${repeated} linha(s) idêntica(s) repetida(s): a paginação do endpoint não está ` +
-          'estável e outras linhas ficaram de fora. Inclua ORDER BY R_E_C_N_O_ na consulta'
+        `${repeated} linha(s) idêntica(s) repetida(s): paginação do endpoint instável ou ` +
+          'JOIN multiplicando linhas. Inclua ORDER BY R_E_C_N_O_ na consulta e confira ' +
+          'D_E_L_E_T_ em cada JOIN (troque por EXISTS a tabela que só filtra, como a SF4)'
       )
     }
   }
