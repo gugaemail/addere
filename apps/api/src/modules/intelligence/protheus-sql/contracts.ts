@@ -136,7 +136,8 @@ WHERE D_E_L_E_T_ = ' ' AND A1_FILIAL IN ({{FILIAL}})`,
        D2_COD AS produto_cod, B1_DESC AS produto_desc, D2_QUANT AS quantidade,
        D2_VALBRUT AS valor, B1_GRUPO AS grupo_produto,
        CASE WHEN D2.D_E_L_E_T_='*' OR F2.D_E_L_E_T_='*' THEN '*' ELSE ' ' END AS excluido,
-       CONVERT(VARCHAR(23), CASE WHEN F2.S_T_A_M_P_ > D2.S_T_A_M_P_
+       CONVERT(VARCHAR(23), CASE
+         WHEN COALESCE(F2.S_T_A_M_P_, '19000101') > COALESCE(D2.S_T_A_M_P_, '19000101')
          THEN F2.S_T_A_M_P_ ELSE D2.S_T_A_M_P_ END, 121) AS stamp
 FROM SD2010 D2
 JOIN SF2010 F2 ON F2_FILIAL=D2_FILIAL AND F2_DOC=D2_DOC AND F2_SERIE=D2_SERIE

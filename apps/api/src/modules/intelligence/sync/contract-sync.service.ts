@@ -19,7 +19,15 @@ import { buildPlaceholderValues } from '../protheus-sql/placeholder-values'
 import { resolveSqlAdapter, type SqlRow } from '../protheus-sql/sql-api.adapter'
 import { upsertChunked } from '../../sync/upsert-chunked'
 import { incrementalWindow, type DateWindow } from './windows'
-import { desdeFromCursor, maxStamp, rowStamps, splitDeletedRows } from './cursor'
+import {
+  STAMP_FLOOR,
+  desdeFromCursor,
+  inspectStamps,
+  maxStamp,
+  rowStamps,
+  splitDeletedRows,
+  stampProblem,
+} from './cursor'
 
 const SYNC_TIMEOUT_MS = 120_000
 const BACKFILL_TIMEOUT_MS = 300_000 // timeout folgado por janela mensal (P5)
@@ -455,11 +463,15 @@ async function advanceCursor(
     await prisma.intelSyncCursor.update({ where: key, data: { lastFullAt: new Date() } })
     return null
   }
-  if (!newest) {
+  if (rows.length > 0 && !inspectStamps(rows).hasColumn) {
     return 'consulta com {{DESDE}} sem a coluna stamp — o contrato segue em carga completa'
   }
+  // Todos os carimbos vazios (nada mudou desde que o S_T_A_M_P_ foi ativado) ou
+  // foto vazia: o cursor nasce no piso. O incremental seguinte traz só o que já
+  // tem carimbo — os NULL nunca passam no `S_T_A_M_P_ > {{DESDE}}`, e não
+  // precisam, porque não mudaram; ganham carimbo quando mudarem.
   await prisma.intelSyncCursor.create({
-    data: { companyId, name, stamp: newest, lastFullAt: new Date() },
+    data: { companyId, name, stamp: newest ?? STAMP_FLOOR, lastFullAt: new Date() },
   })
   return null
 }
@@ -496,14 +508,10 @@ export async function syncContract(
   const desde = mode === 'incremental' && cursor ? desdeFromCursor(cursor.stamp) : undefined
   const { rows, ms } = await fetchContractRows(company, name, sql, effectiveWindow, timeoutMs, desde)
 
+  // Sem a coluna stamp (ou com formato errado) o cursor não tem como andar
   if (mode === 'incremental') {
-    const { missing } = rowStamps(rows)
-    if (missing > 0) {
-      throw unprocessable(
-        `${missing} linha(s) sem carimbo: consulta com {{DESDE}} precisa devolver ` +
-          'CONVERT(VARCHAR(23), S_T_A_M_P_, 121) AS stamp'
-      )
-    }
+    const problem = stampProblem(rows)
+    if (problem) throw unprocessable(`Sync incremental: ${problem}`)
   }
 
   const { live, deleted } = splitDeletedRows(rows)
