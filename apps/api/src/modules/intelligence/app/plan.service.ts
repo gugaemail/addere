@@ -94,7 +94,15 @@ export async function buildPlanDto(
 ): Promise<VisitPlanDto> {
   const customers = await prisma.customer.findMany({
     where: { companyId, protheusCode: { in: plan.items.map((i) => i.customerCode) } },
-    select: { protheusCode: true, loja: true, name: true, address: true, municipio: true, phone: true },
+    select: {
+      protheusCode: true,
+      loja: true,
+      name: true,
+      address: true,
+      municipio: true,
+      uf: true,
+      phone: true,
+    },
   })
   const byKey = new Map(customers.map((c) => [`${c.protheusCode}|${c.loja ?? '01'}`, c]))
 
@@ -109,7 +117,10 @@ export async function buildPlanDto(
         loja: item.loja,
         customerName: customer?.name ?? item.customerCode,
         customerAddress: customer
-          ? [customer.address, customer.municipio].filter(Boolean).join(', ') || null
+          ? // Com a UF: sem ela "Av Niterói, 88, Medianeira" pode cair em outro estado
+            [customer.address, [customer.municipio, customer.uf].filter(Boolean).join(' - ')]
+              .filter(Boolean)
+              .join(', ') || null
           : null,
         customerPhone: customer?.phone ?? null,
         statusAtTime: item.statusAtTime,

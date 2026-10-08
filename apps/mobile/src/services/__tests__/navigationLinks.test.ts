@@ -22,14 +22,33 @@ describe('navigationLinks (builders puros)', () => {
   })
 
   it('rota completa põe a última parada como destino e as demais como waypoints', () => {
-    expect(routeUrl(['A', 'B', 'C'])).toBe(
+    expect(routeUrl([{ address: 'A' }, { address: 'B' }, { address: 'C' }])).toBe(
       'https://www.google.com/maps/dir/?api=1&destination=C&waypoints=A%7CB'
     )
-    expect(routeUrl(['Só uma'])).toBe(
+    expect(routeUrl([{ address: 'Só uma' }])).toBe(
       'https://www.google.com/maps/dir/?api=1&destination=S%C3%B3%20uma'
     )
     expect(routeUrl([])).toBeNull()
-    expect(routeUrl(['  '])).toBeNull()
+    expect(routeUrl([{ address: '  ' }])).toBeNull()
+  })
+
+  it('rota completa usa a coordenada geocodificada quando há (o texto o Google às vezes não acha)', () => {
+    expect(
+      routeUrl([
+        { lat: -23.6, lng: -46.66, address: 'RUA DR TANCREDO, SAO PAULO' },
+        { lat: null, lng: null, address: 'Rua B, Campinas - SP' },
+      ])
+    ).toBe(
+      'https://www.google.com/maps/dir/?api=1&destination=Rua%20B%2C%20Campinas%20-%20SP&waypoints=-23.6%2C-46.66'
+    )
+  })
+
+  it('rota completa leva no máximo 10 paradas (destino + 9 waypoints do Google)', () => {
+    const stops = Array.from({ length: 12 }, (_, n) => ({ address: `P${n + 1}` }))
+    const url = routeUrl(stops) as string
+    expect(url).toContain('destination=P10&')
+    expect(url).not.toContain('P11')
+    expect(url.split('waypoints=')[1].split('%7C')).toHaveLength(9)
   })
 
   it('WhatsApp normaliza o telefone BR e escapa o texto', () => {

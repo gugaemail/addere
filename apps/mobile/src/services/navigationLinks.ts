@@ -30,9 +30,18 @@ export function mapsUrl(target: GeoTarget, platform: string = Platform.OS): stri
     : `https://www.google.com/maps/dir/?api=1&destination=${query}`
 }
 
+/**
+ * Até onde o Google Maps aceita: destino + 9 waypoints. Acima disso ele corta
+ * paradas por conta própria — melhor levar as 10 primeiras, na ordem.
+ */
+export const ROUTE_MAX_STOPS = 10
+
 /** Rota completa no Google Maps: paradas na ordem do ranking (waypoints) */
-export function routeUrl(addresses: string[]): string | null {
-  const stops = addresses.map((a) => a.trim()).filter(Boolean)
+export function routeUrl(targets: GeoTarget[]): string | null {
+  const stops = targets
+    .map((t) => (hasCoords(t) ? `${t.lat},${t.lng}` : (t.address ?? '').trim()))
+    .filter(Boolean)
+    .slice(0, ROUTE_MAX_STOPS)
   if (stops.length === 0) return null
   const destination = encodeURIComponent(stops[stops.length - 1])
   // Separador %7C (pipe escapado) — pipe cru é inválido em query string
@@ -62,5 +71,5 @@ async function open(url: string | null): Promise<boolean> {
 
 export const openWaze = (target: GeoTarget) => open(wazeUrl(target))
 export const openMaps = (target: GeoTarget) => open(mapsUrl(target))
-export const openRouteInMaps = (addresses: string[]) => open(routeUrl(addresses))
+export const openRouteInMaps = (targets: GeoTarget[]) => open(routeUrl(targets))
 export const openWhatsApp = (phone: string, text: string) => open(whatsappUrl(phone, text))
