@@ -84,6 +84,62 @@ export function splitDeletedRows(rows: SqlRow[]): { live: SqlRow[]; deleted: Sql
   return { live, deleted }
 }
 
+/**
+ * Uma linha por chave. Um registro apagado e incluído de novo N vezes deixa no
+ * Protheus N cópias excluídas (cada uma com o seu R_E_C_N_O_) e no máximo uma
+ * viva — o índice único só vale entre as não excluídas. Então: havendo cópia
+ * viva, ela é o estado atual; só excluídas, a chave foi excluída. Entre vivas
+ * repetidas (não deveria acontecer), vale a de carimbo mais novo. Linha sem
+ * chave passa adiante como viva — o mapeamento a descarta e reporta.
+ */
+export function resolveByKey(
+  rows: SqlRow[],
+  keyOf: (row: SqlRow) => string | null
+): { live: SqlRow[]; deleted: SqlRow[] } {
+  const { live, deleted } = splitDeletedRows(rows)
+  const liveByKey = new Map<string, SqlRow>()
+  const keyless: SqlRow[] = []
+  for (const row of live) {
+    const key = keyOf(row)
+    if (key === null) {
+      keyless.push(row)
+      continue
+    }
+    const current = liveByKey.get(key)
+    const stamp = normalizeStamp(column(row, 'stamp')) ?? ''
+    const currentStamp = current ? (normalizeStamp(column(current, 'stamp')) ?? '') : ''
+    if (!current || stamp > currentStamp) liveByKey.set(key, row)
+  }
+  const deletedByKey = new Map<string, SqlRow>()
+  for (const row of deleted) {
+    const key = keyOf(row)
+    if (key !== null && !liveByKey.has(key) && !deletedByKey.has(key)) deletedByKey.set(key, row)
+  }
+  return { live: [...liveByKey.values(), ...keyless], deleted: [...deletedByKey.values()] }
+}
+
+/**
+ * Linhas idênticas em todas as colunas — inclusive carimbo e excluido. Não são
+ * cópias excluídas (essas diferem em excluido e no carimbo): é a paginação do
+ * endpoint devolvendo a mesma linha em duas páginas, e quando isso acontece
+ * outra linha ficou de fora. Causa: consulta sem ORDER BY estável.
+ */
+export function countIdenticalRows(rows: SqlRow[]): number {
+  const seen = new Set<string>()
+  let repeated = 0
+  for (const row of rows) {
+    const fingerprint = JSON.stringify(
+      Object.keys(row)
+        .map((k) => k.toLowerCase())
+        .sort()
+        .map((k) => [k, column(row, k)])
+    )
+    if (seen.has(fingerprint)) repeated++
+    else seen.add(fingerprint)
+  }
+  return repeated
+}
+
 /** Carimbos canônicos das linhas; `missing` conta as que vieram sem carimbo válido. */
 export function rowStamps(rows: SqlRow[]): { stamps: string[]; missing: number } {
   const stamps: string[] = []
