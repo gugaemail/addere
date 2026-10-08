@@ -594,7 +594,7 @@ function SellerHistoryPanel({ vendorCode }: { vendorCode: string }) {
         <Badge variant="success">{data.withOrder} com pedido</Badge>
         {data.outOfPlan > 0 && <Badge variant="info">{data.outOfPlan} fora do plano</Badge>}
       </div>
-      <div className="overflow-x-auto">
+      <div className="overflow-x-auto overscroll-x-contain">
         <table className="w-full text-left text-xs">
           <thead>
             <tr className="text-[var(--text-muted)]">
