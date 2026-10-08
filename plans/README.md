@@ -93,6 +93,17 @@ cliente de outra empresa ou excluído dá 404.
 combinado passou em tipos, lint, 651 testes da API, 166 do web e 185 do mobile.
 Ordem de merge indiferente. O 010 toca o app: entra no próximo OTA, sem build.
 
+### Fase 4 — atendimento à distância (planejada em 08/10/2026)
+
+| Plano | Título | Prioridade | Esforço | Toca o app? | Depende de | Status |
+|-------|--------|------------|---------|-------------|------------|--------|
+| 011 | Atendimento à distância — registrar contato por telefone ou WhatsApp | P2 | M | **sim**, só JS (OTA, sem build) | — | TODO |
+
+**Decisão de produto (08/10/2026):** o cliente distante **continua no plano de
+visitas** e o raio de distância do ranking **não** será mudado agora — só se
+acrescenta a opção de registrar o atendimento como feito à distância. Tem
+migration (valor de enum + coluna), gerada por último.
+
 Valores de status: TODO | IN PROGRESS | DONE | BLOCKED (com o motivo em uma linha) | REJECTED (com a justificativa em uma linha)
 
 **Fase 1 fechada e em produção.** Os três planos foram revisados, aprovados e
