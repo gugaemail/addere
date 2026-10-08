@@ -28,7 +28,11 @@ export interface QueryContract {
   requiredPlaceholders: PlaceholderName[]
   optionalPlaceholders: PlaceholderName[]
   columns: ContractColumn[]
-  /** A primeira é a recomendada e a que abre no editor vazio (incremental, se houver) */
+  /**
+   * A primeira é a recomendada e a que abre no editor vazio (incremental, se
+   * houver). Toda referência termina em ORDER BY R_E_C_N_O_: o endpoint pagina, e
+   * sem ordem estável a mesma linha vem em duas páginas e outra fica de fora.
+   */
   referenceSql: ReferenceSql[]
   helpText: string
   /** Como a consulta é comparada com o número oficial antes de publicar */
@@ -79,7 +83,8 @@ export const QUERY_CONTRACTS: Record<IntelQueryName, QueryContract> = {
 FROM SA1010
 WHERE A1_FILIAL IN ({{FILIAL}})
   AND (  ({{INCREMENTAL}} = 1 AND S_T_A_M_P_ > {{DESDE}})
-      OR ({{INCREMENTAL}} = 0 AND D_E_L_E_T_ = ' '))`,
+      OR ({{INCREMENTAL}} = 0 AND D_E_L_E_T_ = ' '))
+ORDER BY R_E_C_N_O_`,
       },
       {
         label: 'SA1 (cadastro de clientes)',
@@ -88,7 +93,8 @@ WHERE A1_FILIAL IN ({{FILIAL}})
        A1_END AS endereco, A1_CEP AS cep, A1_CGC AS cnpj, A1_MSBLQL AS bloqueado,
        A1_LC AS limite_credito, A1_ULTCOM AS ultima_compra
 FROM SA1010
-WHERE D_E_L_E_T_ = ' ' AND A1_FILIAL IN ({{FILIAL}})`,
+WHERE D_E_L_E_T_ = ' ' AND A1_FILIAL IN ({{FILIAL}})
+ORDER BY R_E_C_N_O_`,
       },
     ],
     helpText:
@@ -146,7 +152,8 @@ JOIN SF4010 F4 ON F4_CODIGO=D2_TES AND F4_DUPLIC='S'
 WHERE D2_FILIAL IN ({{FILIAL}})
   AND D2_EMISSAO BETWEEN {{DATA_INI}} AND {{DATA_FIM}}
   AND (  ({{INCREMENTAL}} = 1 AND (D2.S_T_A_M_P_ > {{DESDE}} OR F2.S_T_A_M_P_ > {{DESDE}}))
-      OR ({{INCREMENTAL}} = 0 AND D2.D_E_L_E_T_=' ' AND F2.D_E_L_E_T_=' '))`,
+      OR ({{INCREMENTAL}} = 0 AND D2.D_E_L_E_T_=' ' AND F2.D_E_L_E_T_=' '))
+ORDER BY D2.R_E_C_N_O_`,
       },
       {
         label: 'SD2/SF2 (faturamento)',
@@ -159,7 +166,8 @@ JOIN SF2010 F2 ON F2_FILIAL=D2_FILIAL AND F2_DOC=D2_DOC AND F2_SERIE=D2_SERIE AN
 JOIN SB1010 B1 ON B1_COD=D2_COD AND B1.D_E_L_E_T_=' '
 JOIN SF4010 F4 ON F4_CODIGO=D2_TES AND F4_DUPLIC='S'
 WHERE D2.D_E_L_E_T_=' ' AND D2_FILIAL IN ({{FILIAL}})
-  AND D2_EMISSAO BETWEEN {{DATA_INI}} AND {{DATA_FIM}}`,
+  AND D2_EMISSAO BETWEEN {{DATA_INI}} AND {{DATA_FIM}}
+ORDER BY D2.R_E_C_N_O_`,
       },
       {
         label: 'SC5/SC6 (pedidos)',
@@ -169,7 +177,8 @@ WHERE D2.D_E_L_E_T_=' ' AND D2_FILIAL IN ({{FILIAL}})
 FROM SC6010 C6
 JOIN SC5010 C5 ON C5_FILIAL=C6_FILIAL AND C5_NUM=C6_NUM AND C5.D_E_L_E_T_=' '
 WHERE C6.D_E_L_E_T_=' ' AND C6_BLQ<>'R' AND C6_FILIAL IN ({{FILIAL}})
-  AND C5_EMISSAO BETWEEN {{DATA_INI}} AND {{DATA_FIM}}`,
+  AND C5_EMISSAO BETWEEN {{DATA_INI}} AND {{DATA_FIM}}
+ORDER BY C6.R_E_C_N_O_`,
       },
     ],
     helpText:
@@ -214,7 +223,8 @@ WHERE C6.D_E_L_E_T_=' ' AND C6_BLQ<>'R' AND C6_FILIAL IN ({{FILIAL}})
 FROM SE1010
 WHERE E1_FILIAL IN ({{FILIAL}}) AND E1_TIPO NOT IN ('NCC','RA','AB-','PA')
   AND (  ({{INCREMENTAL}} = 1 AND S_T_A_M_P_ > {{DESDE}})
-      OR ({{INCREMENTAL}} = 0 AND E1_SALDO > 0 AND D_E_L_E_T_ = ' '))`,
+      OR ({{INCREMENTAL}} = 0 AND E1_SALDO > 0 AND D_E_L_E_T_ = ' '))
+ORDER BY R_E_C_N_O_`,
       },
       {
         label: 'SE1 (contas a receber)',
@@ -223,7 +233,8 @@ WHERE E1_FILIAL IN ({{FILIAL}}) AND E1_TIPO NOT IN ('NCC','RA','AB-','PA')
        E1_VENCREA AS vencimento, E1_SALDO AS valor_saldo
 FROM SE1010
 WHERE D_E_L_E_T_=' ' AND E1_FILIAL IN ({{FILIAL}}) AND E1_SALDO > 0
-  AND E1_TIPO NOT IN ('NCC','RA','AB-','PA')`,
+  AND E1_TIPO NOT IN ('NCC','RA','AB-','PA')
+ORDER BY R_E_C_N_O_`,
       },
     ],
     helpText:
@@ -265,14 +276,16 @@ WHERE D_E_L_E_T_=' ' AND E1_FILIAL IN ({{FILIAL}}) AND E1_SALDO > 0
        D_E_L_E_T_ AS excluido, CONVERT(VARCHAR(23), S_T_A_M_P_, 121) AS stamp
 FROM SB1010
 WHERE (  ({{INCREMENTAL}} = 1 AND S_T_A_M_P_ > {{DESDE}})
-      OR ({{INCREMENTAL}} = 0 AND D_E_L_E_T_ = ' '))`,
+      OR ({{INCREMENTAL}} = 0 AND D_E_L_E_T_ = ' '))
+ORDER BY R_E_C_N_O_`,
       },
       {
         label: 'SB1 (produtos)',
         sql: `SELECT B1_COD AS produto_cod, B1_DESC AS produto_desc, B1_GRUPO AS grupo,
        CASE WHEN B1_MSBLQL = '1' THEN 'N' ELSE 'S' END AS ativo
 FROM SB1010
-WHERE D_E_L_E_T_=' '`,
+WHERE D_E_L_E_T_=' '
+ORDER BY R_E_C_N_O_`,
       },
     ],
     helpText:

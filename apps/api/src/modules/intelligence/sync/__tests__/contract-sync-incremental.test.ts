@@ -209,6 +209,64 @@ describe('syncContract — OPEN_TITLES incremental', () => {
   })
 })
 
+describe('syncContract — apagado e incluído de novo, e paginação instável', () => {
+  it('título com cópias excluídas e uma viva no mesmo lote: fica a viva, nada sai', async () => {
+    publish(TITLES_SQL)
+    prismaMock.intelSyncCursor.findUnique.mockResolvedValue({ stamp: '2026-10-08 11:43:19.920' })
+    runMock.mockResolvedValue({
+      rows: [
+        title('T1', 100, '2026-10-08 12:00:00.000', '*'),
+        title('T1', 100, '2026-10-08 12:01:00.000', '*'),
+        title('T1', 120, '2026-10-08 12:02:00.000'),
+      ],
+      ms: 5,
+    })
+
+    await syncContract(COMPANY, 'OPEN_TITLES')
+
+    expect(prismaMock.openTitle.deleteMany).not.toHaveBeenCalled()
+    expect(prismaMock.openTitle.upsert).toHaveBeenCalledTimes(1)
+    expect(prismaMock.openTitle.upsert.mock.calls[0][0].update.balance).toBe(120)
+  })
+
+  it('cliente excluído e recriado no mesmo lote continua ativo', async () => {
+    publish(`SELECT 1 FROM SA1010 WHERE A1_FILIAL IN ({{FILIAL}})
+      AND (({{INCREMENTAL}} = 1 AND S_T_A_M_P_ > {{DESDE}}) OR {{INCREMENTAL}} = 0)`)
+    prismaMock.intelSyncCursor.findUnique.mockResolvedValue({ stamp: '2026-10-08 11:43:19.920' })
+    runMock.mockResolvedValue({
+      rows: [
+        { cliente_cod: 'C1', cliente_loja: '01', excluido: '*', stamp: '2026-10-08 12:00:00.000' },
+        { cliente_cod: 'C1', cliente_loja: '01', excluido: '*', stamp: '2026-10-08 12:05:00.000' },
+        {
+          cliente_cod: 'C1',
+          cliente_loja: '01',
+          limite_credito: 900,
+          excluido: ' ',
+          stamp: '2026-10-08 12:10:00.000',
+        },
+      ],
+      ms: 5,
+    })
+
+    await syncContract(COMPANY, 'CUSTOMERS')
+
+    const calls = prismaMock.customer.updateMany.mock.calls.map((c: unknown[]) => c[0])
+    expect(calls.some((c: { data: { active?: boolean } }) => c.data.active === false)).toBe(false)
+    expect(calls).toHaveLength(1)
+  })
+
+  it('linha idêntica repetida (paginação instável) falha antes de gravar', async () => {
+    publish(TITLES_SQL)
+    prismaMock.intelSyncCursor.findUnique.mockResolvedValue({ stamp: '2026-10-08 11:43:19.920' })
+    const row = title('T1', 100, '2026-10-08 12:00:00.000')
+    runMock.mockResolvedValue({ rows: [row, { ...row }, title('T2', 5, '2026-10-08 12:01:00.000')], ms: 5 })
+
+    await expect(syncContract(COMPANY, 'OPEN_TITLES')).rejects.toThrow(/ORDER BY R_E_C_N_O_/)
+    expect(prismaMock.openTitle.upsert).not.toHaveBeenCalled()
+    expect(prismaMock.intelSyncCursor.update).not.toHaveBeenCalled()
+  })
+})
+
 describe('syncContract — SALES incremental', () => {
   it('nota cancelada com 60 dias sai pela chave — a janela de 7 dias nunca a alcançava', async () => {
     publish(SALES_SQL)

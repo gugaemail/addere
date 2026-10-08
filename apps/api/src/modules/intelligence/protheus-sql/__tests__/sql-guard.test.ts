@@ -158,6 +158,14 @@ describe('sql-guard', () => {
     }
   })
 
+  it('referências paginadas terminam em ORDER BY R_E_C_N_O_ (paginação estável)', () => {
+    for (const name of ['CUSTOMERS', 'SALES', 'OPEN_TITLES', 'PRODUCTS'] as const) {
+      for (const ref of QUERY_CONTRACTS[name].referenceSql) {
+        expect(ref.sql.trim(), ref.label).toMatch(/ORDER BY (\w+\.)?R_E_C_N_O_$/)
+      }
+    }
+  })
+
   it('STOCK exige {{PRODUTO}}', () => {
     expect(codes('SELECT B2_COD AS produto_cod, B2_QATU AS saldo FROM SB2010', STOCK)).toContain(
       'missing_placeholder'
