@@ -125,7 +125,11 @@ trata como valor opaco e ordenável: o Addere nunca compara com o próprio reló
    (`AAAA-MM-DD hh:mm:ss.mmm`, ordenável lexicograficamente). `{{DESDE}}` é
    substituído no mesmo formato, validado por regex estrita.
 4. **Exclusão propaga.** Em modo incremental a consulta **não** filtra
-   `D_E_L_E_T_` e devolve a coluna `excluido` (`'*'` ou `' '`). Linha com
+   `D_E_L_E_T_` e devolve a coluna `excluido` (`'*'` ou `' '`). É uma exceção
+   deliberada: hoje **todas** as consultas do Protheus filtram
+   `D_E_L_E_T_ = ' '` (confirmado em 08/10/2026), e por isso exclusão nunca
+   chega ao Addere — nem pelo SQL, nem pelo REST. A consulta incremental é o
+   único caminho por onde ela passa a chegar. Linha com
    `excluido='*'` → o Addere apaga pela chave. Para título, saldo `<= 0` também
    apaga (é a baixa).
 5. **Dias de atraso são calculados no Addere**, a partir de `dueDate` e da data

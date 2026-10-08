@@ -88,7 +88,9 @@ cliente é **excluído** no Protheus — a exclusão simplesmente não chega.
 1. **`active` volta a significar só "não excluído".** Bloqueio vive em
    `msblql`. O sync REST deixa de derivar `active` de `msblql`.
 2. **Ao receber o cliente pelo REST, `active = true`.** A API do consultor só
-   devolve cliente existente (confirmar — ver PARADA). Isso também **cura
+   devolve cliente existente — **confirmado pelo Gustavo em 08/10/2026: todas
+   as consultas do Protheus filtram `D_E_L_E_T_ = ' '`**. Consequência: cliente
+   excluído simplesmente para de vir pelo REST e **não** é inativado por ele. Isso também **cura
    sozinho** quem hoje está inativo por bloqueio: na primeira sincronização
    depois do deploy, o bloqueado volta a ativo e passa a aparecer como
    Bloqueado. Sem migration de dados. Efeito colateral já existente hoje (não é
@@ -178,10 +180,9 @@ Branch a partir de `origin/staging`, PR para `staging`. Nada de PR empilhado.
 
 ## Condições de PARADA
 
-- A API REST de clientes do consultor **devolver clientes excluídos**
-  (`D_E_L_E_T_='*'`) — aí `active: true` reativaria excluído. Confirmar com o
-  Gustavo antes do Passo 1 (pergunta: "o endpoint de clientes filtra
-  `D_E_L_E_T_=' '`?").
+- ~~A API REST de clientes devolver excluídos~~ — resolvido em 08/10/2026: todas
+  as consultas filtram `D_E_L_E_T_ = ' '`. Se em algum cliente a resposta vier
+  com registro excluído, aí sim é PARADA.
 - Encontrar outro caminho de criação de pedido além dos dois citados.
 - Qualquer mudança necessária em `engine/`.
 
