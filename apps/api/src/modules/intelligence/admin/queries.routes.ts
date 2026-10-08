@@ -1,6 +1,6 @@
 // Rotas admin das consultas configuráveis (E3, tela W3) — prefixo /intel/admin/queries
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify'
-import { requirePermission, requireAnyPermission } from '../../../middleware/authenticate'
+import { requirePermission } from '../../../middleware/authenticate'
 import { resolveTenant } from '../../../middleware/resolve-tenant'
 import { userRateLimit } from '../../../lib/rate-limit'
 import {
@@ -31,10 +31,11 @@ function parseName(request: FastifyRequest, reply: FastifyReply) {
 
 export default async function queriesRoutes(app: FastifyInstance) {
   const adminOnly = requirePermission('intel.admin')
-  const adminOrManager = requireAnyPermission('intel.admin', 'intel.manager')
+  // Consultas e premissas são configuração da empresa: o gerente não lê nem
+  // grava (decisão de 08/10/2026 — antes ele tinha leitura)
 
   // GET / — estado dos 5 contratos + chip de metas via API
-  app.get('/', { preHandler: [adminOrManager] }, async (request, reply) => {
+  app.get('/', { preHandler: [adminOnly] }, async (request, reply) => {
     const company = await resolveTenant(request, reply, 'query')
     if (!company) return
     return reply.send(await listQueries(company))
