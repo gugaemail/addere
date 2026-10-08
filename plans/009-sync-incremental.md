@@ -277,8 +277,12 @@ ORDER BY S_T_A_M_P_
 
 ### Passo 5: `CUSTOMERS` e `PRODUCTS` incrementais
 
-- Mesmo padrão de enriquecimento (só `updateMany` por chave); exclusão aqui
-  **não** apaga cliente (soft delete é regra do projeto) — só ignora.
+- Mesmo padrão de enriquecimento (só `updateMany` por chave).
+- **Exclusão (`excluido='*'`) → `active = false`**, registro preservado — mesmo
+  entendimento do Protheus, onde `D_E_L_E_T_='*'` apaga mas o registro fica no
+  banco (decisão do Gustavo, 08/10/2026). Nunca apagar fisicamente.
+- **Bloqueio não é exclusão**: `A1_MSBLQL='1'` grava só `msblql`, sem mexer em
+  `active` — ver plano 010.
 
 ### Passo 6: Agenda e rede de segurança
 
@@ -331,15 +335,13 @@ mostra). A segunda deve trazer só as alterações do intervalo.
 
 ## Notas de manutenção
 
-- **Próximo plano (010)**: com o sync incremental, cada execução sabe **quais
+- **Próximo plano (011)**: com o sync incremental, cada execução sabe **quais
   clientes mudaram** (títulos e vendas recebidos). Recalcular o
   `CustomerSignal` só desses clientes logo depois do refresh faz o desbloqueio
   aparecer em horas, não na madrugada — sem refazer o plano do dia. Exige
   separar o cálculo de sinais do `runEngine`, que hoje faz sinais e plano juntos.
-- **Cliente bloqueado no cadastro (`A1_MSBLQL`)**: hoje o sync REST marca
-  `active=false` e o motor só lê ativos, então o status `BLOCKED` por cadastro
-  nunca aparece — o cliente some. Pendente de decisão de produto (aparecer como
-  Bloqueado ou sumir). Fora deste plano.
+- **Cliente bloqueado no cadastro (`A1_MSBLQL`)**: decidido em 08/10/2026 —
+  aparece como Bloqueado e não recebe pedido. Executado pelo plano 010.
 - O `INTERV` do sync REST de clientes/produtos já é incremental do lado do
   Protheus; vale configurar por empresa um valor um pouco maior que o intervalo
   do auto-sync.

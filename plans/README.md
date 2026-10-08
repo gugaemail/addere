@@ -50,10 +50,15 @@ junto. O **006 abre a fase 2** porque conserta a origem do dado que o 004 lê, e
 | Plano | Título | Prioridade | Esforço | Toca o app? | Depende de | Status |
 |-------|--------|------------|---------|-------------|------------|--------|
 | 009 | Sincronizar só o que mudou no Protheus (`S_T_A_M_P_`) | P1 | L | não | — (pré-requisito de ambiente conferido no piloto) | TODO |
+| 010 | Cliente bloqueado aparece como Bloqueado e não recebe pedido | P1 | M | **sim** (seletor de cliente e selo) | — (combina com o 009) | TODO |
 
 O passo 1 do 009 corrige sozinho um bug ativo — bloqueio por título vencido
 nunca dispara com a consulta de referência da SE1 — e pode ir ao ar antes do
 resto.
+
+**Regras confirmadas em 08/10/2026** (valem para os dois planos): bloqueado =
+`A1_MSBLQL='1'` — aparece, mas não recebe pedido; excluído = `D_E_L_E_T_='*'` —
+vira `active=false` no Addere, registro preservado, como no Protheus.
 
 Valores de status: TODO | IN PROGRESS | DONE | BLOCKED (com o motivo em uma linha) | REJECTED (com a justificativa em uma linha)
 
