@@ -222,8 +222,11 @@ export type PlanItemOrigin = 'ENGINE' | 'MANAGER' | 'SELLER'
 export type MessageTemplate = 'STALLED_PROPOSAL' | 'WENT_QUIET' | 'REACTIVATE'
 export type VisitResult = 'ORDER' | 'NO_ORDER' | 'NOT_FOUND' | 'RESCHEDULED'
 // CHECKIN: vendedor tocou em "Cheguei". ORDER: inferida — o pedido vale como
-// check-in (plano 006), sem GPS e sem duração.
-export type VisitSource = 'CHECKIN' | 'ORDER'
+// check-in (plano 006), sem GPS e sem duração. REMOTE: atendimento à
+// distância, por telefone ou WhatsApp, sem GPS (plano 011).
+export type VisitSource = 'CHECKIN' | 'ORDER' | 'REMOTE'
+// Canal do atendimento à distância — só existe em source REMOTE
+export type ContactChannel = 'PHONE' | 'WHATSAPP'
 export type FeedbackTargetType = 'PLAN' | 'ITEM' | 'MESSAGE' | 'ANSWER'
 export type GeoPrecision = 'ROOFTOP' | 'STREET' | 'CEP' | 'CITY'
 
@@ -390,6 +393,7 @@ export interface VisitInput {
   notes?: string | null
   createdOfflineAt?: string | null
   source?: VisitSource
+  channel?: ContactChannel | null
 }
 
 // Histórico de visitas do vendedor (GET /intel/app/visits) e, com um campo a
@@ -404,6 +408,7 @@ export interface VisitHistoryItemDto {
   // nunca "0 min". CHECKIN sem leftAt também dá durationMin null, mas aí a
   // tela mostra só a hora de chegada: é este campo que distingue os dois.
   source: VisitSource
+  channel: ContactChannel | null // só em REMOTE
   customerCode: string
   loja: string
   customerName: string

@@ -2,6 +2,8 @@
 // briefing do agente quando em cache, mix sugerido → pedido (com estoque ao
 // vivo sob demanda, E22), resultado em 4 botões.
 // O check-in já entrou na fila no "Cheguei"; abrindo direto, registra aqui.
+// mode=remote (plano 011): atendimento à distância — sem GPS, com o canal
+// (telefone ou WhatsApp) escolhido aqui e enviado na conclusão.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   View,
@@ -16,13 +18,14 @@ import {
 } from 'react-native'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { MessageCircle, Navigation, PackageSearch, Phone, ShoppingCart } from 'lucide-react-native'
-import type { VisitPlanItemDto, VisitResult } from '@addere/types'
+import type { ContactChannel, VisitPlanItemDto, VisitResult } from '@addere/types'
 import { useClientes } from '../../../../src/hooks/useClientes'
 import { useBriefing, usePlan, useStock, useVisitMutation } from '../../../../src/hooks/useIntel'
 import { getVisitPosition } from '../../../../src/services/location'
 import { chooseStopApp } from '../../../../src/services/mapChooser'
 import { pilotTracker } from '../../../../src/services/pilotTracking'
 import { offerSuffix, stockLabel } from '../../../../src/utils/intelText'
+import { remoteCheckInPayload, resultOptions } from '../../../../src/utils/remoteVisit'
 import { generateUuid } from '../../../../src/utils/uuid'
 import { BeforeEnterCard } from '../../../../src/components/intel/BeforeEnterCard'
 import { StatusPill } from '../../../../src/components/intel/StatusPill'
@@ -30,11 +33,9 @@ import { SyncPill } from '../../../../src/components/intel/SyncPill'
 import { FreshnessFooter } from '../../../../src/components/intel/FreshnessFooter'
 import { colors, spacing, radius, typography } from '../../../../src/theme'
 
-const RESULTS: { key: VisitResult; label: string }[] = [
-  { key: 'ORDER', label: 'Fiz pedido' },
-  { key: 'NO_ORDER', label: 'Sem pedido' },
-  { key: 'NOT_FOUND', label: 'Não estava' },
-  { key: 'RESCHEDULED', label: 'Reagendou' },
+const CHANNELS: { key: ContactChannel; label: string }[] = [
+  { key: 'PHONE', label: 'Telefone' },
+  { key: 'WHATSAPP', label: 'WhatsApp' },
 ]
 
 type Offer = NonNullable<VisitPlanItemDto['suggestedOffer']>[number]
@@ -76,7 +77,8 @@ function MixLine({ offer }: { offer: Offer }) {
 
 export default function VisitaScreen() {
   const router = useRouter()
-  const params = useLocalSearchParams<{ itemId: string; clientId?: string }>()
+  const params = useLocalSearchParams<{ itemId: string; clientId?: string; mode?: string }>()
+  const remote = params.mode === 'remote'
   const { data: plan } = usePlan()
   const visits = useVisitMutation()
   const { data: customers } = useClientes()
@@ -93,6 +95,11 @@ export default function VisitaScreen() {
     if (clientIdRef.current || !item) return
     const clientId = generateUuid()
     clientIdRef.current = clientId
+    if (remote) {
+      visits.checkIn(remoteCheckInPayload(item, clientId, new Date().toISOString()))
+      pilotTracker.track({ type: 'VISIT_CHECKIN', metadata: { hasGps: false, remote: true } })
+      return
+    }
     getVisitPosition().then((position) => {
       visits.checkIn({
         clientId,
@@ -110,6 +117,7 @@ export default function VisitaScreen() {
   }, [item?.id])
 
   const [result, setResult] = useState<VisitResult | null>(null)
+  const [channel, setChannel] = useState<ContactChannel | null>(null)
   const [noOrderReason, setNoOrderReason] = useState('')
 
   const customerId = useMemo(() => {
@@ -153,11 +161,12 @@ export default function VisitaScreen() {
         result,
         leftAt: new Date().toISOString(),
         noOrderReason: result === 'NO_ORDER' ? noOrderReason.trim() : null,
+        ...(remote ? { channel } : {}),
       })
       pilotTracker.track({ type: 'VISIT_RESULT', metadata: { result } })
     }
     router.back()
-  }, [result, noOrderReason, visits, router])
+  }, [result, noOrderReason, remote, channel, visits, router])
 
   if (!item) {
     return (
@@ -177,6 +186,27 @@ export default function VisitaScreen() {
         <SyncPill />
       </View>
       <StatusPill status={item.statusAtTime} />
+
+      {remote && (
+        <View style={s.remoteCard} testID="atendimento-remoto">
+          <Text style={s.remoteTitle}>Atendimento à distância</Text>
+          <Text style={s.remoteHint}>Por onde foi o contato?</Text>
+          <View style={s.resultGrid}>
+            {CHANNELS.map((option) => (
+              <TouchableOpacity
+                key={option.key}
+                testID={`canal-${option.key}`}
+                style={[s.resultButton, channel === option.key && s.resultButtonActive]}
+                onPress={() => setChannel(option.key)}
+              >
+                <Text style={[s.resultText, channel === option.key && { color: colors.neutral.white }]}>
+                  {option.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+      )}
 
       {item.signals && (
         <BeforeEnterCard
@@ -210,12 +240,13 @@ export default function VisitaScreen() {
         </TouchableOpacity>
         <TouchableOpacity
           style={s.quick}
-          onPress={() =>
+          onPress={() => {
+            if (remote) setChannel('WHATSAPP')
             router.push({
               pathname: '/rota/mensagem/[customerKey]',
               params: { customerKey: `${item.customerCode}_${item.loja}` },
             })
-          }
+          }}
         >
           <MessageCircle size={15} color={colors.brand.primary} strokeWidth={1.5} />
           <Text style={s.quickText}>Mensagem</Text>
@@ -223,7 +254,11 @@ export default function VisitaScreen() {
         <TouchableOpacity
           style={[s.quick, !customerPhone && { opacity: 0.5 }]}
           disabled={!customerPhone}
-          onPress={() => customerPhone && Linking.openURL(`tel:${customerPhone.replace(/\D/g, '')}`)}
+          onPress={() => {
+            if (!customerPhone) return
+            if (remote) setChannel('PHONE')
+            Linking.openURL(`tel:${customerPhone.replace(/\D/g, '')}`)
+          }}
         >
           <Phone size={15} color={colors.brand.primary} strokeWidth={1.5} />
           <Text style={s.quickText}>Ligar</Text>
@@ -231,9 +266,9 @@ export default function VisitaScreen() {
       </View>
 
       {/* Resultado */}
-      <Text style={s.sectionTitle}>Como foi a visita?</Text>
+      <Text style={s.sectionTitle}>{remote ? 'Como foi o contato?' : 'Como foi a visita?'}</Text>
       <View style={s.resultGrid}>
-        {RESULTS.map((option) => (
+        {resultOptions(remote).map((option) => (
           <TouchableOpacity
             key={option.key}
             testID={`resultado-${option.key}`}
@@ -260,7 +295,7 @@ export default function VisitaScreen() {
       )}
 
       <TouchableOpacity testID="btn-concluir-visita" style={s.conclude} onPress={conclude}>
-        <Text style={s.concludeText}>Concluir visita</Text>
+        <Text style={s.concludeText}>{remote ? 'Concluir atendimento' : 'Concluir visita'}</Text>
       </TouchableOpacity>
 
       <FreshnessFooter computedAt={plan?.freshness.lastSyncAt ?? null} />
@@ -371,6 +406,22 @@ const s = StyleSheet.create({
     marginTop: spacing.xs,
   },
   resultGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
+  remoteCard: {
+    backgroundColor: colors.brand.tint,
+    borderRadius: radius.lg,
+    padding: spacing.md,
+    gap: spacing.sm,
+  },
+  remoteTitle: {
+    fontFamily: typography.fontFamily.bodySemibold,
+    fontSize: typography.size.md,
+    color: colors.brand.dark,
+  },
+  remoteHint: {
+    fontFamily: typography.fontFamily.body,
+    fontSize: typography.size.sm,
+    color: colors.neutral.textSub,
+  },
   resultButton: {
     flexBasis: '47%',
     flexGrow: 1,

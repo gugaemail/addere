@@ -36,7 +36,7 @@ type TrackableEvent =
     }
   // Camada de Inteligência (E12) — metadados nunca carregam dados do cliente
   | { type: 'PLAN_OPENED'; metadata: { itemCount: number } }
-  | { type: 'VISIT_CHECKIN'; metadata: { hasGps: boolean } }
+  | { type: 'VISIT_CHECKIN'; metadata: { hasGps: boolean; remote?: boolean } } // remote: à distância (plano 011)
   | { type: 'VISIT_RESULT'; metadata: { result: string } }
   | { type: 'MESSAGE_SENT'; metadata: { template: string; source: string } }
   | { type: 'PLAN_EDITED'; metadata: { ops: number } }

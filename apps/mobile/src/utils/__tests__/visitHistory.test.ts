@@ -18,6 +18,7 @@ const item = (over: Partial<VisitHistoryItemDto> = {}): VisitHistoryItemDto => (
   arrivedAt: '2026-09-14T11:12:00.000Z', // 08:12 em São Paulo (UTC-3)
   durationMin: 24,
   source: 'CHECKIN',
+  channel: null,
   customerCode: 'A',
   loja: '01',
   customerName: 'Cliente A',
@@ -58,6 +59,14 @@ describe('visitMetaLine', () => {
 
   it('sem leftAt (durationMin null), só a hora — nunca inventa duração', () => {
     expect(visitMetaLine(item({ durationMin: null }))).toBe('08:12')
+  })
+
+  it('à distância (source REMOTE): o canal no lugar da duração, nunca o tempo', () => {
+    expect(visitMetaLine(item({ source: 'REMOTE', channel: 'PHONE', durationMin: 7 }))).toBe(
+      '08:12 · por telefone'
+    )
+    expect(visitMetaLine(item({ source: 'REMOTE', channel: 'WHATSAPP' }))).toBe('08:12 · por WhatsApp')
+    expect(visitMetaLine(item({ source: 'REMOTE', channel: null }))).toBe('08:12 · à distância')
   })
 
   it('visita nascida do pedido (source ORDER): "registrada pelo pedido", nunca "0 min"', () => {
