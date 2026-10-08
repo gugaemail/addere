@@ -45,6 +45,16 @@ nascem usando um resolvedor só; feito depois, ele tem que migrar o código dele
 junto. O **006 abre a fase 2** porque conserta a origem do dado que o 004 lê, e
 é o único plano com migration.
 
+### Fase 3 — sync incremental (planejada em 08/10/2026)
+
+| Plano | Título | Prioridade | Esforço | Toca o app? | Depende de | Status |
+|-------|--------|------------|---------|-------------|------------|--------|
+| 009 | Sincronizar só o que mudou no Protheus (`S_T_A_M_P_`) | P1 | L | não | — (pré-requisito de ambiente conferido no piloto) | TODO |
+
+O passo 1 do 009 corrige sozinho um bug ativo — bloqueio por título vencido
+nunca dispara com a consulta de referência da SE1 — e pode ir ao ar antes do
+resto.
+
 Valores de status: TODO | IN PROGRESS | DONE | BLOCKED (com o motivo em uma linha) | REJECTED (com a justificativa em uma linha)
 
 **Fase 1 fechada e em produção.** Os três planos foram revisados, aprovados e
