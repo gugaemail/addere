@@ -49,8 +49,8 @@ junto. O **006 abre a fase 2** porque conserta a origem do dado que o 004 lê, e
 
 | Plano | Título | Prioridade | Esforço | Toca o app? | Depende de | Status |
 |-------|--------|------------|---------|-------------|------------|--------|
-| 009 | Sincronizar só o que mudou no Protheus (`S_T_A_M_P_`) | P1 | L | não | — (pré-requisito de ambiente conferido no piloto) | TODO |
-| 010 | Cliente bloqueado aparece como Bloqueado e não recebe pedido | P1 | M | **sim** (seletor de cliente e selo) | — (combina com o 009) | TODO |
+| 009 | Sincronizar só o que mudou no Protheus (`S_T_A_M_P_`) | P1 | L | não | — (pré-requisito de ambiente conferido no piloto) | **DONE** |
+| 010 | Cliente bloqueado aparece como Bloqueado e não recebe pedido | P1 | M | **sim** (seletor de cliente e selo) | — (combina com o 009) | **DONE** |
 
 O passo 1 do 009 corrige sozinho um bug ativo — bloqueio por título vencido
 nunca dispara com a consulta de referência da SE1 — e pode ir ao ar antes do
@@ -59,6 +59,39 @@ resto.
 **Regras confirmadas em 08/10/2026** (valem para os dois planos): bloqueado =
 `A1_MSBLQL='1'` — aparece, mas não recebe pedido; excluído = `D_E_L_E_T_='*'` —
 vira `active=false` no Addere, registro preservado, como no Protheus.
+
+**009 — DONE em 08/10/2026**, em duas entregas. Passo 1 (atraso calculado do
+vencimento) mergeado na `staging` pelo PR #197. Passos 2–7 na branch
+`feat/sync-incremental`: código (`b3c9282`) e migration (`e91f174`) em commits
+separados. **Ainda não mergeado.**
+Dois desvios do plano, os dois descobertos na execução:
+- **Placeholder `{{INCREMENTAL}}` (0/1), além do `{{DESDE}}`.** Com uma consulta
+  só, a carga completa de títulos (`{{DESDE}}` = 1900) traria o histórico
+  inteiro, inclusive os já pagos. `{{INCREMENTAL}} = 0` faz a mesma consulta
+  devolver a foto do que está em aberto — e é o que a prévia e a reconciliação
+  usam, então a reconciliação compara exatamente o saldo em aberto de hoje.
+- **`{{DESDE}}` em ISO com "T"** (`2026-10-08T11:33:19.920`). Com
+  `'AAAA-MM-DD hh:mm:ss'`, um SQL Server em português (DATEFORMAT dmy) lê
+  ano-dia-mês.
+Verificação: 638 testes da API (21 novos), duas mutações deliberadas pegas
+pelos testes; migration validada num banco local descartável (as migrations do
+zero reproduzem o schema sem diferença; sem a nova, a tabela aparece).
+**Atenção ao publicar:** a consulta só vira incremental quando a versão
+publicada usa `{{DESDE}}` — basta publicar a referência incremental. A primeira
+execução depois disso é completa e cria o cursor. Confirmar com o DBA do
+cliente índice em `S_T_A_M_P_` na SE1 e na SD2.
+
+**010 — DONE em 08/10/2026**, branch `fix/cliente-bloqueado-visivel`, 5
+commits. **Ainda não mergeado.** Executado por agente, revisado: diff lido,
+regras da marca conferidas (StatusPill reaproveitado, nenhuma cor fixa).
+Um acréscimo aceito: se o cliente for bloqueado depois de o plano do dia ser
+gerado, o item ainda tem "Cheguei" e o atalho visita → pedido pularia o
+seletor — agora o app avisa na hora em vez de falhar no envio (422).
+Mudança de comportamento a saber: `createOrder` não validava o cliente; agora
+cliente de outra empresa ou excluído dá 404.
+**009 + 010 juntos:** as duas branches se fundem sem conflito; o resultado
+combinado passou em tipos, lint, 651 testes da API, 166 do web e 185 do mobile.
+Ordem de merge indiferente. O 010 toca o app: entra no próximo OTA, sem build.
 
 Valores de status: TODO | IN PROGRESS | DONE | BLOCKED (com o motivo em uma linha) | REJECTED (com a justificativa em uma linha)
 
