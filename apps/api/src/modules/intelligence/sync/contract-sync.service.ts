@@ -339,24 +339,41 @@ async function deactivateDeletedProducts(company: Company, deleted: SqlRow[]) {
   )
 }
 
-async function persistCustomerEnrichment(
-  company: Company,
-  rows: SqlRow[]
-): Promise<{ synced: number; errors: string[] }> {
-  type Enrichment = { code: string; loja: string; creditLimit: number | null; segment: string | null }
-  const records: Enrichment[] = []
+export interface CustomerEnrichmentRecord {
+  code: string
+  loja: string
+  creditLimit: number | null
+  segment: string | null
+  /** undefined = a consulta não trouxe a coluna `bloqueado` (não mexe no msblql) */
+  msblql: string | null | undefined
+}
+
+export function mapCustomerEnrichmentRows(rows: SqlRow[]): CustomerEnrichmentRecord[] {
+  const records: CustomerEnrichmentRecord[] = []
   for (const row of rows) {
     const get = rowReader(row)
     const code = toStr(get('cliente_cod')).trim()
     if (!code) continue
     const creditRaw = get('limite_credito')
+    const blockedRaw = get('bloqueado')
     records.push({
       code,
       loja: toStr(get('cliente_loja'), '01').trim() || '01',
       creditLimit: creditRaw === null || creditRaw === undefined || creditRaw === '' ? null : toNum(creditRaw),
       segment: toStr(get('segmento')).trim() || null,
+      // Mesma normalização do sync REST (A1_MSBLQL): vazio vira null. Só grava
+      // msblql — bloqueio nunca mexe em `active` (que é exclusão)
+      msblql: blockedRaw === undefined ? undefined : toStr(blockedRaw) || null,
     })
   }
+  return records
+}
+
+async function persistCustomerEnrichment(
+  company: Company,
+  rows: SqlRow[]
+): Promise<{ synced: number; errors: string[] }> {
+  const records = mapCustomerEnrichmentRows(rows)
 
   const result = await upsertChunked(
     records,
@@ -366,6 +383,7 @@ async function persistCustomerEnrichment(
         data: {
           ...(r.creditLimit === null ? {} : { creditLimit: r.creditLimit }),
           ...(r.segment === null ? {} : { segment: r.segment }),
+          ...(r.msblql === undefined ? {} : { msblql: r.msblql }),
         },
       }) as unknown as Prisma.PrismaPromise<unknown>,
     (r) => `${r.code}/${r.loja}`

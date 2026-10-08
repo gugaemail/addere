@@ -206,6 +206,16 @@ export interface Customer {
   createdAt: string
 }
 
+/**
+ * Cliente bloqueado no Protheus (A1_MSBLQL = '1'; qualquer outro valor é
+ * liberado). Bloqueado continua visível com o status Bloqueado e só não recebe
+ * pedido — `active = false` é outra coisa (excluído). Fonte única para API,
+ * app e painel.
+ */
+export function isCustomerBlocked(msblql: string | null | undefined): boolean {
+  return msblql?.trim() === '1'
+}
+
 export interface CustomerWithOrders extends Customer {
   orders: Order[]
 }

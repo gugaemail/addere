@@ -2,9 +2,10 @@
 
 import { useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import type { Customer } from '@addere/types'
+import { isCustomerBlocked, type Customer } from '@addere/types'
 import { Table, type Column } from '@/components/ui/Table'
 import { StatusBadge } from '@/components/ui/StatusBadge'
+import { StatusPill } from '@/components/ui/StatusPill'
 import { companiesKeys } from '@/hooks/useCompanies'
 import { useCompanyCustomers, useToggleCompanyEntity } from '@/hooks/useCompany'
 import { CustomerModal, ActionMenu } from '../EntityModals'
@@ -80,7 +81,18 @@ export function CustomersTab({ companyId }: { companyId: string }) {
         </span>
       ),
     },
-    { key: 'status', header: 'Status', render: (c) => <StatusBadge active={c.active} /> },
+    {
+      key: 'status',
+      header: 'Status',
+      // Bloqueio (A1_MSBLQL='1') é do Protheus e soma ao Ativo/Inativo; o toggle
+      // manual continua sendo só de `active` (plano 010)
+      render: (c) => (
+        <span className="inline-flex items-center gap-2">
+          <StatusBadge active={c.active} />
+          {isCustomerBlocked(c.msblql) && <StatusPill status="BLOCKED" />}
+        </span>
+      ),
+    },
     {
       key: 'actions',
       header: '',

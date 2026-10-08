@@ -47,8 +47,11 @@ function customerFields(c: CustomerData) {
     condPagPadrao: c.condPagPadrao,
     tes: c.tes,
     xcodemp: c.xcodemp,
-    // Protheus marca bloqueio em A1_MSBLQL='1'
-    active: c.msblql !== '1',
+    // Bloqueio (A1_MSBLQL='1') vive só em msblql: o cliente bloqueado continua
+    // visível como Bloqueado e só não recebe pedido. `active` é exclusão
+    // (D_E_L_E_T_='*'), e o REST só devolve registro não excluído — então todo
+    // cliente que chega por aqui está ativo.
+    active: true,
   }
 }
 
