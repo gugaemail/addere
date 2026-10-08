@@ -25,6 +25,8 @@ import { EmptyState } from '../../../src/components/ui/EmptyState'
 import { Input } from '../../../src/components/ui/Input'
 import { LoadingState } from '../../../src/components/Skeleton'
 import { PickerField } from '../../../src/components/order-form/PickerField'
+import { StatusPill } from '../../../src/components/intel/StatusPill'
+import { canOrderFor } from '../../../src/utils/customerBlock'
 import { CartItemEditor } from '../../../src/components/order-form/CartItemEditor'
 import {
   useOrderValidation,
@@ -140,18 +142,30 @@ function Step1({
           keyExtractor={(c) => c.id}
           keyboardShouldPersistTaps="handled"
 
-          renderItem={({ item, index }) => (
-            <Card
-              testID={`resultado-cliente-${index}`}
-              style={styles.listItem}
-              onPress={() => onSelectCustomer(item)}
-            >
-              <Text style={styles.listItemTitle}>{item.name}</Text>
-              {item.document && (
-                <Text style={styles.listItemSub}>{formatDocument(item.document)}</Text>
-              )}
-            </Card>
-          )}
+          renderItem={({ item, index }) => {
+            // Bloqueado no Protheus aparece desabilitado com o selo, não some:
+            // o vendedor entende por que não consegue (plano 010)
+            const blocked = !canOrderFor(item)
+            return (
+              <Card
+                testID={`resultado-cliente-${index}`}
+                style={[styles.listItem, blocked && styles.listItemDisabled]}
+                onPress={() => onSelectCustomer(item)}
+                disabled={blocked}
+              >
+                <View style={styles.customerRow}>
+                  <Text style={[styles.listItemTitle, { flex: 1 }]}>{item.name}</Text>
+                  {blocked && <StatusPill status="BLOCKED" testID={`cliente-bloqueado-${index}`} />}
+                </View>
+                {item.document && (
+                  <Text style={styles.listItemSub}>{formatDocument(item.document)}</Text>
+                )}
+                {blocked && (
+                  <Text style={styles.listItemSub}>Bloqueado no Protheus — não recebe pedido</Text>
+                )}
+              </Card>
+            )
+          }}
           ListEmptyComponent={
             <EmptyState
               illustration="clients"
@@ -607,6 +621,17 @@ export default function NovoPedidoScreen() {
     if (codes.length > 0 && !allProducts) return
 
     prefilledKeyRef.current = key
+    // Bloqueado depois que o plano foi gerado (o item ainda tinha "Cheguei"):
+    // não pré-seleciona — pularia o seletor, onde ele fica desabilitado, e a
+    // API recusaria o pedido no fim (plano 010)
+    if (!canOrderFor(target)) {
+      Alert.alert(
+        'Cliente bloqueado',
+        'Cliente bloqueado no Protheus — não é possível fazer pedido.',
+        [{ text: 'OK', onPress: () => router.back() }]
+      )
+      return
+    }
     const { cart: mixCart, missing } = cartFromMix(codes, allProducts ?? [])
 
     setCustomer(target)
@@ -634,6 +659,7 @@ export default function NovoPedidoScreen() {
     allCustomers,
     allBranches,
     allProducts,
+    router,
   ])
 
   // Auto-preenche transportadora e condPag a partir dos padrões do cliente
@@ -817,6 +843,8 @@ const styles = StyleSheet.create({
   cacheBadge: { marginBottom: spacing.md },
   input: { marginBottom: spacing.sm },
   listItem: { marginBottom: spacing.sm },
+  listItemDisabled: { opacity: 0.6 },
+  customerRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   listItemTitle: {
     fontFamily: typography.fontFamily.sansSemibold,
     fontSize: 14,

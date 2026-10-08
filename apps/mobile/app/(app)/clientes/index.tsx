@@ -10,7 +10,7 @@ import { Input } from '../../../src/components/ui/Input'
 import { EmptyState } from '../../../src/components/ui/EmptyState'
 import { useFieldVisible } from '../../../src/hooks/useFieldConfig'
 import { colors, spacing, typography } from '../../../src/theme'
-import type { Customer } from '@addere/types'
+import { isCustomerBlocked, type Customer } from '@addere/types'
 import { formatDocument } from '../../../src/utils/format'
 import { useCustomerSignals } from '../../../src/hooks/useIntel'
 import { parseIntelStatusParam } from '../../../src/utils/customerStatus'
@@ -28,6 +28,8 @@ function ClienteItem({ customer, onPress }: { customer: Customer; onPress: () =>
         )}
         {showPhone && customer.phone && <Text style={s.sub}>{customer.phone}</Text>}
       </View>
+      {/* Bloqueado no Protheus continua na carteira, com o selo (plano 010) */}
+      {isCustomerBlocked(customer.msblql) && <StatusPill status="BLOCKED" />}
       <ChevronRight size={18} color={colors.neutral.placeholder} strokeWidth={1.5} />
     </Card>
   )
@@ -182,6 +184,7 @@ const s = StyleSheet.create({
   card: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: spacing.sm,
   },
   name: {
     fontFamily: typography.fontFamily.sansSemibold,
