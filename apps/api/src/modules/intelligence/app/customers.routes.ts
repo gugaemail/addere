@@ -28,7 +28,7 @@ import {
   type PortfolioFacts,
   type PortfolioOutput,
 } from '../agent/prompts/portfolio'
-import { ymdSaoPaulo } from '../engine/business-days'
+import { daysOverdueOn, ymdSaoPaulo } from '../engine/business-days'
 import { clockToMinutes } from '../engine/routing'
 import { getFreshness } from './plan.service'
 
@@ -70,8 +70,9 @@ async function loadSnapshot(
   if (!signal) return null
   const titles = await prisma.openTitle.findMany({
     where: { companyId, customerCode: code, loja },
-    select: { balance: true, daysOverdue: true },
+    select: { balance: true, dueDate: true },
   })
+  const today = ymdSaoPaulo(new Date())
   return {
     status: signal.status,
     confidence: signal.confidence,
@@ -86,7 +87,7 @@ async function loadSnapshot(
       count: titles.length,
       totalBalance: titles.reduce((sum, t) => sum + Number(t.balance), 0).toFixed(2),
       maxDaysOverdue: titles.reduce<number | null>(
-        (max, t) => (t.daysOverdue === null ? max : Math.max(max ?? 0, t.daysOverdue)),
+        (max, t) => Math.max(max ?? 0, daysOverdueOn(t.dueDate, today)),
         null
       ),
     },

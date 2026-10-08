@@ -59,6 +59,28 @@ describe('runEngine (E5)', () => {
     baseMocks()
   })
 
+  it('título vencido além de blocked_days bloqueia mesmo sem dias_atraso da consulta', async () => {
+    // A consulta de referência da SE1 não traz dias_atraso (daysOverdue null no
+    // banco). O atraso tem de sair do vencimento — antes, o bloqueio nunca disparava.
+    const venceu10DiasAtras = new Date(`${daysAgo(10).toISOString().slice(0, 10)}T00:00:00.000Z`)
+    prismaMock.openTitle.findMany.mockResolvedValue([
+      {
+        customerCode: 'A',
+        loja: '01',
+        balance: 1_500,
+        dueDate: venceu10DiasAtras,
+        daysOverdue: null,
+      },
+    ])
+
+    await runEngine(COMPANY, 'run-1')
+
+    const items = prismaMock.visitPlan.create.mock.calls[0][0].data.items.create
+    const a = items.find((i: { customerCode: string }) => i.customerCode === 'A')
+    expect(a.statusAtTime).toBe('BLOCKED')
+    expect(a.signalsSnapshot.openTitles.maxDaysOverdue).toBeGreaterThanOrEqual(9)
+  })
+
   it('grava sinais + plano do dia com bloqueado ao final', async () => {
     const summary = await runEngine(COMPANY, 'run-1')
 

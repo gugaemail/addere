@@ -87,6 +87,19 @@ export function ymdToDate(ymd: string): Date {
   )
 }
 
+/**
+ * Dias de atraso de um título em `todayYmd` (São Paulo), a partir do vencimento
+ * (`@db.Date`, meia-noite UTC). 0 enquanto não venceu.
+ *
+ * Calculado na leitura, nunca vindo do ERP: a consulta de referência da SE1 não
+ * traz `dias_atraso`, e sem ele o bloqueio por título vencido nunca disparava.
+ * Com sync incremental (plano 009), um número gravado no sync ficaria congelado.
+ */
+export function daysOverdueOn(dueDate: Date, todayYmd: string): number {
+  const days = Math.round((ymdToDate(todayYmd).getTime() - dueDate.getTime()) / 86_400_000)
+  return Math.max(days, 0)
+}
+
 /** Date (meia-noite UTC) → 'YYYYMMDD'. */
 export function dateToYmdUtc(date: Date): string {
   return `${date.getUTCFullYear()}${String(date.getUTCMonth() + 1).padStart(2, '0')}${String(date.getUTCDate()).padStart(2, '0')}`

@@ -108,6 +108,8 @@ export function mapOpenTitleRows(companyId: string, rows: SqlRow[]): {
       skipped.push(titleRef || 'título sem chave')
       continue
     }
+    // `dias_atraso` ainda é gravado, mas ninguém mais lê: o atraso é calculado
+    // do vencimento na leitura (daysOverdueOn) — valor do ERP congelaria
     const daysOverdueRaw = get('dias_atraso')
     records.push({
       companyId,
