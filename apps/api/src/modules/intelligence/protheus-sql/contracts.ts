@@ -28,6 +28,7 @@ export interface QueryContract {
   requiredPlaceholders: PlaceholderName[]
   optionalPlaceholders: PlaceholderName[]
   columns: ContractColumn[]
+  /** A primeira é a recomendada e a que abre no editor vazio (incremental, se houver) */
   referenceSql: ReferenceSql[]
   helpText: string
   /** Como a consulta é comparada com o número oficial antes de publicar */
@@ -69,16 +70,7 @@ export const QUERY_CONTRACTS: Record<IntelQueryName, QueryContract> = {
     ],
     referenceSql: [
       {
-        label: 'SA1 (cadastro de clientes)',
-        sql: `SELECT A1_COD AS cliente_cod, A1_LOJA AS cliente_loja, A1_NOME AS cliente_nome,
-       A1_VEND AS vendedor_cod, A1_MUN AS cidade, A1_EST AS uf, A1_BAIRRO AS bairro,
-       A1_END AS endereco, A1_CEP AS cep, A1_CGC AS cnpj, A1_MSBLQL AS bloqueado,
-       A1_LC AS limite_credito, A1_ULTCOM AS ultima_compra
-FROM SA1010
-WHERE D_E_L_E_T_ = ' ' AND A1_FILIAL IN ({{FILIAL}})`,
-      },
-      {
-        label: 'SA1 incremental (S_T_A_M_P_ — só o que mudou)',
+        label: 'SA1 incremental',
         sql: `SELECT A1_COD AS cliente_cod, A1_LOJA AS cliente_loja, A1_NOME AS cliente_nome,
        A1_VEND AS vendedor_cod, A1_MUN AS cidade, A1_EST AS uf, A1_BAIRRO AS bairro,
        A1_END AS endereco, A1_CEP AS cep, A1_CGC AS cnpj, A1_MSBLQL AS bloqueado,
@@ -88,6 +80,15 @@ FROM SA1010
 WHERE A1_FILIAL IN ({{FILIAL}})
   AND (  ({{INCREMENTAL}} = 1 AND S_T_A_M_P_ > {{DESDE}})
       OR ({{INCREMENTAL}} = 0 AND D_E_L_E_T_ = ' '))`,
+      },
+      {
+        label: 'SA1 (cadastro de clientes)',
+        sql: `SELECT A1_COD AS cliente_cod, A1_LOJA AS cliente_loja, A1_NOME AS cliente_nome,
+       A1_VEND AS vendedor_cod, A1_MUN AS cidade, A1_EST AS uf, A1_BAIRRO AS bairro,
+       A1_END AS endereco, A1_CEP AS cep, A1_CGC AS cnpj, A1_MSBLQL AS bloqueado,
+       A1_LC AS limite_credito, A1_ULTCOM AS ultima_compra
+FROM SA1010
+WHERE D_E_L_E_T_ = ' ' AND A1_FILIAL IN ({{FILIAL}})`,
       },
     ],
     helpText:
@@ -129,20 +130,7 @@ WHERE A1_FILIAL IN ({{FILIAL}})
     ],
     referenceSql: [
       {
-        label: 'SD2/SF2 (faturamento)',
-        sql: `SELECT D2_DOC+D2_SERIE AS pedido, D2_ITEM AS item, D2_EMISSAO AS data,
-       D2_CLIENTE AS cliente_cod, D2_LOJA AS cliente_loja, F2_VEND1 AS vendedor_cod,
-       D2_COD AS produto_cod, B1_DESC AS produto_desc, D2_QUANT AS quantidade,
-       D2_VALBRUT AS valor, B1_GRUPO AS grupo_produto
-FROM SD2010 D2
-JOIN SF2010 F2 ON F2_FILIAL=D2_FILIAL AND F2_DOC=D2_DOC AND F2_SERIE=D2_SERIE AND F2.D_E_L_E_T_=' '
-JOIN SB1010 B1 ON B1_COD=D2_COD AND B1.D_E_L_E_T_=' '
-JOIN SF4010 F4 ON F4_CODIGO=D2_TES AND F4_DUPLIC='S'
-WHERE D2.D_E_L_E_T_=' ' AND D2_FILIAL IN ({{FILIAL}})
-  AND D2_EMISSAO BETWEEN {{DATA_INI}} AND {{DATA_FIM}}`,
-      },
-      {
-        label: 'SD2/SF2 incremental (S_T_A_M_P_ — só o que mudou)',
+        label: 'SD2/SF2 incremental',
         sql: `SELECT D2_DOC+D2_SERIE AS pedido, D2_ITEM AS item, D2_EMISSAO AS data,
        D2_CLIENTE AS cliente_cod, D2_LOJA AS cliente_loja, F2_VEND1 AS vendedor_cod,
        D2_COD AS produto_cod, B1_DESC AS produto_desc, D2_QUANT AS quantidade,
@@ -158,6 +146,19 @@ WHERE D2_FILIAL IN ({{FILIAL}})
   AND D2_EMISSAO BETWEEN {{DATA_INI}} AND {{DATA_FIM}}
   AND (  ({{INCREMENTAL}} = 1 AND (D2.S_T_A_M_P_ > {{DESDE}} OR F2.S_T_A_M_P_ > {{DESDE}}))
       OR ({{INCREMENTAL}} = 0 AND D2.D_E_L_E_T_=' ' AND F2.D_E_L_E_T_=' '))`,
+      },
+      {
+        label: 'SD2/SF2 (faturamento)',
+        sql: `SELECT D2_DOC+D2_SERIE AS pedido, D2_ITEM AS item, D2_EMISSAO AS data,
+       D2_CLIENTE AS cliente_cod, D2_LOJA AS cliente_loja, F2_VEND1 AS vendedor_cod,
+       D2_COD AS produto_cod, B1_DESC AS produto_desc, D2_QUANT AS quantidade,
+       D2_VALBRUT AS valor, B1_GRUPO AS grupo_produto
+FROM SD2010 D2
+JOIN SF2010 F2 ON F2_FILIAL=D2_FILIAL AND F2_DOC=D2_DOC AND F2_SERIE=D2_SERIE AND F2.D_E_L_E_T_=' '
+JOIN SB1010 B1 ON B1_COD=D2_COD AND B1.D_E_L_E_T_=' '
+JOIN SF4010 F4 ON F4_CODIGO=D2_TES AND F4_DUPLIC='S'
+WHERE D2.D_E_L_E_T_=' ' AND D2_FILIAL IN ({{FILIAL}})
+  AND D2_EMISSAO BETWEEN {{DATA_INI}} AND {{DATA_FIM}}`,
       },
       {
         label: 'SC5/SC6 (pedidos)',
@@ -204,15 +205,7 @@ WHERE C6.D_E_L_E_T_=' ' AND C6_BLQ<>'R' AND C6_FILIAL IN ({{FILIAL}})
     ],
     referenceSql: [
       {
-        label: 'SE1 (contas a receber)',
-        sql: `SELECT E1_NUM AS titulo, E1_CLIENTE AS cliente_cod, E1_LOJA AS cliente_loja,
-       E1_VENCREA AS vencimento, E1_SALDO AS valor_saldo
-FROM SE1010
-WHERE D_E_L_E_T_=' ' AND E1_FILIAL IN ({{FILIAL}}) AND E1_SALDO > 0
-  AND E1_TIPO NOT IN ('NCC','RA','AB-','PA')`,
-      },
-      {
-        label: 'SE1 incremental (S_T_A_M_P_ — só o que mudou)',
+        label: 'SE1 incremental',
         sql: `SELECT E1_FILIAL+E1_PREFIXO+E1_NUM+E1_PARCELA+E1_TIPO AS titulo,
        E1_CLIENTE AS cliente_cod, E1_LOJA AS cliente_loja, E1_VENCREA AS vencimento,
        E1_SALDO AS valor_saldo,
@@ -221,6 +214,15 @@ FROM SE1010
 WHERE E1_FILIAL IN ({{FILIAL}}) AND E1_TIPO NOT IN ('NCC','RA','AB-','PA')
   AND (  ({{INCREMENTAL}} = 1 AND S_T_A_M_P_ > {{DESDE}})
       OR ({{INCREMENTAL}} = 0 AND E1_SALDO > 0 AND D_E_L_E_T_ = ' '))`,
+      },
+      {
+        label: 'SE1 (contas a receber)',
+        sql: `SELECT E1_FILIAL+E1_PREFIXO+E1_NUM+E1_PARCELA+E1_TIPO AS titulo,
+       E1_CLIENTE AS cliente_cod, E1_LOJA AS cliente_loja,
+       E1_VENCREA AS vencimento, E1_SALDO AS valor_saldo
+FROM SE1010
+WHERE D_E_L_E_T_=' ' AND E1_FILIAL IN ({{FILIAL}}) AND E1_SALDO > 0
+  AND E1_TIPO NOT IN ('NCC','RA','AB-','PA')`,
       },
     ],
     helpText:
@@ -256,20 +258,20 @@ WHERE E1_FILIAL IN ({{FILIAL}}) AND E1_TIPO NOT IN ('NCC','RA','AB-','PA')
     ],
     referenceSql: [
       {
-        label: 'SB1 (produtos)',
-        sql: `SELECT B1_COD AS produto_cod, B1_DESC AS produto_desc, B1_GRUPO AS grupo,
-       CASE WHEN B1_MSBLQL = '1' THEN 'N' ELSE 'S' END AS ativo
-FROM SB1010
-WHERE D_E_L_E_T_=' '`,
-      },
-      {
-        label: 'SB1 incremental (S_T_A_M_P_ — só o que mudou)',
+        label: 'SB1 incremental',
         sql: `SELECT B1_COD AS produto_cod, B1_DESC AS produto_desc, B1_GRUPO AS grupo,
        CASE WHEN B1_MSBLQL = '1' THEN 'N' ELSE 'S' END AS ativo,
        D_E_L_E_T_ AS excluido, CONVERT(VARCHAR(23), S_T_A_M_P_, 121) AS stamp
 FROM SB1010
 WHERE (  ({{INCREMENTAL}} = 1 AND S_T_A_M_P_ > {{DESDE}})
       OR ({{INCREMENTAL}} = 0 AND D_E_L_E_T_ = ' '))`,
+      },
+      {
+        label: 'SB1 (produtos)',
+        sql: `SELECT B1_COD AS produto_cod, B1_DESC AS produto_desc, B1_GRUPO AS grupo,
+       CASE WHEN B1_MSBLQL = '1' THEN 'N' ELSE 'S' END AS ativo
+FROM SB1010
+WHERE D_E_L_E_T_=' '`,
       },
     ],
     helpText:

@@ -22,6 +22,7 @@ import { formatMetric, parseOfficialNumber, reconciliationCopy } from '@/lib/rec
 import {
   initialEditorSql,
   isBrokenSql,
+  isIncrementalReference,
   matchingReference,
   normalizeReferenceSql,
   referenceButtonLabel,
@@ -337,6 +338,13 @@ export default function ConsultaPage() {
             <p className="text-xs text-[var(--text-secondary)]">
               Há {references.length} referências para esta consulta. Use a que corresponde ao número oficial
               que você vai informar na reconciliação.
+              {references.some(isIncrementalReference) && (
+                <>
+                  {' '}
+                  A incremental é a recomendada: sincroniza só o que mudou no Protheus e exige o campo
+                  S_T_A_M_P_ nas tabelas — sem ele, use uma das outras.
+                </>
+              )}
               {loadedReference >= 0 && (
                 <>
                   {' '}
