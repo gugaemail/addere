@@ -67,7 +67,10 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
       ref={ref}
       disabled={isDisabled}
       className={cn(
+        // Altura é fixa por tamanho: texto que quebra linha vaza da borda. Sem
+        // quebra, em espaço apertado quem cede é a tabela (rolagem lateral)
         'inline-flex items-center justify-center rounded-md font-semibold',
+        'whitespace-nowrap shrink-0',
         'transition-colors duration-150 cursor-pointer select-none',
         'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2',
         'disabled:cursor-not-allowed',
