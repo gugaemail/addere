@@ -27,7 +27,7 @@ import { selectOwnQueue, useSyncStore } from '../../../src/store/syncStore'
 import { useClientes } from '../../../src/hooks/useClientes'
 import { makePlanOp, prefetchBriefings, usePlan, usePlanPatch, useVisitMutation } from '../../../src/hooks/useIntel'
 import { getVisitPosition } from '../../../src/services/location'
-import { openMaps, openRouteInMaps } from '../../../src/services/navigationLinks'
+import { chooseRouteApp, chooseStopApp } from '../../../src/services/mapChooser'
 import { pilotTracker } from '../../../src/services/pilotTracking'
 import { routeStops, stopMetaLine } from '../../../src/utils/intelText'
 import { generateUuid } from '../../../src/utils/uuid'
@@ -280,7 +280,7 @@ export default function RotaScreen() {
           <View style={s.actions}>
             <TouchableOpacity
               style={s.action}
-              onPress={() => openMaps({ lat: item.lat, lng: item.lng, address: item.customerAddress })}
+              onPress={() => chooseStopApp({ lat: item.lat, lng: item.lng, address: item.customerAddress })}
             >
               <Navigation size={14} color={colors.brand.primary} strokeWidth={1.5} />
               <Text style={s.actionText}>Navegar</Text>
@@ -434,7 +434,7 @@ export default function RotaScreen() {
             <TouchableOpacity
               testID="btn-rota-completa-mapa"
               style={s.mapRouteButton}
-              onPress={() => openRouteInMaps(routeStops(plan))}
+              onPress={() => chooseRouteApp(routeStops(plan))}
             >
               <Navigation size={14} color={colors.neutral.white} strokeWidth={1.5} />
               <Text style={s.mapRouteText}>Abrir rota completa</Text>
@@ -465,7 +465,7 @@ export default function RotaScreen() {
                 <TouchableOpacity
                   style={s.action}
                   onPress={() =>
-                    openMaps({
+                    chooseStopApp({
                       lat: selectedItem.lat,
                       lng: selectedItem.lng,
                       address: selectedItem.customerAddress,
@@ -573,7 +573,7 @@ export default function RotaScreen() {
                 <TouchableOpacity
                   testID="btn-rota-completa"
                   style={s.fullRoute}
-                  onPress={() => openRouteInMaps(routeStops(plan))}
+                  onPress={() => chooseRouteApp(routeStops(plan))}
                 >
                   <Navigation size={14} color={colors.brand.primary} strokeWidth={1.5} />
                   <Text style={s.fullRouteText}>Abrir rota completa no Maps</Text>
