@@ -18,6 +18,7 @@ import {
   History,
   MessageCircle,
   Navigation,
+  PhoneCall,
   User as UserIcon,
   X,
 } from 'lucide-react-native'
@@ -30,6 +31,7 @@ import { getVisitPosition } from '../../../src/services/location'
 import { chooseRouteApp, chooseStopApp } from '../../../src/services/mapChooser'
 import { pilotTracker } from '../../../src/services/pilotTracking'
 import { routeStops, stopMetaLine } from '../../../src/utils/intelText'
+import { remoteCheckInPayload, visitMarksByItem } from '../../../src/utils/remoteVisit'
 import { generateUuid } from '../../../src/utils/uuid'
 import { StatusPill } from '../../../src/components/intel/StatusPill'
 import { PlanMap } from '../../../src/components/intel/PlanMap'
@@ -81,16 +83,10 @@ export default function RotaScreen() {
     () => plan?.items.find((i) => i.id === selectedId) ?? null,
     [plan, selectedId]
   )
-  // Pino cheio = visita registrada NESTE aparelho (fila de sync, E13b)
-  const visitedItemIds = useSyncStore((state) => {
-    const ids = new Set<string>()
-    for (const entry of selectOwnQueue(state)) {
-      if (entry.type !== 'visit') continue
-      const planItemId = (entry.payload as { planItemId?: string | null })?.planItemId
-      if (planItemId) ids.add(planItemId)
-    }
-    return ids
-  })
+  // Pino cheio = visita registrada NESTE aparelho (fila de sync, E13b);
+  // "remote" quando o atendimento foi só à distância (plano 011)
+  const visitMarks = useSyncStore((state) => visitMarksByItem(selectOwnQueue(state)))
+  const visitedItemIds = useMemo(() => new Set(visitMarks.keys()), [visitMarks])
 
   useEffect(() => {
     prefetchBriefings(plan)
@@ -199,6 +195,21 @@ export default function RotaScreen() {
     [visits, router]
   )
 
+  // À distância (plano 011): telefone ou WhatsApp — sem GPS; o canal e o
+  // resultado são escolhidos na tela da visita
+  const attendRemotely = useCallback(
+    (item: VisitPlanItemDto) => {
+      const clientId = generateUuid()
+      visits.checkIn(remoteCheckInPayload(item, clientId, new Date().toISOString()))
+      pilotTracker.track({ type: 'VISIT_CHECKIN', metadata: { hasGps: false, remote: true } })
+      router.push({
+        pathname: '/rota/visita/[itemId]',
+        params: { itemId: item.id, clientId, mode: 'remote' },
+      })
+    },
+    [visits, router]
+  )
+
   const openFicha = useCallback(
     (item: VisitPlanItemDto) => {
       const id = customerIdByKey.get(`${item.customerCode}|${item.loja}`)
@@ -220,7 +231,8 @@ export default function RotaScreen() {
       const isBlocked = item.statusAtTime === 'BLOCKED'
       // Visita registrada neste aparelho: o card diz "Visitado" em vez de
       // oferecer "Cheguei" de novo — antes só o pino do mapa mudava.
-      const isVisited = visitedItemIds.has(item.id)
+      const mark = visitMarks.get(item.id)
+      const isVisited = mark !== undefined
       const meta = stopMetaLine(item)
       return (
         <View style={[s.card, isActive && s.cardDragging]} testID={`plan-item-${index + 1}`}>
@@ -302,19 +314,35 @@ export default function RotaScreen() {
               <Text style={s.actionText}>Mensagem</Text>
             </TouchableOpacity>
             {!isBlocked && isVisited && (
-              <View style={[s.action, s.actionDone]} testID={`badge-visitado-${index + 1}`}>
+              <View
+                style={[s.action, s.actionDone]}
+                testID={mark === 'remote' ? `badge-atendido-${index + 1}` : `badge-visitado-${index + 1}`}
+              >
                 <Check size={14} color={colors.semantic.success} strokeWidth={1.5} />
-                <Text style={[s.actionText, s.actionDoneText]}>Visitado</Text>
+                <Text style={[s.actionText, s.actionDoneText]}>
+                  {mark === 'remote' ? 'Atendido' : 'Visitado'}
+                </Text>
               </View>
             )}
             {!isBlocked && !isVisited && (
-              <TouchableOpacity
-                testID={`btn-cheguei-${index + 1}`}
-                style={[s.action, s.actionPrimary]}
-                onPress={() => checkIn(item)}
-              >
-                <Text style={[s.actionText, { color: colors.neutral.white }]}>Cheguei</Text>
-              </TouchableOpacity>
+              // Juntos: na quebra de linha os dois descem lado a lado
+              <View style={s.arrivalGroup}>
+                <TouchableOpacity
+                  testID={`btn-a-distancia-${index + 1}`}
+                  style={s.action}
+                  onPress={() => attendRemotely(item)}
+                >
+                  <PhoneCall size={14} color={colors.brand.primary} strokeWidth={1.5} />
+                  <Text style={s.actionText}>À distância</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  testID={`btn-cheguei-${index + 1}`}
+                  style={[s.action, s.actionPrimary]}
+                  onPress={() => checkIn(item)}
+                >
+                  <Text style={[s.actionText, { color: colors.neutral.white }]}>Cheguei</Text>
+                </TouchableOpacity>
+              </View>
             )}
           </View>
 
@@ -343,7 +371,7 @@ export default function RotaScreen() {
         </View>
       )
     },
-    [checkIn, move, openFicha, removeFromDay, router, visitedItemIds]
+    [attendRemotely, checkIn, move, openFicha, removeFromDay, router, visitMarks]
   )
 
   const renderDraggable = useCallback(
@@ -529,12 +557,18 @@ export default function RotaScreen() {
                   <Text style={s.actionText}>Pular</Text>
                 </TouchableOpacity>
                 {selectedItem.statusAtTime !== 'BLOCKED' && (
-                  <TouchableOpacity
-                    style={[s.action, s.actionPrimary]}
-                    onPress={() => checkIn(selectedItem)}
-                  >
-                    <Text style={[s.actionText, { color: colors.neutral.white }]}>Cheguei</Text>
-                  </TouchableOpacity>
+                  <View style={s.arrivalGroup}>
+                    <TouchableOpacity style={s.action} onPress={() => attendRemotely(selectedItem)}>
+                      <PhoneCall size={14} color={colors.brand.primary} strokeWidth={1.5} />
+                      <Text style={s.actionText}>À distância</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[s.action, s.actionPrimary]}
+                      onPress={() => checkIn(selectedItem)}
+                    >
+                      <Text style={[s.actionText, { color: colors.neutral.white }]}>Cheguei</Text>
+                    </TouchableOpacity>
+                  </View>
                 )}
               </View>
             </View>
@@ -789,6 +823,7 @@ const s = StyleSheet.create({
     paddingVertical: spacing.xs,
   },
   actionPrimary: { backgroundColor: colors.brand.primary, marginLeft: 'auto' },
+  arrivalGroup: { flexDirection: 'row', gap: spacing.sm, marginLeft: 'auto' },
   actionDone: { backgroundColor: colors.semantic.successLight, marginLeft: 'auto' },
   actionDoneText: { color: colors.semantic.success },
   actionText: {
