@@ -20,7 +20,7 @@ import type { VisitPlanItemDto, VisitResult } from '@addere/types'
 import { useClientes } from '../../../../src/hooks/useClientes'
 import { useBriefing, usePlan, useStock, useVisitMutation } from '../../../../src/hooks/useIntel'
 import { getVisitPosition } from '../../../../src/services/location'
-import { openMaps } from '../../../../src/services/navigationLinks'
+import { chooseStopApp } from '../../../../src/services/mapChooser'
 import { pilotTracker } from '../../../../src/services/pilotTracking'
 import { offerSuffix, stockLabel } from '../../../../src/utils/intelText'
 import { generateUuid } from '../../../../src/utils/uuid'
@@ -203,7 +203,7 @@ export default function VisitaScreen() {
       <View style={s.quickRow}>
         <TouchableOpacity
           style={s.quick}
-          onPress={() => openMaps({ lat: item.lat, lng: item.lng, address: item.customerAddress })}
+          onPress={() => chooseStopApp({ lat: item.lat, lng: item.lng, address: item.customerAddress })}
         >
           <Navigation size={15} color={colors.brand.primary} strokeWidth={1.5} />
           <Text style={s.quickText}>Navegar</Text>
