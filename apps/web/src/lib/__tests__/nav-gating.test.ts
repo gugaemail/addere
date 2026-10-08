@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { canSeeNavItem, filterNavGroups, type NavGateContext } from '../nav-gating'
+import {
+  canSeeNavItem,
+  filterNavGroups,
+  INTEL_ADMIN_ONLY,
+  type NavGateContext,
+} from '../nav-gating'
 
 const ctx = (over: Partial<NavGateContext> = {}): NavGateContext => ({
   isSuperAdmin: false,
@@ -29,6 +34,17 @@ describe('canSeeNavItem', () => {
     expect(canSeeNavItem({ permission: 'intel.manager' }, gerente)).toBe(true)
     expect(canSeeNavItem({ permission: ['intel.admin', 'intel.manager'] }, gerente)).toBe(true)
     expect(canSeeNavItem({ permission: 'intel.admin' }, gerente)).toBe(false)
+  })
+
+  it('Consultas/Premissas (INTEL_ADMIN_ONLY): admin e SUPERADMIN veem, gerente não', () => {
+    const admin = ctx({ isAdmin: true, hasPermission: (k) => k === 'intel.admin' })
+    const gerente = ctx({ hasPermission: (k) => k === 'intel.manager' })
+    const adminRevogado = ctx({ isAdmin: true })
+    expect(canSeeNavItem(INTEL_ADMIN_ONLY, admin)).toBe(true)
+    expect(canSeeNavItem(INTEL_ADMIN_ONLY, ctx({ isSuperAdmin: true }))).toBe(true)
+    expect(canSeeNavItem(INTEL_ADMIN_ONLY, gerente)).toBe(false)
+    // Sem orAdmin: a API exige intel.admin, então o papel sozinho não abre a tela
+    expect(canSeeNavItem(INTEL_ADMIN_ONLY, adminRevogado)).toBe(false)
   })
 
   it('orAdmin abre o item por papel mesmo sem a permissão (home do ADMIN)', () => {

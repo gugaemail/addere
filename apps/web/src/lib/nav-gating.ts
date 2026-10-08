@@ -5,6 +5,11 @@ export type NavRequirement =
   | 'admin'
   | { permission: string | string[]; orAdmin?: boolean }
 
+// Configuração da Inteligência (Consultas, Premissas): só intel.admin, igual à
+// API — sem orAdmin, para não abrir a tela a quem a API responderia 403. O ADMIN
+// nasce com ela (D3c); o gerente não vê, nem para leitura (decisão de 08/10/2026).
+export const INTEL_ADMIN_ONLY: NavRequirement = { permission: 'intel.admin' }
+
 export interface NavGateContext {
   isSuperAdmin: boolean
   isAdmin: boolean

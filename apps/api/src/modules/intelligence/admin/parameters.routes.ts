@@ -3,7 +3,7 @@ import { FastifyInstance } from 'fastify'
 import { z } from 'zod'
 import { prisma } from '@addere/db'
 import { DEFAULT_INTEL_PARAMETERS } from '@addere/types'
-import { requirePermission, requireAnyPermission } from '../../../middleware/authenticate'
+import { requirePermission } from '../../../middleware/authenticate'
 import { resolveTenant } from '../../../middleware/resolve-tenant'
 
 const PARAMETER_KEYS = Object.keys(DEFAULT_INTEL_PARAMETERS) as Array<
@@ -61,10 +61,11 @@ async function namesByUserId(ids: (string | null)[]): Promise<Map<string, string
 
 export default async function parametersRoutes(app: FastifyInstance) {
   const adminOnly = requirePermission('intel.admin')
-  const adminOrManager = requireAnyPermission('intel.admin', 'intel.manager')
+  // Consultas e premissas são configuração da empresa: o gerente não lê nem
+  // grava (decisão de 08/10/2026 — antes ele tinha leitura)
 
   // GET / — defaults mesclados com os overrides do tenant
-  app.get('/', { preHandler: [adminOrManager] }, async (request, reply) => {
+  app.get('/', { preHandler: [adminOnly] }, async (request, reply) => {
     const company = await resolveTenant(request, reply, 'query')
     if (!company) return
 
@@ -151,7 +152,7 @@ export default async function parametersRoutes(app: FastifyInstance) {
   })
 
   // GET /history — auditoria (mais recente primeiro)
-  app.get('/history', { preHandler: [adminOrManager] }, async (request, reply) => {
+  app.get('/history', { preHandler: [adminOnly] }, async (request, reply) => {
     const query = historyQuerySchema.parse(request.query)
     const company = await resolveTenant(request, reply, 'query')
     if (!company) return

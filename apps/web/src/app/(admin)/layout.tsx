@@ -32,7 +32,7 @@ import { useCompanyContext } from '@/contexts/CompanyContext'
 import { useCompanies } from '@/hooks/useCompanies'
 import { canAccessPanel } from '@/lib/home-redirect'
 import { profileLabel } from '@/lib/user-profile'
-import { filterNavGroups, type NavRequirement } from '@/lib/nav-gating'
+import { filterNavGroups, INTEL_ADMIN_ONLY, type NavRequirement } from '@/lib/nav-gating'
 import { Logo } from '@/components/Logo'
 import { Spinner } from '@/components/ui/Spinner'
 import type { UserPublic } from '@addere/types'
@@ -111,7 +111,7 @@ const NAV_GROUPS: NavGroup[] = [
         label: 'Consultas',
         match: (p) => p.startsWith('/inteligencia/consultas'),
         icon: Database,
-        requires: { permission: ['intel.admin', 'intel.manager'], orAdmin: true },
+        requires: INTEL_ADMIN_ONLY,
       },
       {
         href: '/inteligencia/saude',
@@ -125,7 +125,7 @@ const NAV_GROUPS: NavGroup[] = [
         label: 'Premissas',
         match: (p) => p.startsWith('/inteligencia/premissas'),
         icon: SlidersHorizontal,
-        requires: { permission: ['intel.admin', 'intel.manager'], orAdmin: true },
+        requires: INTEL_ADMIN_ONLY,
       },
     ],
   },

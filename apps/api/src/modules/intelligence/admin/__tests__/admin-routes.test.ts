@@ -101,13 +101,15 @@ describe('autenticação e permissões', () => {
     expect(res.statusCode).toBe(403)
   })
 
-  it('intel.manager lê consultas e parâmetros, mas não grava', async () => {
-    const read = await app.inject({
-      method: 'GET',
-      url: '/intel/admin/parameters',
-      headers: auth('manager-a'),
-    })
-    expect(read.statusCode).toBe(200)
+  it('intel.manager não lê nem grava consultas e parâmetros', async () => {
+    for (const url of [
+      '/intel/admin/queries',
+      '/intel/admin/parameters',
+      '/intel/admin/parameters/history',
+    ]) {
+      const read = await app.inject({ method: 'GET', url, headers: auth('manager-a') })
+      expect(read.statusCode, url).toBe(403)
+    }
 
     const write = await app.inject({
       method: 'PUT',
