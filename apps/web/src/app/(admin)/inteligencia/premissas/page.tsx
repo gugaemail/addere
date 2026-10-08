@@ -34,6 +34,69 @@ interface ParamMeta {
   max?: number
 }
 
+// Como a ordem das paradas é montada (routing.ts / engine.service.ts routeDay):
+// o switch muda só a ordem e a hora prevista, nunca quem entra no plano
+function RouteOrderExplainer() {
+  return (
+    <details className="mt-4 rounded-lg border border-[var(--border)] bg-[var(--bg-page)]">
+      <summary className="cursor-pointer px-3 py-2 text-xs font-medium text-[var(--text-primary)]">
+        Como funciona a ordem das paradas
+      </summary>
+      <div className="space-y-3 px-3 pb-3 text-xs text-[var(--text-secondary)]">
+        <p>
+          A chave não muda <b className="text-[var(--text-primary)]">quem</b> entra no plano — isso é decidido
+          antes, pelo ranking e pelo agrupamento por cidade ou bairro. Ela muda só a{' '}
+          <b className="text-[var(--text-primary)]">ordem</b> das paradas e a hora prevista de cada uma.
+        </p>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div className="rounded-lg border border-[var(--border)] p-3">
+            <p className="font-semibold text-[var(--text-primary)]">Ligado (padrão)</p>
+            <ul className="mt-1 list-disc space-y-1 pl-4">
+              <li>A 1ª parada é o cliente de maior score do dia.</li>
+              <li>
+                Cada próxima é a <b>mais perto</b> da anterior (linha reta, com um fator para o trajeto real).
+              </li>
+              <li>Respeita a janela de atendimento: quem só atende às 14h é empurrado para a tarde.</li>
+            </ul>
+          </div>
+          <div className="rounded-lg border border-[var(--border)] p-3">
+            <p className="font-semibold text-[var(--text-primary)]">Desligado</p>
+            <ul className="mt-1 list-disc space-y-1 pl-4">
+              <li>A 1ª parada também é o cliente de maior score.</li>
+              <li>As demais seguem a ordem do score, do mais importante ao menos, não importa onde fiquem.</li>
+              <li>Ignora a janela de atendimento; o trajeto pode ir e voltar.</li>
+            </ul>
+          </div>
+        </div>
+        <div>
+          <p className="font-semibold text-[var(--text-primary)]">Nos dois casos</p>
+          <ul className="mt-1 list-disc space-y-1 pl-4">
+            <li>
+              A hora prevista começa em &quot;Primeira visita às&quot; e soma a duração da visita mais o deslocamento
+              na velocidade média.
+            </li>
+            <li>Clientes sem localização no mapa vão para o fim, sem hora prevista.</li>
+            <li>
+              O vendedor pode reordenar no app segurando a alça: a ordem dele vale, e só distância e horários são
+              recalculados.
+            </li>
+          </ul>
+        </div>
+        <div>
+          <p className="font-semibold text-[var(--text-primary)]">Limites de hoje</p>
+          <ul className="mt-1 list-disc space-y-1 pl-4">
+            <li>A rota não parte de onde o vendedor está — parte do cliente de maior score.</li>
+            <li>
+              Nenhuma parada é cortada por não caber no dia: cliente distante entra no fim, com hora prevista que
+              pode passar do expediente.
+            </li>
+          </ul>
+        </div>
+      </div>
+    </details>
+  )
+}
+
 const BLOCKS: { title: string; subtitle: string; params: ParamMeta[] }[] = [
   {
     title: 'Régua de status',
@@ -271,6 +334,7 @@ export default function PremissasPage() {
               )
             })}
           </div>
+          {block.params.some((p) => p.key === 'route_by_distance') && <RouteOrderExplainer />}
         </section>
       ))}
     </div>
