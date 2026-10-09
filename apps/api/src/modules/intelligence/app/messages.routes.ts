@@ -21,7 +21,10 @@ const createSchema = z.object({
   template: z.enum(['STALLED_PROPOSAL', 'WENT_QUIET', 'REACTIVATE']),
 })
 
-const sentSchema = z.object({ channel: z.enum(['whatsapp', 'copy']) })
+// O app até a versão de 09/10/2026 manda o corpo vazio: sem o default, toda
+// marcação de envio voltava 400 e a fila do app a descartava (sentAt nunca
+// gravado). Botão WhatsApp é o único que marcava envio nessas versões.
+const sentSchema = z.object({ channel: z.enum(['whatsapp', 'copy']).default('whatsapp') })
 
 /** Fallback determinístico — funciona sem LLM (só-motor). */
 export function fallbackMessage(

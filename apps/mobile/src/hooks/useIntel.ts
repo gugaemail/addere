@@ -459,6 +459,7 @@ export function useWeekPlanPatch() {
 
 export function useMessageSent() {
   return {
-    markSent: (messageId: string) => enqueueAndSync('messageSent', { messageId }),
+    markSent: (messageId: string, channel: 'whatsapp' | 'copy') =>
+      enqueueAndSync('messageSent', { messageId, channel }),
   }
 }

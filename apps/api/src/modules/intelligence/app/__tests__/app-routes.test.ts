@@ -887,6 +887,38 @@ describe('mensagens e feedback', () => {
   })
 })
 
+describe('POST /intel/app/messages/:id/sent — marca envio', () => {
+  const MSG_ID = 'ed3e7801-f230-43de-b383-4ba7cfb497ea'
+  const markSent = (payload: Record<string, unknown>) =>
+    app.inject({ method: 'POST', url: `/intel/app/messages/${MSG_ID}/sent`, headers: auth(), payload })
+
+  it('corpo vazio (app até 09/10/2026) → 200 e canal whatsapp — antes era 400 e a fila descartava', async () => {
+    prismaMock.customerMessage.findFirst.mockResolvedValue({ id: MSG_ID })
+    const res = await markSent({})
+    expect(res.statusCode).toBe(200)
+    expect(prismaMock.customerMessage.update).toHaveBeenCalledWith({
+      where: { id: MSG_ID },
+      data: { sentAt: expect.any(Date), channel: 'whatsapp' },
+    })
+  })
+
+  it('canal copy é gravado', async () => {
+    prismaMock.customerMessage.findFirst.mockResolvedValue({ id: MSG_ID })
+    await markSent({ channel: 'copy' })
+    expect(prismaMock.customerMessage.update).toHaveBeenCalledWith({
+      where: { id: MSG_ID },
+      data: { sentAt: expect.any(Date), channel: 'copy' },
+    })
+  })
+
+  it('canal desconhecido continua 400; mensagem de outro vendedor → 404', async () => {
+    expect((await markSent({ channel: 'sms' })).statusCode).toBe(400)
+    prismaMock.customerMessage.findFirst.mockResolvedValue(null)
+    expect((await markSent({ channel: 'whatsapp' })).statusCode).toBe(404)
+    expect(prismaMock.customerMessage.update).not.toHaveBeenCalled()
+  })
+})
+
 describe('briefing', () => {
   it('cliente da carteira sem sinais → 404 amigável; com sinais → DTO com fallback', async () => {
     prismaMock.customer.findFirst.mockResolvedValue({ name: 'Cliente A', municipio: 'Campinas' })

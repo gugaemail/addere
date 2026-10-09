@@ -62,7 +62,12 @@ describe('endpoints por tipo', () => {
     })
   })
 
-  it('messageSent → POST /intel/app/messages/:id/sent', async () => {
+  it('messageSent → POST /intel/app/messages/:id/sent com o canal', async () => {
+    await syncHandlers.messageSent.send({ messageId: 'm1', channel: 'copy' })
+    expect(mockedApi.post).toHaveBeenCalledWith('/intel/app/messages/m1/sent', { channel: 'copy' })
+  })
+
+  it('messageSent sem canal (fila gravada por versão anterior) manda corpo vazio — a API assume whatsapp', async () => {
     await syncHandlers.messageSent.send({ messageId: 'm1' })
     expect(mockedApi.post).toHaveBeenCalledWith('/intel/app/messages/m1/sent', {})
   })
