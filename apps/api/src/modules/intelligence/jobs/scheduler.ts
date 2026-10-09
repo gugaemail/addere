@@ -64,6 +64,29 @@ async function lastRunStartedAt(companyId: string, job: IntelJob): Promise<Date 
   return run?.startedAt ?? null
 }
 
+// ─── Queda de conexão com o banco ───
+// O Neon pisca às vezes (reinício, manutenção) e o tick seguinte, 1 min
+// depois, já funciona. Avisar o Sentry a cada piscada vira alarme falso; só
+// avisa quando a queda dura DB_ALERT_AFTER_TICKS ticks seguidos. Qualquer outro
+// erro (drift de schema, bug) continua avisando na hora.
+const TRANSIENT_DB_CODES = new Set(['P1001', 'P1002', 'P1008', 'P1017'])
+export const DB_ALERT_AFTER_TICKS = 3
+
+/** Banco inalcançável/lento — Prisma marca com `code` (request) ou `errorCode` (inicialização) */
+export function isTransientDbError(err: unknown): boolean {
+  const e = err as { code?: unknown; errorCode?: unknown } | null
+  const code =
+    typeof e?.code === 'string' ? e.code : typeof e?.errorCode === 'string' ? e.errorCode : null
+  return code !== null && TRANSIENT_DB_CODES.has(code)
+}
+
+let dbFailureStreak = 0
+
+// Visível para testes
+export function resetDbFailureStreak(): void {
+  dbFailureStreak = 0
+}
+
 function listEnabledCompanies() {
   return prisma.company.findMany({
     where: { active: true, intelligenceEnabled: true },
@@ -78,13 +101,18 @@ function listEnabledCompanies() {
  * apenas desligar a Inteligência.
  */
 export async function tickIntelScheduler(now: Date = new Date()): Promise<void> {
-  let companies: Awaited<ReturnType<typeof listEnabledCompanies>>
+  let dbDown: unknown = null
+  const report = (err: unknown, context: Record<string, unknown>) => {
+    if (isTransientDbError(err)) dbDown = err
+    else captureError(err, context)
+  }
+
+  let companies: Awaited<ReturnType<typeof listEnabledCompanies>> = []
   try {
     companies = await listEnabledCompanies()
   } catch (err) {
-    captureError(err, { module: 'intel-scheduler' })
+    report(err, { module: 'intel-scheduler' })
     console.error('[intel-scheduler] falha ao listar empresas:', (err as Error).message)
-    return
   }
 
   for (const company of companies) {
@@ -106,9 +134,19 @@ export async function tickIntelScheduler(now: Date = new Date()): Promise<void> 
         await startJobRun(company.id, job)
       }
     } catch (err) {
-      captureError(err, { module: 'intel-scheduler', companyId: company.id })
+      report(err, { module: 'intel-scheduler', companyId: company.id })
       console.error(`[intel-scheduler] empresa ${company.id}:`, (err as Error).message)
     }
+  }
+
+  // Uma queda conta uma vez por tick, por mais empresas que tenham falhado
+  if (dbDown === null) {
+    dbFailureStreak = 0
+    return
+  }
+  dbFailureStreak++
+  if (dbFailureStreak === DB_ALERT_AFTER_TICKS) {
+    captureError(dbDown, { module: 'intel-scheduler', dbFailureStreak })
   }
 }
 
