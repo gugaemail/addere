@@ -1,9 +1,19 @@
-import { describe, it, expect, vi, afterEach } from 'vitest'
+import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest'
 
 vi.mock('@addere/db', async () => (await import('../../../../test-utils/prisma-mock')).mockDb())
+const captureErrorMock = vi.fn()
+vi.mock('../../../../lib/sentry', () => ({
+  captureError: (...args: unknown[]) => captureErrorMock(...args),
+}))
 
 import { prismaMock, resetPrismaMock } from '../../../../test-utils/prisma-mock'
-import { computeDueJobs, tickIntelScheduler } from '../scheduler'
+import {
+  computeDueJobs,
+  DB_ALERT_AFTER_TICKS,
+  isTransientDbError,
+  resetDbFailureStreak,
+  tickIntelScheduler,
+} from '../scheduler'
 
 // Horários em UTC; São Paulo = UTC-3 (sem horário de verão desde 2019)
 const at = (iso: string) => new Date(iso)
@@ -87,5 +97,73 @@ describe('tickIntelScheduler — resiliência', () => {
   it('sem empresas com a Inteligência ligada, não faz nada', async () => {
     await expect(tickIntelScheduler()).resolves.toBeUndefined()
     expect(prismaMock.intelJobRun.findFirst).not.toHaveBeenCalled()
+  })
+})
+
+describe('tickIntelScheduler — queda de conexão com o banco (ADDERE-API-8)', () => {
+  const unreachable = () =>
+    Object.assign(new Error("Can't reach database server at `ep-x-pooler.neon.tech:5432`"), { code: 'P1001' })
+  let log: ReturnType<typeof vi.spyOn>
+
+  beforeEach(() => {
+    resetDbFailureStreak()
+    captureErrorMock.mockReset()
+    log = vi.spyOn(console, 'error').mockImplementation(() => {})
+  })
+  afterEach(() => {
+    resetPrismaMock()
+    log.mockRestore()
+  })
+
+  it('reconhece os códigos de conexão do Prisma, e só eles', () => {
+    expect(isTransientDbError(unreachable())).toBe(true)
+    expect(isTransientDbError({ errorCode: 'P1001' })).toBe(true) // erro de inicialização
+    expect(isTransientDbError({ code: 'P2022' })).toBe(false) // coluna faltando
+    expect(isTransientDbError(new Error('boom'))).toBe(false)
+  })
+
+  it('piscada isolada não avisa o Sentry; queda que dura o limite de ticks avisa uma vez', async () => {
+    prismaMock.company.findMany.mockRejectedValue(unreachable())
+    for (let i = 1; i < DB_ALERT_AFTER_TICKS; i++) await tickIntelScheduler()
+    expect(captureErrorMock).not.toHaveBeenCalled()
+
+    await tickIntelScheduler()
+    expect(captureErrorMock).toHaveBeenCalledTimes(1)
+    expect(captureErrorMock.mock.calls[0][1]).toMatchObject({ dbFailureStreak: DB_ALERT_AFTER_TICKS })
+
+    await tickIntelScheduler() // queda continua: não repete o alarme a cada minuto
+    expect(captureErrorMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('tick bom no meio zera a sequência', async () => {
+    prismaMock.company.findMany.mockRejectedValueOnce(unreachable())
+    prismaMock.company.findMany.mockRejectedValueOnce(unreachable())
+    await tickIntelScheduler()
+    await tickIntelScheduler()
+    await tickIntelScheduler() // findMany volta a responder (padrão do mock: [])
+    prismaMock.company.findMany.mockRejectedValue(unreachable())
+    await tickIntelScheduler()
+    await tickIntelScheduler()
+    expect(captureErrorMock).not.toHaveBeenCalled()
+  })
+
+  it('falha na consulta por empresa (o caso do ADDERE-API-8) conta uma vez por tick', async () => {
+    prismaMock.company.findMany.mockResolvedValue([
+      { id: 'c1', intelligenceConfig: null },
+      { id: 'c2', intelligenceConfig: null },
+    ])
+    prismaMock.intelJobRun.findFirst.mockRejectedValue(unreachable())
+    for (let i = 1; i < DB_ALERT_AFTER_TICKS; i++) await tickIntelScheduler()
+    expect(captureErrorMock).not.toHaveBeenCalled()
+    await tickIntelScheduler()
+    expect(captureErrorMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('erro que não é de conexão continua avisando na hora', async () => {
+    prismaMock.company.findMany.mockRejectedValueOnce(
+      Object.assign(new Error('The column `companies.intelligenceConfig` does not exist'), { code: 'P2022' })
+    )
+    await tickIntelScheduler()
+    expect(captureErrorMock).toHaveBeenCalledTimes(1)
   })
 })
