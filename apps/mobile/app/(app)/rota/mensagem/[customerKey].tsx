@@ -79,7 +79,7 @@ export default function MensagemScreen() {
     }
     const opened = await openWhatsApp(phone, text.trim())
     if (opened) {
-      if (messageId) messageSent.markSent(messageId)
+      if (messageId) messageSent.markSent(messageId, 'whatsapp')
       pilotTracker.track({
         type: 'MESSAGE_SENT',
         metadata: { template, source: source ?? 'local' },
@@ -90,8 +90,11 @@ export default function MensagemScreen() {
   const copy = useCallback(async () => {
     if (!text.trim()) return
     await Clipboard.setStringAsync(text.trim())
+    // Copiar também é envio (o vendedor cola em outro canal) — a API sempre
+    // aceitou 'copy', o app é que nunca marcava
+    if (messageId) messageSent.markSent(messageId, 'copy')
     Alert.alert('Copiado', 'Mensagem copiada para a área de transferência.')
-  }, [text])
+  }, [text, messageId, messageSent])
 
   return (
     <ScrollView testID="screen-mensagem" style={s.container} contentContainerStyle={s.content}>

@@ -84,6 +84,8 @@ export function isValidPlanPatchPayload(payload: unknown): payload is PlanPatchP
 
 export interface MessageSentPayload {
   messageId: string
+  // Fila gravada por versões anteriores não tem canal — a API assume whatsapp
+  channel?: 'whatsapp' | 'copy'
 }
 
 export function isValidMessageSentPayload(payload: unknown): payload is MessageSentPayload {
@@ -139,8 +141,8 @@ export const syncHandlers: Record<SyncItemType, SyncHandler> = {
   messageSent: {
     validate: isValidMessageSentPayload,
     send: async (payload) => {
-      const { messageId } = payload as MessageSentPayload
-      await api.post(`/intel/app/messages/${messageId}/sent`, {})
+      const { messageId, channel } = payload as MessageSentPayload
+      await api.post(`/intel/app/messages/${messageId}/sent`, channel ? { channel } : {})
     },
     invalidates: [],
     reportPayload: false,
