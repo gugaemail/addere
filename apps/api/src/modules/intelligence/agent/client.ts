@@ -1,8 +1,11 @@
 // Cliente Anthropic do agente (E6, D13): claude-sonnet-5, structured output
 // via output_config.format, thinking adaptativo, timeout 60s, 1 retry do SDK.
 // Erros viram resultado tipado — quem chama decide o fallback só-motor.
+// Truncamento, recusa e JSON fora do schema têm motivo próprio (plano 012):
+// antes tudo virava "JSON inválido" e não dava para saber o que medir.
 import Anthropic from '@anthropic-ai/sdk'
 import { env } from '../../../lib/env'
+import { schemaViolations } from './schema-check'
 
 const TIMEOUT_MS = 60_000
 const MAX_TOKENS = 2_000
@@ -67,6 +70,15 @@ export async function complete<T>(input: CompleteInput): Promise<CompleteResult<
       messages: [{ role: 'user', content: input.user }],
     })
 
+    // Com thinking adaptativo, o raciocínio consome o mesmo max_tokens: medir
+    // a taxa de 'resposta truncada' no registro antes de mexer no limite
+    if (response.stop_reason === 'max_tokens') {
+      return { ok: false, error: 'resposta truncada', retryable: true }
+    }
+    if (response.stop_reason === 'refusal') {
+      return { ok: false, error: 'recusa do modelo', retryable: false }
+    }
+
     const text = response.content.find((block) => block.type === 'text')
     if (!text || text.type !== 'text') {
       return { ok: false, error: 'Resposta sem bloco de texto', retryable: true }
@@ -77,6 +89,10 @@ export async function complete<T>(input: CompleteInput): Promise<CompleteResult<
       data = JSON.parse(text.text) as T
     } catch {
       return { ok: false, error: 'Resposta não é JSON válido', retryable: true }
+    }
+    const problems = schemaViolations(data, input.schema)
+    if (problems.length > 0) {
+      return { ok: false, error: `formato fora do schema: ${problems[0]}`, retryable: true }
     }
 
     return {

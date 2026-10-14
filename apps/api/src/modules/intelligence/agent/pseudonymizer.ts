@@ -30,6 +30,19 @@ export class Pseudonymizer {
     })
   }
 
+  /**
+   * Reidrata só se TODO pseudônimo do texto for conhecido e tiver nome; senão
+   * devolve null e quem chama cai no texto do motor. O rehydrate deixa "C7"
+   * ou "c1" crus na tela quando não acha o nome.
+   */
+  rehydrateStrict(text: string, nameByKey: Map<string, string>): string | null {
+    for (const match of text.match(/\bc\d+\b/gi) ?? []) {
+      const realKey = match.startsWith('C') ? this.real(match) : null
+      if (!realKey || !nameByKey.has(realKey)) return null
+    }
+    return this.rehydrate(text, nameByKey)
+  }
+
   get size(): number {
     return this.counter
   }

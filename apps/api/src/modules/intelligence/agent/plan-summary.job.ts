@@ -12,7 +12,7 @@ import { buildTodayPrompt, TODAY_SCHEMA, type TodayOutput } from './prompts/toda
 import { buildWeekPrompt, WEEK_SCHEMA, type WeekFacts, type WeekOutput } from './prompts/week'
 import { Pseudonymizer } from './pseudonymizer'
 import type { TodayFacts } from './facts'
-import { freshnessLine, type SelfCheckFacts } from './self-check'
+import { freshnessLine, HOME_LINE_MAX_CHARS, type SelfCheckFacts } from './self-check'
 
 export function registerPlanJob(): void {
   registerJobHandler('PLAN', planSummaryHandler)
@@ -59,7 +59,6 @@ export async function planSummaryHandler(companyId: string): Promise<unknown> {
   const reasons: Record<string, number> = {} // vai para intel_job_runs.metadata.steps
   for (const plan of plans) {
     const pseudonymizer = new Pseudonymizer()
-    const customerKeys = plan.items.map((i) => `${i.customerCode}|${i.loja}`)
     const names = await prisma.customer.findMany({
       where: { companyId, protheusCode: { in: plan.items.map((i) => i.customerCode) } },
       select: { protheusCode: true, loja: true, name: true },
@@ -90,12 +89,15 @@ export async function planSummaryHandler(companyId: string): Promise<unknown> {
     }
 
     const selfCheckFacts: SelfCheckFacts = {
-      customers: facts.plan.map((p) => ({ pseudonym: p.pseudonym, status: p.status })),
+      // Valor previsto é de cada cliente; posição, total de paradas e gap são globais
+      customers: facts.plan.map((p) => ({
+        pseudonym: p.pseudonym,
+        status: p.status,
+        numbers: p.expectedAmount === null ? [] : [Number(p.expectedAmount)],
+      })),
       numbers: [
-        ...facts.plan.flatMap((p) => [
-          p.position,
-          ...(p.expectedAmount === null ? [] : [Number(p.expectedAmount)]),
-        ]),
+        facts.plan.length,
+        ...facts.plan.map((p) => p.position),
         ...(facts.goal?.gap ? [Number(facts.goal.gap)] : []),
       ],
       // O prompt exige a linha; sem informá-la aqui, "03:12" virava número
@@ -115,18 +117,19 @@ export async function planSummaryHandler(companyId: string): Promise<unknown> {
       factsPayload: facts,
       selfCheckFacts,
       extractText: (data) => `${data.homeLine}\n${data.planText}`,
+      validate: (data) =>
+        data.homeLine.trim().length > HOME_LINE_MAX_CHARS
+          ? [`homeLine com mais de ${HOME_LINE_MAX_CHARS} caracteres`]
+          : [],
     })
 
-    if (result.data) {
-      await prisma.visitPlan.update({
-        where: { id: plan.id },
-        data: { llmSummary: pseudonymizer.rehydrate(result.data.homeLine, nameByKey) },
-      })
+    const summary = result.data ? pseudonymizer.rehydrateStrict(result.data.homeLine, nameByKey) : null
+    if (summary) {
+      await prisma.visitPlan.update({ where: { id: plan.id }, data: { llmSummary: summary } })
       generated++
-      void customerKeys
     } else {
       fallback++
-      countReason(reasons, result.reason)
+      countReason(reasons, result.data ? 'pseudônimo sem nome' : result.reason)
     }
   }
 
@@ -228,15 +231,13 @@ async function summarizeWeekPlans(
       selfCheckFacts,
       extractText: (data) => data.weekText,
     })
-    if (result.data) {
-      await prisma.visitPlan.update({
-        where: { id: plan.id },
-        data: { llmSummary: pseudonymizer.rehydrate(result.data.weekText, nameByKey) },
-      })
+    const summary = result.data ? pseudonymizer.rehydrateStrict(result.data.weekText, nameByKey) : null
+    if (summary) {
+      await prisma.visitPlan.update({ where: { id: plan.id }, data: { llmSummary: summary } })
       generated++
     } else {
       fallback++
-      countReason(reasons, result.reason)
+      countReason(reasons, result.data ? 'pseudônimo sem nome' : result.reason)
     }
   }
   return { plans: plans.length, generated, fallback, reasons }

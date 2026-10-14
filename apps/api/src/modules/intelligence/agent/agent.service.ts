@@ -31,6 +31,8 @@ export interface GenerateInput<T> {
   extractText: (data: T) => string
   /** false = não lê nem grava o cache de texto (eval: toda rodada chama o modelo) */
   cache?: boolean
+  /** Regras do tipo de texto além do self-check (tamanho da homeLine, mensagem ao cliente) */
+  validate?: (data: T) => string[]
 }
 
 export interface GenerateOutput<T> {
@@ -214,9 +216,10 @@ export async function generateWithGuardrails<T>(
     latencyMs += result.ms
 
     const check = selfCheck(input.extractText(result.data), input.selfCheckFacts)
-    if (!check.ok) {
+    const violations = [...check.violations, ...(input.validate?.(result.data) ?? [])]
+    if (violations.length > 0) {
       if (attempt === 1) {
-        return finish({ data: null, source: 'engine', reason: `self_check: ${check.violations[0]}` })
+        return finish({ data: null, source: 'engine', reason: `self_check: ${violations[0]}` })
       }
       continue
     }

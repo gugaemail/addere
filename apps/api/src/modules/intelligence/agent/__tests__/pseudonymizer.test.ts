@@ -31,3 +31,28 @@ describe('Pseudonymizer', () => {
     )
   })
 })
+
+describe('Pseudonymizer.rehydrateStrict (plano 012)', () => {
+  it('reidrata quando todo pseudônimo é conhecido e tem nome', () => {
+    const p = new Pseudonymizer()
+    p.code('A|01')
+    expect(p.rehydrateStrict('Comece por C1.', new Map([['A|01', 'Padaria Central']]))).toBe(
+      'Comece por Padaria Central.'
+    )
+  })
+
+  it.each([
+    ['pseudônimo desconhecido', 'Comece por C7.'],
+    ['caixa baixa', 'Comece por c1.'],
+  ])('null com %s', (_label, text) => {
+    const p = new Pseudonymizer()
+    p.code('A|01')
+    expect(p.rehydrateStrict(text, new Map([['A|01', 'Padaria Central']]))).toBeNull()
+  })
+
+  it('null quando o cliente existe mas o nome não veio do banco', () => {
+    const p = new Pseudonymizer()
+    p.code('A|01')
+    expect(p.rehydrateStrict('Comece por C1.', new Map())).toBeNull()
+  })
+})

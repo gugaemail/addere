@@ -209,17 +209,27 @@ async function lossesText(
     })),
     freshness: { lastSyncAt: null },
   }
+  // Globais: totais, componentes e produtos. Os de cada cliente (valores e os
+  // números das frases de motivo, "Comprou 50% a menos…") vão com ele (plano 012)
   const numbers = [
     Number(dto.totals.baselineAmount),
     Number(dto.totals.currentAmount),
     Math.abs(Number(dto.totals.diffAmount)),
     dto.totals.diffPct === null ? null : Math.abs(dto.totals.diffPct),
     ...dto.components.flatMap((c) => [c.count, Math.abs(Number(c.amount))]),
-    ...losers.flatMap((c) => [Number(c.baselineAmount), Number(c.currentAmount), Math.abs(Number(c.diffAmount))]),
     ...dto.products.slice(0, 5).map((p) => (p.diffPct === null ? null : Math.abs(p.diffPct))),
-    // Percentuais e valores dentro das frases de motivo ("Comprou 50% a menos…")
-    ...losers.flatMap((c) => (c.reason.match(/\d+/g) ?? []).map(Number)),
   ].filter((n): n is number => n !== null && Number.isFinite(n))
+  const numbersByPseudonym = new Map(
+    losers.map((c, i) => [
+      factCustomers[i].pseudonym,
+      [
+        Number(c.baselineAmount),
+        Number(c.currentAmount),
+        Math.abs(Number(c.diffAmount)),
+        ...(c.reason.match(/\d+/g) ?? []).map(Number),
+      ].filter((n) => Number.isFinite(n)),
+    ])
+  )
 
   const result = await generateWithGuardrails<LossesOutput>({
     companyId,
@@ -231,11 +241,16 @@ async function lossesText(
     schema: LOSSES_SCHEMA as unknown as Record<string, unknown>,
     factsPayload: facts,
     selfCheckFacts: {
-      customers: factCustomers.map((c) => ({ pseudonym: c.pseudonym, status: c.status })),
+      customers: factCustomers.map((c) => ({
+        pseudonym: c.pseudonym,
+        status: c.status,
+        numbers: numbersByPseudonym.get(c.pseudonym) ?? [],
+      })),
       numbers,
       freshnessLine: null,
+      products: facts.products.map((p) => ({ productCode: p.productCode, productDesc: p.productDesc })),
     },
     extractText: (data) => data.text,
   })
-  return result.data ? pseudonymizer.rehydrate(result.data.text, nameByKey) : null
+  return result.data ? pseudonymizer.rehydrateStrict(result.data.text, nameByKey) : null
 }

@@ -245,6 +245,20 @@ describe('generateWithGuardrails', () => {
     expect(where).toMatchObject({ companyId: 'company-1', vendorCode: { not: 'eval' } })
   })
 
+  it('validate do tipo reprova como o self-check (regenera e cai para só-motor)', async () => {
+    completeMock.mockResolvedValue(okCompletion('C1 compra a cada 28 dias.'))
+    const result = await generateWithGuardrails({
+      ...baseInput(),
+      validate: (d) => (d.text.endsWith('?') ? [] : ['mensagem sem pergunta no fim']),
+    })
+    expect(completeMock).toHaveBeenCalledTimes(2)
+    expect(result).toMatchObject({
+      source: 'engine',
+      reason: 'self_check: mensagem sem pergunta no fim',
+      attempts: 2,
+    })
+  })
+
   it('erro da API → fallback com o motivo', async () => {
     completeMock.mockResolvedValue({ ok: false, error: 'Rate limit da API Anthropic', retryable: true })
     const result = await generateWithGuardrails(baseInput())

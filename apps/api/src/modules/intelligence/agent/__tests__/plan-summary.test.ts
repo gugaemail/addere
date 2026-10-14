@@ -60,6 +60,9 @@ describe('planSummaryHandler — alarme de só-motor (plano 012)', () => {
   })
 
   it('pelo menos uma frase gerada → sem alarme', async () => {
+    prismaMock.customer.findMany.mockResolvedValue([
+      { protheusCode: 'A', loja: '01', name: 'Padaria Central' },
+    ])
     prismaMock.visitPlan.findMany.mockImplementation(async (args: { where: { kind: string } }) =>
       args.where.kind === 'DAY' ? [plan('p1'), plan('p2')] : []
     )
@@ -73,6 +76,27 @@ describe('planSummaryHandler — alarme de só-motor (plano 012)', () => {
 
     await planSummaryHandler('company-1')
     expect(captureMock).not.toHaveBeenCalled()
+    expect(prismaMock.visitPlan.update.mock.calls[0][0].data.llmSummary).toBe(
+      'Comece por Padaria Central'
+    )
+  })
+
+  it('frase com pseudônimo sem nome no banco não vai para a home', async () => {
+    prismaMock.visitPlan.findMany.mockImplementation(async (args: { where: { kind: string } }) =>
+      args.where.kind === 'DAY' ? [plan('p1')] : []
+    )
+    generateMock.mockResolvedValue({
+      data: { homeLine: 'Comece por C1', planText: 'x' },
+      source: 'llm',
+      attempts: 1,
+    })
+    const result = (await planSummaryHandler('company-1')) as {
+      generated: number
+      reasons: Record<string, number>
+    }
+    expect(result.generated).toBe(0)
+    expect(result.reasons).toEqual({ 'pseudônimo sem nome': 1 })
+    expect(prismaMock.visitPlan.update).not.toHaveBeenCalled()
   })
 
   it('dia sem plano → sem alarme', async () => {

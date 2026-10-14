@@ -10,7 +10,13 @@ import { requireCompany } from '../../../middleware/require-company'
 import { requireVendorCode } from '../../../middleware/require-vendor-code'
 import { userRateLimit } from '../../../lib/rate-limit'
 import { generateWithGuardrails } from '../agent/agent.service'
-import { buildCustomerFacts, type MessageFacts } from '../agent/facts'
+import {
+  buildCustomerFacts,
+  customerNumbers,
+  customerProducts,
+  type MessageFacts,
+} from '../agent/facts'
+import { customerFacingViolations } from '../agent/self-check'
 import { Pseudonymizer } from '../agent/pseudonymizer'
 import { loadSnapshot } from '../agent/snapshot'
 import { buildTenantContext, systemBlocks } from '../agent/tenant-context'
@@ -125,20 +131,25 @@ export default async function messagesRoutes(app: FastifyInstance) {
           schema: MESSAGE_SCHEMA as unknown as Record<string, unknown>,
           factsPayload: facts,
           selfCheckFacts: {
-            customers: facts.customers.map((c) => ({ pseudonym: c.pseudonym, status: c.status })),
-            numbers: [
-              snapshot.cycleDays,
-              snapshot.daysSinceLastPurchase,
-              snapshot.orders12m,
-              snapshot.avgTicket === null ? null : Number(snapshot.avgTicket),
-            ].filter((n): n is number => n !== null && Number.isFinite(n)),
+            customers: facts.customers.map((c) => ({
+              pseudonym: c.pseudonym,
+              status: c.status,
+              numbers: customerNumbers(c),
+            })),
+            numbers: [],
             freshnessLine: null,
+            products: facts.customers.flatMap(customerProducts),
           },
+          // Vai para o cliente: tamanho, pergunta no fim, nada de rótulo interno
+          validate: (data) => customerFacingViolations(data.text),
           extractText: (data) => data.text,
         })
         if (result.data) {
           // Reidrata: o único pseudônimo desta requisição é C1 (o próprio cliente)
-          text = result.data.text.replace(/\bC1\b/g, customer.name)
+          text = pseudonymizer.rehydrateStrict(
+            result.data.text,
+            new Map([[`${body.customerCode}|${body.loja}`, customer.name]])
+          )
         }
       }
       if (!text) text = fallbackMessage(body.template, customer.name, snapshot, tone)

@@ -168,3 +168,30 @@ export interface MessageFacts {
   lastOrderDays: number | null
   freshness: { lastSyncAt: string | null }
 }
+
+// ─── Self-check: números e produtos de UM cliente (plano 012) ───
+
+/** Todos os números dos fatos do cliente — o self-check cobra a frase que o cita. */
+export function customerNumbers(c: CustomerFacts): number[] {
+  return [
+    c.cycleDays,
+    c.daysSinceLastPurchase,
+    c.orders12m,
+    c.avgTicket === null ? null : Number(c.avgTicket),
+    c.trendPct === null ? null : Math.abs(c.trendPct),
+    c.openTitles.count,
+    Number(c.openTitles.totalBalance),
+    c.openTitles.maxDaysOverdue,
+    ...(c.crossSell ?? []).map((p) => p.peersPct),
+  ].filter((n): n is number => n !== null && Number.isFinite(n))
+}
+
+/** Produtos que o cliente pode ter citados: mix habitual, cortado e cross-sell. */
+export function customerProducts(
+  c: CustomerFacts
+): { productCode: string; productDesc: string | null }[] {
+  return [...c.usualMix, ...c.cutMix, ...(c.crossSell ?? [])].map((p) => ({
+    productCode: p.productCode,
+    productDesc: p.productDesc,
+  }))
+}

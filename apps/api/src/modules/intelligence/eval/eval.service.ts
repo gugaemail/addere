@@ -5,7 +5,12 @@ import { prisma } from '@addere/db'
 import type { Company } from '@prisma/client'
 import { generateWithGuardrails } from '../agent/agent.service'
 import { llmAvailable } from '../agent/client'
-import { buildCustomerFacts, type CustomerFacts } from '../agent/facts'
+import {
+  buildCustomerFacts,
+  customerNumbers,
+  customerProducts,
+  type CustomerFacts,
+} from '../agent/facts'
 import { Pseudonymizer } from '../agent/pseudonymizer'
 import { loadSnapshot } from '../agent/snapshot'
 import { promptVersion, buildTenantContext, systemBlocks } from '../agent/tenant-context'
@@ -94,18 +99,12 @@ export async function runEval(company: Company): Promise<EvalRunSummary> {
 
     const facts = evalCase.snapshot as unknown as CustomerFacts
     const selfCheckFacts: SelfCheckFacts = {
-      customers: [{ pseudonym: facts.pseudonym, status: facts.status }],
-      numbers: [
-        facts.cycleDays,
-        facts.daysSinceLastPurchase,
-        facts.orders12m,
-        facts.avgTicket === null ? null : Number(facts.avgTicket),
-        facts.trendPct,
-        facts.openTitles.maxDaysOverdue,
-        Number(facts.openTitles.totalBalance),
-        facts.openTitles.count,
-      ].filter((n): n is number => n !== null && Number.isFinite(n)),
+      customers: [
+        { pseudonym: facts.pseudonym, status: facts.status, numbers: customerNumbers(facts) },
+      ],
+      numbers: [],
       freshnessLine: null,
+      products: customerProducts(facts),
     }
 
     const result = await generateWithGuardrails<BriefingOutput>({
