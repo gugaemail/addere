@@ -4,6 +4,7 @@ exports[`montagem de prompts (snapshot) > briefing: formato fixo de 4 campos 1`]
 "Gere a ficha "antes de entrar" do cliente abaixo no formato fixo
 O que aconteceu / Por que importa / O que fazer / Confiança.
 Uma frase por campo. Se houver mix cortado, mencione o produto.
+Confiança: use o campo confidence (HIGH=alta, MEDIUM=média, LOW=baixa) — não estime por conta própria.
 Se o status for BLOCKED, o "o que fazer" é resolver a pendência — nunca vender.
 
 FATOS:

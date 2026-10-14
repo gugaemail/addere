@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import {
+  agentEngineAlarm,
+  agentKindLabel,
+  agentStatsLine,
   backfillProgress,
   brl,
   formatDiffPct,
@@ -138,5 +141,24 @@ describe('todayInSaoPaulo', () => {
     // 26/08 00:30 UTC ainda é 25/08 em São Paulo (UTC−3)
     expect(todayInSaoPaulo(new Date('2026-08-26T00:30:00Z'))).toBe('2026-08-25')
     expect(todayInSaoPaulo(new Date('2026-08-25T12:00:00Z'))).toBe('2026-08-25')
+  })
+})
+
+describe('saúde do agente (plano 012)', () => {
+  it('rótulo em PT para os tipos conhecidos, o próprio kind para os outros', () => {
+    expect(agentKindLabel('message')).toBe('Mensagem ao cliente')
+    expect(agentKindLabel('novo')).toBe('novo')
+  })
+
+  it('alarme só com volume e maioria em só-motor', () => {
+    expect(agentEngineAlarm({ calls: 9, engine: 9 })).toBe(false)
+    expect(agentEngineAlarm({ calls: 10, engine: 5 })).toBe(false)
+    expect(agentEngineAlarm({ calls: 10, engine: 6 })).toBe(true)
+  })
+
+  it('linha de contagem', () => {
+    expect(agentStatsLine({ llm: 12, cache: 3, engine: 2 })).toBe(
+      '12 gerada(s) · 3 do cache · 2 só-motor'
+    )
   })
 })

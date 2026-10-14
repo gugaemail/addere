@@ -305,6 +305,47 @@ Desvio aceito e registrado: o selo de frescor do esboço foi omitido porque
 `PilotMetricsResponse` não tem campo de `lastSyncAt` — se um dia a tela precisar
 dele, é mudança de API, não de front.
 
+### Fase 5 — blindagem do agente (planejada em 14/10/2026)
+
+| Plano | Título | Prioridade | Esforço | Toca o app? | Depende de | Status |
+|-------|--------|------------|---------|-------------|------------|--------|
+| 012 | Blindar o agente contra os erros que ele já pode cometer hoje | P1 | L | **sim**, só JS (OTA) — tela de mensagem | — | **DONE** |
+
+Levantamento de 17 modos de falha do agente (texto errado chegando ao usuário,
+queda silenciosa para só-motor, eval que aprova sem testar). Quatro ondas, um
+PR cada; **a onda 1 primeiro** — o cache devolve texto escrito para outros
+fatos e reidrata pseudônimos com o mapa da requisição atual, o que pode pôr o
+número de um cliente no nome de outro e mostrar a um gerente a análise de
+perdas de outra equipe. A onda 2 tem migration (`intel_llm_calls`).
+
+**012 — DONE em 14/10/2026**, branch `feat/012-blindar-agente` (a partir da
+`staging`), um commit por onda + a migration em commit separado. **Ainda não
+mergeado.** Desvios do plano, todos registrados aqui:
+
+- **PARADA do passo 2 disparou, e era pior que o previsto:** em qualquer erro
+  da API, a tela de mensagem montava o molde local — que é de venda. Um 422
+  sozinho não protegia nada. Com a recusa (422 `CUSTOMER_BLOCKED`) aprovada, o
+  app foi ajustado junto: aviso "Cliente bloqueado" no lugar dos moldes, tanto
+  pelo 422 quanto offline (`canMessageFor`: MSBLQL ou status BLOCKED do plano).
+  Só JavaScript — sai por OTA, sem build.
+- **Corpus do self-check com textos escritos à mão**, não tirados do
+  `intel_llm_cache` de staging (o banco não é acessível daqui). Ao aparecer um
+  texto real que escapou ou caiu sem motivo, ele entra no corpus.
+- **As expectativas do eval rodam como `validate`** do `generateWithGuardrails`:
+  expectativa não cumprida regenera, como o self-check — por isso conta contra
+  a taxa de aprovação de primeira.
+- Achados durante a execução e corrigidos junto: o `\b` do JavaScript não
+  fecha palavra depois de letra acentuada ("promoções" escapava da regra do
+  bloqueado); número por extenso pegaria nome de cidade ("Sete Lagoas"); a
+  descrição de produto com gramatura ("Café 500g") derrubava texto bom por
+  número fora dos fatos.
+
+Verificação: type-check e lint exit 0; testes da API, do web e do mobile
+verdes; migration validada em banco limpo (deploy + diff vazio). **Antes do
+deploy da API**, rodar `intel:freeze-eval` de novo (os casos antigos não têm
+mensagem nem títulos reais) e o `intel:eval` com chave: a versão do prompt
+mudou (skill, briefing e o hash passou a cobrir modelo e prompts).
+
 ### O que funciona antes do build
 
 As partes de painel da fase 2 entram em produção junto com a API, sem esperar o

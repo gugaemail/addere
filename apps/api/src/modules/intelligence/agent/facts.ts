@@ -9,7 +9,7 @@ export const ALLOWED_FACT_KEYS = new Set([
   // envelope
   'customers', 'goal', 'plan', 'freshness', 'situation', 'tone', 'grouping', 'date',
   // cliente (pseudonimizado)
-  'pseudonym', 'status', 'cycleDays', 'daysSinceLastPurchase', 'orders12m',
+  'pseudonym', 'status', 'confidence', 'cycleDays', 'daysSinceLastPurchase', 'orders12m',
   'avgTicket', 'trendPct', 'usualMix', 'cutMix', 'openTitles', 'reasons', 'city',
   // mix / títulos
   'productCode', 'productDesc', 'count', 'totalBalance', 'maxDaysOverdue',
@@ -91,6 +91,8 @@ export interface CustomerFactsInput {
 export interface CustomerFacts {
   pseudonym: string
   status: string
+  /** HIGH/MEDIUM/LOW do sinal — sem ele a linha "Confiança" do briefing era chute */
+  confidence: string
   cycleDays: number | null
   daysSinceLastPurchase: number | null
   orders12m: number
@@ -113,6 +115,7 @@ export function buildCustomerFacts(
   return {
     pseudonym: pseudonymizer.code(`${input.customerCode}|${input.loja}`),
     status: snapshot.status,
+    confidence: snapshot.confidence,
     cycleDays: snapshot.cycleDays,
     daysSinceLastPurchase: snapshot.daysSinceLastPurchase,
     orders12m: snapshot.orders12m,
@@ -164,4 +167,31 @@ export interface MessageFacts {
   customers: CustomerFacts[]
   lastOrderDays: number | null
   freshness: { lastSyncAt: string | null }
+}
+
+// ─── Self-check: números e produtos de UM cliente (plano 012) ───
+
+/** Todos os números dos fatos do cliente — o self-check cobra a frase que o cita. */
+export function customerNumbers(c: CustomerFacts): number[] {
+  return [
+    c.cycleDays,
+    c.daysSinceLastPurchase,
+    c.orders12m,
+    c.avgTicket === null ? null : Number(c.avgTicket),
+    c.trendPct === null ? null : Math.abs(c.trendPct),
+    c.openTitles.count,
+    Number(c.openTitles.totalBalance),
+    c.openTitles.maxDaysOverdue,
+    ...(c.crossSell ?? []).map((p) => p.peersPct),
+  ].filter((n): n is number => n !== null && Number.isFinite(n))
+}
+
+/** Produtos que o cliente pode ter citados: mix habitual, cortado e cross-sell. */
+export function customerProducts(
+  c: CustomerFacts
+): { productCode: string; productDesc: string | null }[] {
+  return [...c.usualMix, ...c.cutMix, ...(c.crossSell ?? [])].map((p) => ({
+    productCode: p.productCode,
+    productDesc: p.productDesc,
+  }))
 }

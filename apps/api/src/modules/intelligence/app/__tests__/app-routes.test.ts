@@ -853,6 +853,50 @@ describe('mensagens e feedback', () => {
     expect(body.text).toContain('28 dias')
   })
 
+  it('mensagem lê os títulos em aberto do cliente (não zera mais)', async () => {
+    prismaMock.customer.findFirst.mockResolvedValue({ name: 'Padaria Central', municipio: 'Campinas' })
+    prismaMock.customerSignal.findUnique.mockResolvedValue({
+      status: 'LATE', confidence: 'HIGH', cycleDays: 28, daysSinceLastPurchase: 41,
+      orders12m: 10, avgTicket: 1500, trendPct: null, usualMix: [], cutMix: [], reasons: [],
+    })
+    prismaMock.customerMessage.create.mockImplementation(
+      async (args: { data: Record<string, unknown> }) => ({ id: 'msg-1', generatedAt: new Date(), ...args.data })
+    )
+    await app.inject({
+      method: 'POST',
+      url: '/intel/app/messages',
+      headers: auth(),
+      payload: { customerCode: 'A', loja: '01', template: 'WENT_QUIET' },
+    })
+    expect(prismaMock.openTitle.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { companyId: COMPANY_A, customerCode: 'A', loja: '01' } })
+    )
+  })
+
+  it.each([
+    ['status BLOCKED no sinal', { msblql: null }, 'BLOCKED'],
+    ['bloqueado no cadastro (MSBLQL=1), sinal ainda em dia', { msblql: '1' }, 'ON_CYCLE'],
+  ])('cliente bloqueado → 422 e nenhuma mensagem (%s)', async (_label, customerOver, status) => {
+    prismaMock.customer.findFirst.mockResolvedValue({
+      name: 'Padaria Central',
+      municipio: 'Campinas',
+      ...customerOver,
+    })
+    prismaMock.customerSignal.findUnique.mockResolvedValue({
+      status, confidence: 'HIGH', cycleDays: 28, daysSinceLastPurchase: 41,
+      orders12m: 10, avgTicket: 1500, trendPct: null, usualMix: [], cutMix: [], reasons: [],
+    })
+    const res = await app.inject({
+      method: 'POST',
+      url: '/intel/app/messages',
+      headers: auth(),
+      payload: { customerCode: 'A', loja: '01', template: 'STALLED_PROPOSAL' },
+    })
+    expect(res.statusCode).toBe(422)
+    expect(res.json()).toMatchObject({ code: 'CUSTOMER_BLOCKED' })
+    expect(prismaMock.customerMessage.create).not.toHaveBeenCalled()
+  })
+
   it('cliente fora da carteira → 404 (não revela existência)', async () => {
     const res = await app.inject({
       method: 'POST',

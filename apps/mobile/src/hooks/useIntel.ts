@@ -97,7 +97,7 @@ export interface TeamSignalsListResponse {
 // response), o mesmo que axios.isAxiosError faz.
 interface HttpErrorShape {
   isAxiosError?: boolean
-  response?: { status?: number }
+  response?: { status?: number; data?: { code?: string } }
 }
 
 const asHttpError = (err: unknown): HttpErrorShape | null =>
@@ -107,6 +107,12 @@ const asHttpError = (err: unknown): HttpErrorShape | null =>
 function nullOn404<T>(err: unknown): Promise<T | null> {
   if (asHttpError(err)?.response?.status === 404) return Promise.resolve(null)
   return Promise.reject(err)
+}
+
+/** 422 da mensagem para cliente bloqueado (plano 012) — não é falha, é regra */
+export function isCustomerBlockedError(err: unknown): boolean {
+  const response = asHttpError(err)?.response
+  return response?.status === 422 && response.data?.code === 'CUSTOMER_BLOCKED'
 }
 
 /** Falha do axios sem resposta HTTP = rede (offline, DNS, timeout) */

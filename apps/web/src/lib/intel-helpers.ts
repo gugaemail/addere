@@ -116,3 +116,27 @@ export function todayInSaoPaulo(now: Date = new Date()): string {
     day: '2-digit',
   }).format(now)
 }
+
+// ─── Saúde do agente (plano 012): gerações por tipo de texto ───
+export const AGENT_KIND_LABELS: Record<string, string> = {
+  today: 'Hoje (home)',
+  week: 'Semana',
+  briefing: 'Antes de entrar',
+  message: 'Mensagem ao cliente',
+  portfolio: 'Carteira',
+  losses: 'Onde estou perdendo',
+}
+
+export function agentKindLabel(kind: string): string {
+  return AGENT_KIND_LABELS[kind] ?? kind
+}
+
+/** Mesmo critério do alarme do noturno: ≥ 10 gerações e mais da metade em só-motor. */
+export function agentEngineAlarm(stats: { calls: number; engine: number }): boolean {
+  return stats.calls >= 10 && stats.engine / stats.calls > 0.5
+}
+
+/** "12 geradas · 3 do cache · 2 só-motor" */
+export function agentStatsLine(stats: { llm: number; cache: number; engine: number }): string {
+  return `${stats.llm} gerada(s) · ${stats.cache} do cache · ${stats.engine} só-motor`
+}

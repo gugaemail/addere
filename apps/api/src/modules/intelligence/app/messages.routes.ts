@@ -4,14 +4,21 @@ import { FastifyInstance } from 'fastify'
 import { z } from 'zod'
 import { prisma } from '@addere/db'
 import type { SignalsSnapshot, IntelligenceConfig } from '@addere/types'
-import { DEFAULT_INTELLIGENCE_CONFIG } from '@addere/types'
+import { DEFAULT_INTELLIGENCE_CONFIG, isCustomerBlocked } from '@addere/types'
 import { authenticate } from '../../../middleware/authenticate'
 import { requireCompany } from '../../../middleware/require-company'
 import { requireVendorCode } from '../../../middleware/require-vendor-code'
 import { userRateLimit } from '../../../lib/rate-limit'
 import { generateWithGuardrails } from '../agent/agent.service'
-import { buildCustomerFacts, type MessageFacts } from '../agent/facts'
+import {
+  buildCustomerFacts,
+  customerNumbers,
+  customerProducts,
+  type MessageFacts,
+} from '../agent/facts'
+import { customerFacingViolations } from '../agent/self-check'
 import { Pseudonymizer } from '../agent/pseudonymizer'
+import { loadSnapshot } from '../agent/snapshot'
 import { buildTenantContext, systemBlocks } from '../agent/tenant-context'
 import { buildMessagePrompt, MESSAGE_SCHEMA, type MessageOutput } from '../agent/prompts/message'
 
@@ -25,6 +32,8 @@ const createSchema = z.object({
 // marcação de envio voltava 400 e a fila do app a descartava (sentAt nunca
 // gravado). Botão WhatsApp é o único que marcava envio nessas versões.
 const sentSchema = z.object({ channel: z.enum(['whatsapp', 'copy']).default('whatsapp') })
+
+export const BLOCKED_MESSAGE = 'Cliente bloqueado — resolva a pendência antes de ofertar'
 
 /** Fallback determinístico — funciona sem LLM (só-motor). */
 export function fallbackMessage(
@@ -66,7 +75,7 @@ export default async function messagesRoutes(app: FastifyInstance) {
           loja: body.loja,
           active: true,
         },
-        select: { name: true, municipio: true },
+        select: { name: true, municipio: true, msblql: true },
       })
       if (!customer) return reply.status(404).send({ message: 'Cliente não encontrado' })
 
@@ -81,30 +90,16 @@ export default async function messagesRoutes(app: FastifyInstance) {
       })
       const tone = (seller?.messageTone ?? config.defaultTone) as 'informal' | 'formal'
 
-      const signal = await prisma.customerSignal.findUnique({
-        where: {
-          companyId_customerCode_loja: {
-            companyId,
-            customerCode: body.customerCode,
-            loja: body.loja,
-          },
-        },
-      })
-      const snapshot: SignalsSnapshot | null = signal
-        ? {
-            status: signal.status,
-            confidence: signal.confidence,
-            cycleDays: signal.cycleDays,
-            daysSinceLastPurchase: signal.daysSinceLastPurchase,
-            orders12m: signal.orders12m,
-            avgTicket: signal.avgTicket?.toString() ?? null,
-            trendPct: signal.trendPct === null ? null : Number(signal.trendPct),
-            usualMix: (signal.usualMix ?? []) as SignalsSnapshot['usualMix'],
-            cutMix: (signal.cutMix ?? []) as SignalsSnapshot['cutMix'],
-            openTitles: { count: 0, totalBalance: '0.00', maxDaysOverdue: null },
-            reasons: (signal.reasons ?? []) as string[],
-          }
-        : null
+      // Snapshot completo, com os títulos em aberto de verdade (fonte única)
+      const snapshot = await loadSnapshot(companyId, body.customerCode, body.loja)
+
+      // Bloqueado não recebe oferta — nem do modelo, nem do molde do motor.
+      // O self-check só protegia o texto do modelo; o fallback mandava
+      // "Posso montar o pedido" pelo WhatsApp. Mesma regra do pedido (plano 010):
+      // aparece, mas não vende. msblql é o dado vivo; o status vem do noturno.
+      if (isCustomerBlocked(customer.msblql) || snapshot?.status === 'BLOCKED') {
+        return reply.status(422).send({ code: 'CUSTOMER_BLOCKED', message: BLOCKED_MESSAGE })
+      }
 
       let text: string | null = null
       if (snapshot) {
@@ -136,20 +131,25 @@ export default async function messagesRoutes(app: FastifyInstance) {
           schema: MESSAGE_SCHEMA as unknown as Record<string, unknown>,
           factsPayload: facts,
           selfCheckFacts: {
-            customers: facts.customers.map((c) => ({ pseudonym: c.pseudonym, status: c.status })),
-            numbers: [
-              snapshot.cycleDays,
-              snapshot.daysSinceLastPurchase,
-              snapshot.orders12m,
-              snapshot.avgTicket === null ? null : Number(snapshot.avgTicket),
-            ].filter((n): n is number => n !== null && Number.isFinite(n)),
+            customers: facts.customers.map((c) => ({
+              pseudonym: c.pseudonym,
+              status: c.status,
+              numbers: customerNumbers(c),
+            })),
+            numbers: [],
             freshnessLine: null,
+            products: facts.customers.flatMap(customerProducts),
           },
+          // Vai para o cliente: tamanho, pergunta no fim, nada de rótulo interno
+          validate: (data) => customerFacingViolations(data.text),
           extractText: (data) => data.text,
         })
         if (result.data) {
           // Reidrata: o único pseudônimo desta requisição é C1 (o próprio cliente)
-          text = result.data.text.replace(/\bC1\b/g, customer.name)
+          text = pseudonymizer.rehydrateStrict(
+            result.data.text,
+            new Map([[`${body.customerCode}|${body.loja}`, customer.name]])
+          )
         }
       }
       if (!text) text = fallbackMessage(body.template, customer.name, snapshot, tone)

@@ -3,6 +3,7 @@ import { prisma } from '@addere/db'
 import type { Company } from '@prisma/client'
 import type { GeoPrecision, HealthReport, IntelJob, IntelJobRunStatus, IntelligenceConfig } from '@addere/types'
 import { mergeIntelligenceConfig } from './config.routes'
+import { summarizeAgentCalls } from '../agent/call-stats'
 
 const SAMPLE = 20
 const TRACKED_JOBS: IntelJob[] = ['NIGHTLY', 'REFRESH', 'SYNC', 'GOALS', 'GEO', 'PURGE']
@@ -202,13 +203,20 @@ export async function buildHealthReport(
   })
   const freshness = computeFreshness(recentRuns)
 
-  // ─── Uso de LLM no mês (custo) ───
+  // ─── Uso de LLM no mês (custo) e gerações do agente (plano 012) ───
+  // Do registro de chamadas, não do cache: o PURGE apaga o cache quando ele
+  // expira (4 h), e o "mês" mostrava cerca de um dia. Chamada = ida ao modelo.
   const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1))
-  const llm = await prisma.intelLlmCache.aggregate({
-    where: { companyId, createdAt: { gte: monthStart } },
-    _sum: { inputTokens: true, outputTokens: true },
-    _count: { id: true },
-  })
+  const [llm, agentCalls] = await Promise.all([
+    prisma.intelLlmCall.aggregate({
+      where: { companyId, createdAt: { gte: monthStart } },
+      _sum: { inputTokens: true, outputTokens: true, cacheCreationTokens: true, attempts: true },
+    }),
+    prisma.intelLlmCall.findMany({
+      where: { companyId, createdAt: { gte: new Date(now.getTime() - 7 * 86_400_000) } },
+      select: { kind: true, source: true, reason: true, createdAt: true },
+    }),
+  ])
 
   // ─── Marca d'água do sync incremental (plano 009) ───
   const cursors = await prisma.intelSyncCursor.findMany({
@@ -274,8 +282,10 @@ export async function buildHealthReport(
     llmUsageMonth: {
       inputTokens: llm._sum.inputTokens ?? 0,
       outputTokens: llm._sum.outputTokens ?? 0,
-      calls: llm._count.id,
+      cacheCreationTokens: llm._sum.cacheCreationTokens ?? 0,
+      calls: llm._sum.attempts ?? 0,
     },
+    agent: summarizeAgentCalls(agentCalls, now),
     syncCursors: cursors.map((c) => ({
       name: c.name,
       stamp: c.stamp,

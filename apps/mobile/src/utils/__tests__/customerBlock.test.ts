@@ -1,5 +1,5 @@
 import { isCustomerBlocked } from '@addere/types'
-import { canOrderFor, showRegistryBlockedBadge } from '../customerBlock'
+import { canMessageFor, canOrderFor, showRegistryBlockedBadge } from '../customerBlock'
 
 describe('isCustomerBlocked', () => {
   it("só A1_MSBLQL = '1' é bloqueado (com ou sem espaços do Protheus)", () => {
@@ -40,5 +40,18 @@ describe('showRegistryBlockedBadge — selo na Ficha', () => {
   it('cliente liberado não ganha selo do cadastro', () => {
     expect(showRegistryBlockedBadge('2', null)).toBe(false)
     expect(showRegistryBlockedBadge(null, 'LATE')).toBe(false)
+  })
+})
+
+describe('canMessageFor — mensagem ao cliente (plano 012)', () => {
+  it('bloqueado no cadastro ou pelo motor não recebe mensagem de oferta', () => {
+    expect(canMessageFor('1', 'ON_CYCLE')).toBe(false)
+    expect(canMessageFor(null, 'BLOCKED')).toBe(false)
+    expect(canMessageFor(undefined, 'BLOCKED')).toBe(false)
+  })
+
+  it('liberado e fora de BLOCKED pode receber', () => {
+    expect(canMessageFor('2', 'LATE')).toBe(true)
+    expect(canMessageFor(null, null)).toBe(true)
   })
 })

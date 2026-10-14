@@ -2,8 +2,9 @@
 
 **Fonte executável:** `apps/api/src/modules/intelligence/agent/skill-prompt.ts`
 (`AGENT_SKILL`). Este arquivo documenta o contrato; edite o `.ts` e mantenha
-os dois em sincronia. `promptVersion` = sha256 do texto do skill (8 chars) —
-qualquer mudança muda a versão e o eval passa a rodar contra ela.
+os dois em sincronia. `promptVersion` (`agent/prompt-version.ts`) = sha256 do
+skill, dos schemas, do texto dos seis prompts e do `INTEL_LLM_MODEL` (8 chars) —
+mudar qualquer um deles muda a versão e o eval passa a rodar contra ela.
 
 ## Estrutura
 
