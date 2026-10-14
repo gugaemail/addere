@@ -9,7 +9,8 @@ export const BRIEFING_SCHEMA = {
     whatToDo: { type: 'string', description: 'O que fazer na visita — 1 frase acionável' },
     confidence: {
       type: 'string',
-      description: 'Confiança dos sinais em 1 frase curta (alta/média/baixa e por quê)',
+      description:
+        'Confiança dos sinais em 1 frase curta: o nível vem do campo confidence (HIGH=alta, MEDIUM=média, LOW=baixa) e o porquê',
     },
   },
   required: ['whatHappened', 'whyItMatters', 'whatToDo', 'confidence'],
@@ -31,6 +32,7 @@ export function buildBriefingPrompt(facts: {
     'Gere a ficha "antes de entrar" do cliente abaixo no formato fixo',
     'O que aconteceu / Por que importa / O que fazer / Confiança.',
     'Uma frase por campo. Se houver mix cortado, mencione o produto.',
+    'Confiança: use o campo confidence (HIGH=alta, MEDIUM=média, LOW=baixa) — não estime por conta própria.',
     'Se o status for BLOCKED, o "o que fazer" é resolver a pendência — nunca vender.',
     '',
     'FATOS:',

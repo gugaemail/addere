@@ -1,6 +1,7 @@
 // Serviço do agente (E6): cache 4h por (companyId, kind, vendorCode, targetKey),
 // cap diário de tokens por tenant (D13), allowlist de fatos como defesa em
 // profundidade e self-check com 1 regeneração — falhou tudo, entrega só-motor.
+import { createHash } from 'node:crypto'
 import { prisma } from '@addere/db'
 import type { Prisma } from '@prisma/client'
 import { env } from '../../../lib/env'
@@ -25,6 +26,8 @@ export interface GenerateInput<T> {
   selfCheckFacts: SelfCheckFacts
   /** Extrai o texto a validar no self-check a partir do JSON do modelo */
   extractText: (data: T) => string
+  /** false = não lê nem grava o cache de texto (eval: toda rodada chama o modelo) */
+  cache?: boolean
 }
 
 export interface GenerateOutput<T> {
@@ -47,24 +50,52 @@ export async function dailyTokensUsed(companyId: string, now: Date = new Date())
   )
 }
 
+/**
+ * Hash de tudo o que o modelo recebe. Entra na chave do cache porque o texto
+ * guardado tem pseudônimos (C1, C2…) atribuídos na ordem dos fatos daquela
+ * requisição: com a chave só pelo alvo, um REFRESH que reordenasse a carteira
+ * fazia o texto velho ser reidratado com o mapa novo — o número de um cliente
+ * aparecia com o nome de outro —, e o gerente que pedia perdas sem filtro
+ * recebia o texto escrito para a equipe de outro gerente (chave '*').
+ */
+export function inputHash(input: {
+  system: GenerateInput<unknown>['system']
+  userPrompt: string
+  schema: Record<string, unknown>
+}): string {
+  return createHash('sha256')
+    .update(
+      JSON.stringify({
+        model: env.INTEL_LLM_MODEL,
+        system: input.system.map((block) => block.text),
+        user: input.userPrompt,
+        schema: input.schema,
+      })
+    )
+    .digest('hex')
+    .slice(0, 16)
+}
+
 export async function generateWithGuardrails<T>(
   input: GenerateInput<T>
 ): Promise<GenerateOutput<T>> {
   if (!llmAvailable()) return { data: null, source: 'engine', reason: 'llm_off' }
 
-  // Cache 4h por alvo (§5.3)
-  const cached = await prisma.intelLlmCache.findUnique({
-    where: {
-      companyId_kind_vendorCode_targetKey: {
-        companyId: input.companyId,
-        kind: input.kind,
-        vendorCode: input.vendorCode,
-        targetKey: input.targetKey,
-      },
-    },
-  })
-  if (cached && cached.expiresAt > new Date()) {
-    return { data: cached.payload as T, source: 'cache' }
+  // Cache 4h por alvo E pela entrada exata (§5.3) — ver inputHash
+  const useCache = input.cache !== false
+  const cacheKey = {
+    companyId: input.companyId,
+    kind: input.kind,
+    vendorCode: input.vendorCode,
+    targetKey: `${input.targetKey}#${inputHash(input)}`,
+  }
+  if (useCache) {
+    const cached = await prisma.intelLlmCache.findUnique({
+      where: { companyId_kind_vendorCode_targetKey: cacheKey },
+    })
+    if (cached && cached.expiresAt > new Date()) {
+      return { data: cached.payload as T, source: 'cache' }
+    }
   }
 
   // Cap diário de tokens por tenant (D13: 500k default)
@@ -123,20 +154,12 @@ export async function generateWithGuardrails<T>(
       continue
     }
 
+    if (!useCache) return { data: result.data, source: 'llm' }
+
     await prisma.intelLlmCache.upsert({
-      where: {
-        companyId_kind_vendorCode_targetKey: {
-          companyId: input.companyId,
-          kind: input.kind,
-          vendorCode: input.vendorCode,
-          targetKey: input.targetKey,
-        },
-      },
+      where: { companyId_kind_vendorCode_targetKey: cacheKey },
       create: {
-        companyId: input.companyId,
-        kind: input.kind,
-        vendorCode: input.vendorCode,
-        targetKey: input.targetKey,
+        ...cacheKey,
         payload: result.data as Prisma.InputJsonValue,
         expiresAt: new Date(Date.now() + CACHE_HOURS * 3_600_000),
         inputTokens: usage.inputTokens,

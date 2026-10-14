@@ -19,3 +19,15 @@ export function showRegistryBlockedBadge(
 ): boolean {
   return isCustomerBlocked(msblql) && engineStatus !== 'BLOCKED'
 }
+
+/**
+ * Mensagem ao cliente (plano 012): bloqueado — no cadastro ou pelo motor — não
+ * recebe oferta, nem do agente nem do molde local. A API recusa com 422; esta
+ * checagem cobre o offline, em que o app montaria o molde de venda sozinho.
+ */
+export function canMessageFor(
+  msblql: string | null | undefined,
+  engineStatus: CustomerStatus | null | undefined
+): boolean {
+  return !isCustomerBlocked(msblql) && engineStatus !== 'BLOCKED'
+}

@@ -8,7 +8,7 @@ vi.mock('../client', () => ({
 
 import { prismaMock, resetPrismaMock } from '../../../../test-utils/prisma-mock'
 import { llmAvailable, complete } from '../client'
-import { generateWithGuardrails, type GenerateInput } from '../agent.service'
+import { generateWithGuardrails, inputHash, type GenerateInput } from '../agent.service'
 
 const llmAvailableMock = vi.mocked(llmAvailable)
 const completeMock = vi.mocked(complete)
@@ -145,6 +145,40 @@ describe('generateWithGuardrails', () => {
       outputTokens: true,
       cacheCreationTokens: true,
     })
+  })
+
+  it('chave do cache leva o hash da entrada — fatos diferentes, chave diferente', async () => {
+    completeMock.mockResolvedValue(okCompletion('C1 compra a cada 28 dias.'))
+    await generateWithGuardrails(baseInput())
+    await generateWithGuardrails({ ...baseInput(), userPrompt: 'gere {"pseudonym":"C1","cycleDays":30}' })
+    const keys = prismaMock.intelLlmCache.findUnique.mock.calls.map(
+      (call: [{ where: { companyId_kind_vendorCode_targetKey: { targetKey: string } } }]) =>
+        call[0].where.companyId_kind_vendorCode_targetKey.targetKey
+    )
+    expect(keys[0]).toMatch(/^C001:01#[0-9a-f]{16}$/)
+    expect(keys[1]).toMatch(/^C001:01#[0-9a-f]{16}$/)
+    expect(keys[0]).not.toBe(keys[1])
+    // A gravação usa a mesma chave da leitura
+    expect(prismaMock.intelLlmCache.upsert.mock.calls[0][0].create.targetKey).toBe(keys[0])
+  })
+
+  it('mesma entrada → mesma chave; ordem dos clientes trocada → outra chave', () => {
+    const ordered = {
+      system: baseInput().system,
+      schema: {},
+      userPrompt: '[{"p":"C1","k":"A"},{"p":"C2","k":"B"}]',
+    }
+    const swapped = { ...ordered, userPrompt: '[{"p":"C1","k":"B"},{"p":"C2","k":"A"}]' }
+    expect(inputHash(ordered)).toBe(inputHash({ ...ordered }))
+    expect(inputHash(ordered)).not.toBe(inputHash(swapped))
+  })
+
+  it('cache: false → não lê nem grava o cache de texto', async () => {
+    completeMock.mockResolvedValue(okCompletion('C1 compra a cada 28 dias.'))
+    const result = await generateWithGuardrails({ ...baseInput(), cache: false })
+    expect(result.source).toBe('llm')
+    expect(prismaMock.intelLlmCache.findUnique).not.toHaveBeenCalled()
+    expect(prismaMock.intelLlmCache.upsert).not.toHaveBeenCalled()
   })
 
   it('erro da API → fallback com o motivo', async () => {

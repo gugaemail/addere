@@ -3,11 +3,11 @@
 // mudança de prompt/modelo. Sem LLM disponível, o run marca SKIPPED.
 import { prisma } from '@addere/db'
 import type { Company } from '@prisma/client'
-import type { SignalsSnapshot } from '@addere/types'
 import { generateWithGuardrails } from '../agent/agent.service'
 import { llmAvailable } from '../agent/client'
 import { buildCustomerFacts, type CustomerFacts } from '../agent/facts'
 import { Pseudonymizer } from '../agent/pseudonymizer'
+import { loadSnapshot } from '../agent/snapshot'
 import { promptVersion, buildTenantContext, systemBlocks } from '../agent/tenant-context'
 import {
   buildBriefingPrompt,
@@ -40,19 +40,10 @@ export async function freezeEvalCases(company: Company): Promise<number> {
   let created = 0
   for (const signal of signals) {
     const pseudonymizer = new Pseudonymizer()
-    const snapshot: SignalsSnapshot = {
-      status: signal.status,
-      confidence: signal.confidence,
-      cycleDays: signal.cycleDays,
-      daysSinceLastPurchase: signal.daysSinceLastPurchase,
-      orders12m: signal.orders12m,
-      avgTicket: signal.avgTicket?.toString() ?? null,
-      trendPct: signal.trendPct === null ? null : Number(signal.trendPct),
-      usualMix: (signal.usualMix ?? []) as SignalsSnapshot['usualMix'],
-      cutMix: (signal.cutMix ?? []) as SignalsSnapshot['cutMix'],
-      openTitles: { count: 0, totalBalance: '0.00', maxDaysOverdue: null },
-      reasons: (signal.reasons ?? []) as string[],
-    }
+    // Snapshot completo (títulos em aberto reais) — o montado à mão zerava os
+    // títulos, e o caso BLOCKED congelava um cliente bloqueado que não devia nada
+    const snapshot = await loadSnapshot(company.id, signal.customerCode, signal.loja)
+    if (!snapshot) continue
     // Pseudonimiza ANTES de congelar: o snapshot não referencia o cliente real
     const facts = buildCustomerFacts(
       { customerCode: signal.customerCode, loja: signal.loja, city: null, snapshot },
