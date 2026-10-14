@@ -55,7 +55,7 @@ function words(pattern: string, flags = 'iu'): RegExp {
 
 // Ação de venda — bloqueado nunca recebe. Cada termo tem caso no corpus
 // (__tests__/self-check.corpus.test.ts): o que reprova e o que precisa passar.
-const SALE_ACTION = words(
+const SALE_ACTION_TERMS = words(
   [
     'vend[aeo]\\p{L}*',
     'ofere[çc]\\p{L}*',
@@ -73,6 +73,29 @@ const SALE_ACTION = words(
     'fazer (?:o |um )?pedido',
   ].join('|')
 )
+const SALE_ACTION_ALL = new RegExp(SALE_ACTION_TERMS.source, 'giu')
+
+// Negação no mesmo trecho da frase desarma o termo: "Não ofereça nada", "sem
+// oferecer produto", "não dá pra avançar em vendas" é o modelo fazendo o certo
+// com o bloqueado — no eval de 14/10 era o único motivo das reprovações dele.
+// "Não deixe de oferecer" é ordem de venda: dupla negação não desarma.
+const NEGATION = words(
+  'n[ãa]o|nunca|nem|sem|nada de|nenhum\\p{L}*|evit\\p{L}*|antes de|at[ée] (?:resolver|regularizar|quitar)'
+)
+const DOUBLE_NEGATION = words('n[ãa]o (?:deix\\p{L}* de|esque[çc]\\p{L}* de|perca)')
+const CLAUSE_BREAKS = ['.', ',', ';', ':', '!', '?', '\n', '/', '—', '–']
+
+/** Ação de venda afirmativa no texto — ignora a que está sob negação no mesmo trecho. */
+export function hasSaleAction(text: string): boolean {
+  for (const match of text.matchAll(SALE_ACTION_ALL)) {
+    const before = text.slice(0, match.index)
+    const breakAt = Math.max(...CLAUSE_BREAKS.map((c) => before.lastIndexOf(c)))
+    const clause = before.slice(breakAt + 1)
+    if (NEGATION.test(clause) && !DOUBLE_NEGATION.test(clause)) continue
+    return true
+  }
+  return false
+}
 // Certeza de ciclo — cliente novo nunca recebe (histórico curto)
 const CYCLE_CLAIM = words(
   [
@@ -240,7 +263,7 @@ export function selfCheck(text: string, facts: SelfCheckFacts): SelfCheckResult 
   for (const customer of facts.customers) {
     if (customer.status !== 'BLOCKED') continue
     for (const sentence of aboutCustomer(customer.pseudonym)) {
-      if (SALE_ACTION.test(sentence)) {
+      if (hasSaleAction(sentence)) {
         violations.push(`ação de venda para bloqueado ${customer.pseudonym}`)
         break
       }

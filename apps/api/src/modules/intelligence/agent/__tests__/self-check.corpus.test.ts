@@ -54,6 +54,8 @@ const MUST_FAIL: Array<[string, string, SelfCheckFacts, string]> = [
   ['novo: costuma comprar', 'C3 costuma comprar todo mês.', portfolio, 'cliente novo C3'],
   ['novo: ciclo de N dias', 'Ele tem ciclo de 2 dias.', newBriefing, 'cliente novo C1'],
   ['pseudônimo em caixa baixa', 'Comece por c1 hoje.', portfolio, 'pseudônimo malformado: c1'],
+  ['dupla negação é ordem de venda', 'Não deixe de oferecer o lançamento a C2.', portfolio, 'bloqueado C2'],
+  ['negação em outro trecho não desarma', 'Não visite à tarde, ofereça o mix a C2.', portfolio, 'bloqueado C2'],
   // A janela do fato só é liberada como janela: "há 12 meses" é afirmação
   ['"há 12 meses" continua cobrado', 'C1 não compra há 12 meses.', portfolio, 'número fora dos fatos: 12'],
 ]
@@ -79,6 +81,22 @@ const MUST_PASS: Array<[string, string, SelfCheckFacts]> = [
   ['cidade com número no nome', 'Comece por Três Corações e siga para Sete Lagoas com C1.', portfolio],
   ['número por extenso que está nos fatos', 'São três clientes para hoje, começando por C1.', portfolio],
   ['venda para quem não está bloqueado', 'Ofereça a reposição do Açúcar refinado 1kg a C1.', portfolio],
+  // Eval de 14/10: as reprovações do bloqueado eram o modelo dizendo NÃO vender
+  [
+    'bloqueado: "não ofereça nada" (eval 14/10)',
+    'Não ofereça nada nesta visita — o foco é negociar a quitação do título vencido.',
+    blockedBriefing,
+  ],
+  [
+    'bloqueado: "sem oferecer produto" (eval 14/10)',
+    'Trate a pendência financeira com C1 antes de qualquer conversa comercial, sem oferecer produto.',
+    blockedBriefing,
+  ],
+  [
+    'bloqueado: "não dá pra avançar em vendas" (eval 14/10)',
+    'Enquanto o título estiver em aberto, não dá pra avançar em vendas com esse cliente.',
+    blockedBriefing,
+  ],
   // Eval de 14/10: 9 das 21 reprovações eram a janela do orders12m
   ['janela do orders12m', 'C1 fez 10 pedidos nos últimos 12 meses.', portfolio],
   ['janela do orders12m, sem "últimos"', 'C3 tem 2 pedidos em 12 meses — histórico curto.', portfolio],
