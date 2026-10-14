@@ -2,6 +2,7 @@
 // Sem LLM disponível, os planos ficam com llmSummary=null (fallback só-motor).
 import { prisma } from '@addere/db'
 import { unprocessable } from '../../../lib/errors'
+import { captureError } from '../../../lib/sentry'
 import { dateToYmdUtc, mondayOf, ymdSaoPaulo, ymdToDate } from '../engine/business-days'
 import { registerJobHandler } from '../jobs/registry'
 import { generateWithGuardrails } from './agent.service'
@@ -127,6 +128,18 @@ export async function planSummaryHandler(companyId: string): Promise<unknown> {
       fallback++
       countReason(reasons, result.reason)
     }
+  }
+
+  // Nenhuma frase gerada com o LLM ligado = a assinatura dos dois incidentes
+  // (Hoje em só-motor desde a v1; zero chamadas de 25 a 30/09), que passaram
+  // dias sem ninguém ver. Vai para o Sentry com os motivos.
+  if (plans.length > 0 && generated === 0) {
+    captureError(new Error('Job PLAN sem nenhuma frase do agente'), {
+      module: 'intel-agent',
+      companyId,
+      plans: plans.length,
+      reasons,
+    })
   }
 
   // Plano da semana (E18): uma frase-resumo por vendedor, cache diário

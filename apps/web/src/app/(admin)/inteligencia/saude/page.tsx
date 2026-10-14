@@ -14,7 +14,12 @@ import { StatCard } from '@/components/ui/StatCard'
 import { FreshnessBadge } from '@/components/ui/FreshnessBadge'
 import { Table, type Column } from '@/components/ui/Table'
 import { useCompanyContext } from '@/contexts/CompanyContext'
-import { needsActiveCompany } from '@/lib/intel-helpers'
+import {
+  agentEngineAlarm,
+  agentKindLabel,
+  agentStatsLine,
+  needsActiveCompany,
+} from '@/lib/intel-helpers'
 import { SelectCompanyNotice } from '@/components/intel/SelectCompanyNotice'
 
 const JOB_LABELS: Record<string, string> = {
@@ -252,7 +257,37 @@ export default function SaudePage() {
             <p className="mt-1 text-xs text-[var(--text-secondary)]">
               {data.llmUsageMonth.calls} chamada(s) · {data.llmUsageMonth.inputTokens.toLocaleString('pt-BR')} tokens de
               entrada · {data.llmUsageMonth.outputTokens.toLocaleString('pt-BR')} de saída
+              {data.llmUsageMonth.cacheCreationTokens
+                ? ` · ${data.llmUsageMonth.cacheCreationTokens.toLocaleString('pt-BR')} gravados no cache de prompt`
+                : ''}
             </p>
+          </div>
+        )}
+        {data.agent && data.agent.length > 0 && (
+          <div className="rounded-xl border border-[var(--border)] bg-[var(--bg-surface)] px-4 py-3">
+            <h3 className="text-sm font-semibold text-[var(--text-primary)]">Textos do agente</h3>
+            <p className="mt-1 text-xs text-[var(--text-secondary)]">
+              Só-motor = o app mostrou o texto padrão no lugar do agente.
+            </p>
+            {data.agent.map((row) => {
+              const alarm = agentEngineAlarm(row.last24h)
+              return (
+                <div key={row.kind} className="mt-2">
+                  <p className={`text-xs font-medium ${alarm ? 'text-danger' : 'text-[var(--text-primary)]'}`}>
+                    {agentKindLabel(row.kind)}
+                    {alarm ? ' — maioria em só-motor nas últimas 24 h' : ''}
+                  </p>
+                  <p className="text-xs text-[var(--text-secondary)]">
+                    24 h: {agentStatsLine(row.last24h)} · 7 dias: {agentStatsLine(row.last7d)}
+                  </p>
+                  {row.topReasons.length > 0 && (
+                    <p className="text-xs text-[var(--text-secondary)] break-words">
+                      Motivos: {row.topReasons.map((r) => `${r.reason} (${r.count})`).join(' · ')}
+                    </p>
+                  )}
+                </div>
+              )
+            })}
           </div>
         )}
       </div>

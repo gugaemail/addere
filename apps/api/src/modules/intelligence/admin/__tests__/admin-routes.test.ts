@@ -498,10 +498,13 @@ describe('POST /intel/admin/queries/:name/backfill (E4)', () => {
 
 describe('GET /intel/admin/health (E4)', () => {
   it('relatório com base vazia → 100% saudável e frescor nulo', async () => {
-    prismaMock.intelLlmCache.aggregate.mockResolvedValue({
-      _sum: { inputTokens: 1000, outputTokens: 500 },
-      _count: { id: 3 },
+    prismaMock.intelLlmCall.aggregate.mockResolvedValue({
+      _sum: { inputTokens: 1000, outputTokens: 500, cacheCreationTokens: 200, attempts: 3 },
     })
+    prismaMock.intelLlmCall.findMany.mockResolvedValue([
+      { kind: 'today', source: 'engine', reason: 'self_check: número fora dos fatos: N', createdAt: new Date() },
+      { kind: 'today', source: 'llm', reason: null, createdAt: new Date() },
+    ])
     const res = await app.inject({
       method: 'GET',
       url: '/intel/admin/health',
@@ -512,13 +515,27 @@ describe('GET /intel/admin/health (E4)', () => {
     expect(body.healthyPct).toBe(100)
     expect(body.freshness).toHaveLength(6)
     expect(body.freshness.every((f: { lastRunAt: null }) => f.lastRunAt === null)).toBe(true)
-    expect(body.llmUsageMonth).toEqual({ inputTokens: 1000, outputTokens: 500, calls: 3 })
+    // Custo do mês vem do registro de chamadas (o cache é expurgado em horas)
+    expect(body.llmUsageMonth).toEqual({
+      inputTokens: 1000,
+      outputTokens: 500,
+      cacheCreationTokens: 200,
+      calls: 3,
+    })
+    expect(body.agent).toEqual([
+      {
+        kind: 'today',
+        last24h: { calls: 2, llm: 1, cache: 0, engine: 1 },
+        last7d: { calls: 2, llm: 1, cache: 0, engine: 1 },
+        topReasons: [{ reason: 'self_check: número fora dos fatos: N', count: 1 }],
+      },
+    ])
     // Empresa com Inteligência desligada não tem próximo sync
     expect(body.nextSyncAt).toBeNull()
   })
 
   it('export.csv exige intel.admin (manager → 403) e responde text/csv', async () => {
-    prismaMock.intelLlmCache.aggregate.mockResolvedValue({ _sum: {}, _count: { id: 0 } })
+    prismaMock.intelLlmCall.aggregate.mockResolvedValue({ _sum: {} })
     const denied = await app.inject({
       method: 'GET',
       url: '/intel/admin/health/export.csv',

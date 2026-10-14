@@ -3,10 +3,12 @@ import { prisma } from '@addere/db'
 import type { IntelligenceConfig } from '@addere/types'
 
 const GPS_RETENTION_DAYS = 90 // D4: GPS zerado após 90 dias
+const LLM_CALLS_RETENTION_DAYS = 90 // registro de chamadas do agente (plano 012)
 const DAY_MS = 24 * 60 * 60 * 1000
 
 export interface PurgeResult {
   llmCache: number
+  llmCalls: number
   messages: number
   feedbackComments: number
   visitNotes: number
@@ -24,6 +26,12 @@ export async function purgeCompany(
 
   const llmCache = await prisma.intelLlmCache.deleteMany({
     where: { companyId, expiresAt: { lt: now } },
+  })
+  const llmCalls = await prisma.intelLlmCall.deleteMany({
+    where: {
+      companyId,
+      createdAt: { lt: new Date(now.getTime() - LLM_CALLS_RETENTION_DAYS * DAY_MS) },
+    },
   })
   const messages = await prisma.customerMessage.deleteMany({
     where: { companyId, generatedAt: { lt: retentionCutoff } },
@@ -49,6 +57,7 @@ export async function purgeCompany(
 
   return {
     llmCache: llmCache.count,
+    llmCalls: llmCalls.count,
     messages: messages.count,
     feedbackComments: feedbackComments.count,
     visitNotes: visitNotes.count,

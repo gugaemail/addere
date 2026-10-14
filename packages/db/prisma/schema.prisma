@@ -107,6 +107,7 @@ model Company {
   customerMessages      CustomerMessage[]
   intelFeedbacks        IntelFeedback[]
   intelLlmCache         IntelLlmCache[]
+  intelLlmCalls         IntelLlmCall[]
   evalCases             EvalCase[]
   geoAddresses          GeoAddress[]
   customerWindows       CustomerWindow[]
@@ -1049,6 +1050,33 @@ model IntelLlmCache {
   @@unique([companyId, kind, vendorCode, targetKey])
   @@index([companyId, expiresAt])
   @@map("intel_llm_cache")
+}
+
+// Registro de toda geração do agente (plano 012) — sucesso, cache e cada tipo
+// de só-motor, com os tokens de TODAS as tentativas. Alimenta o teto diário,
+// o custo do mês e o alarme de queda. Sem texto e sem cliente: nada de LGPD.
+// Expurgo em 90 dias (job PURGE).
+model IntelLlmCall {
+  id                  String   @id @default(uuid())
+  kind                String // 'today' | 'briefing' | 'message' | …
+  vendorCode          String // 'eval' nos casos de regressão; '*' em perdas sem filtro
+  source              String // 'llm' | 'cache' | 'engine'
+  reason              String? // motivo do só-motor, com números trocados por N
+  attempts            Int      @default(0) // chamadas feitas ao modelo (0, 1 ou 2)
+  inputTokens         Int      @default(0)
+  outputTokens        Int      @default(0)
+  cacheReadTokens     Int      @default(0)
+  cacheCreationTokens Int      @default(0)
+  model               String?
+  latencyMs           Int?
+  promptVersion       String
+  createdAt           DateTime @default(now())
+
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id])
+
+  @@index([companyId, createdAt])
+  @@map("intel_llm_calls")
 }
 
 // ─────────────────────────────────────────
