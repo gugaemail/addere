@@ -108,6 +108,17 @@ export interface EvalRunSummary {
   blockedFailed: number
   approved: boolean
   promptVersion: string
+  /**
+   * Casos que não passaram de primeira, com cada resposta reprovada (texto
+   * pseudonimizado — sem dado pessoal). É o que separa regra errada de modelo
+   * errado; sem isso o eval dizia só "número fora dos fatos: 12".
+   */
+  notFirst: {
+    kind: string
+    status: string
+    result: string
+    rejected: { text: string; violations: string[] }[]
+  }[]
 }
 
 function selfCheckFactsFor(facts: CustomerFacts): SelfCheckFacts {
@@ -174,6 +185,7 @@ export async function runEval(company: Company): Promise<EvalRunSummary> {
   let failed = 0
   let skipped = 0
   let blockedFailed = 0
+  const notFirst: EvalRunSummary['notFirst'] = []
 
   const tenantContext = await buildTenantContext(company)
   const system = systemBlocks(tenantContext)
@@ -208,6 +220,14 @@ export async function runEval(company: Company): Promise<EvalRunSummary> {
       where: { id: evalCase.id },
       data: { lastResult, ranAt: new Date(), promptVersion: version },
     })
+    if (lastResult !== 'PASS') {
+      notFirst.push({
+        kind: expected.kind ?? 'briefing',
+        status: expected.status,
+        result: lastResult,
+        rejected: result.rejected ?? [],
+      })
+    }
   }
 
   const counts = { total: cases.length, passedFirst, passedRetry, failed, skipped, blockedFailed }
@@ -216,5 +236,6 @@ export async function runEval(company: Company): Promise<EvalRunSummary> {
     passed: passedFirst + passedRetry,
     approved: evalApproved(counts),
     promptVersion: version,
+    notFirst,
   }
 }
