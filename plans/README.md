@@ -305,6 +305,19 @@ Desvio aceito e registrado: o selo de frescor do esboço foi omitido porque
 `PilotMetricsResponse` não tem campo de `lastSyncAt` — se um dia a tela precisar
 dele, é mudança de API, não de front.
 
+### Fase 5 — blindagem do agente (planejada em 14/10/2026)
+
+| Plano | Título | Prioridade | Esforço | Toca o app? | Depende de | Status |
+|-------|--------|------------|---------|-------------|------------|--------|
+| 012 | Blindar o agente contra os erros que ele já pode cometer hoje | P1 | L | não (salvo a PARADA do passo 2) | — | TODO |
+
+Levantamento de 17 modos de falha do agente (texto errado chegando ao usuário,
+queda silenciosa para só-motor, eval que aprova sem testar). Quatro ondas, um
+PR cada; **a onda 1 primeiro** — o cache devolve texto escrito para outros
+fatos e reidrata pseudônimos com o mapa da requisição atual, o que pode pôr o
+número de um cliente no nome de outro e mostrar a um gerente a análise de
+perdas de outra equipe. A onda 2 tem migration (`intel_llm_calls`).
+
 ### O que funciona antes do build
 
 As partes de painel da fase 2 entram em produção junto com a API, sem esperar o
