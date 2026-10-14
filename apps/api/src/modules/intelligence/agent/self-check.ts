@@ -85,6 +85,9 @@ const CYCLE_CLAIM = words(
     'rep[oõ]e a cada',
   ].join('|')
 )
+// Janela fixa do fato orders12m ("nos últimos 12 meses"). "Há 12 meses" continua
+// cobrado: aí o 12 é uma afirmação sobre o cliente, não o nome do fato.
+const WINDOW_PHRASE = words('(?:n[oa]s|em|d[oa]s)\\s+(?:[uú]ltimos\\s+)?12\\s+meses', 'giu')
 // Pseudônimo em caixa baixa ("c1") escapa da reidratação e chega cru na tela
 const MALFORMED_PSEUDONYM = /\bc\d+\b/g
 
@@ -181,7 +184,12 @@ export function selfCheck(text: string, facts: SelfCheckFacts): SelfCheckResult 
   // viraria os números 3 e 12, e o skill manda terminar com ele. Foi isso
   // que deixou o Hoje em só-motor desde a v1 — o job passava freshnessLine
   // null enquanto o prompt exigia a linha, e "12" nunca estava nos fatos.
-  let scannable = text.replace(new RegExp(`${FRESHNESS_PREFIX}[^\n]*`, 'g'), ' ')
+  let scannable = text
+    .replace(new RegExp(`${FRESHNESS_PREFIX}[^\n]*`, 'g'), ' ')
+    // A janela do orders12m faz parte do nome do fato: "10 pedidos nos últimos
+    // 12 meses". O 12 não está nos números e derrubava o briefing de quem cita
+    // a frequência — no eval de 14/10, 9 das 21 reprovações eram isso.
+    .replace(WINDOW_PHRASE, ' ')
 
   // 2. Produtos: código desconhecido reprova; os conhecidos (e as descrições,
   // que trazem gramatura) saem da varredura de números

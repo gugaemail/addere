@@ -11,7 +11,7 @@ import { captureError } from '../../../lib/sentry'
 import { complete, llmAvailable, type LlmUsage } from './client'
 import { validateFactsPayload } from './facts'
 import { selfCheck, type SelfCheckFacts } from './self-check'
-import { promptVersion } from './tenant-context'
+import { premiseNumbers, promptVersion } from './tenant-context'
 
 const CACHE_HOURS = 4
 
@@ -41,6 +41,11 @@ export interface GenerateOutput<T> {
   reason?: string // presente quando source='engine'
   /** Chamadas feitas ao modelo nesta geração: 0 (cache/bloqueio), 1 ou 2 */
   attempts: number
+  /**
+   * Respostas reprovadas pelo self-check, na ordem das tentativas (texto ainda
+   * pseudonimizado). Só o eval lê — é o que diz se a regra errou ou o modelo.
+   */
+  rejected?: { text: string; violations: string[] }[]
 }
 
 /** Vendedor fictício dos casos de eval — não consome o teto do tenant. */
@@ -142,9 +147,10 @@ export async function generateWithGuardrails<T>(
   let model: string | null = null
   let latencyMs = 0
   let attempts = 0
+  const rejected: { text: string; violations: string[] }[] = []
 
   const finish = async (out: Omit<GenerateOutput<T>, 'attempts'>): Promise<GenerateOutput<T>> => {
-    const result = { ...out, attempts }
+    const result = { ...out, attempts, ...(rejected.length > 0 ? { rejected } : {}) }
     await recordCall(input as GenerateInput<unknown>, {
       source: result.source,
       reason: result.reason,
@@ -192,6 +198,12 @@ export async function generateWithGuardrails<T>(
     return finish({ data: null, source: 'engine', reason: 'facts_leak' })
   }
 
+  // Premissas do motor que o DADOS.md entrega ao modelo também são fatos
+  const selfCheckFacts = {
+    ...input.selfCheckFacts,
+    numbers: [...input.selfCheckFacts.numbers, ...premiseNumbers(input.system.map((b) => b.text))],
+  }
+
   // 1ª tentativa + 1 regeneração quando o self-check reprova (§5.2)
   for (let attempt = 0; attempt < 2; attempt++) {
     const result = await complete<T>({
@@ -215,9 +227,11 @@ export async function generateWithGuardrails<T>(
     model = result.model
     latencyMs += result.ms
 
-    const check = selfCheck(input.extractText(result.data), input.selfCheckFacts)
+    const text = input.extractText(result.data)
+    const check = selfCheck(text, selfCheckFacts)
     const violations = [...check.violations, ...(input.validate?.(result.data) ?? [])]
     if (violations.length > 0) {
+      rejected.push({ text, violations })
       if (attempt === 1) {
         return finish({ data: null, source: 'engine', reason: `self_check: ${violations[0]}` })
       }

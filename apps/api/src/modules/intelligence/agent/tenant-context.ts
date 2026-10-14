@@ -6,10 +6,27 @@ import type { Company } from '@prisma/client'
 import { DEFAULT_INTELLIGENCE_CONFIG, type IntelligenceConfig } from '@addere/types'
 import { resolveParameters, type ParameterOverride } from '../engine/parameters'
 import { QUERY_CONTRACTS } from '../protheus-sql/contracts'
+import { extractNumbers } from './self-check'
 import { AGENT_SKILL } from './skill-prompt'
 
 // Mantido aqui para quem já importa daqui; a fonte é prompt-version.ts
 export { promptVersion } from './prompt-version'
+
+export const PREMISES_HEADING = '## Premissas do motor'
+
+/**
+ * Números das premissas do motor que o DADOS.md entrega ao modelo ("bloqueio
+ * por título vencido há mais de 5 dias"). São fatos que ele recebeu — o
+ * self-check os aceita em qualquer tipo de texto. Só a seção de premissas:
+ * definições das consultas escritas pelo admin podem ter número que não é fato.
+ */
+export function premiseNumbers(systemTexts: string[]): number[] {
+  return systemTexts.flatMap((text) => {
+    const at = text.indexOf(PREMISES_HEADING)
+    if (at < 0) return []
+    return extractNumbers(text.slice(at + PREMISES_HEADING.length))
+  })
+}
 
 export async function buildTenantContext(company: Company): Promise<string> {
   const [queries, parameterRows] = await Promise.all([
@@ -37,7 +54,7 @@ export async function buildTenantContext(company: Company): Promise<string> {
     if (query.gotchas) lines.push(`Atenção: ${query.gotchas}`)
     lines.push('')
   }
-  lines.push('## Premissas do motor')
+  lines.push(PREMISES_HEADING)
   lines.push(
     `Cliente atrasado a partir de ${params.late_factor}× o ciclo; em risco a partir de ` +
       `${params.risk_factor}× o ciclo ou ${params.risk_days} dias; inativo após ${params.active_days} dias ` +

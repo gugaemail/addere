@@ -51,7 +51,12 @@ describe('runEval (plano 012)', () => {
     ])
     generateMock
       .mockResolvedValueOnce({ data: {}, source: 'llm', attempts: 1 })
-      .mockResolvedValueOnce({ data: {}, source: 'llm', attempts: 2 })
+      .mockResolvedValueOnce({
+        data: {},
+        source: 'llm',
+        attempts: 2,
+        rejected: [{ text: 'C1 nos últimos 99 dias', violations: ['número fora dos fatos: 99'] }],
+      })
       .mockResolvedValueOnce({ data: null, source: 'engine', reason: 'self_check: x', attempts: 2 })
 
     const summary = await runEval(company)
@@ -75,6 +80,16 @@ describe('runEval (plano 012)', () => {
       (c: [{ data: { lastResult: string } }]) => c[0].data.lastResult
     )
     expect(results).toEqual(['PASS', 'PASS_RETRY', 'FAIL: self_check: x'])
+    // O que não passou de primeira sai com as respostas reprovadas
+    expect(summary.notFirst).toEqual([
+      {
+        kind: 'briefing',
+        status: 'LATE',
+        result: 'PASS_RETRY',
+        rejected: [{ text: 'C1 nos últimos 99 dias', violations: ['número fora dos fatos: 99'] }],
+      },
+      { kind: 'message', status: 'LATE', result: 'FAIL: self_check: x', rejected: [] },
+    ])
   })
 
   it('falha em caso BLOCKED reprova o eval', async () => {

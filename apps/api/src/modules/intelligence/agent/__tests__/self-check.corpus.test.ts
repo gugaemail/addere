@@ -54,6 +54,8 @@ const MUST_FAIL: Array<[string, string, SelfCheckFacts, string]> = [
   ['novo: costuma comprar', 'C3 costuma comprar todo mês.', portfolio, 'cliente novo C3'],
   ['novo: ciclo de N dias', 'Ele tem ciclo de 2 dias.', newBriefing, 'cliente novo C1'],
   ['pseudônimo em caixa baixa', 'Comece por c1 hoje.', portfolio, 'pseudônimo malformado: c1'],
+  // A janela do fato só é liberada como janela: "há 12 meses" é afirmação
+  ['"há 12 meses" continua cobrado', 'C1 não compra há 12 meses.', portfolio, 'número fora dos fatos: 12'],
 ]
 
 const MUST_PASS: Array<[string, string, SelfCheckFacts]> = [
@@ -77,6 +79,9 @@ const MUST_PASS: Array<[string, string, SelfCheckFacts]> = [
   ['cidade com número no nome', 'Comece por Três Corações e siga para Sete Lagoas com C1.', portfolio],
   ['número por extenso que está nos fatos', 'São três clientes para hoje, começando por C1.', portfolio],
   ['venda para quem não está bloqueado', 'Ofereça a reposição do Açúcar refinado 1kg a C1.', portfolio],
+  // Eval de 14/10: 9 das 21 reprovações eram a janela do orders12m
+  ['janela do orders12m', 'C1 fez 10 pedidos nos últimos 12 meses.', portfolio],
+  ['janela do orders12m, sem "últimos"', 'C3 tem 2 pedidos em 12 meses — histórico curto.', portfolio],
 ]
 
 describe('corpus do self-check — tem de reprovar', () => {
