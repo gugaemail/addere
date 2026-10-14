@@ -79,8 +79,26 @@ const SALE_ACTION_ALL = new RegExp(SALE_ACTION_TERMS.source, 'giu')
 // oferecer produto", "não dá pra avançar em vendas" é o modelo fazendo o certo
 // com o bloqueado — no eval de 14/10 era o único motivo das reprovações dele.
 // "Não deixe de oferecer" é ordem de venda: dupla negação não desarma.
+// Verbo de bloqueio conta como negação: "o bloqueio trava qualquer novo pedido",
+// "isso impede venda nova" descrevem a regra, não mandam vender (eval de 14/10).
 const NEGATION = words(
-  'n[ãa]o|nunca|nem|sem|nada de|nenhum\\p{L}*|evit\\p{L}*|antes de|at[ée] (?:resolver|regularizar|quitar)'
+  [
+    'n[ãa]o',
+    'nunca',
+    'nem',
+    'sem',
+    'nada de',
+    'nenhum\\p{L}*',
+    'evit\\p{L}*',
+    'antes de',
+    'at[ée] (?:resolver|regularizar|quitar)',
+    'trav\\p{L}*',
+    'imped\\p{L}*',
+    'impossibilit\\p{L}*',
+    'bloquei\\p{L}*',
+    'suspend\\p{L}*',
+    'suspens\\p{L}*',
+  ].join('|')
 )
 const DOUBLE_NEGATION = words('n[ãa]o (?:deix\\p{L}* de|esque[çc]\\p{L}* de|perca)')
 const CLAUSE_BREAKS = ['.', ',', ';', ':', '!', '?', '\n', '/', '—', '–']

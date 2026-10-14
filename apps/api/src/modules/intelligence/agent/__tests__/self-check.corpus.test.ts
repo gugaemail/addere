@@ -56,6 +56,7 @@ const MUST_FAIL: Array<[string, string, SelfCheckFacts, string]> = [
   ['pseudônimo em caixa baixa', 'Comece por c1 hoje.', portfolio, 'pseudônimo malformado: c1'],
   ['dupla negação é ordem de venda', 'Não deixe de oferecer o lançamento a C2.', portfolio, 'bloqueado C2'],
   ['negação em outro trecho não desarma', 'Não visite à tarde, ofereça o mix a C2.', portfolio, 'bloqueado C2'],
+  ['bloqueio citado em outro trecho não desarma', 'C2 está bloqueado, mas ofereça o mix novo.', portfolio, 'bloqueado C2'],
   // A janela do fato só é liberada como janela: "há 12 meses" é afirmação
   ['"há 12 meses" continua cobrado', 'C1 não compra há 12 meses.', portfolio, 'número fora dos fatos: 12'],
 ]
@@ -95,6 +96,16 @@ const MUST_PASS: Array<[string, string, SelfCheckFacts]> = [
   [
     'bloqueado: "não dá pra avançar em vendas" (eval 14/10)',
     'Enquanto o título estiver em aberto, não dá pra avançar em vendas com esse cliente.',
+    blockedBriefing,
+  ],
+  [
+    'bloqueado: "trava qualquer novo pedido" (eval 14/10)',
+    'É um cliente de ticket alto, mas o bloqueio trava qualquer novo pedido até a pendência ser resolvida.',
+    blockedBriefing,
+  ],
+  [
+    'bloqueado: "trava qualquer venda nova" (eval 14/10)',
+    'Enquanto o título estiver em aberto o cliente fica bloqueado e isso trava qualquer venda nova.',
     blockedBriefing,
   ],
   // Eval de 14/10: 9 das 21 reprovações eram a janela do orders12m
