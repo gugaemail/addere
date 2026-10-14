@@ -21,6 +21,16 @@ async function main() {
       `na regeneração=${summary.passedRetry}) fail=${summary.failed} ` +
       `(bloqueado=${summary.blockedFailed}) skip=${summary.skipped}`
   )
+  // O que não passou de primeira, com a resposta reprovada — decide se o ajuste
+  // é na regra do self-check ou no prompt
+  for (const item of summary.notFirst) {
+    console.log(`\n[eval] ${item.kind} ${item.status} → ${item.result}`)
+    item.rejected.forEach((r, i) => {
+      console.log(`  tentativa ${i + 1}: ${r.violations.join(' | ')}`)
+      console.log(`    ${r.text.replace(/\n/g, ' / ')}`)
+    })
+  }
+
   // Critério do plano 012: zero falha em BLOCKED e ≥ 90 % de primeira.
   // Tudo SKIPPED também reprova — não testou nada.
   console.log(`[eval] ${summary.approved ? 'APROVADO' : 'REPROVADO'}`)

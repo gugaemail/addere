@@ -259,6 +259,41 @@ describe('generateWithGuardrails', () => {
     })
   })
 
+  it('premissas do DADOS.md valem como fatos ("vencido há mais de 5 dias")', async () => {
+    completeMock.mockResolvedValue(okCompletion('C1 está bloqueado: título vencido há mais de 5 dias.'))
+    const result = await generateWithGuardrails({
+      ...baseInput(),
+      system: [
+        { type: 'text', text: 'skill' },
+        {
+          type: 'text',
+          text: '# DADOS.md\n\n## Premissas do motor\nbloqueio por título vencido há mais de 5 dias.',
+        },
+      ],
+    })
+    expect(result.source).toBe('llm')
+  })
+
+  it('número só da definição de consulta (fora das premissas) continua cobrado', async () => {
+    completeMock.mockResolvedValue(okCompletion('C1 tem 5 títulos.'))
+    const result = await generateWithGuardrails({
+      ...baseInput(),
+      system: [{ type: 'text', text: '# DADOS.md\n## Vendas\nExclui CFOP 5' }],
+    })
+    expect(result.source).toBe('engine')
+  })
+
+  it('guarda as respostas reprovadas com as violações (o eval mostra)', async () => {
+    completeMock
+      .mockResolvedValueOnce(okCompletion('C1 deve R$ 9.999.'))
+      .mockResolvedValueOnce(okCompletion('C1 compra a cada 28 dias.'))
+    const result = await generateWithGuardrails(baseInput())
+    expect(result.source).toBe('llm')
+    expect(result.rejected).toEqual([
+      { text: 'C1 deve R$ 9.999.', violations: ['número fora dos fatos: 9999'] },
+    ])
+  })
+
   it('erro da API → fallback com o motivo', async () => {
     completeMock.mockResolvedValue({ ok: false, error: 'Rate limit da API Anthropic', retryable: true })
     const result = await generateWithGuardrails(baseInput())
