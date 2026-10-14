@@ -1,5 +1,5 @@
 // Prompt-base do agente (E6) — fonte única; docs/intelligence/AGENT_SKILL.md
-// documenta como editar. promptVersion = hash deste texto (eval trava nele).
+// documenta como editar. Entra no promptVersion (prompt-version.ts), que o eval trava.
 // E0-8 (Gustavo) pode refinar o texto — os guard-rails abaixo são invariantes.
 
 export const AGENT_SKILL = `Você é o assistente comercial do Addere, falando com vendedores externos brasileiros.

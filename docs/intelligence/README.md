@@ -153,19 +153,31 @@ JSON, e só deve existir na empresa de demonstração.
 
 ### Eval do agente
 
-`intel:freeze-eval` congela 20 casos pseudonimizados a partir dos sinais atuais,
-**estratificados por status** — pegar os N primeiros dava uma suíte inteira do
-status mais numeroso, que não exercitava o prompt. Rode antes de mexer em prompt
-ou modelo, e compare o `pass/fail` depois.
+`intel:freeze-eval` congela 20 casos de briefing pseudonimizados a partir dos
+sinais atuais, **estratificados por status** — pegar os N primeiros dava uma
+suíte inteira do status mais numeroso, que não exercitava o prompt —, e mais até
+6 de mensagem ao cliente (bloqueado fica de fora: a rota recusa a mensagem).
 
-Sem `ANTHROPIC_API_KEY` os casos ficam `SKIPPED` — o comando termina limpo, mas
-não testou nada. Confira o `skip=` na saída antes de dar por verde.
+**Obrigatório antes de mudar `INTEL_LLM_MODEL`, o skill ou qualquer
+`agent/prompts/*.ts`** (plano 012). O eval roda sem cache, confere o `expected`
+de cada caso (bloqueado manda resolver a pendência, mix cortado é citado, novo
+não tem confiança alta; mensagem sem rótulo interno e com pergunta no fim) e
+separa a aprovação de primeira da que só veio na regeneração.
+
+Critério de aprovação — o comando sai com código 1 fora dele:
+
+- **zero** falha em caso `BLOCKED`;
+- **≥ 90 %** dos casos aprovados **de primeira** (regeneração custa o dobro em produção).
+
+Sem `ANTHROPIC_API_KEY` os casos ficam `SKIPPED` e o eval sai **REPROVADO** —
+tudo pulado não testou nada.
 
 ## Retenção e LGPD (D4, §2.13)
 
 | Dado                           | Prazo                        | Onde              |
 | ------------------------------ | ---------------------------- | ----------------- |
 | Cache de texto do LLM          | 24 h                         | `IntelLlmCache`   |
+| Registro de chamadas do agente | 90 dias (sem texto/cliente)  | `IntelLlmCall`    |
 | Briefings e mensagens geradas  | `retentionDays` (padrão 365) | `CustomerMessage` |
 | Coordenadas de GPS das visitas | 90 dias, depois zeradas      | `Visit.lat/lng`   |
 

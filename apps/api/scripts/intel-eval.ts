@@ -17,9 +17,14 @@ async function main() {
   const summary = await runEval(company)
   console.log(`[eval] promptVersion=${summary.promptVersion}`)
   console.log(
-    `[eval] total=${summary.total} pass=${summary.passed} fail=${summary.failed} skip=${summary.skipped}`
+    `[eval] total=${summary.total} pass=${summary.passed} (de primeira=${summary.passedFirst}, ` +
+      `na regeneração=${summary.passedRetry}) fail=${summary.failed} ` +
+      `(bloqueado=${summary.blockedFailed}) skip=${summary.skipped}`
   )
-  if (summary.failed > 0) process.exitCode = 1
+  // Critério do plano 012: zero falha em BLOCKED e ≥ 90 % de primeira.
+  // Tudo SKIPPED também reprova — não testou nada.
+  console.log(`[eval] ${summary.approved ? 'APROVADO' : 'REPROVADO'}`)
+  if (!summary.approved) process.exitCode = 1
 }
 
 main()
