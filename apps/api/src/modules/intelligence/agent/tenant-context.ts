@@ -1,7 +1,6 @@
 // Contexto estável do tenant — "DADOS.md" (E6, doc §5.1): definições das
 // consultas publicadas, premissas em prosa e tom. Vai como bloco de sistema
 // atrás do skill, estável entre chamadas do mesmo tenant (ver systemBlocks).
-import { createHash } from 'node:crypto'
 import { prisma } from '@addere/db'
 import type { Company } from '@prisma/client'
 import { DEFAULT_INTELLIGENCE_CONFIG, type IntelligenceConfig } from '@addere/types'
@@ -9,9 +8,8 @@ import { resolveParameters, type ParameterOverride } from '../engine/parameters'
 import { QUERY_CONTRACTS } from '../protheus-sql/contracts'
 import { AGENT_SKILL } from './skill-prompt'
 
-export function promptVersion(): string {
-  return createHash('sha256').update(AGENT_SKILL).digest('hex').slice(0, 8)
-}
+// Mantido aqui para quem já importa daqui; a fonte é prompt-version.ts
+export { promptVersion } from './prompt-version'
 
 export async function buildTenantContext(company: Company): Promise<string> {
   const [queries, parameterRows] = await Promise.all([

@@ -2,7 +2,7 @@
 // decompõe (puro em engine/decomposition.ts) e monta o DTO com nomes, status,
 // vendedor e o texto do agente (cache diário por recorte).
 import { prisma } from '@addere/db'
-import type { CustomerStatus, LossesReportDto } from '@addere/types'
+import { isCustomerBlocked, type CustomerStatus, type LossesReportDto } from '@addere/types'
 import { generateWithGuardrails } from '../agent/agent.service'
 import { Pseudonymizer } from '../agent/pseudonymizer'
 import { buildTenantContext, systemBlocks } from '../agent/tenant-context'
@@ -76,7 +76,7 @@ export async function buildLossesReport(
 
   const customers = await prisma.customer.findMany({
     where: { companyId, active: true, protheusCode: { not: null }, vendorCode: { in: vendorCodes } },
-    select: { protheusCode: true, loja: true, name: true, vendorCode: true },
+    select: { protheusCode: true, loja: true, name: true, vendorCode: true, msblql: true },
   })
   const customerByKey = new Map(customers.map((c) => [`${c.protheusCode}|${c.loja ?? '01'}`, c]))
   if (customerByKey.size === 0) return empty
@@ -163,7 +163,12 @@ export async function buildLossesReport(
     text: null,
     lastSyncAt: freshness.lastSyncAt,
   }
-  dto.text = await lossesText(companyId, query, dto, statusByKey)
+  // Status que o agente vê: bloqueio do cadastro vale na hora (o sinal é do
+  // noturno), e cliente sem sinal é UNKNOWN — antes caía em ON_CYCLE, o que
+  // desligava a regra do bloqueado para ele no self-check.
+  const agentStatus = (key: string): string =>
+    isCustomerBlocked(customerByKey.get(key)?.msblql) ? 'BLOCKED' : (statusByKey.get(key) ?? 'UNKNOWN')
+  dto.text = await lossesText(companyId, query, dto, agentStatus)
   return dto
 }
 
@@ -172,7 +177,7 @@ async function lossesText(
   companyId: string,
   query: LossesQuery,
   dto: LossesReportDto,
-  statusByKey: Map<string, CustomerStatus>
+  statusFor: (customerKey: string) => string
 ): Promise<string | null> {
   if (dto.customers.length === 0) return null
   const company = await prisma.company.findUnique({ where: { id: companyId } })
@@ -186,7 +191,7 @@ async function lossesText(
     nameByKey.set(k, c.customerName)
     return {
       pseudonym: pseudonymizer.code(k),
-      status: statusByKey.get(k) ?? 'ON_CYCLE',
+      status: statusFor(k),
       expectedAmount: c.diffAmount,
       reasons: [c.reason],
     }
@@ -204,17 +209,27 @@ async function lossesText(
     })),
     freshness: { lastSyncAt: null },
   }
+  // Globais: totais, componentes e produtos. Os de cada cliente (valores e os
+  // números das frases de motivo, "Comprou 50% a menos…") vão com ele (plano 012)
   const numbers = [
     Number(dto.totals.baselineAmount),
     Number(dto.totals.currentAmount),
     Math.abs(Number(dto.totals.diffAmount)),
     dto.totals.diffPct === null ? null : Math.abs(dto.totals.diffPct),
     ...dto.components.flatMap((c) => [c.count, Math.abs(Number(c.amount))]),
-    ...losers.flatMap((c) => [Number(c.baselineAmount), Number(c.currentAmount), Math.abs(Number(c.diffAmount))]),
     ...dto.products.slice(0, 5).map((p) => (p.diffPct === null ? null : Math.abs(p.diffPct))),
-    // Percentuais e valores dentro das frases de motivo ("Comprou 50% a menos…")
-    ...losers.flatMap((c) => (c.reason.match(/\d+/g) ?? []).map(Number)),
   ].filter((n): n is number => n !== null && Number.isFinite(n))
+  const numbersByPseudonym = new Map(
+    losers.map((c, i) => [
+      factCustomers[i].pseudonym,
+      [
+        Number(c.baselineAmount),
+        Number(c.currentAmount),
+        Math.abs(Number(c.diffAmount)),
+        ...(c.reason.match(/\d+/g) ?? []).map(Number),
+      ].filter((n) => Number.isFinite(n)),
+    ])
+  )
 
   const result = await generateWithGuardrails<LossesOutput>({
     companyId,
@@ -226,11 +241,16 @@ async function lossesText(
     schema: LOSSES_SCHEMA as unknown as Record<string, unknown>,
     factsPayload: facts,
     selfCheckFacts: {
-      customers: factCustomers.map((c) => ({ pseudonym: c.pseudonym, status: c.status })),
+      customers: factCustomers.map((c) => ({
+        pseudonym: c.pseudonym,
+        status: c.status,
+        numbers: numbersByPseudonym.get(c.pseudonym) ?? [],
+      })),
       numbers,
       freshnessLine: null,
+      products: facts.products.map((p) => ({ productCode: p.productCode, productDesc: p.productDesc })),
     },
     extractText: (data) => data.text,
   })
-  return result.data ? pseudonymizer.rehydrate(result.data.text, nameByKey) : null
+  return result.data ? pseudonymizer.rehydrateStrict(result.data.text, nameByKey) : null
 }

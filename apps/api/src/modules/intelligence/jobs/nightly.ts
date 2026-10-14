@@ -4,6 +4,8 @@
 import { prisma } from '@addere/db'
 import type { IntelJob } from '@addere/types'
 import { unprocessable } from '../../../lib/errors'
+import { captureError } from '../../../lib/sentry'
+import { engineShareAlarm } from '../agent/call-stats'
 import { mergeIntelligenceConfig } from '../admin/config.routes'
 import { publishedContracts, syncContract } from '../sync/contract-sync.service'
 import { captureGoals } from '../sync/goals.service'
@@ -95,7 +97,26 @@ export async function nightlyHandler(companyId: string, runId: string): Promise<
     await record(dependent.toLowerCase(), () => handler(companyId, runId))
   }
 
-  // 5. Expurgo de retenção (§2.13)
+  // 5. Alarme do agente (plano 012): mais da metade das gerações das últimas
+  // 24 h em só-motor vai para o Sentry. Não reprova o passo — o run em ERROR
+  // derrubaria o frescor ("Dados sincronizados"), que só lê run OK.
+  await record('agent-health', async () => {
+    const rows = await prisma.intelLlmCall.findMany({
+      where: { companyId, createdAt: { gte: new Date(Date.now() - 86_400_000) } },
+      select: { kind: true, source: true, reason: true, createdAt: true },
+    })
+    const alarm = engineShareAlarm(rows)
+    if (alarm) {
+      captureError(new Error('Agente da Inteligência em só-motor na maior parte das gerações'), {
+        module: 'intel-agent',
+        companyId,
+        ...alarm,
+      })
+    }
+    return alarm ?? { calls: rows.length, alarm: false }
+  })
+
+  // 6. Expurgo de retenção (§2.13)
   await record('purge', () => purgeCompany(companyId, config))
 
   await updateRunMetadata(runId, { steps }).catch(() => undefined)

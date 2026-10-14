@@ -123,6 +123,21 @@ export interface IntelJobRunDto {
   steps?: { step: string; ok: boolean; error?: string }[]
 }
 
+export interface AgentCallStats {
+  calls: number
+  llm: number
+  cache: number
+  engine: number
+}
+
+export interface AgentKindHealth {
+  kind: string
+  last24h: AgentCallStats
+  last7d: AgentCallStats
+  /** Motivos de só-motor mais comuns nos 7 dias (números trocados por N) */
+  topReasons: { reason: string; count: number }[]
+}
+
 export interface HealthReport {
   healthyPct: number
   freshness: { job: IntelJob; lastRunAt: string | null; lastStatus: IntelJobRunStatus | null }[]
@@ -131,7 +146,15 @@ export interface HealthReport {
   salesWithoutVendor: { count: number; pct: number; refs: string[] }
   salesWithUnknownCustomer: { count: number; refs: string[] }
   recentRuns: IntelJobRunDto[] // últimos 7 dias
-  llmUsageMonth?: { inputTokens: number; outputTokens: number; calls: number }
+  llmUsageMonth?: {
+    inputTokens: number
+    outputTokens: number
+    /** Gravação no cache de prompt (cobrada a 1,25×) */
+    cacheCreationTokens?: number
+    calls: number
+  }
+  /** Gerações do agente por tipo de texto (plano 012) — de onde vem o alarme de só-motor */
+  agent?: AgentKindHealth[]
   // Geocodificação (E15-F1) — CITY não posiciona pino; withoutPin = fora do mapa
   geocoding?: {
     byPrecision: Partial<Record<GeoPrecision, number>>

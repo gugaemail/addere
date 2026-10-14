@@ -1,5 +1,7 @@
 // Mensagem (E13) — 3 moldes, texto editável, WhatsApp/Copiar. Com a API fora
 // (offline), monta o molde determinístico local; sentAt entra pela fila.
+// Cliente bloqueado não recebe mensagem de oferta (plano 012): a API recusa
+// com 422 e a tela mostra o aviso em vez do molde local — que é de venda.
 import { useCallback, useMemo, useState } from 'react'
 import {
   View,
@@ -12,13 +14,20 @@ import {
 } from 'react-native'
 import { useLocalSearchParams } from 'expo-router'
 import * as Clipboard from 'expo-clipboard'
-import { Copy, Send } from 'lucide-react-native'
+import { Copy, Lock, Send } from 'lucide-react-native'
 import type { MessageTemplate } from '@addere/types'
 import { useClientes } from '../../../../src/hooks/useClientes'
-import { useMessage, useMessageSent, usePlan } from '../../../../src/hooks/useIntel'
+import {
+  isCustomerBlockedError,
+  useMessage,
+  useMessageSent,
+  usePlan,
+} from '../../../../src/hooks/useIntel'
 import { openWhatsApp } from '../../../../src/services/navigationLinks'
 import { pilotTracker } from '../../../../src/services/pilotTracking'
 import { localMessageFallback } from '../../../../src/utils/intelText'
+import { canMessageFor } from '../../../../src/utils/customerBlock'
+import { Card } from '../../../../src/components/ui/Card'
 import { SyncPill } from '../../../../src/components/intel/SyncPill'
 import { colors, spacing, radius, typography } from '../../../../src/theme'
 
@@ -52,23 +61,34 @@ export default function MensagemScreen() {
   const [text, setText] = useState('')
   const [messageId, setMessageId] = useState<string | null>(null)
   const [source, setSource] = useState<'agent' | 'local' | null>(null)
+  const [blockedByApi, setBlockedByApi] = useState(false)
+  const blocked =
+    blockedByApi || !canMessageFor(customer?.msblql, planItem?.signals?.status ?? null)
 
   const generate = useCallback(
     async (chosen: MessageTemplate) => {
+      if (blocked) return
       setTemplate(chosen)
       try {
         const result = await message.mutateAsync({ customerCode, loja, template: chosen })
         setText(result.text)
         setMessageId(result.id)
         setSource('agent')
-      } catch {
+      } catch (err) {
+        if (isCustomerBlockedError(err)) {
+          setBlockedByApi(true)
+          setText('')
+          setMessageId(null)
+          setSource(null)
+          return
+        }
         // Offline ou erro: molde determinístico local — o vendedor não fica na mão
         setText(localMessageFallback(chosen, customerName, planItem?.signals ?? null))
         setMessageId(null)
         setSource('local')
       }
     },
-    [message, customerCode, loja, customerName, planItem]
+    [blocked, message, customerCode, loja, customerName, planItem]
   )
 
   const send = useCallback(async () => {
@@ -103,26 +123,45 @@ export default function MensagemScreen() {
         <SyncPill />
       </View>
 
-      <Text style={s.sectionTitle}>Qual situação?</Text>
-      <View style={{ gap: spacing.sm }}>
-        {TEMPLATES.map((option) => (
-          <TouchableOpacity
-            key={option.key}
-            testID={`molde-${option.key}`}
-            style={[s.templateCard, template === option.key && s.templateActive]}
-            onPress={() => generate(option.key)}
-          >
-            <Text style={[s.templateLabel, template === option.key && { color: colors.brand.primary }]}>
-              {option.label}
-            </Text>
-            <Text style={s.templateHint}>{option.hint}</Text>
-          </TouchableOpacity>
-        ))}
-      </View>
+      {blocked && (
+        <Card testID="aviso-bloqueado">
+          <View style={s.blockedRow}>
+            <Lock size={16} color={colors.semantic.danger} strokeWidth={1.5} />
+            <Text style={s.blockedTitle}>Cliente bloqueado</Text>
+          </View>
+          <Text style={s.blockedText}>
+            Resolva a pendência (título vencido, limite ou cadastro) antes de ofertar. Mensagem de
+            venda fica desligada enquanto o bloqueio durar.
+          </Text>
+        </Card>
+      )}
+
+      {!blocked && (
+        <>
+          <Text style={s.sectionTitle}>Qual situação?</Text>
+          <View style={{ gap: spacing.sm }}>
+            {TEMPLATES.map((option) => (
+              <TouchableOpacity
+                key={option.key}
+                testID={`molde-${option.key}`}
+                style={[s.templateCard, template === option.key && s.templateActive]}
+                onPress={() => generate(option.key)}
+              >
+                <Text
+                  style={[s.templateLabel, template === option.key && { color: colors.brand.primary }]}
+                >
+                  {option.label}
+                </Text>
+                <Text style={s.templateHint}>{option.hint}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </>
+      )}
 
       {message.isPending && <Text style={s.generating}>Escrevendo a mensagem…</Text>}
 
-      {text !== '' && (
+      {!blocked && text !== '' && (
         <>
           <Text style={s.sectionTitle}>
             Mensagem {source === 'local' ? '(molde padrão — sem conexão)' : ''}
@@ -184,6 +223,18 @@ const s = StyleSheet.create({
     fontSize: typography.size.xs,
     color: colors.neutral.textSub,
     marginTop: 2,
+  },
+  blockedRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  blockedTitle: {
+    fontFamily: typography.fontFamily.bodySemibold,
+    fontSize: typography.size.sm,
+    color: colors.semantic.danger,
+  },
+  blockedText: {
+    fontFamily: typography.fontFamily.body,
+    fontSize: typography.size.sm,
+    color: colors.neutral.textSub,
+    marginTop: spacing.xs,
   },
   generating: {
     fontFamily: typography.fontFamily.body,
