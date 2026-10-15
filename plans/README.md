@@ -346,6 +346,74 @@ deploy da API**, rodar `intel:freeze-eval` de novo (os casos antigos não têm
 mensagem nem títulos reais) e o `intel:eval` com chave: a versão do prompt
 mudou (skill, briefing e o hash passou a cobrir modelo e prompts).
 
+### Fase 6 — Gestão de clientes Addere (planejada em 15/10/2026)
+
+| Plano | Título | Prioridade | Esforço | Toca o app? | Depende de | Status |
+|-------|--------|------------|---------|-------------|------------|--------|
+| 013 | Cadastro de clientes, pacotes e contrato em rascunho | P1 | L | não | — | TODO |
+| 014 | Contrato de licença de uso e aceite eletrônico no painel | P1 | L | não | 013 | TODO |
+| 015 | Limite de licenças por contrato e pedido de licenças adicionais | P1 | M | não | 014 | TODO |
+| 016 | Faturamento mensal pós-pago com baixa manual | P1 | L | não | 014 | TODO |
+| 017 | Inadimplência: aviso de suspensão, bloqueio e liberação | P1 | L | **sim**, só JS (OTA) — tela de acesso suspenso | 016 | TODO |
+| 018 | Painel administrativo da Gestão Addere | P2 | M | não | 015, 016, 017 | TODO |
+
+Esta fase cria um módulo exclusivo do SUPERADMIN. Nele se:
+
+- cadastram os clientes;
+- contratam pacotes de licenças com valores negociados;
+- envia o Contrato de Licença de Uso para o ADMIN do cliente aceitar no painel;
+- limita quantos usuários o ADMIN cria;
+- fatura mês a mês, com baixa manual;
+- suspende quem atrasa;
+- acompanha tudo num painel.
+
+Hoje nada disso existe:
+
+- `Company` não tem plano nem contrato.
+- A criação de usuário não checa limite.
+- O ADMIN do cliente liga a Inteligência sozinho.
+- Desativar uma empresa não corta o acesso de ninguém.
+
+**Ordem de execução:**
+
+- O 013 e o 014 vão juntos para produção, porque sem o aceite o contrato não sai do rascunho.
+- Depois, o 015 e o 016 podem andar em paralelo.
+- O 017 vem depois do 016, e o 018 por último.
+
+**Liberação do bloqueio:** API do 017 no ar com `autoBlockEnabled=false` → OTA no ar → ligar
+`autoBlockEnabled`. O app antigo, recebendo o 403, marcaria os pedidos da fila como falhos.
+
+**Contrato:** `docs/billing/contrato-licenca-de-uso-v1.md` e
+`docs/billing/aditivo-contratual-v1.md` adaptam a minuta 1.6 dos Termos do BaiaCerta, com a
+revisão jurídica de 04/10/2026. Onde o modelo serve, a redação é a revisada, palavra por
+palavra; o que é novo leva a marca `[[REVISAR]]`.
+
+**O modelo só é publicado depois de duas coisas:**
+
+1. o advogado validar os trechos `[[REVISAR]]`;
+2. os itens "bloqueia a publicação" do aviso de minuta estarem resolvidos.
+
+O próprio sistema recusa publicar um modelo com marca.
+
+**Landing antes do 014 ir a produção:** `index.html` (linha 2153 e o mock das linhas
+2221-2235, no repo do site) diz que o ADMIN liga a Inteligência em Configurações, o que
+fica falso com o 014. As linhas 2408 e 2503 usam "GH ENGENHARIA LTDA" sem "- ME".
+Corrigir numa mudança própria do site, pelas regras dele (peso e evidência no código).
+
+**Convenções que valem para os seis planos** (alinhadas na revisão de 15/10/2026):
+
+- Termos da competência M = o EFFECTIVE com `effectiveFrom` **estritamente anterior** às
+  00:00 (São Paulo) do dia 1 de M: o que entra no mês, inclusive à meia-noite do dia 1, é
+  cobrado a partir do mês seguinte.
+- A situação do cliente sai de uma função só, `deriveClientStatus` (013), com a
+  precedência: bloqueado por atraso ou manual → vencido → cancelado → bloqueado por empresa
+  desativada → sem contrato → aguardando aceite → em carência (só com carência > 0) → em
+  dia. Os nomes são os do 013 (`AWAITING_ACCEPTANCE`, `IN_GRACE`).
+- Datas `@db.Date` e competências: só `formatBillingDate` e `formatCompetence` (013). O
+  `formatDate` de `apps/web/src/lib/utils.ts` mostra o dia anterior no Brasil.
+- Dinheiro na tela: os formatadores que já existem. Dinheiro dentro de texto com hash
+  (contrato, aditivo, declaração do pedido de licenças): só o `formatBrl` sem `Intl`.
+
 ### O que funciona antes do build
 
 As partes de painel da fase 2 entram em produção junto com a API, sem esperar o
@@ -436,6 +504,92 @@ Valem para todo plano desta série e para qualquer tela futura:
 - **A carteira do gerente é a de todos os vendedores ligados a ele**
   (`User.managerId`), mais a dele própria quando tiver código de vendedor.
 - **Fazer o pedido vale como check-in**, sem perguntar nada ao vendedor.
+
+## Regras comerciais confirmadas em 15/10/2026
+
+Valem para os planos da Fase 6 e para qualquer tela futura de gestão comercial.
+
+| Tema | Regra |
+|---|---|
+| Pacotes | 10, 20, 30 e Ilimitado. Todo contrato tem quantidade de licenças e valor total do pacote. No Ilimitado, a quantidade é digitada no contrato (ex.: 100). O preço de tabela só preenche o formulário; o valor é negociado por empresa. |
+| Adicionais | Licença avulsa, uma a uma, com preço unitário negociado por empresa. |
+| Tipo de licença | Por empresa: Padrão (sem Inteligência) ou Com Inteligência, cada um com seu preço. O contrato liga e desliga a Inteligência; o ADMIN não liga mais. |
+| Quem consome licença | Usuário ativo com perfil vendedor ou gerente (`SALESPERSON`). ADMIN é grátis. Desativar libera a licença na hora. |
+| Contrato | Contrato de Licença de Uso com quadro-resumo gerado do cadastro e condições gerais versionadas. Aceite eletrônico do ADMIN no painel, com usuário, data e hora, IP, navegador e SHA-256 do texto congelado. |
+| Antes do aceite | Nada começa: sem limite, sem mudança na Inteligência, sem cobrança. O início do contrato é a data do aceite. |
+| Aditivos | Pacote, tipo, valor, reajuste ou nova versão das condições gerais só valem depois do aceite de um aditivo; até lá vale a versão anterior. Aumento de preço exige "vale a partir de" ≥ envio + 30 dias, e o cliente pode cancelar sem ônus; o aditivo marcado "a pedido da Empresa Contratante" (ex.: upgrade para Com Inteligência) vale no aceite. O pedido de licenças feito pelo ADMIN, com o preço exibido, vale como aceite, sem aditivo. |
+| Cobrança | Manual: o sistema gera e registra a fatura, a Addere cobra por fora e o superadmin dá a baixa. |
+| Ciclo | Mensal e pós-pago. A competência M é faturada no início de M+1 e vence no dia cadastrado por empresa, entre o dia 1 e o dia 10. |
+| Mudança no mês | Vale para o limite na hora e entra na cobrança a partir da competência seguinte. O mês do aceite não é cobrado. |
+| Carência | Opcional (0 = sem carência), em meses, contada depois do mês do aceite. |
+| Atraso | A suspensão só acontece depois de um aviso com a data prevista, enviado com no mínimo 10 dias corridos de antecedência. O sistema garante esse prazo. A suspensão não apaga dados. O superadmin pode liberar até uma data. |
+| Cancelamento | Sem fidelidade e sem multa. Vale no fim do mês, que é cobrado. A Addere rescinde com 30 dias de aviso. Depois do encerramento, o cliente tem 30 dias para pedir a cópia dos dados, entregue em até 15 dias. |
+| Disponibilidade | Sem meta percentual por enquanto (é uma pendência da segunda etapa). |
+| Piloto | Empresa em piloto fica sem contrato: sem limite e sem cobrança. |
+
+Decisões tomadas por padrão no planejamento, aceitas na aprovação do plano:
+
+1. Empresa sem contrato aceito continua como hoje. São as de teste, as em piloto e as em
+   implantação.
+2. O ADMIN de empresa bloqueada ainda entra no painel, mas só vê Contrato e Plano e cobrança.
+   O login e o refresh nunca são bloqueados; o bloqueio é por rota (403 `COMPANY_BLOCKED`).
+3. Empresa desativada (`active=false`) também tem o acesso bloqueado. Todas as empresas que
+   existiam em 15/10/2026 eram de teste.
+4. O bloqueio automático nasce desligado e só é ligado depois do OTA.
+5. Redução de pacote não desativa ninguém: bloqueia novas ativações e mostra "acima do limite".
+6. O mês do cancelamento é cobrado; para perdoar, use um desconto manual.
+7. Os jobs da Inteligência pausam para empresa bloqueada e retomam com catch-up.
+8. Quem opera o módulo é o papel SUPERADMIN atual, com histórico de quem fez cada ação.
+9. Licença extra lançada pelo superadmin sem pedido do ADMIN gera aditivo.
+10. Qualquer ADMIN ativo da empresa pode aceitar. Sem ADMIN, o envio é recusado.
+11. Mexer no rascunho depois do envio cancela o documento enviado.
+
+## Pendências para a segunda etapa
+
+Registradas em 15/10/2026, durante o planejamento da Fase 6. Ainda sem plano escrito.
+
+**Funcionalidades deixadas de fora da primeira etapa:**
+
+- **Gateway de pagamento** (boleto, PIX ou cartão automáticos). O modelo `Invoice` do 016 já
+  deixa espaço para isso entrar sem refazer nada.
+- **Emissão automática de NFS-e.**
+- **Assinatura por plataforma** (Clicksign, D4Sign ou ZapSign), se um cliente exigir mais do que
+  o aceite eletrônico.
+- **Reajuste automático por índice.** Na primeira etapa, reajuste é um aditivo feito à mão.
+- **Meta de disponibilidade (SLA) com crédito na fatura.** Antes, precisa de um monitor de
+  disponibilidade; depois, entra por aditivo, com a mecânica do 11.5–11.7 da minuta do
+  BaiaCerta. Sem ela, o contrato também fica sem teto de indenização, um ponto que está com o
+  advogado.
+- **Exportação dos dados de uma empresa** em formato legível por máquina, e rotina de eliminação
+  30 dias depois do encerramento. Até lá, o contrato é cumprido por processo manual.
+- **Cobrança por uso de IA.** `IntelLlmCall` já guarda os tokens por empresa.
+- **Perfis internos da equipe Addere** (financeiro, suporte, comercial).
+- **Portal de pagamento para o cliente.**
+
+**Achados colaterais:**
+
+- **Bug em produção: o "Novo usuário" do painel descarta os campos de vendedor.**
+  - O que se perde: código do vendedor, veículo, cidades, gerente e tom.
+  - Causa: o `createUserSchema` (`apps/api/src/modules/users/users.schema.ts`) não declara esses
+    campos, e o zod os remove.
+  - Junto disso, existem dois `createUser` divergentes: bcrypt 10 contra 12, e a validação de
+    gerente só num deles.
+  - O hook `useCreateUser` está morto.
+  - Unificar os dois caminhos resolve tudo. O 015 põe a trava de licenças nos dois, sem
+    unificar.
+- **E-mails do Resend falham calados.** O `resend` 4.8 devolve `{ data, error }` e não lança
+  erro quando a API recusa o envio, então o `try/catch` da recuperação de senha
+  (`apps/api/src/modules/auth/auth.service.ts`) não vê a falha. Os planos 016 e 017 tratam
+  isso nos e-mails de cobrança; a recuperação de senha continua como está.
+- **Datas sem hora aparecem um dia antes no painel.** O `formatDate` de
+  `apps/web/src/lib/utils.ts` formata no fuso do navegador; um `@db.Date` vira o dia anterior.
+  Os planos da Fase 6 usam formatadores próprios; as telas antigas que usam `formatDate` com
+  data sem hora precisam ser conferidas.
+- **`listCompanies` devolve a linha inteira da empresa**, inclusive o `passProtheus`
+  criptografado. O 013 não copia o padrão (usa `select`), mas a rota antiga continua assim.
+- **Segurança: credencial do banco em texto puro.** O `.claude/settings.json` do monorepo (fora
+  do git) guarda, na allowlist de permissões, connection strings do Neon com a senha em texto
+  puro. Rotacionar a senha no Neon e trocar essas entradas por padrões sem credencial.
 
 ## Achados considerados e descartados
 
