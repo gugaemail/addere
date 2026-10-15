@@ -167,6 +167,46 @@ EXPO_PUBLIC_APP_ENV=production EXPO_PUBLIC_APP_VERSION=1.1.1 node -e "const c=re
       gerenciador de tarefas e reabrir (OTA só troca o bundle no restart), e
       confirmar que a tela chama a API certa
 
+## Android: R8 e avisos do Play Console
+
+Desde 15/10/2026 o release Android sai com **R8** ligado
+(`enableMinifyInReleaseBuilds` no `expo-build-properties`, em `app.config.js`).
+Antes disso a ofuscação de DEX era 1% e o Play Console marcou o build 22 com
+"A otimização de código DEX está abaixo do nosso limite" (piso de 25%, prazo
+fev/2027), afetando visibilidade e recursos de publicação.
+
+O R8 renomeia e remove classes, e o erro típico dele não aparece no build: é um
+módulo nativo que some e só quebra quando a tela o chama. Por isso o primeiro
+build com R8 — e qualquer build que traga módulo nativo novo — passa por este
+roteiro num aparelho Android com o `.aab` do teste interno, antes de promover:
+
+- [ ] Login, sessão sobrevive a restart e desbloqueio por biometria
+- [ ] Mapa da Rota com pinos (Google Maps) e GPS no "Cheguei"
+- [ ] Pedido offline → fila → sync (SQLite, NetInfo)
+- [ ] PDF do pedido: gerar, salvar na galeria e compartilhar
+- [ ] Arrastar parada na Rota (Reanimated, Gesture Handler)
+- [ ] Erro forçado aparece no Sentry
+
+O mapping do R8 vai dentro do `.aab`; o Play Console desofusca os crashes
+nativos sozinho. O Sentry **não** recebe esse mapping (o plugin do Sentry não
+liga o Android Gradle Plugin dele), então crash **nativo** chega lá ofuscado.
+Crash de JS — a maioria — não muda: continua com source map.
+
+`shrinkResources` fica desligado de propósito: o React Native carrega imagens
+por nome (`getIdentifier`) a partir do bundle JS, e o shrinker não vê essas
+referências — imagem some no release.
+
+O outro aviso do build 22, "O app usa APIs ou parâmetros descontinuados para
+exibição de ponta a ponta", **não tem correção do nosso lado**. O app já é
+ponta a ponta (`edgeToEdgeEnabled=true`, padrão do SDK 54), não chama
+`StatusBar.setBackgroundColor` nem cor de barra de navegação, e as referências
+a `setStatusBarColor`/`setNavigationBarColor` que o Play detecta estão no
+código compilado do próprio React Native (`StatusBarModule`, `WindowUtil`) e do
+`react-native-screens` — no Android 15+ essas chamadas não fazem nada. É
+recomendação, não bloqueio; some quando as bibliotecas tirarem as referências,
+numa subida de SDK. Não usar `backgroundColor` no `StatusBar` nem as opções
+`statusBarBackgroundColor`/`navigationBarColor` do Stack em código novo.
+
 ## Envio para as lojas (`eas submit`)
 
 O `eas submit` tem a **mesma** armadilha de ambiente do `eas update`: resolve o

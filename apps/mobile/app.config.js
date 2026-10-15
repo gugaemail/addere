@@ -32,6 +32,15 @@ module.exports = {
       'expo-router',
       'expo-secure-store',
       'expo-sqlite',
+      [
+        // R8 no release Android: o Play Console cobra ofuscação de DEX >= 25%
+        // (aviso "otimização de código DEX", prazo fev/2027). O mapping vai
+        // dentro do .aab e o Play desofusca sozinho. shrinkResources fica
+        // desligado: o RN carrega imagens por nome (getIdentifier) e o
+        // shrinker não enxerga as referências que estão no bundle JS.
+        'expo-build-properties',
+        { android: { enableMinifyInReleaseBuilds: true } },
+      ],
       // Upload de source maps/dSYMs é controlado pela env SENTRY_DISABLE_AUTO_UPLOAD (ver .env.example)
       '@sentry/react-native/expo',
       [
