@@ -34,8 +34,15 @@ export default function EsqueciSenhaScreen() {
     try {
       await api.post('/auth/forgot-password', { email: trimmed })
       setSent(true)
-    } catch {
-      Alert.alert('Erro', 'Não foi possível enviar o e-mail. Tente novamente.')
+    } catch (err) {
+      // A API explica a falha de envio e indica o suporte; sem resposta
+      // (sem rede), o problema é a conexão
+      const apiMessage = (err as { response?: { data?: { message?: string } } })?.response?.data
+        ?.message
+      Alert.alert(
+        'Erro',
+        apiMessage ?? 'Não foi possível enviar o e-mail. Verifique sua conexão e tente novamente.'
+      )
     } finally {
       setIsPending(false)
     }
