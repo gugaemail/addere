@@ -1,12 +1,12 @@
 # Contrato de Licença de Uso do Addere — modelo v1
 
-**Versão:** 1.0-minuta
+**Versão:** 1.1-minuta
 **Data:** 15/10/2026
 **Origem:** minuta 1.6 dos Termos de Uso do BaiaCerta (`apps/baiacerta/docs/TERMOS-DE-USO.md`), com a
 revisão jurídica de 04/10/2026 incorporada (parecer em `revisao-juridica-contrato-baiacerta.md`).
 **Partes:** GH ENGENHARIA LTDA - ME (Addere) e a Empresa Contratante.
-**Aceite:** eletrônico, no painel do Addere, por um administrador da Empresa Contratante (§14 do
-corpo). Alterações, por termo aditivo aceito do mesmo modo (§13). O modelo do aditivo está em
+**Aceite:** eletrônico, no painel do Addere, pelo administrador indicado pela Empresa Contratante
+no quadro-resumo (§14 do corpo). Alterações, por termo aditivo aceito do mesmo modo (§13). O modelo do aditivo está em
 `docs/billing/aditivo-contratual-v1.md`.
 **No sistema:** o plano 014 grava como versão 1 do `ContractTemplate` de tipo CONTRACT, em DRAFT,
 só o trecho entre os dois comentários de marcação (início e fim do texto publicável). O que está
@@ -45,14 +45,21 @@ acima e abaixo deles fica de fora.
 >      aviso da Addere e o prazo de 30 + 15 dias para a cópia dos dados (§12).
 >    - Termos, seção 13: só apresenta a Addere como operadora. O §8.1(b) a faz controladora dos
 >      tratamentos próprios.
->    - Termos (seções 1 e 14) e Política (seções 1 e 2) usam "GH ENGENHARIA LTDA", sem "- ME".
+>    - ~~Termos (seções 1 e 14) e Política (seções 1 e 2) usam "GH ENGENHARIA LTDA", sem "- ME".~~
+>      Corrigido na `master` do site em 15/10/2026, junto com o nome completo do encarregado.
 >    - Política, seção 3: declarar a coleta nova (representante legal com CPF e cargo, contatos de
 >      cobrança, registro do aceite com IP e navegador, pedido de licenças com IP e navegador). A
 >      seção 5 confere com o §8.2.
 >    - Também vale alinhar: Termos, seções 1, 7 e 12 (falam em "proposta comercial", que agora é
 >      este Contrato); Termos, seção 17 ("antecedência razoável", contra os 30 dias e o aditivo do
 >      §13); Política, seção 6 (genérica, depois do item 1 acima).
-> 3. **Toda promessa precisa de quem a cumpra no dia da publicação** (tabela abaixo). O que
+> 3. **Monitor de disponibilidade no ar (§9.7 a §9.10).** A meta de 99,5 % de cada mês civil voltou
+>    ao contrato em 15/10/2026. Antes de publicar, um monitor externo precisa medir a API e o painel e
+>    guardar o histórico por mês: é ele que prova a meta e dá os minutos do crédito do §9.8. Hoje só
+>    existe o keep-alive do GitHub Actions a cada 14 minutos, que não mede nem guarda nada. A API
+>    roda no plano `starter` do Render, sem compromisso de disponibilidade do próprio Render: medir
+>    algumas semanas antes de assinar o primeiro contrato.
+> 4. **Toda promessa precisa de quem a cumpra no dia da publicação** (tabela abaixo). O que
 >    depende de plano ainda não entregue (015, 016, 017) é cumprido à mão até ele entrar, e isso
 >    precisa estar escrito. O processo de incidentes em 48 h e o de cópia e eliminação dos dados
 >    moram em `docs/billing/README.md`, que **ainda não existe**: escrevê-lo antes de publicar.
@@ -62,7 +69,8 @@ acima e abaixo deles fica de fora.
 > - **Preâmbulo:** o Contrato é formado por quadro-resumo e condições gerais, e o quadro-resumo
 >   prevalece na divergência.
 > - **Quadro-resumo:** inteiro novo. Início no aceite, ciclo pós-pago, carência, primeira fatura e
->   prazo de suspensão vêm de campos do sistema.
+>   prazo de suspensão vêm de campos do sistema. Traz também o administrador indicado pela Empresa,
+>   o único que aceita o Contrato, os aditivos e os pedidos de licença.
 > - **§1, 1º parágrafo:** descrição do produto, tirada da seção 3 dos Termos de Uso do Addere.
 > - **§1, 3º parágrafo:** aviso de que o Addere não é produto oficial da TOTVS.
 > - **§2, Empresa Contratante:** só pessoa jurídica que usa o ERP; o modelo admitia pessoa física.
@@ -74,8 +82,9 @@ acima e abaixo deles fica de fora.
 > - **§3.2:** vendedor e gerente ocupam licença, administrador não, e desativar libera na hora.
 > - **§3.3:** o limite de licenças e o que acontece quando é atingido.
 > - **§3.4:** licença adicional avulsa pelo valor unitário.
-> - **§3.5:** o pedido de adicionais no painel, com o preço na tela, vale como contratação sem
->   aditivo; liberado após aprovação e cobrado a partir do mês seguinte.
+> - **§3.5:** o pedido de adicionais no painel, feito pelo administrador indicado, com o preço na
+>   tela, vale como contratação sem aditivo; liberado após aprovação e cobrado a partir do mês
+>   seguinte.
 > - **§3.6:** a Camada de Inteligência segue o tipo de licença, e a troca de tipo é por aditivo.
 > - **§3.7:** nada vale antes do aceite, e o início é a data do aceite.
 > - **§3.9:** cancelamento com efeito no fim do mês do pedido, que é cobrado (no modelo, "fim do
@@ -109,6 +118,9 @@ acima e abaixo deles fica de fora.
 > - **§9.3:** pedidos pendentes podem se perder se o aplicativo for apagado antes de sincronizar.
 > - **§9.5:** as sugestões da Inteligência são apoio à decisão.
 > - **§9.6:** canais de suporte, sem prazo de atendimento.
+> - **§9.8:** "mensalidade do ciclo seguinte" virou "fatura da competência seguinte", porque o Addere
+>   é pós-pago; o crédito é aplicado ao valor mensal da licença daquele mês.
+> - **§9.10:** "ciclo seguinte" virou "fatura seguinte".
 > - **§10.5:** manter o ERP com REST e os endpoints de integração.
 > - **§10.6:** credenciais de integração e exatidão dos dados do ERP.
 > - **§10.7:** base legal para a localização no check-in.
@@ -121,8 +133,8 @@ acima e abaixo deles fica de fora.
 >   sistema.
 > - **§13, 2º parágrafo:** o que conta como alteração, e o aditivo sem aumento de valor que vale no
 >   aceite, sem os 30 dias.
-> - **§14.1:** aceite eletrônico (MP 2.200-2/2001, art. 10, § 2º) e declaração de poderes de quem
->   aceita.
+> - **§14.1:** aceite eletrônico (MP 2.200-2/2001, art. 10, § 2º) pelo administrador indicado no
+>   quadro-resumo, que declara ter poderes para obrigar a Empresa.
 > - **§14.2:** o que o sistema registra no aceite; o texto aceito fica congelado.
 > - **§14.3:** o pedido de licenças adicionais é registrado do mesmo modo.
 > - **§14.4:** impressão e PDF do documento aceito.
@@ -130,17 +142,15 @@ acima e abaixo deles fica de fora.
 >
 > **Também para o advogado, sem marca no texto:**
 >
-> - **Não há teto de indenização.** No modelo, o crédito do 11.5 era o limite máximo da
->   indenização para quem não é consumidor (11.6). Sem meta de disponibilidade, o 11.5 a 11.7
->   saíram, e esse teto deixou de existir. Criar outro seria cláusula nova.
-> - **Quem aceita.** Pela decisão de produto 10, qualquer administrador ativo da Empresa pode
->   aceitar, e ele pode não ser o representante legal do quadro-resumo. O §14.1 faz quem aceita
->   declarar ter poderes para obrigar a Empresa. Isso basta, ou o aceite precisa ser do
->   representante legal (ou de quem tem procuração)?
-> - **Bloqueio manual.** O plano 017 deixa o superadmin bloquear à mão (motivo MANUAL). O contrato
->   só prevê suspensão por atraso, com o aviso de 10 dias (§6.5 e §6.6). Ou o bloqueio manual só é
->   usado dentro desse rito, ou entra uma hipótese nova (violação, risco à segurança), que seria
->   cláusula nova.
+> - **Teto de indenização (resolvido em 15/10/2026).** Com a meta de 99,5 % de volta, o §9.9 (o
+>   11.6 do modelo) volta a fazer do crédito o limite da indenização para quem não é consumidor.
+> - **Quem aceita (decidido em 15/10/2026).** Só o administrador indicado pela Empresa no
+>   quadro-resumo aceita o Contrato, os aditivos e os pedidos de licença. Ele pode não ser o
+>   representante legal; o §14.1 o faz declarar poderes para obrigar a Empresa. Confirmar se a
+>   indicação no quadro-resumo, aceita por ele, basta como prova de poderes.
+> - **Bloqueio manual (decidido em 15/10/2026).** Desabilitado no sistema: o contrato só prevê
+>   suspensão por atraso, com o aviso de 10 dias (§6.5 e §6.6). Se um dia voltar (violação, risco
+>   à segurança), entra com cláusula nova.
 > - **Os 30 dias do §13 e o "aumenta preço" do plano 014.** O 2º parágrafo do §13 dispensa os 30
 >   dias para o aditivo que não aumenta o valor do pacote nem o valor unitário da licença adicional.
 >   Um aditivo que só acrescenta licenças, sem mudar o valor unitário, aumenta o total mensal e
@@ -173,6 +183,10 @@ acima e abaixo deles fica de fora.
 > | 18 | Dados isolados por empresa, criptografados em trânsito e em repouso; credenciais do ERP cifradas | §8.3 | Já existe: HTTPS, banco no Neon cifrado em repouso, `protheus-crypto.ts`. A cópia offline no aparelho (AsyncStorage e SQLite) não tem cifra própria do app e depende da criptografia do sistema operacional: conferir |
 > | 19 | Textos da Inteligência com dados pseudonimizados e conferidos antes de chegar ao app | §8.9 | Já existe: `ALLOWED_FACT_KEYS` em `intelligence/agent/facts.ts` e a conferência do agente |
 > | 20 | Eliminação, a pedido da Empresa, dos dados de um titular no Addere; registros fiscais mantidos identificados e bloqueados | §8.4, §8.5 | Processo manual; não há função no sistema |
+> | 21 | Disponibilidade de 99,5 % de cada mês civil | §9.7 | Monitor de disponibilidade com histórico mensal (API e painel): **ainda não existe**, bloqueia a publicação |
+> | 22 | Crédito proporcional à indisponibilidade, abatido na fatura da competência seguinte | §9.8 | Processo manual: item `DISCOUNT` "Crédito por indisponibilidade" na fatura (plano 016), com os minutos medidos pelo monitor |
+> | 23 | Crédito sem fatura seguinte pago por Pix em até 30 dias | §9.10 | Processo manual |
+> | 24 | Só o administrador indicado no quadro-resumo aceita e pede licenças | §3.5, §14.1 | Código, planos 014 e 015 |
 
 ---
 
@@ -187,10 +201,9 @@ de gênero e de número acompanha a troca.
 
 **Ajustes mecânicos sem marca:** renumeração das cláusulas e das remissões internas; saída das
 menções ao Asaas que dependiam do §5 do modelo ("Não é serviço financeiro — ver o §5", no §1);
-"veterinárias" saiu do §9.4 e "dos animais" saiu do §10.1; o encarregado do §8.8 usa o nome e o
-canal da seção 12 da Política de Privacidade do Addere ("Gustavo Costa", contato@addere.com.br). É a
-mesma pessoa do modelo, que traz o nome completo (Gustavo Henrique Palitot Costa): decidir qual
-forma vai no Contrato e na Política.
+"veterinárias" saiu do §9.4 e "dos animais" saiu do §10.1; o encarregado do §8.8 é a mesma
+pessoa do modelo, com o nome completo (Gustavo Henrique Palitot Costa, decidido em 15/10/2026, que
+também passou a valer na Política de Privacidade), e o canal do Addere (contato@addere.com.br).
 
 **Correspondência com a minuta 1.6 do BaiaCerta:**
 
@@ -222,6 +235,8 @@ forma vai no Contrato e na Política.
 | §9.3 | — | Novo, com marca |
 | §9.4 | §11.4 | Nomes trocados, sem "veterinárias" |
 | §9.5, §9.6 | — | Novos, com marca |
+| §9.7, §9.9 | §11.1, §11.6 | Nomes trocados (meta de volta em 15/10/2026) |
+| §9.8, §9.10 | §11.5, §11.7 | Com marca: fatura da competência seguinte no lugar da mensalidade do ciclo seguinte |
 | §10.1 a §10.4 | §12.1 a §12.4 | Nomes trocados |
 | §10.5 a §10.8 | — | Novos, com marca (seção 8 dos Termos do Addere) |
 | §11.1 | §13.1 | Nomes trocados |
@@ -272,6 +287,7 @@ Este Contrato é formado pelo quadro-resumo e pelas condições gerais que o seg
 - **Endereço:** {{cliente.endereco}}
 - **Representante legal:** {{cliente.representanteNome}}, CPF {{cliente.representanteCpf}}, {{cliente.representanteCargo}}
 - **E-mail de cobrança:** {{cliente.emailCobranca}}
+- **Administrador indicado** (aceita este Contrato, os termos aditivos e os pedidos de licenças adicionais): {{cliente.administradorNome}}, {{cliente.administradorEmail}}
 
 ### Licença
 
@@ -334,7 +350,7 @@ O Addere não é um produto oficial da TOTVS S.A. É desenvolvido de forma indep
 
 **3.4** Além do pacote, a Empresa Contratante pode contratar licenças adicionais avulsas, uma a uma, pelo valor unitário do quadro-resumo. [[REVISAR: licença adicional avulsa]]
 
-**3.5** O pedido de licenças adicionais feito no painel do Addere por um administrador da Empresa Contratante, com o preço exibido na tela, vale como contratação dessas licenças, sem termo aditivo. As licenças pedidas são liberadas depois da aprovação da Addere e cobradas a partir do mês seguinte ao da liberação. [[REVISAR: contratação de adicionais por pedido no painel, sem aditivo]]
+**3.5** O pedido de licenças adicionais feito no painel do Addere pelo administrador indicado no quadro-resumo, com o preço exibido na tela, vale como contratação dessas licenças, sem termo aditivo. As licenças pedidas são liberadas depois da aprovação da Addere e cobradas a partir do mês seguinte ao da liberação. [[REVISAR: contratação de adicionais por pedido no painel, sem aditivo]]
 
 **3.6** O tipo de licença do quadro-resumo define se a Camada de Inteligência está incluída. No tipo Padrão, ela não está incluída; no tipo Com Inteligência, está incluída para toda a Empresa Contratante. A Camada de Inteligência é ligada e desligada conforme o tipo de licença vigente, e a troca de tipo é feita por termo aditivo (§13). [[REVISAR: Inteligência definida pelo tipo de licença, e não mais pelo administrador]]
 
@@ -409,7 +425,7 @@ O Addere não é um produto oficial da TOTVS S.A. É desenvolvido de forma indep
 
 **8.7 Transferência internacional.** Parte dos fornecedores do §8.2 armazena ou processa dados fora do Brasil, principalmente nos Estados Unidos — entre eles Neon, Render, Vercel, Resend, Sentry, Expo, Google, Apple e Anthropic; o Nominatim/OpenStreetMap, na Europa. [[REVISAR: fornecedores do Addere e onde tratam os dados, da seção 5 da Política de Privacidade]] Essas transferências são feitas com base em cláusulas-padrão contratuais aprovadas pela Autoridade Nacional de Proteção de Dados, incorporadas aos contratos com esses fornecedores (art. 33, II, "b", da LGPD). A Empresa Contratante, como controladora dos tratamentos do §8.1(a), autoriza essas transferências.
 
-**8.8 Encarregado.** O encarregado pelo tratamento de dados pessoais da Addere é **Gustavo Costa**, que atende titulares, Empresas Contratantes e a Autoridade Nacional de Proteção de Dados pelo canal **contato@addere.com.br**.
+**8.8 Encarregado.** O encarregado pelo tratamento de dados pessoais da Addere é **Gustavo Henrique Palitot Costa**, que atende titulares, Empresas Contratantes e a Autoridade Nacional de Proteção de Dados pelo canal **contato@addere.com.br**.
 
 **8.9 Camada de Inteligência.** Quando a licença inclui a Camada de Inteligência, os textos de apoio à venda (plano do dia, resumo antes da visita e mensagem sugerida) são escritos por modelo de linguagem a partir de dados comerciais pseudonimizados. Nome, código, CNPJ, CPF, e-mail, CEP e telefone dos clientes da Empresa Contratante não são enviados ao provedor do modelo. Os textos são conferidos antes de chegar ao aplicativo; quando não passam na conferência, o aplicativo mostra o texto montado pelas regras. [[REVISAR: da seção 11 dos Termos de Uso e da seção 3.9 da Política de Privacidade do Addere]]
 
@@ -426,6 +442,14 @@ O Addere não é um produto oficial da TOTVS S.A. É desenvolvido de forma indep
 **9.5** Na Camada de Inteligência, situações, prioridades e valores esperados são calculados por regras determinísticas a partir dos dados do ERP. As sugestões são apoio à decisão: não garantem venda e não substituem o julgamento do Usuário e da Empresa Contratante. A qualidade das sugestões depende da qualidade dos dados do ERP. [[REVISAR: da seção 11 dos Termos de Uso do Addere]]
 
 **9.6** Os Usuários são atendidos pelo e-mail de suporte do quadro-resumo, {{contratada.emailSuporte}}; os assuntos comerciais e contratuais, pelo e-mail de contato, {{contratada.emailContato}}. [[REVISAR: canais de suporte, da seção 12 dos Termos de Uso do Addere, sem prazo de atendimento]]
+
+**9.7** A Addere compromete-se a manter o serviço disponível em, no mínimo, **99,5% de cada mês civil**. Não entram no cálculo as janelas de manutenção comunicadas previamente nem as hipóteses do §9.1.
+
+**9.8** Descumprida a meta do §9.7 em um mês civil, a Empresa Contratante tem direito a **crédito proporcional ao tempo de indisponibilidade** daquele mês, abatido na fatura da competência seguinte. O crédito corresponde à fração entre os minutos de indisponibilidade e o total de minutos do mês, aplicada ao valor mensal da licença daquele mês — o que o limita, por construção, a um valor mensal. [[REVISAR: mensalidade do ciclo seguinte virou fatura da competência seguinte, porque o Addere é pós-pago]]
+
+**9.9 Natureza do crédito.** Para a Empresa Contratante que não se enquadre como consumidora, o crédito do §9.8 é o **limite máximo da indenização** devida pela Addere por indisponibilidade do serviço, ressalvados os casos de dolo ou culpa grave. Para a Empresa Contratante que se enquadre como consumidora (art. 2º do Código de Defesa do Consumidor), o crédito é compensação pela indisponibilidade e **não limita** a indenização a que ela tenha direito.
+
+**9.10 Crédito sem fatura seguinte.** Se não houver fatura seguinte em que abater o crédito, por ter a contratação sido encerrada, o valor é pago à Empresa Contratante em dinheiro, por Pix para conta de titularidade dela, em até **30 (trinta) dias** contados do encerramento. [[REVISAR: ciclo seguinte virou fatura seguinte]]
 
 ### 10. Obrigações da Empresa Contratante
 
@@ -471,7 +495,7 @@ São alterações deste Contrato, para esse fim, a troca de pacote, de tipo de l
 
 ### 14. Aceite eletrônico
 
-**14.1** Este Contrato e os seus termos aditivos são aceitos eletronicamente no painel do Addere por um administrador da Empresa Contratante, depois de exibido o texto inteiro e de marcada a concordância. Quem aceita declara ter poderes para obrigar a Empresa Contratante. As partes admitem esse meio de comprovação da autoria e da integridade do documento, nos termos do art. 10, § 2º, da Medida Provisória nº 2.200-2/2001. [[REVISAR: aceite eletrônico no lugar do contrato assinado do modelo]]
+**14.1** Este Contrato e os seus termos aditivos são aceitos eletronicamente no painel do Addere pelo administrador indicado pela Empresa Contratante no quadro-resumo, depois de exibido o texto inteiro e de marcada a concordância. Quem aceita declara ter poderes para obrigar a Empresa Contratante. As partes admitem esse meio de comprovação da autoria e da integridade do documento, nos termos do art. 10, § 2º, da Medida Provisória nº 2.200-2/2001. [[REVISAR: aceite eletrônico pelo administrador indicado, no lugar do contrato assinado do modelo]]
 
 **14.2** No aceite, o sistema registra o Usuário que aceitou, a data e a hora, o endereço IP, a identificação do navegador e o resumo criptográfico (hash SHA-256) do texto aceito. O texto aceito fica congelado: mudanças posteriores no modelo não o alteram. [[REVISAR: o que o sistema registra no aceite]]
 
@@ -495,4 +519,5 @@ Aplica-se a lei brasileira. Fica eleito o foro da comarca de **João Pessoa, Par
 
 | Versão | Data | Mudança |
 |---|---|---|
+| 1.1-minuta | 15/10/2026 | Decisões do dono do produto. **Volta a meta de 99,5 %** de cada mês civil, com o crédito proporcional e o teto de indenização para quem não é consumidor: §9.7 e §9.9 com os nomes trocados (11.1 e 11.6 do modelo), §9.8 e §9.10 com marca (pós-pago). O monitor de disponibilidade entra na lista do que bloqueia a publicação. **Administrador indicado:** o quadro-resumo traz o administrador indicado pela Empresa, o único que aceita o Contrato, os aditivos e os pedidos de licença (§3.5 e §14.1). **Encarregado** com o nome completo, como no modelo (§8.8). O bloqueio manual fica desabilitado no sistema; a suspensão segue só o rito do atraso. |
 | 1.0-minuta | 15/10/2026 | **Adaptado da minuta 1.6 dos Termos do BaiaCerta (revisão jurídica de 04/10/2026)** para o Addere, com as regras comerciais de 15/10/2026. **Saiu:** o Asaas (§5, §6, 10.1(c), segundo parágrafo do 10.2, 14.4 e a menção do §1), a conta de recebimento, o proprietário do cavalo (fica só adaptado no direito de regresso), o 4.2 (um usuário em vários haras), o 9.3 e o 9.4 (envio automático e link de fatura), a meta de 99,5 % e o crédito (11.1, 11.5, 11.6 e 11.7) e a Baia Monitorada (§16). **Entrou, com marca REVISAR:** preâmbulo e quadro-resumo; a contratação por pacote de licenças, com adicionais, pedido no painel, tipo de licença e início no aceite (§3); o ciclo pós-pago, a carência, a mudança cobrada na competência seguinte e o rito da suspensão (§6.2 a §6.4, §6.6 e §6.8); pedidos e sincronização com o ERP (§5.4, §9.2 e §9.3); mensagens pelo WhatsApp do Usuário (§7.1); a repartição de papéis da LGPD e os fornecedores do Addere (§8.1, §8.2, §8.4 e §8.7); a Camada de Inteligência (§8.9 e §9.5); suporte (§9.6); obrigações de ERP (§10.5 a §10.8); alcance da licença (§11.3); efeitos do encerramento (§12.4); o aditivo aceito no painel (§13); o aceite eletrônico (§14); e a relação com os Termos e a Política (§15). **Ficou palavra por palavra, só com os nomes trocados:** o 2º parágrafo do 1, 2 (Addere e Usuários), 3.8, 4.2, 4.3, 5.1, 5.2, 6.1, 6.5 (o 8.2 do modelo), 6.7 (o 8.3), 7.2, a abertura do 8.1 e a frase do operador em 8.1(a), 8.5, 8.6, as duas últimas frases do 8.7, 8.8, 9.1 (menos o acréscimo do ERP), 9.4 (sem "veterinárias"), 10.1 (sem "dos animais") a 10.4, 11.1, 12.1 a 12.3, o 1º parágrafo do 13 (menos a troca do aditivo) e 16 (foro). **Pendente de revisão jurídica.** |

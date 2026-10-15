@@ -86,6 +86,12 @@ Todas são **decisão de produto de 15/10/2026**.
   que economiza custo de IA. Retoma com catch-up ao desbloquear.
 - **Decisão 8.** Quem opera é o papel SUPERADMIN atual. O histórico registra quem
   fez cada ação.
+- **Bloqueio manual desabilitado.** O contrato (§6.5 e §6.6 de
+  `docs/billing/contrato-licenca-de-uso-v1.md`) só prevê suspensão por atraso,
+  precedida do aviso de 10 dias. Não há base contratual para o superadmin
+  bloquear à mão, então este plano não tem botão, rota nem serviço que bloqueie
+  manualmente. O superadmin só **libera**: "Liberar até…", que favorece o
+  cliente. A baixa também libera.
 
 ### Decisões de desenho deste plano
 
@@ -105,17 +111,30 @@ Todas são **decisão de produto de 15/10/2026**.
    evento. Mudar `overdueBlockDays` depois não muda a data já comunicada.
 4. **Uma regra só, simétrica.** `overdueBlockHolds` decide se o bloqueio por
    atraso se sustenta. Se sustenta e a empresa está liberada, bloqueia; se não
-   sustenta e o bloqueio é `OVERDUE`, libera. Desligar `autoBlockEnabled` faz a
-   regra deixar de se sustentar, então **libera todos os bloqueios por atraso no
-   tick seguinte**: o switch é o rollback. Bloqueio `MANUAL` nunca é tocado pela
-   regra.
+   sustenta e o bloqueio é `OVERDUE` (ou não tem motivo, que vale `OVERDUE`,
+   passo 2), libera. Desligar `autoBlockEnabled` faz a regra deixar de se
+   sustentar, então **libera todos os bloqueios por atraso no tick seguinte**:
+   o switch é o rollback. Bloqueio `MANUAL` nunca é tocado pela
+   regra. Isso continua valendo, mas nenhum caminho deste plano grava `MANUAL`
+   (decisão 7).
 5. **Empresa inativa tem precedência no motivo.** Inativa e com fatura vencida
    aparece como `INACTIVE`: pagar não devolve o acesso, reativar sim.
 6. **Liberação com data opcional, até 90 dias.** Com data, o bloqueio por atraso
    não volta até o fim daquele dia (São Paulo). Sem data, ele volta no tick
    seguinte se a fatura continuar vencida.
-7. **Bloqueio manual não é para atraso.** É para violação do contrato ou pedido
-   do cliente, e a tela diz isso. Atraso segue o aviso e o bloqueio automático.
+7. **Não há bloqueio manual; `MANUAL` fica reservado no enum.** O bloqueio
+   manual foi desabilitado em 15/10/2026 (ver "Regras de negócio"). O enum
+   `AccessBlockReason` mantém o valor `MANUAL`, com o comentário de reservado e
+   desabilitado, e nenhuma rota, serviço, job, seed ou tela o grava. A
+   alternativa era deixar só `OVERDUE`. Ela também passaria no type-check, porque
+   o `deriveClientStatus` do 013 aceita `'OVERDUE' | 'MANUAL' | 'INACTIVE'`, e
+   um tipo menor cabe no maior. Mas o 013 (`deriveClientStatus`) e o 018 (a
+   precedência da situação) já descrevem o `MANUAL` e não mudam por este plano.
+   Tirá-lo daqui deixaria os dois falando de um valor que o banco recusa. E,
+   quando o bloqueio manual voltar, o plano próprio só acrescenta o caminho que
+   grava, sem migration de enum. Se um `MANUAL` aparecer no banco, alguém o gravou
+   à mão. O `authenticate` o respeita, a regra não o limpa, e "Liberar até…" é
+   o caminho para limpar.
 8. **O expurgo LGPD continua para empresa bloqueada.** O `PURGE` roda dentro do
    `nightly` (`docs/intelligence/README.md`, seção "Retenção e LGPD"). Pausar o
    `nightly` sem mais nada pararia o apagamento das coordenadas de GPS de 90
@@ -352,7 +371,9 @@ Variações do texto (todas saem de uma função pura, passo 7):
 - bloqueada por atraso (tom de perigo, `bg-danger/5`): "Acesso suspenso desde
   25/10/2026: fatura nº 12 vencida em 10/10/2026. Nenhum dado foi apagado. A
   baixa do pagamento libera o acesso na hora.";
-- bloqueio manual: "Acesso suspenso pela Addere. Fale com a Addere.";
+- motivo `MANUAL` (reservado, decisão de desenho 7; nenhuma tela grava, só
+  aparece se alguém gravar à mão no banco): "Acesso suspenso pela Addere. Fale
+  com a Addere.";
 - empresa desativada: "Empresa desativada. Fale com a Addere.".
 
 ### Tela de bloqueio no painel (ADMIN)
@@ -402,7 +423,7 @@ No cabeçalho da ficha `/gestao/clientes/[id]`, visível em todas as abas.
 ```
 ┌──────────────────────────────────────────────────────────────────────┐
 │ ← Clientes                                                           │
-│ Distribuidora Exemplo Ltda              [ Integração ] [ Bloquear ]  │
+│ Distribuidora Exemplo Ltda                          [ Integração ]   │
 │ 12.345.678/0001-90                                [ Liberar até… ]   │
 │                                                                      │
 │ ┌ Acesso ──────────────────────────────────────────────────────────┐ │
@@ -415,28 +436,15 @@ No cabeçalho da ficha `/gestao/clientes/[id]`, visível em todas as abas.
 
 Estados do cartão: "Acesso liberado"; "Aviso enviado em dd/mm — suspensão
 prevista em dd/mm (fatura nº N)"; "Bloqueado por atraso desde dd/mm";
-"Bloqueado manualmente desde dd/mm (motivo no Histórico)"; "Liberado até
-dd/mm"; "Empresa desativada — o acesso está cortado (ficha técnica, Ativar
-empresa)". "Bloquear" some quando o bloqueio já é manual; "Liberar até…"
-aparece quando há bloqueio, aviso pendente ou liberação vigente.
+"Liberado até dd/mm"; "Empresa desativada — o acesso está cortado (ficha
+técnica, Ativar empresa)". O motivo `MANUAL`, reservado (decisão de desenho
+7), só aparece se alguém o gravar à mão no banco. Nesse caso, o cartão mostra
+"Bloqueado desde dd/mm, fora do previsto — use Liberar até…". Não há botão
+"Bloquear": o bloqueio manual está desabilitado (ver "Fora do escopo").
+"Liberar até…" aparece quando há bloqueio, aviso pendente ou liberação
+vigente.
 
 ```
-┌ Bloquear acesso ──────────────────────────────────┐
-│ O app e o painel da empresa ficam bloqueados até   │
-│ você liberar. O administrador ainda vê Contrato e  │
-│ Plano e cobrança. Nenhum dado é apagado.           │
-│                                                    │
-│ Use só para violação do contrato ou pedido do      │
-│ cliente. Atraso de pagamento segue o aviso de 10   │
-│ dias e o bloqueio automático.                      │
-│                                                    │
-│ Motivo (fica no Histórico) *                       │
-│ ┌────────────────────────────────────────────────┐ │
-│ │                                                │ │
-│ └────────────────────────────────────────────────┘ │
-│                         [ Cancelar ] [ Bloquear ]  │
-└────────────────────────────────────────────────────┘
-
 ┌ Liberar acesso ───────────────────────────────────┐
 │ Liberar até (opcional)   [ 05/11/2026 ]            │
 │ Até essa data o bloqueio por atraso não volta.     │
@@ -454,9 +462,9 @@ aparece quando há bloqueio, aviso pendente ou liberação vigente.
 │     usuários da empresa ao app e ao painel —    │
 │     o administrador só vê Contrato e Plano e    │
 │     cobrança — e para o sync automático do      │
-│     Protheus. Nenhum dado é apagado. Para       │
-│     inadimplência, use Bloquear na ficha do     │
-│     cliente.                                    │
+│     Protheus. Nenhum dado é apagado. Atraso     │
+│     de pagamento não passa por aqui: segue o    │
+│     aviso de 10 dias e a suspensão automática.  │
 │                       [ Manter ] [ Desativar ]  │
 └─────────────────────────────────────────────────┘
 ```
@@ -492,7 +500,7 @@ encontra a empresa ainda bloqueada mostra, abaixo dos botões, "Ainda suspenso."
 
 | Perfil | Empresa com fatura vencida | Empresa bloqueada (ou desativada) |
 |---|---|---|
-| SUPERADMIN | Vê o cartão "Acesso" na ficha; pode bloquear e liberar | Nunca é bloqueado. Bloqueia e libera pela ficha |
+| SUPERADMIN | Vê o cartão "Acesso" na ficha; pode liberar até uma data | Nunca é bloqueado. Libera pela ficha ("Liberar até…"); não bloqueia à mão |
 | ADMIN | Faixa com a fatura e a data prevista | Painel abre, mas só Contrato e Plano e cobrança funcionam; o resto mostra a tela de bloqueio. No app, tela de bloqueio |
 | Gerente (`SALESPERSON` + `intel.manager`) | Nada muda | Painel e app mostram a tela de bloqueio |
 | Vendedor (`SALESPERSON`) | Nada muda | App mostra a tela de bloqueio; a fila de pedidos espera |
@@ -501,9 +509,11 @@ Rotas novas:
 
 | Rota | Guard | Liberada com a empresa bloqueada? |
 |---|---|---|
-| `POST /admin/billing/clients/:companyId/block` | `requireSuperAdmin` | n/a (SUPERADMIN nunca é bloqueado) |
-| `POST /admin/billing/clients/:companyId/unblock` | `requireSuperAdmin` | n/a |
+| `POST /admin/billing/clients/:companyId/unblock` | `requireSuperAdmin` | n/a (SUPERADMIN nunca é bloqueado) |
 | `GET /billing/me/overdue` | o mesmo das outras `/billing/me/*` (ADMIN) | sim |
+
+Não existe `POST /admin/billing/clients/:companyId/block`: o bloqueio manual
+está desabilitado (ver "Fora do escopo").
 
 Rotas que passam a aceitar empresa bloqueada (`config.allowBlockedCompany`):
 `GET /auth/me`, `GET /auth/me/permissions` e todas as `/billing/me/*`. Nenhuma
@@ -543,8 +553,8 @@ o bloqueio automático é o `BillingSettings.autoBlockEnabled`, no banco.
 
 **Dentro do escopo:**
 
-- `packages/db/prisma/schema.prisma` (enum `AccessBlockReason` e três campos na
-  `Company`)
+- `packages/db/prisma/schema.prisma` (enum `AccessBlockReason`, com `MANUAL`
+  reservado, e três campos na `Company`)
 - `packages/db/prisma/migrations/<timestamp>_company_access_block/migration.sql`
 - `packages/types/src/index.ts` (`CompanyAccess`, `CompanyAccessReason`,
   `COMPANY_BLOCKED_CODE`, `CompanyBlockedResponse`, `isCompanyBlockedError`,
@@ -569,7 +579,7 @@ o bloqueio automático é o `BillingSettings.autoBlockEnabled`, no banco.
 - web: `lib/api.ts`, `lib/company-block.ts` (novo), `contexts/AuthContext.tsx`,
   `(admin)/layout.tsx`, `components/billing/BillingBanner.tsx` e
   `components/billing/CompanyBlockedScreen.tsx` (novos), `hooks/useInvoices.ts`
-  (016), a ficha `gestao/clientes/[id]` (cartão e modais novos),
+  (016), a ficha `gestao/clientes/[id]` (cartão "Acesso" e modal de liberação),
   `empresas/[id]/page.tsx`, `dashboard/page.tsx` (só o rótulo, se o arquivo
   ainda existir), a tela Pacotes e regras (texto do switch) e o mapa de rótulos
   do Histórico; testes em `lib/__tests__/`
@@ -601,6 +611,15 @@ o bloqueio automático é o `BillingSettings.autoBlockEnabled`, no banco.
   segunda etapa).
 - A lista de exceções do bloqueio. Não acrescente rota a ela por conta própria
   (nem `/help/*`, nem `/pilot/events`).
+- **Bloqueio manual: desabilitado em 15/10/2026** até o contrato prever a
+  hipótese (violação, risco à segurança). Quando voltar, é plano próprio, com
+  cláusula revisada pelo advogado. Ficam de fora, portanto: a rota
+  `POST /admin/billing/clients/:companyId/block` e o corpo `{ note }`; o
+  `BlockClientModal`, o hook `useBlockClient` e o botão "Bloquear" da ficha; a
+  variante `{ reason: 'MANUAL', note }` do evento `ACCESS_BLOCKED`; e os testes
+  do bloqueio manual. Nenhum tipo de evento nem e-mail existia só para ele: os
+  quatro tipos novos e o e-mail de liberação continuam. O valor `MANUAL` do
+  enum fica reservado, sem caminho que o grave (decisão de desenho 7).
 
 ## Fluxo de git
 
@@ -610,9 +629,9 @@ o bloqueio automático é o `BillingSettings.autoBlockEnabled`, no banco.
 - Um commit por passo, em português. Sugestões: `db: campos de bloqueio de
   acesso na empresa`, `api: bloqueio por rota no authenticate`, `api: regra do
   aviso de suspensão`, `api: aviso, lembrete e bloqueio no agendador`, `api:
-  bloquear e liberar pela ficha`, `api: Inteligência pausa para empresa
-  bloqueada`, `web: faixa de cobrança e tela de acesso suspenso`, `web: bloqueio
-  na ficha do cliente`, `mobile: tela de acesso suspenso e fila que espera`,
+  liberar pela ficha`, `api: Inteligência pausa para empresa bloqueada`, `web:
+  faixa de cobrança e tela de acesso suspenso`, `web: acesso e liberação na
+  ficha do cliente`, `mobile: tela de acesso suspenso e fila que espera`,
   `docs: operação do bloqueio`, `db: migration company_access_block`.
 - A migration entra **por último**, num commit só dela (passo 11). O passo 1
   muda só o `schema.prisma`.
@@ -658,7 +677,11 @@ grep -rn "addHook('onRequest'" apps/api/src --include=*.ts | grep -v __tests__
 /// (active=false) também fica bloqueada, mas pelo próprio `active`.
 enum AccessBlockReason {
   OVERDUE // fatura vencida, depois do aviso de 10 dias — o sistema limpa sozinho
-  MANUAL  // decisão do superadmin — só ele limpa
+  // RESERVADO E DESABILITADO (decisão de 15/10/2026): nenhum código grava MANUAL.
+  // O contrato só prevê suspensão por atraso; o bloqueio manual volta só em plano
+  // próprio, com cláusula revisada. Se aparecer no banco, foi gravado à mão: a
+  // regra não o limpa, e o "Liberar" da ficha limpa.
+  MANUAL
 }
 ```
 
@@ -681,7 +704,10 @@ enum AccessBlockReason {
 
 ```ts
 // ─── Acesso da empresa (plano 017) ─────────────────────────────────────────
-/** OVERDUE e MANUAL vêm de Company.accessBlockReason; INACTIVE é active = false. */
+/**
+ * OVERDUE e MANUAL vêm de Company.accessBlockReason; INACTIVE é active = false.
+ * MANUAL é reservado e desabilitado: nenhum código o grava (plano 017).
+ */
 export type CompanyAccessReason = 'OVERDUE' | 'MANUAL' | 'INACTIVE'
 
 export interface CompanyAccess {
@@ -716,7 +742,7 @@ export function isCompanyBlockedError(err: unknown): boolean {
 export interface ClientBlockState {
   companyActive: boolean
   blockedAt: string | null // ISO
-  reason: 'OVERDUE' | 'MANUAL' | null
+  reason: 'OVERDUE' | 'MANUAL' | null // MANUAL: reservado, nenhum código grava
   exemptUntil: string | null
   pendingNotice: {
     invoiceId: string
@@ -763,16 +789,28 @@ interface CompanyAccessFields {
 /**
  * Empresa ausente (SUPERADMIN, ou mock de teste sem empresa) não é bloqueada.
  * `active === false`, e não `!active`: campo ausente também não bloqueia.
+ * Bloqueio sem motivo vale OVERDUE: entra na regra, que o libera se não se sustentar.
  */
 export function resolveCompanyAccess(company: CompanyAccessFields | null | undefined): CompanyAccess {
   if (!company) return { blocked: false, reason: null }
   if (company.active === false) return { blocked: true, reason: 'INACTIVE' }
-  if (company.accessBlockedAt) return { blocked: true, reason: company.accessBlockReason ?? 'MANUAL' }
+  if (company.accessBlockedAt) return { blocked: true, reason: company.accessBlockReason ?? 'OVERDUE' }
   return { blocked: false, reason: null }
 }
 ```
 
-   Bloqueio sem motivo gravado vale como `MANUAL`: nunca é limpo sozinho.
+   **Bloqueio sem motivo gravado vale como `OVERDUE`.** Nenhum código cria esse
+   estado: o bloqueio grava `accessBlockedAt` e `accessBlockReason` juntos, e a
+   liberação limpa os dois juntos. Ele só nasce de escrita à mão no banco ou de
+   bug. Antes ele valia `MANUAL`, que nunca é limpo sozinho. Sem bloqueio
+   manual, isso viraria um bloqueio sem base no contrato e sem saída
+   automática. Como `OVERDUE`, ele entra na regra do passo 4: o
+   `reconcileCompanyBlock` o libera no tick seguinte se o bloqueio por atraso
+   não se sustentar, e a baixa o libera na hora. O erro vai para o lado do
+   cliente, como na decisão de desenho 1. Tratar como PARADA não serviria aqui,
+   porque a função roda em produção e precisa de uma resposta. A PARADA fica
+   para o executor: código que grave `accessBlockedAt` sem `accessBlockReason`
+   (ver "Condições de PARADA").
 2. `authenticate.ts`:
    - augment do Fastify, no topo do arquivo:
 
@@ -858,7 +896,11 @@ app.addHook('onRoute', (routeOptions) => {
    - empresa ausente (`{ active: true }`) e empresa sem `active`
      (`company: { intelligenceEnabled: true }`) → passam;
    - usuário inativo com empresa bloqueada → 401 (a ordem não muda);
-   - bloqueio `MANUAL` → 403 com `reason: 'MANUAL'`.
+   - `accessBlockedAt` gravado sem `accessBlockReason` → 403 com
+     `reason: 'OVERDUE'`;
+   - `MANUAL` gravado no mock (o valor reservado, como se alguém o gravasse à
+     mão) → 403 com `reason: 'MANUAL'`. O `authenticate` respeita o valor; o
+     que não existe é caminho de código que o grave.
 7. Teste `apps/api/src/modules/auth/__tests__/auth-company-block.test.ts`,
    mockando `../auth.service` como `refresh-csrf.test.ts` faz: com o
    `user.findUnique` devolvendo empresa bloqueada, `POST /auth/login`,
@@ -879,7 +921,7 @@ apps/api/src/modules/auth/auth.service.ts` → vazio.
 export const MIN_NOTICE_DAYS = 10
 /** Lembrete antes da data prevista. */
 export const REMINDER_DAYS_BEFORE = 3
-/** Teto da liberação manual com data. */
+/** Teto do "Liberar até…" (liberação pelo superadmin, com data). */
 export const MAX_EXEMPTION_DAYS = 90
 
 /** max(vencimento + overdueBlockDays, envio + 10 dias corridos). */
@@ -1036,15 +1078,20 @@ plugin `/billing/me/*`.
      O filtro de relação faz a mesma instrução conferir que a fatura continua
      em aberto. `count === 1` → evento `ACCESS_BLOCKED`
      (`payload: { reason: 'OVERDUE', invoiceIds }`);
-   - `!holds` e bloqueio `OVERDUE` → libera com
-     `tx.company.updateMany({ where: { id, accessBlockReason: 'OVERDUE' }, data: { accessBlockedAt: null, accessBlockReason: null } })`;
-     `count === 1` → evento `ACCESS_UNBLOCKED` (`payload: { cause, previousReason: 'OVERDUE' }`);
-   - bloqueio `MANUAL`: nunca muda aqui.
+   - `!holds` e bloqueio `OVERDUE`, ou bloqueio sem motivo (que vale `OVERDUE`,
+     passo 2) → libera com
+     `tx.company.updateMany({ where: { id, accessBlockedAt: { not: null }, OR: [{ accessBlockReason: 'OVERDUE' }, { accessBlockReason: null }] }, data: { accessBlockedAt: null, accessBlockReason: null } })`;
+     `count === 1` → evento `ACCESS_UNBLOCKED` (`payload: { cause, previousReason: 'OVERDUE' }`).
+     Use o `OR` explícito: `accessBlockReason: { not: 'MANUAL' }` não pega o
+     nulo, porque o `<>` do SQL descarta `NULL`;
+   - bloqueio `MANUAL`: nunca muda aqui. Nenhum código grava `MANUAL`
+     (decisão de desenho 7). Um que apareça foi gravado à mão e sai pelo
+     "Liberar" da ficha.
 
    **Esta função é o único lugar do código que grava `accessBlockReason:
-   'OVERDUE'`.**
-6. `reconcileOverdueBlocks(now)`: empresas com `accessBlockReason = 'OVERDUE'`
-   **ou** com fatura `OPEN` vencida; para cada uma,
+   'OVERDUE'`, e nenhum lugar grava `'MANUAL'`.**
+6. `reconcileOverdueBlocks(now)`: empresas com `accessBlockedAt` gravado e
+   motivo `OVERDUE` ou nulo, **ou** com fatura `OPEN` vencida; para cada uma,
    `prisma.$transaction((tx) => reconcileCompanyBlock(tx, id, now, { userId: null, cause: 'RULE' }))`.
 7. `billing-scheduler.ts`: depois dos passos do 016, cada um no mesmo
    `try/catch` com `captureError` que o 016 usa:
@@ -1086,12 +1133,15 @@ com `prismaMock` e o `billing-mailer` mockado:
   tick em envio + 10 bloqueia (`autoBlockEnabled = true`);
 - **nenhum tick bloqueia empresa sem evento de aviso**, com 60 dias de atraso;
 - `autoBlockEnabled = false` → nunca bloqueia, e libera um `OVERDUE` existente;
-- bloqueio `MANUAL` com a fatura paga → continua `MANUAL`;
+- `accessBlockedAt` gravado sem motivo e sem aviso → o tick libera, com
+  `ACCESS_UNBLOCKED` e `previousReason: 'OVERDUE'`;
+- `MANUAL` gravado no mock (reservado, como se gravado à mão) com a fatura paga
+  → continua `MANUAL`;
 - `blockExemptUntil` = hoje → não bloqueia; no dia seguinte, bloqueia;
 - `sendBillingEmailThenRecord` devolvendo `'duplicate'` → o tick segue sem erro;
 - baixa de empresa `OVERDUE` → a liberação acontece dentro da mesma chamada de
   `$transaction` que marca `PAID`; com outra fatura ainda qualificando, continua
-  bloqueada; empresa `MANUAL` → continua bloqueada;
+  bloqueada; `MANUAL` gravado no mock → continua bloqueada;
 - `GET /billing/me/overdue` com a empresa bloqueada → 200 com a fatura e a data.
 
 Ponha os testes da baixa no arquivo de testes da baixa que o 016 criou, se
@@ -1099,22 +1149,22 @@ existir.
 
 **Verificar**: `npm test --workspace=apps/api` → passa;
 `grep -rn "accessBlockReason: 'OVERDUE'" apps/api/src --include=*.ts | grep -v __tests__`
-→ só `overdue-block.service.ts`.
+→ só `overdue-block.service.ts`;
+`grep -rn "MANUAL" apps/api/src --include=*.ts | grep -v __tests__ | grep -v -i "origin"`
+→ nada que grave o motivo de bloqueio. O `MANUAL` da origem de fatura avulsa
+(`InvoiceOrigin`, do 016) é outro enum e pode aparecer.
 
-### Passo 5: Bloquear e liberar pela ficha do cliente (API)
+### Passo 5: Liberar pela ficha do cliente (API)
 
 **Arquivos**: as rotas e o serviço de clientes do superadmin (013; procure
 `/admin/billing/clients/:companyId`), `overdue-block.service.ts`, o schema zod
 das rotas de cobrança, `billing-mailer.ts` (e-mail de liberação) e toda chamada
 de `deriveClientStatus` na API.
 
-1. `POST /admin/billing/clients/:companyId/block`, `requireSuperAdmin`, corpo
-   `{ note: string }` (zod: `trim`, de 10 a 500 caracteres; mensagem "Descreva
-   o motivo do bloqueio"). Numa transação:
-   `accessBlockedAt = now`, `accessBlockReason = 'MANUAL'`,
-   `blockExemptUntil = null`, e o evento `ACCESS_BLOCKED` com o autor e
-   `payload: { reason: 'MANUAL', note }`. Empresa já bloqueada por `MANUAL` →
-   409 "A empresa já está bloqueada". Um `OVERDUE` vira `MANUAL`.
+1. **Não há rota de bloqueio.** O bloqueio manual está desabilitado (ver "Fora
+   do escopo"): não crie `POST /admin/billing/clients/:companyId/block`, nem
+   serviço, nem schema zod que grave `accessBlockReason = 'MANUAL'`. Se a
+   tarefa parecer exigir um, é condição de PARADA.
 2. `POST /admin/billing/clients/:companyId/unblock`, `requireSuperAdmin`, corpo
    `{ until?: 'YYYY-MM-DD' }`. `until` tem de ser ≥ hoje e ≤ hoje +
    `MAX_EXEMPTION_DAYS` (São Paulo); fora disso, 400 com a faixa válida. Numa
@@ -1123,6 +1173,8 @@ de `deriveClientStatus` na API.
    `ACCESS_UNBLOCKED` com o autor e `payload: { previousReason, until }`.
    Empresa liberada e sem `until` → 409 "Nada a liberar". Com `until`, a rota
    funciona mesmo sem bloqueio: é a liberação antecipada de quem prometeu pagar.
+   Ela limpa qualquer motivo, inclusive um `MANUAL` gravado à mão no banco: é
+   o único caminho para tirá-lo.
 3. Com `until`, depois da transação, envie `buildAccessReleasedEmail` ao
    `billingEmail` e aos ADMINs: "O acesso da {empresa} ao Addere está liberado
    até {dd/mm/aaaa}. Se a fatura nº {N} não for paga até lá, o acesso volta a
@@ -1135,17 +1187,20 @@ de `deriveClientStatus` na API.
    `accessBlockReason`, "que existe a partir do plano 017". Em toda chamada da
    função na API (`grep -rn "deriveClientStatus" apps/api/src`), passe
    `accessBlockReason: resolveCompanyAccess(company).reason` (`OVERDUE`,
-   `MANUAL`, `INACTIVE` ou `null`), o mesmo motivo do `authenticate`. A função
-   já decide a precedência: cancelado e desativado aparece como cancelado;
+   `INACTIVE` ou `null`, e `MANUAL` só se alguém o gravar à mão), o mesmo
+   motivo do `authenticate`. A função já decide a precedência: cancelado e
+   desativado aparece como cancelado;
    desativado sem contrato cancelado aparece como bloqueado. Para isso, as consultas dessas chamadas passam a
    trazer `active`, `accessBlockedAt` e `accessBlockReason`. A função em si não
    muda.
 6. Testes — `apps/api/src/modules/billing/__tests__/client-access-routes.test.ts`:
-   bloquear sem `note` → 400; bloquear grava `MANUAL` e o evento com o autor;
-   ADMIN chamando qualquer das duas → 403; liberar com `until` no passado ou
-   além de 90 dias → 400; liberar com `until` grava a data e o evento; a ficha
-   devolve `block` com o aviso pendente; a lista de clientes mostra a situação
-   `BLOCKED` para empresa bloqueada e para empresa inativa.
+   `POST /admin/billing/clients/:companyId/block` → 404 (a rota não existe);
+   ADMIN chamando o `unblock` → 403; liberar com `until` no passado ou além de
+   90 dias → 400; liberar com `until` grava a data e o evento com o autor;
+   liberar sem `until` uma empresa `OVERDUE` → limpa o bloqueio; liberar um
+   `MANUAL` gravado no mock → limpa; a ficha devolve `block` com o aviso
+   pendente; a lista de clientes mostra a situação `BLOCKED` para empresa
+   bloqueada por atraso e para empresa inativa.
 
 **Verificar**: `npm test --workspace=apps/api` → passa.
 
@@ -1259,21 +1314,22 @@ if (isCompanyBlockedError(error) && typeof window !== 'undefined') {
 ### Passo 8: Web — ficha do cliente, Desativar empresa e Pacotes e regras
 
 **Arquivos**: a ficha `apps/web/src/app/(admin)/gestao/clientes/[id]/` (013),
-`ClientAccessCard.tsx`, `BlockClientModal.tsx` e `UnblockClientModal.tsx`
-(novos, na mesma pasta), os hooks de gestão do 013,
-`apps/web/src/app/(admin)/empresas/[id]/page.tsx`,
+`ClientAccessCard.tsx` e `UnblockClientModal.tsx` (novos, na mesma pasta), os
+hooks de gestão do 013, `apps/web/src/app/(admin)/empresas/[id]/page.tsx`,
 `apps/web/src/app/(admin)/dashboard/page.tsx` (se existir), a tela
-`/gestao/pacotes`, o mapa de rótulos do Histórico.
+`/gestao/pacotes`, o mapa de rótulos do Histórico. **Não** crie
+`BlockClientModal`, `useBlockClient` nem botão "Bloquear": o bloqueio manual
+está desabilitado (ver "Fora do escopo").
 
 1. `ClientAccessCard` no cabeçalho da ficha, com os estados do esboço, lendo o
-   `block` do passo 5. Datas em `dd/mm/aaaa`.
-2. Botões "Bloquear" (`danger-outline`) e "Liberar até…" (`outline`), com as
-   regras de visibilidade do esboço.
-3. `BlockClientModal` e `UnblockClientModal` com react-hook-form + zod, como
-   `empresas/[id]/EntityModals.tsx`: o motivo com 10 a 500 caracteres; a data
-   opcional, com `min` = hoje e `max` = hoje + 90. Hooks `useBlockClient(companyId)`
-   e `useUnblockClient(companyId)`, que invalidam a ficha. Erro com
-   `getApiErrorMessage`; sucesso com toast. Se a resposta de liberar vier com
+   `block` do passo 5. Datas em `dd/mm/aaaa`. O estado de `MANUAL` é o texto
+   "fora do previsto" do esboço, só para o valor reservado gravado à mão.
+2. Botão "Liberar até…" (`outline`), com a regra de visibilidade do esboço. É
+   o único botão de acesso da ficha.
+3. `UnblockClientModal` com react-hook-form + zod, como
+   `empresas/[id]/EntityModals.tsx`: a data opcional, com `min` = hoje e
+   `max` = hoje + 90. Hook `useUnblockClient(companyId)`, que invalida a ficha.
+   Erro com `getApiErrorMessage`; sucesso com toast. Se a resposta vier com
    `emailSent: false`, o toast avisa "Liberado, mas o e-mail não saiu".
 4. Histórico: em `BILLING_EVENT_LABELS` (`apps/web/src/lib/billing-ui.ts`, do
    013), os rótulos dos quatro tipos novos — "Aviso de suspensão enviado",
@@ -1284,7 +1340,7 @@ if (isCompanyBlockedError(error) && typeof window !== 'undefined') {
    `confirmLabel="Desativar"`. Ativar continua sem confirmação.
 6. `dashboard/page.tsx`: se o arquivo ainda existir, troque "Bloquear empresa"
    por "Desativar empresa" no `title` e no `aria-label` (`:91-92`), para não
-   confundir com o bloqueio novo.
+   confundir com o bloqueio por atraso.
 7. Pacotes e regras: ao lado do switch `autoBlockEnabled` (se o 013 não o pôs na
    tela, ponha), o texto: "Bloqueia o app e o painel de quem tem fatura vencida,
    sempre depois do aviso de 10 dias. Desligar libera os bloqueios por atraso
@@ -1394,9 +1450,11 @@ export function resolveAuthRedirect(input: {
 1. `docs/billing/README.md` (se não existir, crie só com esta seção), seção
    "Inadimplência e bloqueio": a regra do aviso (data =
    max(vencimento + dias, envio + 10)); o lembrete de 3 dias; o bloqueio
-   automático e o switch como rollback; o bloqueio manual e quando usá-lo; a
-   liberação com data; a baixa que libera na hora; `BILLING_JOBS_ENABLED`
-   desligado (sem aviso, sem bloqueio e sem liberação automática — a baixa e o
+   automático e o switch como rollback; que o bloqueio manual está desabilitado
+   (decisão de 15/10/2026, sem base no contrato), que ninguém grava `MANUAL` nem
+   `accessBlockedAt` à mão no banco, e que um `MANUAL` encontrado sai pelo
+   "Liberar"; a liberação com data; a baixa que libera na hora;
+   `BILLING_JOBS_ENABLED` desligado (sem aviso, sem bloqueio e sem liberação automática — a baixa e o
    "Liberar" continuam funcionando); e a "Ordem de liberação" das notas abaixo.
 2. `docs/intelligence/README.md`: na seção "Jobs", uma linha dizendo que empresa
    bloqueada não roda `nightly` nem `refresh`, só o `PURGE` diário, e retoma
@@ -1433,9 +1491,10 @@ npx prisma migrate diff \
 
 ```sql
 -- Bloqueio de acesso da empresa (plano 017): por atraso (OVERDUE), só depois do
--- aviso de suspensão com 10 dias corridos, ou por decisão do superadmin
--- (MANUAL). O bloqueio é por rota e não apaga dado nenhum. Colunas novas e
--- nulas: toda empresa existente nasce liberada.
+-- aviso de suspensão com 10 dias corridos. MANUAL fica reservado e desabilitado
+-- (decisão de 15/10/2026): nenhum código o grava. O bloqueio é por rota e não
+-- apaga dado nenhum. Colunas novas e nulas: toda empresa existente nasce
+-- liberada.
 
 -- CreateEnum
 CREATE TYPE "AccessBlockReason" AS ENUM ('OVERDUE', 'MANUAL');
@@ -1464,13 +1523,13 @@ Depois do passo 11, atualize a linha do 017 em `plans/README.md`.
 
 | Arquivo | O que prova |
 |---|---|
-| `apps/api/src/lib/__tests__/company-access.test.ts` | ausente e sem `active` não bloqueiam; `INACTIVE` tem precedência; bloqueio sem motivo vale `MANUAL` |
+| `apps/api/src/lib/__tests__/company-access.test.ts` | ausente e sem `active` não bloqueiam; `INACTIVE` tem precedência; bloqueio sem motivo vale `OVERDUE`; `MANUAL` gravado é respeitado |
 | `apps/api/src/middleware/__tests__/authenticate-company-block.test.ts` | 403 nas rotas de negócio e nos guards, inclusive `/uploads`; 200 em `/auth/me`, `/auth/me/permissions` e `/billing/me/*`; SUPERADMIN nunca bloqueado; empresa inativa bloqueada |
 | `apps/api/src/modules/auth/__tests__/auth-company-block.test.ts` | login, refresh e logout nunca bloqueados, sem consultar a empresa |
 | `apps/api/src/modules/billing/__tests__/overdue-block.test.ts` | data prevista com o piso de 10 dias; nunca bloqueia sem aviso nem antes de 10 dias, mesmo com `overdueBlockDays = 3`; liberação respeitada |
 | `apps/api/src/modules/billing/__tests__/billing-mailer.test.ts` (016, casos novos) | o aviso é gravado só depois de o Resend aceitar; falha não grava |
-| `apps/api/src/modules/billing/__tests__/overdue-block.service.test.ts` | data no e-mail; `dedupeKey`; envio que falha não vira aviso; baixa desbloqueia na mesma transação; `MANUAL` não é limpo; switch desligado libera `OVERDUE` |
-| `apps/api/src/modules/billing/__tests__/client-access-routes.test.ts` | bloquear e liberar, validações e autoria |
+| `apps/api/src/modules/billing/__tests__/overdue-block.service.test.ts` | data no e-mail; `dedupeKey`; envio que falha não vira aviso; baixa desbloqueia na mesma transação; bloqueio sem motivo é liberado pela regra; `MANUAL` gravado à mão não é limpo pela regra; switch desligado libera `OVERDUE` |
+| `apps/api/src/modules/billing/__tests__/client-access-routes.test.ts` | liberar, validações e autoria; a rota de bloqueio manual não existe (404) |
 | `apps/api/src/modules/intelligence/jobs/__tests__/scheduler-blocked.test.ts` | jobs da Inteligência pulam a bloqueada, `PURGE` continua, catch-up ao liberar |
 | `apps/web/src/lib/__tests__/company-block.test.ts` | rotas liberadas, menu reduzido e textos da faixa |
 | `apps/mobile/src/services/__tests__/syncEngine.test.ts` | `isPermanentRejection` com `COMPANY_BLOCKED`; a fila espera sem gastar tentativa |
@@ -1491,17 +1550,24 @@ merge — o executor não publica nada):
    prevista, a pelo menos 10 dias; a faixa aparece para o ADMIN; a ficha mostra
    "Aviso enviado".
 3. Num aparelho logado como vendedor da empresa, crie um pedido offline. Na
-   ficha, "Bloquear" com motivo. Volte a ficar online: o app vai para "Acesso
-   suspenso" e o pedido continua na fila, sem erro.
+   ficha técnica (`/empresas/[id]`), "Desativar empresa". Sem bloqueio manual,
+   é o jeito de cortar o acesso na hora num teste, e passa pelo mesmo 403
+   `COMPANY_BLOCKED`, com `reason: 'INACTIVE'`. Volte a ficar online: o app vai
+   para "Acesso suspenso" e o pedido continua na fila, sem erro.
 4. No painel: o ADMIN só abre `/plano` e `/contrato`; o gerente vê a tela de
    bloqueio. O login e o F5 continuam funcionando, sem loop.
-5. "Liberar até…" com data: o app, em "Tentar novamente", volta ao normal e o
-   pedido da fila é enviado. Chega o e-mail de liberação.
+5. "Ativar empresa": o app, em "Tentar novamente", volta ao normal e o pedido
+   da fila é enviado.
 6. Ligue `autoBlockEnabled` **só no staging**. O bloqueio automático exige os 10
    dias do aviso; os testes automatizados cobrem a regra, e no staging dá para
-   deixar a fatura do passo 2 correndo e conferir no dia previsto.
-7. Dê baixa na fatura de uma empresa bloqueada por atraso: o acesso volta na hora.
-8. Na tela Saúde dos dados da empresa bloqueada, o `nightly` e o `refresh` param
+   deixar a fatura do passo 2 correndo e conferir no dia previsto: a ficha
+   mostra "Bloqueado por atraso", a faixa do ADMIN fica em tom de perigo e o
+   app vai para "Acesso suspenso".
+7. "Liberar até…" com a data de hoje: o app, em "Tentar novamente", volta ao
+   normal, e chega o e-mail de liberação. No dia seguinte, com a fatura ainda
+   vencida, o bloqueio por atraso volta sozinho.
+8. Dê baixa na fatura da empresa bloqueada por atraso: o acesso volta na hora.
+9. Na tela Saúde dos dados da empresa bloqueada, o `nightly` e o `refresh` param
    e o `PURGE` aparece uma vez por dia; liberada, o `nightly` volta no horário.
 
 ## Critérios de conclusão
@@ -1516,6 +1582,10 @@ merge — o executor não publica nada):
       vazio, e o diff de `auth.routes.ts` só toca `/me` e `/me/permissions`
 - [ ] `grep -rn "accessBlockReason: 'OVERDUE'" apps/api/src --include=*.ts | grep -v __tests__`
       só acha `overdue-block.service.ts`
+- [ ] Nenhum caminho grava `accessBlockReason = 'MANUAL'` (rota, serviço, job,
+      seed, migration ou tela). `grep -rn "companyId/block'\|BlockClientModal\|useBlockClient" apps/api/src apps/web/src`
+      vazio, e o enum mantém `MANUAL` com o comentário de reservado e
+      desabilitado
 - [ ] `MIN_NOTICE_DAYS = 10` é constante de código, sem campo em
       `BillingSettings` nem na tela
 - [ ] Nenhum lugar grava `autoBlockEnabled = true` (migration, seed ou código)
@@ -1541,8 +1611,12 @@ merge — o executor não publica nada):
 - Qualquer caminho que grave `accessBlockReason = 'OVERDUE'` sem um aviso
   entregue e gravado há ≥ 10 dias corridos, ou um teste de "nunca bloqueia"
   falhar e o conserto parecer exigir afrouxar o teste.
-- Ligar `autoBlockEnabled`, ou usar o "Bloquear" manual, em produção antes de o
-  OTA estar no ar. O executor não liga nada em produção.
+- Qualquer caminho que grave `accessBlockReason = 'MANUAL'`: rota, serviço,
+  job, seed, migration, script ou tela. O bloqueio manual está desabilitado
+  desde 15/10/2026 e só volta em plano próprio. Também é PARADA código que
+  grave `accessBlockedAt` sem `accessBlockReason`.
+- Ligar `autoBlockEnabled` em produção antes de o OTA estar no ar. O executor
+  não liga nada em produção.
 - `/plano` ou `/contrato` dependerem de rota fora de `/auth/me` e
   `/billing/me/*`.
 - Um teste existente que mocka `{ active: true }` ou empresa sem `active` quebrar
@@ -1560,9 +1634,9 @@ merge — o executor não publica nada):
 
 1. **API no ar com `autoBlockEnabled=false`** (o padrão do 013). A migration vai
    junto, pelo `migrate deploy` do deploy. A partir daqui, empresa desativada
-   (`active=false`) e bloqueio manual já cortam o acesso — por isso ninguém usa
-   o "Bloquear" até o passo 3. Pela decisão 3, todas as empresas desativadas
-   hoje são de teste.
+   (`active=false`) já tem o acesso cortado. Por isso ninguém desativa empresa
+   de cliente até o passo 3. Pela decisão 3, todas as empresas desativadas
+   hoje são de teste. Não existe bloqueio manual (ver "Fora do escopo").
 2. **OTA no ar**, pelo `DEPLOY_CHECKLIST.md` (as três variáveis, canal
    `production`, runtime igual ao da loja). Confira num aparelho real: feche e
    reabra o app (o OTA só troca o bundle no restart). Dê alguns dias de uso
@@ -1584,7 +1658,21 @@ contrária é inofensiva: o app novo contra a API velha nunca recebe
   são o que o contrato promete. Mudar qualquer um dos dois exige mudar o
   contrato antes, por aditivo.
 - **Desligar `autoBlockEnabled` é o rollback.** No tick seguinte (até 1 hora),
-  todo bloqueio `OVERDUE` é liberado. Os `MANUAL` ficam.
+  todo bloqueio `OVERDUE` é liberado, e também o bloqueio sem motivo, que vale
+  `OVERDUE`. Os `MANUAL` ficam. Isso continua verdadeiro, mas nenhum código
+  grava `MANUAL`: um que apareça foi gravado à mão no banco, e sai pelo
+  "Liberar" da ficha.
+- **Bloqueio manual desabilitado (15/10/2026).** O contrato só prevê suspensão
+  por atraso, com o aviso de 10 dias. Não grave `MANUAL` nem `accessBlockedAt`
+  à mão no banco (SQL Editor do Neon) para suspender um cliente: não há base
+  contratual. "Desativar empresa" também corta o acesso (decisão 3). Usá-la
+  para suspender um cliente com contrato vigente esbarraria na mesma falta de
+  base. Quando usar a desativação é decisão de produto que este plano não toma.
+  Quando o contrato previr a hipótese (violação, risco à segurança), o bloqueio
+  manual volta em plano próprio, com a cláusula revisada pelo advogado. Esse
+  plano só acrescenta o caminho que grava, porque o `MANUAL` já está no enum,
+  no `CompanyAccessReason`, no `deriveClientStatus` do 013 e na precedência do
+  018.
 - **`BILLING_JOBS_ENABLED` desligado** para os avisos, os lembretes, o bloqueio
   e a liberação automáticos. A baixa e o "Liberar" continuam liberando na hora.
 - **A data prevista não se move.** Mudar `overdueBlockDays` vale só para avisos
@@ -1606,4 +1694,5 @@ contrária é inofensiva: o app novo contra a API velha nunca recebe
 - **Quem revisar** deve olhar, nesta ordem: (1) `overdueBlockHolds` e o aviso
   gravado só depois do envio; (2) o `authenticate`, a lista de exceções e o
   `active === false`; (3) a fila do app, que não pode gastar tentativa nem
-  marcar falha com `COMPANY_BLOCKED`.
+  marcar falha com `COMPANY_BLOCKED`; (4) que nada grave `MANUAL` e que o
+  bloqueio sem motivo seja liberado pela regra.

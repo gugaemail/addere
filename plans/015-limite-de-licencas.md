@@ -55,9 +55,10 @@ Três buracos que este plano fecha:
 Além disso, o contrato promete (tabela "Promessas do contrato × sistema" do
 014): **"Licença adicional cobrada a partir do mês seguinte"**. Quem cumpre é
 este plano (a aprovação cria termos que valem na hora) junto com o 016 (que
-cobra pelos termos da competência). E o ADMIN precisa de um caminho para sair
-do limite sem e-mail nem telefone: o botão "Solicitar mais licenças", que
-mostra o preço e vale como aceite.
+cobra pelos termos da competência). E a Empresa precisa de um caminho para
+sair do limite sem e-mail nem telefone: o botão "Solicitar mais licenças", que
+mostra o preço e vale como contratação. Como contratação, ele é só do
+administrador indicado pela Empresa, o mesmo que aceita o contrato (014).
 
 ### Regras de negócio que valem aqui (decisão de produto de 15/10/2026)
 
@@ -67,14 +68,15 @@ mostra o preço e vale como aceite.
 | Pacotes | 10, 20, 30 e Ilimitado. No "Ilimitado" a quantidade é digitada no contrato (ex.: 100 licenças). O Ilimitado passa pela mesma trava dos outros. |
 | Adicionais | Licença avulsa, uma a uma, com preço unitário negociado por empresa (`extraSeatPrice` dos termos). |
 | Antes do aceite | **Nada começa**: sem limite de licenças. Contrato em DRAFT ou PENDING_ACCEPTANCE não limita. |
-| Pedido de licenças | O pedido de licenças extras feito pelo próprio ADMIN mostra o preço e **vale como aceite, sem aditivo**. Aprovado pelo superadmin, vira termos EFFECTIVE na hora (`origin LICENSE_REQUEST`). |
+| Pedido de licenças | O pedido de licenças extras feito pelo administrador indicado mostra o preço e **vale como aceite, sem aditivo**. Aprovado pelo superadmin, vira termos EFFECTIVE na hora (`origin LICENSE_REQUEST`). |
 | Mudança no mês | Licença que entra no mês M não é cobrada em M; entra na cobrança a partir de M+1. **O limite muda na hora.** |
-| ADMIN do cliente | Vê o pacote, o tipo, as licenças usadas e livres. No limite, pede mais licenças por um botão que avisa a Addere. |
+| ADMIN do cliente | Vê o pacote, o tipo, as licenças usadas e livres. No limite, o administrador indicado pede mais licenças por um botão que avisa a Addere; os outros ADMINs veem o botão desativado, com o nome do indicado. |
 | Piloto | Empresa em piloto fica sem contrato: sem limite. |
 | Decisão padrão 1 | Empresa sem contrato aceito continua como hoje: sem limite. |
 | Decisão padrão 5 | **Redução de pacote não desativa ninguém.** Ela bloqueia novas ativações e mostra "acima do limite" até o ADMIN desativar usuários. |
 | Decisão padrão 8 | Quem opera o módulo é o papel SUPERADMIN atual. O histórico registra quem fez cada ação. |
 | Decisão padrão 9 | Licença extra lançada pelo superadmin sem pedido do ADMIN gera aditivo (fluxo do 014, não deste plano). |
+| Decisão padrão 10 (revista em 15/10/2026) | Só o administrador indicado pela Empresa (`CompanyContract.designatedAdminId`, plano 014) aceita o contrato e os aditivos e **pede licenças adicionais**, porque o pedido vale como contratação (contrato §3.5 e §14.3). Outro ADMIN recebe 403 `NOT_DESIGNATED_ADMIN`. Contrato sem indicado: ninguém pede. Na prática não acontece, porque o contrato ACTIVE sempre tem indicado (o envio do 014 o exige). |
 
 ### Decisões de desenho deste plano
 
@@ -256,7 +258,8 @@ migration mais recente é `20261014120000_intel_llm_calls`.
 | requisito `'companyAdmin'` | 013 | em `apps/web/src/lib/nav-gating.ts` (só o ADMIN, sem o SUPERADMIN) |
 | grupo "Gestão Addere", layout `/gestao` com `<SuperAdminOnly>`, ficha `/gestao/clientes/[id]` com abas | 013 | — |
 | `trustProxy` | 014 | em `apps/api/src/app.ts` (hoje `:34-38` não liga) |
-| rotas `/billing/me/*`, guarda do ADMIN, `GET /billing/me` | 014 | o aceite também é só do ADMIN |
+| rotas `/billing/me/*`, guarda do ADMIN (`requireCompanyAdmin`), `GET /billing/me` | 014 | a guarda deixa qualquer ADMIN da empresa ler; o `GET /billing/me` devolve `designatedAdmin` (`DesignatedAdminRef`: `id`, `name`, `valid`) |
+| `CompanyContract.designatedAdminId` e `assertDesignatedAdmin` | 014 | o administrador indicado e a função que confere, relendo o papel no banco, que quem chama é ele; lança 403 `NOT_DESIGNATED_ADMIN`. Fica em `apps/api/src/modules/billing/designated-admin.ts` |
 | helper de e-mail do billing e formatador de reais sem `Intl` | 014 | o 014 envia o contrato por e-mail e preenche `valores.*` |
 | derivação de `intelligenceEnabled` a partir dos termos | 014 | usada no aceite |
 
@@ -322,6 +325,12 @@ aguardando aceite, acrescenta o link "Ver contrato" (`/contrato`).
 Com um pedido pendente, o botão "Solicitar mais licenças" fica desativado com
 a frase "Você já tem um pedido em análise."
 
+Para os ADMINs que não são o administrador indicado, o botão aparece
+desativado com a frase "Só Ana Lima, o administrador indicado, pode pedir
+licenças." Se o indicado deixou de ser ADMIN ativo, a frase é "O administrador
+indicado (Ana Lima) não está mais ativo. Fale com a Addere para indicar
+outro."
+
 **`/users` — cabeçalho e modal no limite:**
 
 ```
@@ -371,7 +380,7 @@ solicitações daquela empresa, com as mesmas ações.
 |---|---|---|
 | `GET /billing/me/seats` | quem tem `users.manage` (o ADMIN por padrão) na própria empresa; SUPERADMIN com `?companyId=` | `requireAnyPermission('users.manage')` + `resolveTenant(request, reply, 'query')` |
 | `GET /billing/me` (parte de licenças) | ADMIN | a guarda do ADMIN do 014 |
-| `POST /billing/me/license-requests` | ADMIN da empresa | a guarda do ADMIN do 014 (nem SUPERADMIN, nem vendedor) |
+| `POST /billing/me/license-requests` | o administrador indicado da empresa (`CompanyContract.designatedAdminId`) | a guarda do ADMIN do 014 e, dentro da transação, `assertDesignatedAdmin` do 014 (nem SUPERADMIN, nem vendedor, nem outro ADMIN) |
 | `GET /admin/billing/license-requests` | SUPERADMIN | `requireSuperAdmin` |
 | `POST /admin/billing/license-requests/:id/decide` | SUPERADMIN | `requireSuperAdmin` |
 | `/plano` | ADMIN | item com `requires: 'companyAdmin'` |
@@ -380,7 +389,7 @@ solicitações daquela empresa, com as mesmas ações.
 
 | Perfil | O que muda |
 |---|---|
-| ADMIN | No limite, não cria nem ativa vendedor ou gerente; vê o motivo e pede licenças pelo `/plano`. Criar outro ADMIN continua livre. |
+| ADMIN | No limite, não cria nem ativa vendedor ou gerente; vê o motivo. Só o administrador indicado pede licenças pelo `/plano`; os outros ADMINs veem o botão desativado, com o nome dele. ADMIN não ocupa licença, então criar administrador (o SUPERADMIN cria, por indicação da Empresa) não passa pela trava. |
 | SUPERADMIN | Decide os pedidos; vê as licenças de qualquer cliente. Também é barrado pela trava (decisão de desenho 1). |
 | Gerente e vendedor | Nada. Não veem `/plano`. |
 | App mobile | Nada. O app não cria usuários. |
@@ -503,6 +512,8 @@ solicitações daquela empresa, com as mesmas ações.
    - `grep -n "getApiErrorCode" apps/web/src/lib/api.ts`
    - `grep -n "trustProxy" apps/api/src/app.ts`
    - `grep -n "companyAdmin" apps/web/src/lib/nav-gating.ts`
+   - `grep -n "designatedAdminId" packages/db/prisma/schema.prisma`
+   - `grep -rn "export.*assertDesignatedAdmin" apps/api/src/modules/billing/`
    - `ls apps/api/src/modules/billing/ packages/types/src/billing.ts`
 3. Anote, para usar nos passos seguintes, os nomes reais: o resolvedor de termos
    atuais, o enum de status do contrato, os nomes dos campos de motivo e autor
@@ -511,9 +522,9 @@ solicitações daquela empresa, com as mesmas ações.
 4. Rode a checagem de deriva do topo.
 
 **PARE** se faltar `seatGuardVersion`, o valor `LICENSE_REQUEST` em `origin`,
-`AppError.code`, `getApiErrorCode`, o resolvedor de termos atuais ou o
-`trustProxy`. Os outros itens têm alternativa descrita no passo em que
-aparecem.
+`AppError.code`, `getApiErrorCode`, o resolvedor de termos atuais, o
+`trustProxy`, `CompanyContract.designatedAdminId` ou `assertDesignatedAdmin`.
+Os outros itens têm alternativa descrita no passo em que aparecem.
 
 **Verificar**: todos os `grep` acima acham o que procuram.
 
@@ -945,32 +956,45 @@ Rode `npm run db:generate`. **Não gere a migration agora** — ela é o Passo 1
 `requireCompanyAdmin()` em `apps/api/src/middleware/require-company.ts`, ao lado
 de `requireCompanyScope`: `authenticate`, depois 403
 `Acesso restrito ao administrador da empresa` se o papel não for ADMIN ou não
-houver `companyId`.
+houver `companyId`. A guarda deixa qualquer ADMIN da empresa passar; quem pode
+pedir é decidido dentro da transação (item 3).
 
 `createLicenseRequest(requester, body, { ip, userAgent })`, em
 `license-requests.service.ts`:
 
 1. Numa transação, faça primeiro a **mesma trava** do Passo 2
    (`companyContract.updateMany` com `increment`). Ela serializa dois pedidos
-   simultâneos da mesma empresa.
+   simultâneos da mesma empresa e também a troca do indicado (o `PUT
+   …/designated-admin` do 014 escreve na mesma linha).
 2. Contrato ausente ou fora de ACTIVE → 409 `CONTRACT_NOT_ACTIVE`: "Sua
    empresa ainda não tem contrato ativo: não há limite de licenças para
    ampliar."
-3. Termos atuais pelo resolvedor do 013. Se
+3. **Só o administrador indicado** (decisão padrão 10):
+   `assertDesignatedAdmin(tx, contract, requester.sub)` do 014. Quem não é o
+   `designatedAdminId` do contrato, ou deixou de ser ADMIN ativo da empresa
+   (relido no banco, não no JWT), recebe 403 `NOT_DESIGNATED_ADMIN`. Contrato
+   ACTIVE sem indicado também dá 403: ninguém pede. A função devolve nome e
+   e-mail lidos do banco, usados no item 7. Vem antes do preço e do pedido
+   pendente, para quem não pode pedir não receber mensagem sobre eles.
+4. Termos atuais pelo resolvedor do 013. Se
    `!new Prisma.Decimal(body.unitPriceShown).equals(current.extraSeatPrice)` →
    409 `LICENSE_PRICE_CHANGED`, `details: { unitPrice: current.extraSeatPrice.toString() }`,
    mensagem "O valor por licença mudou. Confira o novo valor antes de enviar."
-4. Pedido PENDING da empresa → 409 `LICENSE_REQUEST_PENDING`: "Você já tem um
+5. Pedido PENDING da empresa → 409 `LICENSE_REQUEST_PENDING`: "Você já tem um
    pedido de licenças em análise."
-5. `declarationText = licenseRequestDeclaration(body.quantity, current.extraSeatPrice.toString())`;
+6. `declarationText = licenseRequestDeclaration(body.quantity, current.extraSeatPrice.toString())`;
    `declarationSha256 = createHash('sha256').update(declarationText, 'utf8').digest('hex')`
    (`node:crypto`).
-6. Grave o `LicenseRequest` com nome e e-mail do requerente lidos do banco,
+7. Grave o `LicenseRequest` com nome e e-mail do requerente lidos do banco,
    `requestedIp: request.ip` (com o `trustProxy` do 014, é o IP do cliente),
    `requestedUserAgent` = cabeçalho `user-agent` cortado em 512 caracteres, e um
-   `BillingEvent` `LICENSE_REQUEST_CREATED` com autor = o ADMIN e
-   `payload: { licenseRequestId }`.
-7. **Depois** da transação, o e-mail (5.5). Responda 201 com o DTO.
+   `BillingEvent` `LICENSE_REQUEST_CREATED` com autor = o administrador
+   indicado e `payload: { licenseRequestId }`.
+8. **Depois** da transação, o e-mail (5.5). Responda 201 com o DTO.
+
+Na decisão do superadmin (5.4), o indicado não é conferido de novo: o pedido
+foi aceito por quem era o indicado na hora, e a declaração não leva o nome
+dele. Trocar o indicado depois não mexe em pedido pendente.
 
 **5.4 Listar e decidir (SUPERADMIN).**
 
@@ -1031,7 +1055,8 @@ crie `apps/api/src/modules/billing/billing-mail.ts` com
 **Testes** — `apps/api/src/modules/billing/__tests__/license-requests.test.ts`,
 com `vi.mock` do módulo de e-mail:
 
-- criar: ADMIN, contrato ACTIVE, `extraSeatPrice` 99 → 201; o `create` recebe
+- criar: o administrador indicado (`designatedAdminId` = o ADMIN do token),
+  contrato ACTIVE, `extraSeatPrice` 99 → 201; o `create` recebe
   `declarationText` igual a `licenseRequestDeclaration(2, '99')`,
   `declarationSha256` igual ao SHA-256 dele, `requestedIp` do cabeçalho
   encaminhado (use o mesmo cabeçalho do teste de `trustProxy` do 014) e o
@@ -1043,6 +1068,12 @@ com `vi.mock` do módulo de e-mail:
 - `unitPriceShown` diferente do atual → 409 `LICENSE_PRICE_CHANGED` com
   `details.unitPrice`;
 - pedido pendente → 409 `LICENSE_REQUEST_PENDING`;
+- **só o indicado pede**: outro ADMIN ativo da mesma empresa → 403
+  `NOT_DESIGNATED_ADMIN`, sem `licenseRequest.create`, sem `BillingEvent` e
+  sem e-mail, mesmo com preço errado ou pedido pendente (o 403 vem antes);
+  contrato ACTIVE com `designatedAdminId` nulo → 403 para qualquer ADMIN;
+  indicado rebaixado a vendedor (JWT ainda com `role: 'ADMIN'`, banco com
+  `SALESPERSON`) → 403;
 - SUPERADMIN e vendedor → 403; `quantity` 0 ou 101, mensagem com 501
   caracteres → 400;
 - **aprovação de pedido criando termos**: `contractTerms.create` recebe
@@ -1073,7 +1104,18 @@ com `vi.mock` do módulo de e-mail:
    - `seatMeterTone(seats)` → `'brand'` abaixo de `SEAT_NEAR_LIMIT_RATIO`,
      `'warning'` a partir dele, `'danger'` no limite ou acima;
    - `seatBlocksSave(seats, before, after)` → `true` só com `enforced`,
-     `consumesSeat(before, after)` e `used >= limit`.
+     `consumesSeat(before, after)` e `used >= limit`;
+   - `licenseRequestBlockedReason({ userId, designatedAdmin, hasPendingRequest })`
+     → a frase que desativa o botão "Solicitar mais licenças", ou `null` se
+     ele pode ser usado. `designatedAdmin` é o `DesignatedAdminRef` do
+     `GET /billing/me` (014). Nesta ordem:
+     1. sem indicado: "Sua empresa ainda não tem administrador indicado. Fale
+        com a Addere.";
+     2. indicado com `valid` falso: "O administrador indicado ({nome}) não
+        está mais ativo. Fale com a Addere para indicar outro.";
+     3. `designatedAdmin.id !== userId`: "Só {nome}, o administrador indicado,
+        pode pedir licenças.";
+     4. `hasPendingRequest`: "Você já tem um pedido em análise.".
 3. **`components/billing/SeatMeter.tsx`**: a barra de
    `inteligencia/resultado/page.tsx:325-336` (`role="progressbar"`, largura
    presa em 100 %), cor de preenchimento por `seatMeterTone` com as classes
@@ -1087,14 +1129,18 @@ com `vi.mock` do módulo de e-mail:
    extraSeatPrice)`. Envia `{ quantity, message, unitPriceShown: extraSeatPrice }`.
    No `catch`, `LICENSE_PRICE_CHANGED` mostra a mensagem e recarrega o
    `GET /billing/me`, para o modal passar a mostrar o preço novo;
-   `LICENSE_REQUEST_PENDING` fecha o modal com a mensagem.
+   `LICENSE_REQUEST_PENDING` e `NOT_DESIGNATED_ADMIN` (o indicado mudou com a
+   página aberta) fecham o modal com a mensagem e recarregam o
+   `GET /billing/me`.
 5. **`components/billing/LicenseRequestsTable.tsx`**: `Table` com data,
    quantidade, valor por licença, situação em `Badge` (Pendente `warning`,
    Aprovado `success`, Recusado `danger`) e observação (data da liberação ou o
    motivo). Prop opcional de ações, usada no Passo 8.
 6. **`app/(admin)/plano/page.tsx`** — "Plano e cobrança", conforme o esboço:
    cartão do plano (`Card`), medidor, botão "Solicitar mais licenças" (só com
-   contrato ACTIVE; desativado com pedido pendente), "Quem ocupa licença"
+   contrato ACTIVE; desativado, com a frase embaixo, quando
+   `licenseRequestBlockedReason` devolve uma: o ADMIN que não é o indicado vê
+   "Só {nome}, o administrador indicado, pode pedir licenças."), "Quem ocupa licença"
    recolhível com os `holders`, e "Seus pedidos de licenças". Sem contrato
    ativo, a frase do esboço; com contrato aguardando aceite, o link para
    `/contrato`. Gate de página: o mesmo que o 014 usou em `/contrato`.
@@ -1154,7 +1200,13 @@ Sem cor fixa: só classes da marca e tokens `var(--…)`. Ícones só do
   (`SALESPERSON`) → `true`; criar ADMIN → `false`; editar vendedor ativo →
   `false`; ADMIN ativo para vendedor → `true`; ADMIN inativo para vendedor →
   `false`; vincular órfão vendedor ativo → `true`; abaixo do limite → `false`;
-  sem `enforced` → `false`; `seats` indefinido → `false`.
+  sem `enforced` → `false`; `seats` indefinido → `false`;
+- `licenseRequestBlockedReason` (Passo 6): o indicado válido, sem pedido
+  pendente → `null`; o indicado com pedido pendente → "Você já tem um pedido
+  em análise."; outro ADMIN → "Só Ana Lima, o administrador indicado, pode
+  pedir licenças.", mesmo com pedido pendente; indicado com `valid` falso → a
+  frase de indicado inativo, para qualquer usuário; `designatedAdmin` nulo →
+  a frase de sem indicado.
 
 **Verificar**: `npm run type-check && npm run lint && npm test --workspace=apps/web` → exit 0.
 
@@ -1274,6 +1326,7 @@ Todos os casos estão descritos nos passos. Resumo do que é obrigatório:
 | os dois caminhos de criação | `users-routes.test.ts` e `companies-users-seats.test.ts` |
 | reativação | `PATCH /users/:id/active` e `PATCH /companies/:id/users/:userId/active` |
 | aprovação de pedido criando termos | `license-requests.test.ts` |
+| só o administrador indicado pede licenças | `license-requests.test.ts` (403 `NOT_DESIGNATED_ADMIN`); `seats.test.ts` do web (`licenseRequestBlockedReason`) |
 | acima do limite não desativa ninguém | `seat-guard.test.ts`; `seats-routes.test.ts` |
 | regras de tela | `apps/web/src/lib/__tests__/seats.test.ts` |
 
@@ -1285,7 +1338,10 @@ que a trava vem antes da contagem e da escrita, e o raciocínio do Passo 2 prova
 o resto. Depois do deploy, a conferência de ponta a ponta é a do staging do
 plano aprovado (passos 3, 7 e 8 da lista de 12): antes do aceite, 12 vendedores
 passam; depois do aceite do Pacote 10, o 11º é recusado com o aviso; o ADMIN
-pede 2 licenças vendo o preço; o superadmin aprova e o 11º passa.
+pede 2 licenças vendo o preço; o superadmin aprova e o 11º passa. Com dois
+ADMINs na empresa, o que não é o indicado vê o botão desativado com o nome do
+indicado, e um `POST /billing/me/license-requests` com o token dele responde
+403 `NOT_DESIGNATED_ADMIN`.
 
 ## Critérios de conclusão
 
@@ -1298,6 +1354,9 @@ pede 2 licenças vendo o preço; o superadmin aprova e o 11º passa.
 - [ ] `grep -rnE "queryRaw|executeRaw|isolationLevel|FOR UPDATE" apps/api/src/modules/billing/`
       não acha nada nos arquivos deste plano
 - [ ] os três `catch` de `users.routes.ts` repassam o `AppError`
+- [ ] `createLicenseRequest` chama `assertDesignatedAdmin` do 014 dentro da
+      transação, depois da trava e antes de conferir preço e pedido pendente;
+      outro ADMIN recebe 403 `NOT_DESIGNATED_ADMIN`
 - [ ] nenhuma asserção pré-existente de `users-routes.test.ts` foi alterada
       (o diff do arquivo só tem acréscimos)
 - [ ] `git diff --stat 80fe328 -- apps/api/src/modules/users/users.schema.ts` vazio
@@ -1315,7 +1374,8 @@ pede 2 licenças vendo o preço; o superadmin aprova e o 11º passa.
   016, e o "Estado atual" não bate.
 - Falta no código um item obrigatório do Passo 0 (`seatGuardVersion`,
   `LICENSE_REQUEST`, `AppError.code`, `getApiErrorCode`, resolvedor de termos
-  atuais, `trustProxy`) ou o `GET /billing/me`.
+  atuais, `trustProxy`, `CompanyContract.designatedAdminId`,
+  `assertDesignatedAdmin`) ou o `GET /billing/me` (com `designatedAdmin`).
 - Qualquer passo parecer exigir SQL cru (`$queryRaw`, `$executeRaw`,
   `SELECT … FOR UPDATE`) ou `isolationLevel` SERIALIZABLE ou REPEATABLE READ.
 - Achar um **sétimo** caminho, alcançável por HTTP, que cria, ativa, vincula ou
@@ -1364,6 +1424,13 @@ pede 2 licenças vendo o preço; o superadmin aprova e o 11º passa.
   muda o limite na hora (termos atuais). Aditivo em andamento barra a aprovação
   de pedido (`AMENDMENT_PENDING`); se isso incomodar na operação, a saída é o
   aditivo carregar as licenças aprovadas, não tirar a trava.
+- **Administrador indicado (decisão padrão 10, de 15/10/2026)**: o pedido de
+  licenças vale como contratação, então só o indicado pede, pela mesma
+  `assertDesignatedAdmin` do aceite do 014. Se o indicado sai da empresa sem
+  aviso, ninguém pede licenças até o superadmin trocar o indicado na aba
+  Contrato; o `/plano` mostra a frase de indicado inativo. A troca não mexe em
+  pedido pendente. A regra de quem cria ADMIN (só o SUPERADMIN, por indicação
+  da Empresa) e o achado do `/companies/:id/users` estão no 014.
 - `RESEND_API_KEY` e `WEB_URL` não estão no `render.yaml` (são segredos do
   painel do Render). Sem a chave, o pedido é gravado e o e-mail é pulado com
   aviso no log; o superadmin continua vendo o pedido em `/gestao/solicitacoes`.

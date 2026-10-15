@@ -388,17 +388,24 @@ Hoje nada disso existe:
 revisão jurídica de 04/10/2026. Onde o modelo serve, a redação é a revisada, palavra por
 palavra; o que é novo leva a marca `[[REVISAR]]`.
 
-**O modelo só é publicado depois de duas coisas:**
+Na versão 1.1-minuta (15/10/2026) voltou a meta de disponibilidade de 99,5 % de cada mês civil,
+com crédito proporcional e teto de indenização, e o quadro-resumo passou a trazer o administrador
+indicado pela Empresa, o único que aceita.
+
+**O modelo só é publicado depois de três coisas:**
 
 1. o advogado validar os trechos `[[REVISAR]]`;
-2. os itens "bloqueia a publicação" do aviso de minuta estarem resolvidos.
+2. os itens "bloqueia a publicação" do aviso de minuta estarem resolvidos;
+3. um monitor de disponibilidade estar medindo a API e o painel, com histórico mensal, há
+   algumas semanas. É ele que prova os 99,5 % e dá os minutos do crédito.
 
 O próprio sistema recusa publicar um modelo com marca.
 
-**Landing antes do 014 ir a produção:** `index.html` (linha 2153 e o mock das linhas
-2221-2235, no repo do site) diz que o ADMIN liga a Inteligência em Configurações, o que
-fica falso com o 014. As linhas 2408 e 2503 usam "GH ENGENHARIA LTDA" sem "- ME".
-Corrigir numa mudança própria do site, pelas regras dele (peso e evidência no código).
+**Landing junto com o 014:** a `index.html` do site dizia que o ADMIN liga a Inteligência em
+Configurações, o que fica falso com o 014. A correção está na branch
+`landing/inteligencia-pelo-contrato` do repo do site e é publicada junto com o 014, nem antes nem
+depois. A razão social "GH ENGENHARIA LTDA - ME" e o nome completo do encarregado já entraram na
+`master` do site em 15/10/2026.
 
 **Convenções que valem para os seis planos** (alinhadas na revisão de 15/10/2026):
 
@@ -406,11 +413,13 @@ Corrigir numa mudança própria do site, pelas regras dele (peso e evidência no
   00:00 (São Paulo) do dia 1 de M: o que entra no mês, inclusive à meia-noite do dia 1, é
   cobrado a partir do mês seguinte.
 - A situação do cliente sai de uma função só, `deriveClientStatus` (013), com a
-  precedência: bloqueado por atraso ou manual → vencido → cancelado → bloqueado por empresa
+  precedência: bloqueado por atraso (o motivo manual existe no enum, mas está reservado e
+  desabilitado) → vencido → cancelado → bloqueado por empresa
   desativada → sem contrato → aguardando aceite → em carência (só com carência > 0) → em
   dia. Os nomes são os do 013 (`AWAITING_ACCEPTANCE`, `IN_GRACE`).
 - Datas `@db.Date` e competências: só `formatBillingDate` e `formatCompetence` (013). O
-  `formatDate` de `apps/web/src/lib/utils.ts` mostra o dia anterior no Brasil.
+  `formatDate` de `apps/web/src/lib/utils.ts` mostrava o dia anterior no Brasil; foi corrigido na
+  branch `fix/web-formatdate-fuso`, mas a cobrança fica com os formatadores próprios.
 - Dinheiro na tela: os formatadores que já existem. Dinheiro dentro de texto com hash
   (contrato, aditivo, declaração do pedido de licenças): só o `formatBrl` sem `Intl`.
 
@@ -515,7 +524,7 @@ Valem para os planos da Fase 6 e para qualquer tela futura de gestão comercial.
 | Adicionais | Licença avulsa, uma a uma, com preço unitário negociado por empresa. |
 | Tipo de licença | Por empresa: Padrão (sem Inteligência) ou Com Inteligência, cada um com seu preço. O contrato liga e desliga a Inteligência; o ADMIN não liga mais. |
 | Quem consome licença | Usuário ativo com perfil vendedor ou gerente (`SALESPERSON`). ADMIN é grátis. Desativar libera a licença na hora. |
-| Contrato | Contrato de Licença de Uso com quadro-resumo gerado do cadastro e condições gerais versionadas. Aceite eletrônico do ADMIN no painel, com usuário, data e hora, IP, navegador e SHA-256 do texto congelado. |
+| Contrato | Contrato de Licença de Uso com quadro-resumo gerado do cadastro e condições gerais versionadas. Aceite eletrônico no painel pelo administrador indicado pela Empresa (impresso no quadro-resumo), com usuário, data e hora, IP, navegador e SHA-256 do texto congelado. |
 | Antes do aceite | Nada começa: sem limite, sem mudança na Inteligência, sem cobrança. O início do contrato é a data do aceite. |
 | Aditivos | Pacote, tipo, valor, reajuste ou nova versão das condições gerais só valem depois do aceite de um aditivo; até lá vale a versão anterior. Aumento de preço exige "vale a partir de" ≥ envio + 30 dias, e o cliente pode cancelar sem ônus; o aditivo marcado "a pedido da Empresa Contratante" (ex.: upgrade para Com Inteligência) vale no aceite. O pedido de licenças feito pelo ADMIN, com o preço exibido, vale como aceite, sem aditivo. |
 | Cobrança | Manual: o sistema gera e registra a fatura, a Addere cobra por fora e o superadmin dá a baixa. |
@@ -524,7 +533,7 @@ Valem para os planos da Fase 6 e para qualquer tela futura de gestão comercial.
 | Carência | Opcional (0 = sem carência), em meses, contada depois do mês do aceite. |
 | Atraso | A suspensão só acontece depois de um aviso com a data prevista, enviado com no mínimo 10 dias corridos de antecedência. O sistema garante esse prazo. A suspensão não apaga dados. O superadmin pode liberar até uma data. |
 | Cancelamento | Sem fidelidade e sem multa. Vale no fim do mês, que é cobrado. A Addere rescinde com 30 dias de aviso. Depois do encerramento, o cliente tem 30 dias para pedir a cópia dos dados, entregue em até 15 dias. |
-| Disponibilidade | Sem meta percentual por enquanto (é uma pendência da segunda etapa). |
+| Disponibilidade | 99,5 % de cada mês civil (§9.7 do contrato). Descumprida, crédito proporcional ao tempo fora, abatido na fatura da competência seguinte e lançado à mão como desconto; sem fatura seguinte, pago por Pix em 30 dias. Para quem não é consumidor, o crédito é o teto da indenização. Exige monitor de disponibilidade antes de publicar o contrato. |
 | Piloto | Empresa em piloto fica sem contrato: sem limite e sem cobrança. |
 
 Decisões tomadas por padrão no planejamento, aceitas na aprovação do plano:
@@ -541,8 +550,14 @@ Decisões tomadas por padrão no planejamento, aceitas na aprovação do plano:
 7. Os jobs da Inteligência pausam para empresa bloqueada e retomam com catch-up.
 8. Quem opera o módulo é o papel SUPERADMIN atual, com histórico de quem fez cada ação.
 9. Licença extra lançada pelo superadmin sem pedido do ADMIN gera aditivo.
-10. Qualquer ADMIN ativo da empresa pode aceitar. Sem ADMIN, o envio é recusado.
-11. Mexer no rascunho depois do envio cancela o documento enviado.
+10. Só o administrador indicado pela Empresa (um ADMIN dela, escolhido no contrato e impresso no
+    quadro-resumo) aceita o contrato e os aditivos e pede licenças. Sem indicado, o envio é
+    recusado. Revisto em 15/10/2026; antes, qualquer ADMIN podia aceitar.
+11. Mexer no rascunho depois do envio cancela o documento enviado. Trocar o administrador
+    indicado também.
+12. O bloqueio manual está desabilitado (15/10/2026): o contrato só prevê suspensão por atraso,
+    com o aviso de 10 dias. Nenhum caminho grava o motivo `MANUAL`.
+13. As decisões D1 a D11 do plano 016 foram confirmadas como estão (15/10/2026).
 
 ## Pendências para a segunda etapa
 
@@ -556,10 +571,11 @@ Registradas em 15/10/2026, durante o planejamento da Fase 6. Ainda sem plano esc
 - **Assinatura por plataforma** (Clicksign, D4Sign ou ZapSign), se um cliente exigir mais do que
   o aceite eletrônico.
 - **Reajuste automático por índice.** Na primeira etapa, reajuste é um aditivo feito à mão.
-- **Meta de disponibilidade (SLA) com crédito na fatura.** Antes, precisa de um monitor de
-  disponibilidade; depois, entra por aditivo, com a mecânica do 11.5–11.7 da minuta do
-  BaiaCerta. Sem ela, o contrato também fica sem teto de indenização, um ponto que está com o
-  advogado.
+- **Cálculo automático do crédito por indisponibilidade.** A meta de 99,5 % está no contrato
+  desde 15/10/2026, e o crédito é lançado à mão (plano 016). Automatizar depende do histórico do
+  monitor de disponibilidade.
+- **Bloqueio manual** por violação ou risco à segurança. Está desabilitado; para voltar, precisa
+  de cláusula nova no contrato, revisada pelo advogado.
 - **Exportação dos dados de uma empresa** em formato legível por máquina, e rotina de eliminação
   30 dias depois do encerramento. Até lá, o contrato é cumprido por processo manual.
 - **Cobrança por uso de IA.** `IntelLlmCall` já guarda os tokens por empresa.
@@ -577,16 +593,21 @@ Registradas em 15/10/2026, durante o planejamento da Fase 6. Ainda sem plano esc
   - O hook `useCreateUser` está morto.
   - Unificar os dois caminhos resolve tudo. O 015 põe a trava de licenças nos dois, sem
     unificar.
-- **E-mails do Resend falham calados.** O `resend` 4.8 devolve `{ data, error }` e não lança
-  erro quando a API recusa o envio, então o `try/catch` da recuperação de senha
-  (`apps/api/src/modules/auth/auth.service.ts`) não vê a falha. Os planos 016 e 017 tratam
-  isso nos e-mails de cobrança; a recuperação de senha continua como está.
-- **Datas sem hora aparecem um dia antes no painel.** O `formatDate` de
-  `apps/web/src/lib/utils.ts` formata no fuso do navegador; um `@db.Date` vira o dia anterior.
-  Os planos da Fase 6 usam formatadores próprios; as telas antigas que usam `formatDate` com
-  data sem hora precisam ser conferidas.
+- **E-mails do Resend falham calados — corrigido em 15/10/2026** na branch
+  `fix/recuperacao-senha-resend`. A recuperação de senha passa a responder 502 com "entre em
+  contato com o suporte" quando o envio falha, e o app mostra essa mensagem (OTA depois da API).
+  Os planos 016 e 017 tratam o mesmo `{ data, error }` nos e-mails de cobrança.
+- **Datas sem hora um dia antes no painel — corrigido em 15/10/2026** na branch
+  `fix/web-formatdate-fuso`. O `formatDate` lê o dia civil em UTC e a data com hora no horário de
+  Brasília. O piloto, que mostrava o início, o fim e a legenda do gráfico um dia antes, passou a
+  usá-lo.
 - **`listCompanies` devolve a linha inteira da empresa**, inclusive o `passProtheus`
   criptografado. O 013 não copia o padrão (usa `select`), mas a rota antiga continua assim.
+- **Segurança: um ADMIN do cliente cria e altera outros ADMINs pela API.** No painel (`/users`) ele
+  leva 403, mas `POST` e `PATCH /companies/:id/users` (`requireCompanyScope`, desde `1a52ac8`)
+  aceitam `role: 'ADMIN'` e deixam um ADMIN desativar, rebaixar ou trocar e-mail e senha de outro,
+  inclusive do administrador indicado do contrato. Nenhuma tela usa essas rotas. O 014 relê o
+  papel no aceite como defesa; travar as rotas fica para a segunda etapa.
 - **Segurança: credencial do banco em texto puro.** O `.claude/settings.json` do monorepo (fora
   do git) guarda, na allowlist de permissões, connection strings do Neon com a senha em texto
   puro. Rotacionar a senha no Neon e trocar essas entradas por padrões sem credencial.

@@ -74,12 +74,19 @@ texto de contrato, não existe envio e não existe aceite. Sem este plano:
   quem fez cada ação.
 - **Decisão 9.** Licença extra lançada pelo superadmin sem pedido do ADMIN gera
   aditivo. O aditivo é deste plano; o pedido de licenças é do 015.
-- **Decisão 10.** Qualquer ADMIN ativo da empresa pode aceitar. O e-mail vai
-  para todos eles. Se a empresa ainda não tem ADMIN, o envio é recusado com o
-  aviso "crie o administrador antes".
+- **Decisão 10 (revista em 15/10/2026): administrador indicado.** Só o
+  administrador indicado pela Empresa aceita o contrato e os aditivos (e, no
+  015, pede licenças adicionais). O superadmin escolhe o indicado num select da
+  aba Contrato, entre os ADMINs ativos da empresa, e só cria usuário ADMIN por
+  indicação da Empresa (processo). O e-mail do envio vai só para o indicado.
+  Os outros ADMINs veem o documento só para leitura, com "Aguardando o aceite
+  de {nome}". Sem indicado, o envio é recusado. A regra anterior (qualquer
+  ADMIN ativo aceitava e o e-mail ia para todos) deixou de valer. Detalhes na
+  decisão de desenho 10.
 - **Decisão 11.** Mexer no rascunho depois de enviar cancela o documento
   enviado, que precisa ser gerado e enviado de novo. Assim o texto aceito é
-  sempre o dos termos gravados.
+  sempre o dos termos gravados. Trocar o administrador indicado com documento
+  enviado também cancela o documento, porque o nome dele está no texto.
 
 ### Decisões de desenho deste plano
 
@@ -135,7 +142,9 @@ texto de contrato, não existe envio e não existe aceite. Sem este plano:
    de autor são colunas simples. O 013 usa relação com `User` em
    `ContractTerms.createdById` e `BillingEvent.actorId`; aqui não, porque o
    registro de aceite congela nome e e-mail, e seriam cinco relações inversas a
-   mais em `User`. Usuário nunca é apagado fisicamente (soft delete).
+   mais em `User`. Usuário nunca é apagado fisicamente (soft delete). A
+   exceção é o administrador indicado (decisão de desenho 10), que não é autor:
+   é um ponteiro vivo que o envio, o aceite e o pedido de licenças leem.
 9. **"Vale a partir de D" é gravado como 00:01 de São Paulo do dia D.** Na
    revisão de 15/10/2026, o resolvedor do 013 passou a contar, na competência
    M, só os termos com `effectiveFrom` **estritamente anterior** às 00:00 do
@@ -145,6 +154,37 @@ texto de contrato, não existe envio e não existe aceite. Sem este plano:
    aditivo que vale em 01/12 tem dezembro pelas condições anteriores e janeiro
    pelas novas. Limite e Inteligência mudam às 00:01, o que não faz diferença
    na prática.
+10. **Administrador indicado** (decisão 10, revista em 15/10/2026).
+    - **Onde mora:** coluna nova `CompanyContract.designatedAdminId`, com chave
+      estrangeira para `User` (a exceção da decisão de desenho 8). A chave
+      impede apontar para usuário que não existe.
+    - **Quem escolhe:** o superadmin, num select próprio da aba Contrato, fora
+      do formulário de rascunho do 013. O select precisa funcionar também com o
+      contrato ACTIVE: se o indicado sai da empresa, os aditivos e os pedidos
+      de licenças (015) ficam travados até a troca.
+    - **Troca com documento SENT** cancela o documento (decisão 11), seja
+      contrato, seja aditivo: o nome do indicado está no texto dos dois (o
+      contrato o imprime no quadro-resumo e o aditivo v1.1, nas partes).
+    - **Uma função confere quem aceita e quem pede:** `assertDesignatedAdmin`.
+      Ela relê o usuário no banco, porque o `role` do JWT vale por 8 horas
+      (`plugins/jwt.ts:18`). O `authenticate` relê só o `active`
+      (`middleware/authenticate.ts:16-22`), então um indicado rebaixado a
+      vendedor ainda carrega `role: 'ADMIN'` no token até ele expirar.
+    - **E-mail do envio só para o indicado, sem cópia ao `billingEmail`.** O
+      e-mail pede uma ação e leva a uma tela que só o indicado usa: para
+      qualquer outro, seria um link sem saída. O contato de cobrança muitas
+      vezes nem é usuário do painel. Ele recebe a confirmação do aceite (passo
+      8), que é quando algo muda para a cobrança.
+    - **O 422 `COMPANY_HAS_NO_ADMIN` sai.** Empresa sem ADMIN é um caso de "sem
+      indicado", porque o select fica vazio. O envio recusa com
+      `DESIGNATED_ADMIN_REQUIRED`, e a tela explica que falta criar o
+      administrador.
+    - **Criação de ADMIN.** O superadmin só cria usuário ADMIN por indicação da
+      Empresa (processo, no `docs/billing/README.md`). Este plano não trava a
+      criação de ADMIN pelo próprio cliente (ver "Quem cria ou promove ADMIN
+      hoje", no Estado atual). Como o indicado só muda pelo select do
+      superadmin, um ADMIN criado pelo cliente não aceita nada nem pede
+      licenças.
 
 ## Estado atual
 
@@ -198,6 +238,28 @@ Conferido no commit `80fe328`.
   os jobs (`scheduler.ts:92`), o motor e o `/auth/me`. Nenhum leitor muda.
 - `apps/api/src/middleware/require-company.ts:23-40` — `requireCompanyScope`
   aceita ADMIN e SUPERADMIN. Não existe guard "só ADMIN da própria empresa".
+- **Quem cria ou promove ADMIN hoje** (conferido em 15/10/2026, para a regra
+  do administrador indicado):
+  - pelo `/users`, que é o caminho do painel, só o SUPERADMIN. O
+    `users.routes.ts:45-57` devolve 403 ao ADMIN que cria administrador, e o
+    `:82-87`, ao que promove. O `UserFormModal.tsx:85-91` nem mostra a opção;
+  - pelo `/companies/:id/users`, o ADMIN da empresa **consegue**. O `POST` e o
+    `PATCH /companies/:id/users/:userId` (`companies.routes.ts:132-147`) usam
+    `requireCompanyScope()` desde o `1a52ac8` (02/10/2026). O
+    `createCompanyUserSchema` (`companies.schema.ts:50-60`, e o `partial()`
+    dele no update) aceita `role: 'ADMIN'`. Nenhuma tela chama essas rotas (só
+    o `useCreateUser`, que é código morto), mas uma chamada direta à API passa;
+  - pelas duas rotas, um ADMIN também desativa outro ADMIN da mesma empresa,
+    rebaixa-o a vendedor ou troca o e-mail e a senha dele.
+
+  **Este plano não trava nada disso** (decisão de desenho 10). O indicado só
+  muda pelo select do superadmin, e o aceite relê o indicado no banco
+  (`assertDesignatedAdmin`). Um ADMIN que troque a senha do indicado e entre
+  como ele fica fora do alcance do sistema: é confiança interna da Empresa,
+  igual à de hoje. O registro de aceite congela nome, e-mail, IP e navegador, e
+  a confirmação vai ao contato de cobrança e à Addere. Fechar o
+  `/companies/:id/users` para o ADMIN, como o `/users` já faz, fica como
+  pendência registrada no passo 14 e nas Notas de manutenção.
 - `apps/api/src/lib/errors.ts:3-14` — `AppError` sem `code`. **O 013 acrescenta
   o `code`** e o `getApiErrorCode` do web; este plano usa os dois.
 - `apps/api/src/modules/intelligence/jobs/scheduler.ts:155-162` —
@@ -268,7 +330,8 @@ abaixo são os de `plans/013-cadastro-de-clientes-e-contratos.md`, passos 1 a
   - `CompanyContract` (`companyId @unique`, `status`, `startDate @db.Date`,
     `graceMonths`, `firstBilledCompetence @db.Date`, `dueDay`,
     `overdueBlockDays`, `seatGuardVersion`), tabela
-    `billing_company_contracts`;
+    `billing_company_contracts`. Este plano acrescenta `designatedAdminId`
+    (passo 4);
   - `ContractTerms` (`contractId`, `version` por contrato, `status`, `origin`,
     `proposedEffectiveFrom DateTime?` — instante, não `@db.Date` —,
     `effectiveFrom`, `packageId`, `licenseType`, `includedSeats`,
@@ -305,24 +368,37 @@ abaixo são os de `plans/013-cadastro-de-clientes-e-contratos.md`, passos 1 a
 **Os textos do contrato** (`docs/billing/`, escritos na branch de docs junto
 com este plano):
 
-- `contrato-licenca-de-uso-v1.md` — o corpo fica entre
-  `<!-- INÍCIO DO TEXTO PUBLICÁVEL -->` (hoje `:248`) e
-  `<!-- FIM DO TEXTO PUBLICÁVEL -->` (hoje `:488`). O aviso de minuta
-  (`:17-175`) traz uma tabela de promessas com 20 linhas — as 8 do plano
-  aprovado mais 12 que a minuta acrescentou.
-- `aditivo-contratual-v1.md` — corpo entre os mesmos marcadores (hoje `:75` e
-  `:135`). A seção "Notas para o plano 014" (`:60-71`) pede que
-  `aditivo.valeAPartirDe` nunca saia vazio.
+- `contrato-licenca-de-uso-v1.md` (versão 1.1-minuta, com as decisões de
+  15/10/2026) — o corpo fica entre `<!-- INÍCIO DO TEXTO PUBLICÁVEL -->` (hoje
+  `:265`) e `<!-- FIM DO TEXTO PUBLICÁVEL -->` (hoje `:514`). O aviso de minuta
+  (`:17-189`) traz uma tabela de promessas com 24 linhas: as 8 do plano
+  aprovado mais 16 que a minuta acrescentou. As linhas 21 a 23 são a meta de
+  disponibilidade de 99,5 % (§9.7 a §9.10), e a 24 é o administrador indicado.
+  O quadro-resumo imprime o administrador indicado
+  (`{{cliente.administradorNome}}` e `{{cliente.administradorEmail}}`). O §14.1
+  diz que o aceite é do administrador indicado no quadro-resumo, e o §8.8 traz
+  o encarregado com o nome completo.
+- `aditivo-contratual-v1.md` (versão 1.1-minuta) — corpo entre os mesmos
+  marcadores (hoje `:75` e `:135`). A seção "Notas para o plano 014"
+  (`:60-71`) pede que `aditivo.valeAPartirDe` nunca saia vazio. As partes
+  nomeiam o administrador indicado, com os mesmos dois campos.
 - Conferido em 15/10/2026: os dois usam só campos da lista fechada, nenhum
   `aditivo.*` no contrato, e o corpo só tem títulos, listas, parágrafos e
-  negrito. O corpo do contrato tem 53 marcas `[[REVISAR`, e o do aditivo, 9.
+  negrito. O corpo do contrato tem 55 marcas `[[REVISAR`, e o do aditivo, 9.
 
 **Repo do site** (`c:\Projetos-Claude\sites\addere`, outro repositório)
 
-- `termos.html:127` — "Última atualização: 11/09/2026".
-- `termos.html:136` e `:225` — razão social "GH ENGENHARIA LTDA"; `:139` —
-  "contrato assinado"; `:152` — "Quando a Empresa Contratante liga a Camada de
-  Inteligência".
+- **Já na `master`** (commit `ec49444`, 15/10/2026, feito por outra pessoa):
+  razão social "GH ENGENHARIA LTDA - ME" em `termos.html` (`:136`, `:225` e o
+  rodapé `:281`), `privacidade.html` (`:136`, `:153` e o rodapé `:274`) e
+  `index.html` (`:2408` e `:2503`). Também o encarregado com o nome completo,
+  Gustavo Henrique Palitot Costa, na seção 12 da Privacidade (`:243`), o
+  `CLAUDE.md:182` com "- ME" e o `lastmod` 2026-10-15 nas três URLs do
+  `sitemap.xml`. As linhas não mudaram de lugar.
+- `termos.html:127` — "Última atualização: 11/09/2026" (o `ec49444` não mudou
+  a data).
+- `termos.html:139` — "contrato assinado"; `:152` — "Quando a Empresa
+  Contratante liga a Camada de Inteligência".
 - `termos.html:176-179` (seção 7) — "cobrado por representante ativo por mês".
 - `termos.html:218-221` (seção 13) — só o papel de operador.
 - `termos.html:228-231` (seção 15) — exclui "indisponibilidade do ERP, da
@@ -333,19 +409,18 @@ com este plano):
 - `termos.html:238-241` (seção 17) — alterações com "antecedência razoável".
 - "Proposta comercial" aparece nos Termos em `:139`, `:178`, `:215`, `:235` e
   `:245`. O contrato passa a ser o documento comercial.
-- `privacidade.html:127` (data), `:136` e `:153` (razão social), `:156-174`
-  (seção 3), `:176-179` (seção 4), `:181-199` (seção 5; `:192`, a linha do
-  Resend), `:211-220` (seção 8). Na Privacidade, a divisão controladora ×
-  operador hoje está na seção 2 (`:149-151`); a seção 5 é "Compartilhamento".
+- `privacidade.html:127` (data), `:156-174` (seção 3), `:176-179` (seção 4),
+  `:181-199` (seção 5; `:192`, a linha do Resend), `:211-220` (seção 8). Na
+  Privacidade, a divisão controladora × operador hoje está na seção 2
+  (`:149-151`); a seção 5 é "Compartilhamento".
 - `termos.html:16-102` e `privacidade.html:16-102` — o `<style>`, idêntico
   byte a byte.
-- `CLAUDE.md:182` do site — "Controladora: GH ENGENHARIA LTDA, CNPJ …".
-- `sitemap.xml:4-5` — `lastmod` da privacidade (2026-09-13) e dos termos
-  (2026-10-07).
 - **Fora do escopo, mas afetado:** `index.html:2153` diz que a Inteligência "é
   ligada … pelo administrador da própria empresa, em Configurações", e
   `index.html:2221-2235` desenha esse switch. Depois deste plano, isso deixa de
-  ser verdade. Ver passo 16 e as Notas de manutenção.
+  ser verdade. A correção está sendo feita na branch
+  `landing/inteligencia-pelo-contrato` do site, que vai ao ar junto com o 014
+  (passo 16 e Notas de manutenção).
 
 ## Esboço de tela
 
@@ -385,12 +460,17 @@ acrescenta ao formulário de rascunho do 013)
 
 ```
 ┌ Documentos ────────────────────────────────────────────────────────────────┐
+│ Administrador indicado pela Empresa                                         │
+│ [ Maria Souza · maria@cliente.com.br                                    ▾ ] │
+│ Só ele aceita o contrato e os aditivos e pede licenças. Trocar com um       │
+│ documento enviado cancela o documento.                                      │
+│                                                                             │
 │ Condições gerais aceitas: v1 · publicada mais recente: v2                   │
 │ [ Pré-visualizar documento ]  [ Enviar para aceite ]                        │
 │                                                                             │
 │ Linha do tempo                                                              │
 │ ● Aditivo · modelo v1 · enviado em 18/10 10:02 por Gustavo                  │
-│     e-mail a 2 administradores em 18/10 10:02                               │
+│     e-mail ao administrador indicado em 18/10 10:02                         │
 │     [ Reenviar e-mail ]  [ Cancelar envio ]                                 │
 │ ● Contrato · modelo v1 · aceito em 16/10 09:13 por Maria Souza              │
 │     maria@cliente.com.br · IP 177.10.20.30 · SHA-256 3f2a9c…                │
@@ -430,9 +510,16 @@ acrescenta ao formulário de rascunho do 013)
 │                                                                             │
 │ Documentos aceitos                                                          │
 │  Contrato · aceito em 16/10/2026 por Maria Souza   [ Ver ] [ Imprimir ]     │
-│  Aditivo  · aceito em 02/11/2026 por João Lima     [ Ver ] [ Imprimir ]     │
+│  Aditivo  · aceito em 02/11/2026 por Maria Souza   [ Ver ] [ Imprimir ]     │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
+
+Esse é o que vê o administrador indicado. Para os outros ADMINs da empresa, o
+quadro do documento pendente tem o título "Aguardando o aceite de Maria Souza"
+e mostra o texto inteiro só para leitura, sem a caixa de concordância e sem o
+botão. Se o indicado deixou de ser ADMIN ativo, todos veem "O administrador
+indicado (Maria Souza) não está mais ativo. Fale com a Addere para indicar
+outro."
 
 **Faixa no painel do ADMIN**, enquanto houver documento pendente (some em
 `/contrato`):
@@ -442,6 +529,9 @@ acrescenta ao formulário de rascunho do 013)
 │ ⓘ Contrato aguardando seu aceite.                        [ Ler e aceitar ] │
 └──────────────────────────────────────────────────────────────────────────┘
 ```
+
+Para os outros ADMINs, a faixa diz "Contrato aguardando o aceite de Maria
+Souza." (ou "Aditivo …"), com o botão "Ver contrato".
 
 **Impressão** (`/contrato/[id]/imprimir`; no papel, sem sidebar, preto no
 branco):
@@ -473,8 +563,9 @@ Documento: Contrato · modelo v1 · id 7c1e…
 
 | Perfil | O que muda |
 |---|---|
-| SUPERADMIN | Modelos de contrato (versões, editar, publicar). Na ficha: prévia, enviar, reenviar e-mail, cancelar envio, propor e descartar aditivo, linha do tempo, imprimir qualquer documento. Liga e desliga a Inteligência só em empresa **sem** contrato ACTIVE; com contrato ACTIVE, recebe 409 e o switch fica só leitura. |
-| ADMIN da empresa | `/contrato`: lê e aceita o documento pendente; vê e imprime os aceitos, com o registro de aceite dos colegas da mesma empresa. Recebe os e-mails. Vê a faixa. Em Configurações, a Inteligência vira status só de leitura (403 se tentar mudar pela API). |
+| SUPERADMIN | Modelos de contrato (versões, editar, publicar). Na ficha: escolher o administrador indicado, prévia, enviar, reenviar e-mail, cancelar envio, propor e descartar aditivo, linha do tempo, imprimir qualquer documento. Liga e desliga a Inteligência só em empresa **sem** contrato ACTIVE; com contrato ACTIVE, recebe 409 e o switch fica só leitura. |
+| Administrador indicado (`CompanyContract.designatedAdminId`) | `/contrato`: lê e aceita o documento pendente; vê e imprime os aceitos, com o registro de aceite. Recebe o e-mail do envio e o da confirmação. Vê a faixa "Contrato aguardando seu aceite". Em Configurações, a Inteligência vira status só de leitura (403 se tentar mudar pela API). |
+| Outros ADMINs da empresa | `/contrato`: leem o documento pendente só para leitura, com "Aguardando o aceite de {nome}" (403 `NOT_DESIGNATED_ADMIN` se tentarem aceitar pela API); veem e imprimem os aceitos, com o registro de aceite. A faixa diz "Contrato aguardando o aceite de {nome}". Não recebem o e-mail do envio; recebem o da confirmação. Em Configurações, o mesmo status só de leitura. |
 | Vendedor e gerente (`SALESPERSON`) | Nada novo. `/billing/me/*` responde 403 e `/auth/me` devolve `pendingDocument: null`. |
 
 LGPD: nome, e-mail, IP e navegador de quem aceita são tratados por execução de
@@ -515,7 +606,9 @@ shell e `cd` não sobrevivem de uma chamada para a outra.
 - `packages/db/prisma/schema.prisma` — enums `ContractDocumentKind`,
   `ContractTemplateStatus`, `ContractDocumentStatus`; modelos
   `ContractTemplate` e `ContractDocument`; as relações inversas em `Company`,
-  `CompanyContract` e `ContractTerms`.
+  `CompanyContract` e `ContractTerms`; as colunas novas
+  `CompanyContract.designatedAdminId` (com a relação inversa em `User`) e
+  `ContractTerms.requestedByClient`.
 - `packages/db/prisma/migrations/<YYYYMMDDHHMMSS>_contract_documents/migration.sql`
   (passo 15).
 - `packages/types/src/contract-template.ts` (novo) — campos, renderizador,
@@ -541,7 +634,8 @@ shell e `cd` não sobrevivem de uma chamada para a outra.
   `admin-routes.test.ts`.
 - `apps/api/src/modules/billing/` (arquivos novos):
   `contract-fields.ts`, `amendment-rules.ts`, `billing-mailer.ts`,
-  `contract-email.ts`, `contract-templates.{routes,service,schema}.ts`,
+  `contract-email.ts`, `designated-admin.ts`,
+  `contract-templates.{routes,service,schema}.ts`,
   `contract-documents.{routes,service,schema}.ts`, `me.routes.ts`,
   `jobs/apply-due-terms.ts` e os testes em `__tests__/`.
 - Nos arquivos do 013 em `apps/api/src/modules/billing/`, **só**:
@@ -568,11 +662,15 @@ shell e `cd` não sobrevivem de uma chamada para a outra.
   `apps/web/src/components/ContractAccessOnly.tsx` (novo).
 - `apps/web/src/lib/contract-hash.ts` e
   `apps/web/src/lib/__tests__/contract-hash.test.ts` (novos).
+- `apps/web/src/lib/contract-acceptance.ts` e
+  `apps/web/src/lib/__tests__/contract-acceptance.test.ts` (novos) — quem vê o
+  documento pendente para aceitar e quem vê só para leitura.
 - `apps/web/src/app/globals.css` — estilos `.contract-doc` e `@media print`.
 - `docs/billing/README.md` (novo) — seção "Contrato e aceite" (passo 14).
 
 **Dentro do escopo (repo do site, passo 16):** `termos.html`,
-`privacidade.html`, `CLAUDE.md` (linha "Controladora") e `sitemap.xml`.
+`privacidade.html` e `sitemap.xml`. O `CLAUDE.md` do site já está certo desde
+o `ec49444` e só é conferido.
 
 **Fora do escopo (NÃO toque):**
 
@@ -634,7 +732,9 @@ comandos, um arquivo de cada vez. Cada chave tem de estar nesta lista:
   `contratada.encarregado`, `contratada.emailContato`, `contratada.emailSuporte`
 - `cliente.razaoSocial`, `cliente.nomeFantasia`, `cliente.cnpj`,
   `cliente.endereco`, `cliente.representanteNome`, `cliente.representanteCpf`,
-  `cliente.representanteCargo`, `cliente.emailCobranca`
+  `cliente.representanteCargo`, `cliente.emailCobranca`,
+  `cliente.administradorNome`, `cliente.administradorEmail` (os dois últimos
+  vêm do administrador indicado, decisão de desenho 10)
 - `licenca.pacote`, `licenca.tipo`, `licenca.quantidade`, `licenca.adicionais`,
   `licenca.total`, `licenca.inteligencia`
 - `valores.pacote`, `valores.pacoteExtenso`, `valores.adicional`,
@@ -658,8 +758,9 @@ aviso de minuta em citação (`>`) fica fora do corpo e não conta.
 sem as duas linhas de marcação. Fica de fora tudo o que está antes (cabeçalho
 da minuta, aviso, "Como ler esta minuta", "Notas para o plano 014") e depois
 (histórico de versões). Anote, para cada arquivo, a primeira e a última linha
-do corpo; o passo 15 usa. Em 15/10/2026: contrato `:249-487`, aditivo
-`:76-134`.
+do corpo; o passo 15 usa. Em 15/10/2026, depois das decisões do dono do
+produto: contrato `:266-513`, aditivo `:76-134`. O contrato ainda estava sendo
+ajustado nesse dia: confie no `grep` abaixo, não nestes números.
 
 ```bash
 grep -n "TEXTO PUBLICÁVEL" docs/billing/contrato-licenca-de-uso-v1.md docs/billing/aditivo-contratual-v1.md
@@ -675,15 +776,41 @@ de", ele recebe a **data de emissão** do documento, e o "o que for posterior"
 leva à data do aceite. Confira que a frase fica correta com uma data qualquer.
 
 **(f) Toda promessa do texto tem quem a cumpra.** A minuta do contrato traz, no
-aviso, a tabela "Promessas do contrato × sistema" com 20 linhas: as 8 do plano
-aprovado e 12 que ela acrescentou. Leia as condições gerais e case cada
-promessa com uma linha dessa tabela. Promessa sem linha, ou linha sem dono, é
-PARADA. As linhas que são deste plano estão nos Critérios de conclusão.
+aviso, a tabela "Promessas do contrato × sistema" com 24 linhas: as 8 do plano
+aprovado e 16 que ela acrescentou (entre elas, a meta de disponibilidade nas
+linhas 21 a 23 e o administrador indicado na 24). Leia as condições gerais e
+case cada promessa com uma linha dessa tabela. Promessa sem linha, ou linha
+sem dono, é PARADA. As linhas que são deste plano estão nos Critérios de
+conclusão.
 
-**Verificar**: (a) a (f) conferidos. Arquivo ausente, campo fora da lista,
+**(g) As decisões de 15/10/2026 estão nos textos.** Confira:
+
+- o quadro-resumo do contrato imprime o administrador indicado com
+  `{{cliente.administradorNome}}` e `{{cliente.administradorEmail}}`, e as
+  partes do aditivo também;
+- o §14.1 diz que o aceite é do administrador indicado no quadro-resumo, e o
+  §3.5 diz que é ele quem pede licenças adicionais;
+- o §8.8 traz o encarregado com o nome completo, **Gustavo Henrique Palitot
+  Costa**, igual ao `CONTRATADA.encarregado` do passo 2 e à seção 12 da
+  `privacidade.html` do site (corrigidos por outra pessoa em 15/10/2026; aqui
+  só se confere);
+- o §9.7 a §9.10 trazem a meta de 99,5 % de cada mês civil, o crédito
+  proporcional abatido na fatura da competência seguinte, o teto da
+  indenização para quem não é consumidor e o Pix em até 30 dias sem fatura
+  seguinte.
+
+```bash
+grep -c "{{cliente.administradorNome}}" docs/billing/contrato-licenca-de-uso-v1.md docs/billing/aditivo-contratual-v1.md
+grep -n "Gustavo Henrique Palitot Costa\|^\*\*9\.[0-9]*\|^\*\*14\.1" docs/billing/contrato-licenca-de-uso-v1.md
+```
+
+→ pelo menos 1 em cada arquivo no primeiro; no segundo, o §8.8 com o nome e os
+§9.7 a §9.10 e §14.1 presentes.
+
+**Verificar**: (a) a (g) conferidos. Arquivo ausente, campo fora da lista,
 sintaxe sem suporte no corpo, marcadores do corpo faltando ou repetidos, frase
-quebrada no (e) ou promessa sem dono são condições de PARADA. Não edite os
-textos.
+quebrada no (e), promessa sem dono ou decisão de 15/10/2026 ausente do texto
+são condições de PARADA. Não edite os textos.
 
 ### Passo 2: Módulo puro do modelo de contrato (`packages/types`)
 
@@ -721,8 +848,9 @@ existe:
   (decisão de desenho 9).
 - Em `BILLING_EVENT_TYPES`: `TEMPLATE_VERSION_CREATED`, `TEMPLATE_PUBLISHED`,
   `DOCUMENT_SENT`, `DOCUMENT_RESENT`, `DOCUMENT_CANCELLED`,
-  `DOCUMENT_ACCEPTED`, `AMENDMENT_PROPOSED`, `AMENDMENT_WITHDRAWN` e
-  `INTELLIGENCE_APPLIED`. É `String` no banco: nada de migration de enum.
+  `DOCUMENT_ACCEPTED`, `AMENDMENT_PROPOSED`, `AMENDMENT_WITHDRAWN`,
+  `INTELLIGENCE_APPLIED` e `DESIGNATED_ADMIN_CHANGED`. É `String` no banco:
+  nada de migration de enum.
 - Em `BillingErrorCode`: os códigos novos deste plano (lista no fim do passo
   8).
 
@@ -734,7 +862,9 @@ Crie `packages/types/src/contract-template.ts`:
 - `CONTRATADA` — as constantes da contratada:
   `razaoSocial: 'GH ENGENHARIA LTDA - ME'`, `cnpj: '07.841.407/0001-90'`,
   `endereco: 'Rua Débora da Silva Braga, 55, Bessa, João Pessoa/PB, CEP 58037-350'`,
-  `encarregado: 'Gustavo Costa'`, `emailContato: 'contato@addere.com.br'`,
+  `encarregado: 'Gustavo Henrique Palitot Costa'` (nome completo, decidido em
+  15/10/2026; é o mesmo do §8.8 do contrato e da seção 12 da Política de
+  Privacidade), `emailContato: 'contato@addere.com.br'`,
   `emailSuporte: 'suporte@addere.com.br'`.
 - `CONTRACT_FIELDS` — a lista fechada do passo 1, cada item com `key`, `group`,
   `label` (para a lista de inserção do editor) e `kinds` (`aditivo.*` só em
@@ -779,8 +909,10 @@ Crie `packages/types/src/contract-template.ts`:
   nas pontas (o 013 grava o CNPJ como digitado e o CPF só com dígitos). Datas
   usam `formatBillingDate` do 013.
 - DTOs: `ContractTemplateDto`, `ContractDocumentDto` (com `renderedBody`,
-  `sha256`, versões do modelo, envio, aceite e cancelamento) e
-  `PendingDocumentRef = { id: string; kind: ContractDocumentKind; sentAt: string }`.
+  `sha256`, versões do modelo, envio, aceite e cancelamento),
+  `DesignatedAdminRef = { id: string; name: string; valid: boolean }` (`valid`
+  = o usuário ainda é ADMIN ativo da empresa) e
+  `PendingDocumentRef = { id: string; kind: ContractDocumentKind; sentAt: string; designatedAdmin: DesignatedAdminRef | null }`.
 
 Exporte os dois módulos em `packages/types/src/index.ts`. Em `UserPublic.company`,
 acrescente `pendingDocument?: PendingDocumentRef | null`.
@@ -821,7 +953,8 @@ Em `apps/web/src/lib/billing-ui.ts` (do 013), dê rótulo aos tipos de evento
 novos em `BILLING_EVENT_LABELS` ("Versão de modelo criada", "Modelo
 publicado", "Documento enviado", "E-mail reenviado", "Documento cancelado",
 "Documento aceito", "Aditivo proposto", "Aditivo descartado", "Inteligência
-aplicada pelo contrato"). Sem isso o web não compila.
+aplicada pelo contrato", "Administrador indicado alterado"). Sem isso o web
+não compila.
 
 **Verificar**: `npm run type-check && npm test --workspace=apps/api && npm test --workspace=apps/web` → exit 0.
 
@@ -961,6 +1094,31 @@ Em `ContractTerms` (do 013), acrescente a coluna `requestedByClient Boolean
 migration do passo 15 leva o `ALTER TABLE "billing_contract_terms" ADD COLUMN
 "requestedByClient" BOOLEAN NOT NULL DEFAULT false`.
 
+Em `CompanyContract` (do 013), acrescente o administrador indicado (decisão de
+desenho 10):
+
+```prisma
+  // Administrador indicado pela Empresa (plano 014): o único que aceita o
+  // contrato e os aditivos e pede licenças adicionais (015). Escolhido pelo
+  // superadmin na aba Contrato. Ponteiro vivo, com chave estrangeira (exceção
+  // da decisão de desenho 8).
+  designatedAdminId String?
+  designatedAdmin   User?   @relation("ContractDesignatedAdmin", fields: [designatedAdminId], references: [id])
+```
+
+Em `User`, a relação inversa
+`designatedInContracts CompanyContract[] @relation("ContractDesignatedAdmin")`.
+A tabela do 013 é `billing_company_contracts` (`@@map` do `CompanyContract`).
+A migration do passo 15 leva as duas linhas que o Prisma gera para isso:
+
+```sql
+ALTER TABLE "billing_company_contracts" ADD COLUMN "designatedAdminId" TEXT;
+ALTER TABLE "billing_company_contracts" ADD CONSTRAINT "billing_company_contracts_designatedAdminId_fkey" FOREIGN KEY ("designatedAdminId") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+```
+
+O `ON DELETE SET NULL` é o padrão do Prisma para relação opcional. Usuário
+nunca é apagado fisicamente, então ele não deve disparar.
+
 As tabelas seguem o prefixo `billing_` do 013. Relações inversas:
 `contractDocuments ContractDocument[]` em `Company`, `documents
 ContractDocument[]` em `CompanyContract` e em `ContractTerms`. Rode
@@ -980,10 +1138,11 @@ Crie `apps/api/src/modules/billing/contract-fields.ts`:
 
 - `buildContractFieldValues(input): Record<ContractFieldKey, string | null>` —
   **pura**. Recebe as linhas já carregadas: empresa, `ClientProfile`, contrato,
-  termos usados no documento, termos anteriores (aditivo), documento CONTRACT
-  aceito (aditivo), modelo, `BillingSettings` e a data de emissão.
+  administrador indicado (`id`, `name`, `email`, ou `null`), termos usados no
+  documento, termos anteriores (aditivo), documento CONTRACT aceito (aditivo),
+  modelo, `BillingSettings` e a data de emissão.
 - `loadContractFieldInput(companyId, kind, now)` — faz as consultas Prisma e
-  monta o `input`.
+  monta o `input`. O indicado vem de `CompanyContract.designatedAdmin`.
 
 Origem e formato de cada campo:
 
@@ -998,6 +1157,8 @@ Origem e formato de cada campo:
 | `cliente.representanteCpf` | `legalRepCpf` | `formatCpf` |
 | `cliente.representanteCargo` | `legalRepRole` | texto |
 | `cliente.emailCobranca` | `billingEmail` | e-mail |
+| `cliente.administradorNome` | `User.name` do administrador indicado (`CompanyContract.designatedAdminId`) | texto |
+| `cliente.administradorEmail` | `User.email` do administrador indicado | e-mail |
 | `licenca.pacote` | `LicensePackage.name` | ex.: `Pacote 10`, `Ilimitado` |
 | `licenca.tipo` | `licenseType` | `STANDARD` ⇒ `Padrão (sem Inteligência)`; `INTELLIGENCE` ⇒ `Com Inteligência` |
 | `licenca.quantidade` | `includedSeats` | inteiro |
@@ -1031,10 +1192,16 @@ Regras:
   razão social no cadastro só para destravar o envio seria trabalho à toa.
 - Num CONTRACT, os `aditivo.*` não são preenchidos. Num AMENDMENT, `licenca.*`
   e `valores.*` são os termos **propostos**.
+- **Administrador indicado**: os dois campos vêm do usuário apontado pelo
+  contrato, lidos na hora de gerar o texto. Sem indicado, os dois são `null`:
+  a prévia os lista como faltando, e o envio já recusa antes, com
+  `DESIGNATED_ADMIN_REQUIRED` (passo 7). Este campo não confere se o indicado
+  ainda é ADMIN ativo; quem confere é o envio.
 
 **Testes** (`__tests__/contract-fields.test.ts`, sobre a função pura): todos os
 formatos da tabela; Ilimitado com quantidade digitada; mensal com e sem
-adicionais; `null` para cada dado ausente do perfil; endereço sem CEP dá
+adicionais; `null` para cada dado ausente do perfil; sem indicado,
+`cliente.administradorNome` e `cliente.administradorEmail` `null`; endereço sem CEP dá
 `null`; endereço sem complemento; aditivo com `proposedEffectiveFrom` e sem
 ele (`aditivo.valeAPartirDe` = data de emissão); `aditivo.contratoAceitoEm`
 vem do CONTRACT mesmo com aditivos aceitos depois; data de emissão às 23h30
@@ -1076,8 +1243,8 @@ recebendo CRLF.
 
 ### Passo 7: Documentos — prévia, envio, reenvio, cancelamento e aditivo (API)
 
-Crie `amendment-rules.ts` (puro), `billing-mailer.ts`, `contract-email.ts` e
-`contract-documents.{schema,service,routes}.ts`.
+Crie `amendment-rules.ts` (puro), `billing-mailer.ts`, `contract-email.ts`,
+`designated-admin.ts` e `contract-documents.{schema,service,routes}.ts`.
 
 **`amendment-rules.ts`:**
 
@@ -1118,23 +1285,43 @@ módulo `billing` e acrescentar as funções deles aqui:
 **`contract-email.ts`** — os dois e-mails deste plano, sobre o
 `sendBillingEmail`:
 
-- `sendDocumentPendingEmail(doc, recipients)` — assunto "Contrato de Licença de
-  Uso do Addere aguardando seu aceite" (ou "Aditivo ao Contrato de Licença de
-  Uso do Addere aguardando seu aceite") e link `webUrl('/contrato/{id}')`;
+- `sendDocumentPendingEmail(doc, recipient)` — **um destinatário só, o
+  administrador indicado** (decisão de desenho 10; sem cópia ao
+  `billingEmail` nem aos outros ADMINs). Assunto "Contrato de Licença de Uso do
+  Addere aguardando seu aceite" (ou "Aditivo ao Contrato de Licença de Uso do
+  Addere aguardando seu aceite") e link `webUrl('/contrato/{id}')`. Devolve se
+  o e-mail saiu;
 - `sendDocumentAcceptedEmail(doc, recipients)` — "… aceito", com quem aceitou,
-  quando e o mesmo link. Sem IP e sem o texto do contrato.
+  quando e o mesmo link. Sem IP e sem o texto do contrato. Devolve quantos
+  e-mails saíram.
 
-Cada um devolve quantos e-mails saíram.
+**`designated-admin.ts`** — a regra do administrador indicado num lugar só. O
+aceite (passo 8) e o pedido de licenças do 015 usam a segunda função:
+
+- `assertValidDesignee(db, companyId, userId)` — lê o usuário no banco. Se ele
+  não existe, ou não é `role: 'ADMIN'`, `active: true` e da `companyId`, lança
+  422 `DESIGNATED_ADMIN_INVALID`, "O administrador indicado precisa ser um
+  administrador ativo desta empresa.". Senão devolve `{ id, name, email }`.
+- `assertDesignatedAdmin(db, contract, userId)` — `contract.designatedAdminId`
+  nulo ou diferente de `userId`, ou o usuário, relido no banco, já não é ADMIN
+  ativo da empresa do contrato: 403 `NOT_DESIGNATED_ADMIN`, "Só o
+  administrador indicado pela sua empresa pode fazer isso.". Senão devolve
+  `{ id, name, email }`, lidos do banco. Não confia no `role` do JWT
+  (decisão de desenho 10).
+- `designatedAdminRef(contract)` — monta o `DesignatedAdminRef` (`id`, `name`,
+  `valid`) a partir do contrato com `designatedAdmin` incluído, para o
+  `/auth/me` e o `GET /billing/me`. Sem indicado, `null`.
 
 **Rotas do SUPERADMIN** (`requireSuperAdmin`), no prefixo `/admin/billing`:
 
 | Rota | O que faz |
 |---|---|
-| `GET /clients/:companyId/documents` | linha do tempo (documentos da empresa, mais novo primeiro, com o nome de quem enviou), `conditions: { acceptedVersion, latestPublishedVersion }` e `activePilot` (há `Pilot` da empresa com `status: 'ACTIVE'`) |
+| `GET /clients/:companyId/documents` | linha do tempo (documentos da empresa, mais novo primeiro, com o nome de quem enviou), `conditions: { acceptedVersion, latestPublishedVersion }`, `activePilot` (há `Pilot` da empresa com `status: 'ACTIVE'`), `designatedAdmin` (`DesignatedAdminRef` com `email`, ou `null`) e `adminCandidates` (ADMINs ativos da empresa: `id`, `name`, `email`, por nome) para o select |
+| `PUT /clients/:companyId/designated-admin` `{ userId }` | troca o administrador indicado (abaixo) |
 | `POST /clients/:companyId/documents/preview` `{ carryConditions? }` | o que seria enviado: `{ kind, templateVersion, renderedBody, missing, priceIncrease, minimumEffectiveFrom }`. Não falha por campo faltando: mostra a lista |
 | `POST /clients/:companyId/documents/send` `{ carryConditions? }` | envia (abaixo) |
 | `GET /documents/:id` | documento completo, de qualquer empresa (impressão do superadmin) |
-| `POST /documents/:id/resend` | reenvia o e-mail; só SENT (409 `DOCUMENT_NOT_PENDING`); atualiza `lastEmailAt`; `BillingEvent` `DOCUMENT_RESENT` |
+| `POST /documents/:id/resend` | reenvia o e-mail ao administrador indicado; só SENT (409 `DOCUMENT_NOT_PENDING`); indicado que deixou de ser ADMIN ativo ⇒ 422 `DESIGNATED_ADMIN_INVALID` (troque o indicado, o que cancela o documento, e envie de novo); atualiza `lastEmailAt`; `BillingEvent` `DOCUMENT_RESENT` |
 | `POST /documents/:id/cancel` `{ reason? }` | `cancelSentDocuments` para esse documento |
 | `PUT /clients/:companyId/amendment` | cria ou atualiza o aditivo proposto (abaixo) |
 | `POST /clients/:companyId/amendment/withdraw` | termos PROPOSED do aditivo → WITHDRAWN e cancela o documento SENT dele; `BillingEvent` `AMENDMENT_WITHDRAWN` |
@@ -1154,9 +1341,14 @@ registrado com prefixo `/admin/billing`, ou acrescente-as ao
    Gestão Addere › Modelos de contrato"). Por garantia, rode
    `checkTemplateForPublish` de novo; se houver problema, 422
    `TEMPLATE_NOT_PUBLISHABLE`.
-3. **ADMINs.** `user.findMany({ where: { companyId, role: 'ADMIN', active: true } })`.
-   Nenhum ⇒ 422 `COMPANY_HAS_NO_ADMIN`, mensagem "Crie o administrador da
-   empresa antes de enviar o contrato." (decisão 10).
+3. **Administrador indicado** (decisão 10). `contract.designatedAdminId` nulo
+   ⇒ 422 `DESIGNATED_ADMIN_REQUIRED`, mensagem "Escolha o administrador
+   indicado pela Empresa antes de enviar.". Com indicado,
+   `assertValidDesignee(prisma, companyId, contract.designatedAdminId)`: se
+   ele não é ADMIN ativo da empresa, 422 `DESIGNATED_ADMIN_INVALID`. O 422
+   `COMPANY_HAS_NO_ADMIN` da versão anterior deste plano não existe mais:
+   empresa sem ADMIN cai em `DESIGNATED_ADMIN_REQUIRED`, porque o select fica
+   vazio.
 4. **Aditivo.** `assertAmendmentNotice` com a data de hoje em São Paulo.
 5. **Texto.** `fillContractTemplate` com `buildContractFieldValues`. Com
    `carryConditions`, o texto é o aditivo preenchido + `\n\n---\n\n` + a linha
@@ -1175,9 +1367,11 @@ registrado com prefixo `/admin/billing`, ou acrescente-as ao
      `count` 0 ⇒ 409 `NOTHING_TO_SEND`;
    - `recordBillingEvent` `DOCUMENT_SENT` com
      `ref: { documentId, documentKind }`.
-7. **Depois do commit**, nunca dentro da transação: e-mail a cada ADMIN;
-   `lastEmailAt` se ao menos um saiu. Falha de e-mail não desfaz o envio: a
-   resposta traz `emailsSent` e o superadmin usa "Reenviar e-mail".
+7. **Depois do commit**, nunca dentro da transação: um e-mail, só ao
+   administrador indicado (`sendDocumentPendingEmail`); `lastEmailAt` se ele
+   saiu. Os outros ADMINs e o `billingEmail` não recebem este e-mail (decisão
+   de desenho 10). Falha de e-mail não desfaz o envio: a resposta traz
+   `emailSent` e o superadmin usa "Reenviar e-mail".
 
 `sha256 = createHash('sha256').update(renderedBody, 'utf8').digest('hex')`, de
 `node:crypto`.
@@ -1199,10 +1393,35 @@ Chame essa função, **na mesma transação**:
   e siga o fluxo de edição do rascunho. ACTIVE e CANCELLED continuam com o
   409; depois do aceite, mudança é por aditivo. Atualize o comentário do 013
   que anunciava esta mudança;
-- no `PUT …/amendment` e no `…/amendment/withdraw` deste passo.
+- no `PUT …/amendment` e no `…/amendment/withdraw` deste passo;
+- no `PUT …/designated-admin` deste passo, quando o indicado muda (`reason`:
+  "Administrador indicado trocado depois do envio" — decisão 11).
 
 O cancelamento do contrato é do 016, e a decisão D6 dele já prevê cancelar os
 documentos em SENT: ele chama esta mesma função.
+
+**Administrador indicado — `PUT /clients/:companyId/designated-admin`**
+`{ userId }` (decisão de desenho 10), numa transação só:
+
+- sem contrato ⇒ 404 "Salve o rascunho do contrato antes de indicar o
+  administrador."; contrato CANCELLED ⇒ 409 `CONTRACT_NOT_ACTIVE`, "Contrato
+  cancelado: o administrador indicado não muda mais.". DRAFT,
+  PENDING_ACCEPTANCE e ACTIVE aceitam a troca;
+- `assertValidDesignee(tx, companyId, userId)` ⇒ 422
+  `DESIGNATED_ADMIN_INVALID` se não for ADMIN ativo da empresa;
+- `userId` igual ao atual ⇒ 200 sem escrever nada (não cancela documento);
+- senão `companyContract.update({ where: { id }, data: { designatedAdminId: userId } })`.
+  O `UPDATE` também prende a linha do contrato, como a trava do envio e a do
+  015, e por isso não corre junto com um envio nem com um pedido de licenças
+  da mesma empresa;
+- `cancelSentDocuments(tx, contractId, actorId, 'Administrador indicado trocado depois do envio')`:
+  um CONTRACT em PENDING_ACCEPTANCE volta a DRAFT, e um aditivo SENT é
+  cancelado com o contrato ACTIVE. Sem documento SENT, não faz nada;
+- `recordBillingEvent` `DESIGNATED_ADMIN_CHANGED` com
+  `fields: ['designatedAdminId']`, sem nome nem e-mail.
+
+Pedido de licenças pendente (015) não muda com a troca. Ele foi feito por
+quem era o indicado na hora, e a declaração não leva o nome dele.
 
 **Aditivo — `PUT /clients/:companyId/amendment`:**
 
@@ -1231,11 +1450,21 @@ documentos em SENT: ele chama esta mesma função.
   `carryConditions` sempre exige data; envio em 15/10/2026 ⇒ 13/11 recusado e
   14/11 aceito; envio às 23h30 de São Paulo usa o dia de São Paulo; o
   "vale a partir de" 01/12 é gravado como `effectiveInstantOfDay('2026-12-01')`;
-- envio: sem modelo publicado ⇒ 422; sem ADMIN ativo ⇒ 422
-  `COMPANY_HAS_NO_ADMIN` e nenhum `create`; campo faltando ⇒ 422 com a lista;
-  segundo envio ⇒ 409; envio feliz cria o documento com o SHA-256 do texto,
-  passa o contrato a PENDING_ACCEPTANCE e manda um e-mail por ADMIN;
-  `RESEND_API_KEY` ausente não derruba o envio;
+- envio: sem modelo publicado ⇒ 422; sem indicado ⇒ 422
+  `DESIGNATED_ADMIN_REQUIRED` e nenhum `create`; indicado inativo, vendedor
+  ou de outra empresa ⇒ 422 `DESIGNATED_ADMIN_INVALID` e nenhum `create`;
+  campo faltando ⇒ 422 com a lista; segundo envio ⇒ 409; envio feliz cria o
+  documento com o SHA-256 do texto, passa o contrato a PENDING_ACCEPTANCE e
+  manda **um** e-mail, ao indicado (com dois ADMINs ativos na empresa e
+  `billingEmail` preenchido, `sendBillingEmail` é chamado uma vez só, com o
+  e-mail do indicado); `RESEND_API_KEY` ausente não derruba o envio;
+- administrador indicado: trocar com o CONTRACT em SENT cancela o documento e
+  devolve o contrato a DRAFT; trocar com um aditivo em SENT cancela o
+  documento do aditivo e mantém o contrato ACTIVE; o mesmo `userId` não
+  cancela nada nem grava evento; usuário que não é ADMIN ativo da empresa ⇒
+  422 `DESIGNATED_ADMIN_INVALID`; o evento `DESIGNATED_ADMIN_CHANGED` leva só
+  o nome do campo; o `GET …/documents` lista em `adminCandidates` só os ADMINs
+  ativos da empresa;
 - aditivo que aumenta preço sem data, ou com data curta ⇒ 422
   `AMENDMENT_NOTICE_TOO_SHORT`;
 - `PUT /admin/billing/clients/:id/contract` (013) com o contrato em
@@ -1248,14 +1477,16 @@ documentos em SENT: ele chama esta mesma função.
 
 **Verificar**: `npm test --workspace=apps/api` → passa.
 
-### Passo 8: Aceite pelo ADMIN (API)
+### Passo 8: Aceite pelo administrador indicado (API)
 
 **Guarda.** Crie `requireCompanyAdmin` em
 `apps/api/src/middleware/require-company.ts`: `authenticate`, depois
 `role === 'ADMIN'` com `companyId`; senão 403 "Acesso restrito ao
 administrador da empresa". O SUPERADMIN também leva 403: ele usa as rotas
 `/admin/billing`. É a "guarda do ADMIN do 014" que o 015, o 016 e o 017 usam
-nas `/billing/me/*`.
+nas `/billing/me/*`. Ela deixa **qualquer** ADMIN da empresa ler. O que só o
+indicado faz (aceitar aqui, pedir licenças no 015) confere, além dela,
+`assertDesignatedAdmin` (passo 7) dentro da transação.
 
 **Rotas** em `apps/api/src/modules/billing/me.routes.ts` (`billingMeRoutes`,
 todas com `requireCompanyAdmin`), registradas em `app.ts` com prefixo
@@ -1263,8 +1494,8 @@ todas com `requireCompanyAdmin`), registradas em `app.ts` com prefixo
 
 | Rota | O que faz |
 |---|---|
-| `GET /` | `MyBillingDto`: `contract` (`status`, `startDate`, `graceMonths`, `firstBilledCompetence`, `dueDay`) ou `null`; `currentTerms` (os termos atuais por `resolveCurrentTerms`: `packageCode`, `packageName`, `licenseType`, `includedSeats`, `extraSeats`, `packagePrice`, `extraSeatPrice`, `monthlyTotal`, `effectiveFrom`) ou `null`; `scheduledTerms` (EFFECTIVE com `effectiveFrom` no futuro, mesmo formato) ou `null`; `pendingDocument` ou `null`. Dinheiro como string `'1234.56'`, datas ISO. O 015 acrescenta `seats` e `licenseRequests` |
-| `GET /documents` | `{ pending: ContractDocumentDto \| null, accepted: [...] }`, só da empresa do usuário |
+| `GET /` | `MyBillingDto`: `contract` (`status`, `startDate`, `graceMonths`, `firstBilledCompetence`, `dueDay`) ou `null`; `currentTerms` (os termos atuais por `resolveCurrentTerms`: `packageCode`, `packageName`, `licenseType`, `includedSeats`, `extraSeats`, `packagePrice`, `extraSeatPrice`, `monthlyTotal`, `effectiveFrom`) ou `null`; `scheduledTerms` (EFFECTIVE com `effectiveFrom` no futuro, mesmo formato) ou `null`; `pendingDocument` ou `null`; `designatedAdmin` (`DesignatedAdminRef`, por `designatedAdminRef`) ou `null`. Dinheiro como string `'1234.56'`, datas ISO. O 015 acrescenta `seats` e `licenseRequests` e usa o `designatedAdmin` no `/plano` |
+| `GET /documents` | `{ pending: ContractDocumentDto \| null, accepted: [...] }`, só da empresa do usuário. Todo ADMIN da empresa lê o pendente; só o indicado aceita |
 | `GET /documents/:id` | o documento da própria empresa, em qualquer status (o link de um documento cancelado mostra que ele foi substituído). De outra empresa ⇒ 404 |
 | `POST /documents/:id/accept` `{ sha256 }` | aceite (abaixo) |
 
@@ -1274,12 +1505,20 @@ todas com `requireCompanyAdmin`), registradas em `app.ts` com prefixo
    não achou ⇒ 404.
 2. Status diferente de SENT ⇒ 409 `DOCUMENT_NOT_PENDING` ("Este documento já
    foi aceito ou cancelado.").
-3. `sha256` do corpo diferente do gravado ⇒ 422 `DOCUMENT_HASH_MISMATCH`.
-4. Leia nome e e-mail do usuário no banco (não do JWT).
+3. **Só o indicado** (decisão 10). Leia o contrato do documento e chame
+   `assertDesignatedAdmin(tx, contract, request.user.sub)`. Ele tem de ser o
+   `designatedAdminId` do contrato e, relido no banco, ADMIN ativo da mesma
+   empresa; qualquer outro recebe 403 `NOT_DESIGNATED_ADMIN`. Contrato sem
+   indicado também dá 403: ninguém aceita. A função devolve nome e e-mail
+   lidos do banco (não do JWT), que são os congelados no aceite. Vem antes do
+   hash, para quem não pode aceitar não receber mensagem sobre o texto.
+4. `sha256` do corpo diferente do gravado ⇒ 422 `DOCUMENT_HASH_MISMATCH`.
 5. `contractDocument.updateMany({ where: { id, status: 'SENT' }, data: { status: 'ACCEPTED', acceptedAt: now, acceptedById, acceptedByName, acceptedByEmail, acceptedIp: request.ip, acceptedUserAgent } })`.
    `count` 0 ⇒ 409 `DOCUMENT_NOT_PENDING`. É isso que garante que, com dois
-   ADMINs aceitando ao mesmo tempo, o segundo recebe 409. O navegador vem de
-   `request.headers['user-agent']`, cortado em 512 caracteres.
+   aceites ao mesmo tempo (o indicado em duas abas), o segundo recebe 409, e
+   que um documento cancelado por troca de indicado no meio do caminho não é
+   aceito. O navegador vem de `request.headers['user-agent']`, cortado em 512
+   caracteres.
 6. Termos do documento: EFFECTIVE, com `effectiveFrom` = o maior entre `now` e
    `proposedEffectiveFrom` (já gravado às 00:01 de São Paulo — decisão de
    desenho 9). Num CONTRACT, `effectiveFrom` = `now`.
@@ -1288,7 +1527,7 @@ todas com `requireCompanyAdmin`), registradas em `app.ts` com prefixo
    `computeBillingCalendar({ acceptDate: now, graceMonths, dueDay })` (013).
 8. `syncIntelligenceWithTerms(tx, companyId, now)` (abaixo).
 9. `recordBillingEvent` `DOCUMENT_ACCEPTED`, com
-   `ref: { documentId, documentKind, termsVersion }` e o ADMIN como autor.
+   `ref: { documentId, documentKind, termsVersion }` e o indicado como autor.
 
 Depois do commit: `sendDocumentAcceptedEmail` aos ADMINs ativos, ao
 `billingEmail` do perfil e ao `BillingSettings.notifyEmail`, sem repetir
@@ -1313,13 +1552,22 @@ absorve este ticker no agendador de cobrança.
 
 **`/auth/me`** (`auth.routes.ts:140-194`): para `role === 'ADMIN'`, acrescente
 em `company` o `pendingDocument`
-(`contractDocument.findFirst({ where: { companyId, status: 'SENT' }, select: { id, kind, sentAt } })`);
-para os outros papéis, `null`. O app ignora o campo novo.
+(`contractDocument.findFirst({ where: { companyId, status: 'SENT' }, select: { id, kind, sentAt, contract: { select: { designatedAdmin: { select: { id, name, role, active, companyId } } } } } })`,
+devolvido como `PendingDocumentRef` com `designatedAdmin` por
+`designatedAdminRef`); para os outros papéis, `null`. A faixa do painel
+compara `pendingDocument.designatedAdmin.id` com o usuário logado. O app
+ignora o campo novo.
 
 **Testes** (`__tests__/contract-accept.test.ts` e
 `__tests__/apply-due-terms.test.ts`):
 
 - hash diferente ⇒ 422 e nenhum `updateMany`;
+- **só o indicado aceita**: outro ADMIN ativo da mesma empresa ⇒ 403
+  `NOT_DESIGNATED_ADMIN` e nenhum `updateMany`; contrato com
+  `designatedAdminId` nulo ⇒ 403 para qualquer ADMIN; indicado rebaixado a
+  vendedor (JWT ainda com `role: 'ADMIN'`, banco com `SALESPERSON`) ⇒ 403;
+  aceite feliz grava `acceptedById` = o indicado e `acceptedByName` e
+  `acceptedByEmail` lidos do banco, não do JWT;
 - documento CANCELLED ⇒ 409; documento de outra empresa ⇒ 404;
 - `updateMany` com `count` 0 (segundo aceite) ⇒ 409 e **nenhuma** outra
   escrita (termos, contrato, empresa, evento);
@@ -1339,17 +1587,23 @@ para os outros papéis, `null`. O app ignora o campo novo.
 - SALESPERSON e SUPERADMIN em `/billing/me/documents` ⇒ 403;
 - `GET /billing/me`: sem contrato ⇒ tudo `null`; contrato ACTIVE com aditivo
   aceito para o futuro ⇒ `currentTerms` e `scheduledTerms` diferentes;
-- `/auth/me`: ADMIN com documento SENT recebe `pendingDocument`; vendedor
-  recebe `null`.
+  `designatedAdmin` com `valid: true` para o indicado ativo e `valid: false`
+  depois de ele ser desativado ou rebaixado;
+- `/auth/me`: ADMIN com documento SENT recebe `pendingDocument` com o
+  `designatedAdmin` (id e nome), seja ele o indicado ou não; vendedor recebe
+  `null`.
 
 **Códigos de erro deste plano** (acrescente a `BillingErrorCode`):
 `TEMPLATE_DRAFT_EXISTS`, `TEMPLATE_NOT_DRAFT`, `TEMPLATE_NOT_PUBLISHABLE`,
-`TEMPLATE_NOT_PUBLISHED`, `NOTHING_TO_SEND`, `COMPANY_HAS_NO_ADMIN`,
+`TEMPLATE_NOT_PUBLISHED`, `NOTHING_TO_SEND`, `DESIGNATED_ADMIN_REQUIRED`,
+`DESIGNATED_ADMIN_INVALID`, `NOT_DESIGNATED_ADMIN`,
 `CONTRACT_FIELDS_MISSING`, `DOCUMENT_ALREADY_SENT`, `DOCUMENT_NOT_PENDING`,
 `DOCUMENT_HASH_MISMATCH`, `AMENDMENT_NOTICE_TOO_SHORT`,
-`AMENDMENT_NOT_YET_EFFECTIVE`, `CONTRACT_NOT_ACTIVE` e
-`INTEL_MANAGED_BY_CONTRACT` (passo 9). Todos saem por
-`new AppError(status, message, details?, code)` ou pelos atalhos do 013.
+`AMENDMENT_REASON_REQUIRED`, `AMENDMENT_NOT_YET_EFFECTIVE`,
+`CONTRACT_NOT_ACTIVE` e `INTEL_MANAGED_BY_CONTRACT` (passo 9). Todos saem por
+`new AppError(status, message, details?, code)` ou pelos atalhos do 013. O
+`COMPANY_HAS_NO_ADMIN` da versão anterior deste plano saiu (decisão de
+desenho 10). O 015 usa o `NOT_DESIGNATED_ADMIN` no pedido de licenças.
 
 **Verificar**: `npm test --workspace=apps/api` → passa.
 
@@ -1420,7 +1674,8 @@ link aponta para `/contrato`; o 015 troca.
 
 - `apps/web/src/hooks/useContracts.ts` (novo): queries e mutations dos passos
   6, 7 e 8, com chaves próprias. Toda mutação que muda contrato ou documento
-  (enviar, cancelar, aditivo, aceite) invalida também `billingKeys.all` do
+  (enviar, cancelar, aditivo, trocar o indicado, aceite) invalida também
+  `billingKeys.all` do
   `useBilling.ts`, porque a situação do cliente na lista muda.
 - Item **Modelos de contrato** (`/gestao/modelos`, ícone `FileText` do
   `lucide-react`, `requires: 'superadmin'`) no grupo Gestão Addere, logo antes
@@ -1461,6 +1716,19 @@ Em `apps/web/src/app/(admin)/gestao/clientes/[id]/tabs/ContratoTab.tsx` (do
 
 Abaixo do formulário:
 
+- **Administrador indicado pela Empresa** (decisão de desenho 10), no topo de
+  Documentos, como no esboço: `FormSelect` com `adminCandidates` (nome e
+  e-mail), que chama o `PUT …/designated-admin` ao mudar. Fica fora do
+  formulário de rascunho e editável em DRAFT, PENDING_ACCEPTANCE e ACTIVE;
+  some em CANCELLED. Abaixo dele, a frase "Só ele aceita o contrato e os
+  aditivos e pede licenças.". Casos:
+  - sem candidatos: "Nenhum administrador ativo nesta empresa. Crie, em
+    Usuários, o administrador indicado pela Empresa (só por indicação dela).";
+  - com documento SENT, a troca pede confirmação: "Trocar o administrador
+    indicado cancela o documento enviado; será preciso enviar de novo.";
+  - indicado gravado que deixou de ser ADMIN ativo (`designatedAdmin.valid`
+    falso): aviso "{nome} não é mais administrador ativo desta empresa.
+    Escolha outro indicado.", com o select em erro.
 - **Documentos**: "Pré-visualizar documento" abre um `Modal` com o texto
   renderizado e, se houver, a lista de campos faltando, com os `label` de
   `CONTRACT_FIELDS`. "Enviar para aceite" pede confirmação e fica desabilitado
@@ -1469,9 +1737,10 @@ Abaixo do formulário:
   encerre o piloto antes, se for o caso." (regra do piloto; o envio não é
   bloqueado).
 - Erros do envio por `getApiErrorCode`: `CONTRACT_FIELDS_MISSING` (lista),
-  `COMPANY_HAS_NO_ADMIN` ("Crie o administrador da empresa antes de enviar o
-  contrato."), `TEMPLATE_NOT_PUBLISHED`, `AMENDMENT_NOTICE_TOO_SHORT` (com a
-  data mínima), `DOCUMENT_ALREADY_SENT`.
+  `DESIGNATED_ADMIN_REQUIRED` ("Escolha o administrador indicado pela Empresa
+  antes de enviar."), `DESIGNATED_ADMIN_INVALID` (a mensagem da API),
+  `TEMPLATE_NOT_PUBLISHED`, `AMENDMENT_NOTICE_TOO_SHORT` (com a data mínima),
+  `DOCUMENT_ALREADY_SENT`.
 - **Linha do tempo** de `GET …/documents`: tipo, versão do modelo, status;
   envio (quando, por quem, último e-mail); aceite (quem, e-mail, quando, IP,
   os 12 primeiros caracteres do SHA-256); cancelamento (quando e motivo). Ações:
@@ -1499,6 +1768,19 @@ Abaixo do formulário:
    vetor conhecido da string vazia
    (`e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`) e
    igualdade com `node:crypto` num texto com acentos, `R$` e travessão.
+   **`apps/web/src/lib/contract-acceptance.ts`** (puro, decisão 10):
+   - `pendingDocumentMode(userId, designatedAdmin)` devolve `'accept'` quando o
+     usuário é o indicado e ele está válido, `'readonly'` quando o indicado é
+     outro e está válido, e `'designee-invalid'` quando não há indicado ou ele
+     deixou de ser ADMIN ativo;
+   - `pendingBannerText(kind, mode, designatedAdminName)` devolve "Contrato
+     aguardando seu aceite." no `'accept'` e "Contrato aguardando o aceite de
+     {nome}." no `'readonly'` (ou "Aditivo …" nos dois). No
+     `'designee-invalid'`, devolve "O administrador indicado não está mais
+     ativo. Fale com a Addere para indicar outro.".
+   Teste em `lib/__tests__/contract-acceptance.test.ts`: os três modos; a
+   faixa de contrato e de aditivo; indicado nulo e indicado com `valid` falso
+   caem em `'designee-invalid'`.
 2. **`AuthContext.tsx`**: `refreshUser(): Promise<void>`, que relê o
    `/auth/me` e atualiza o usuário, exposto no contexto. O 017 também prevê um
    `refreshUser` com essa assinatura e vai reaproveitar este.
@@ -1519,24 +1801,34 @@ Abaixo do formulário:
      de vencimento e, se houver `scheduledTerms`, a linha "A partir de …".
      Datas `@db.Date` com `formatBillingDate`. Sem contrato ACTIVE, o cartão
      não aparece.
-   - Pendente: título, data do envio, `ContractDocumentView` com o texto
-     inteiro **na rolagem da página** (sem caixa com rolagem própria), depois a
-     caixa "Li e concordo com o Contrato de Licença de Uso" (ou "com o Aditivo"),
-     o aviso do que é registrado e o botão "Aceitar".
+   - Pendente, pelo `pendingDocumentMode` com o `designatedAdmin` do
+     `GET /billing/me`:
+     - `'accept'` (o indicado): título, data do envio, `ContractDocumentView`
+       com o texto inteiro **na rolagem da página** (sem caixa com rolagem
+       própria), depois a caixa "Li e concordo com o Contrato de Licença de
+       Uso" (ou "com o Aditivo"), o aviso do que é registrado e o botão
+       "Aceitar";
+     - `'readonly'` (outro ADMIN): título "Aguardando o aceite de {nome}", data
+       do envio e o texto inteiro, sem a caixa e sem o botão;
+     - `'designee-invalid'`: o texto inteiro, sem a caixa e sem o botão, com o
+       aviso "O administrador indicado ({nome}) não está mais ativo. Fale com
+       a Addere para indicar outro.".
    - Ao montar, calcule `sha256Hex(doc.renderedBody)`. Diferente de
      `doc.sha256` ⇒ mensagem "Não foi possível conferir o texto. Recarregue a
      página." e "Aceitar" fica desabilitado.
    - "Aceitar" só habilita com a caixa marcada e o hash conferido. Envia o
      hash **calculado no navegador**. Sucesso ⇒ toast, `refreshUser()` e
-     recarga da lista. `DOCUMENT_NOT_PENDING` e `DOCUMENT_HASH_MISMATCH`
-     mostram a mensagem da API e recarregam.
+     recarga da lista. `DOCUMENT_NOT_PENDING`, `DOCUMENT_HASH_MISMATCH` e
+     `NOT_DESIGNATED_ADMIN` (o indicado mudou com a página aberta) mostram a
+     mensagem da API e recarregam.
    - Aceitos: tipo, quando e quem; "Ver" (`/contrato/{id}`) e "Imprimir / salvar
      PDF" (`/contrato/{id}/imprimir`).
    - Sem nenhum documento: `Card` com "Sua empresa ainda não tem contrato no
      Addere."
    - SUPERADMIN nesta rota: aviso "Os contratos ficam na ficha do cliente, em
      Gestão Addere" com link.
-6. **`/contrato/[id]`**: o link do e-mail. SENT ⇒ a mesma área de aceite;
+6. **`/contrato/[id]`**: o link do e-mail. SENT ⇒ a mesma área de aceite, com
+   os mesmos três modos (lê o `designatedAdmin` do `GET /billing/me`);
    ACCEPTED ⇒ texto, `AcceptanceRecord` e "Imprimir"; CANCELLED ⇒ "Este
    documento foi cancelado ou substituído." com link para `/contrato`.
 7. **`/contrato/[id]/imprimir`**: ADMIN usa `GET /billing/me/documents/:id`;
@@ -1555,8 +1847,11 @@ Abaixo do formulário:
      com `requires: 'companyAdmin'`;
    - `PendingContractBanner` acima do conteúdo do `<main>` quando
      `isAdmin && user.company?.pendingDocument` e a rota não começa com
-     `/contrato`. Texto "Contrato aguardando seu aceite." (ou "Aditivo …") e
-     botão "Ler e aceitar".
+     `/contrato`. O texto sai de `pendingBannerText`, com o modo calculado
+     sobre `pendingDocument.designatedAdmin`: para o indicado, "Contrato
+     aguardando seu aceite." (ou "Aditivo …") e o botão "Ler e aceitar"; para
+     os outros ADMINs, "Contrato aguardando o aceite de {nome}." e o botão
+     "Ver contrato".
 
 **Verificar**: `npm run type-check && npm run lint && npm test --workspace=apps/web && npm run build:web` → exit 0.
 
@@ -1564,17 +1859,32 @@ Abaixo do formulário:
 
 O 013 não cria este arquivo; os planos 015 a 018 acrescentam seções nele.
 Crie-o com um título curto ("Gestão Addere — operação") e a seção "Contrato e
-aceite". A minuta do contrato (aviso, item 3 de "Bloqueia a publicação") exige
+aceite". A minuta do contrato (aviso, item 4 de "Bloqueia a publicação") exige
 que ele exista antes da publicação.
 
 - **Publicar um modelo**: só depois do OK do advogado; quem tira as marcas
   `[[REVISAR]]` é o superadmin, no painel; os itens que bloqueiam a publicação
   (instrumento de transferência internacional conferido fornecedor a
-  fornecedor; Termos e Privacidade do site alinhados e publicados) precisam
-  estar resolvidos antes. Contrato e aditivo são publicados juntos (o aditivo
-  cita cláusulas do contrato).
-- **A tabela de promessas** da minuta do contrato (20 linhas), com o dono de
+  fornecedor; Termos e Privacidade do site alinhados e publicados; monitor de
+  disponibilidade com histórico mensal da API e do painel no ar, medindo há
+  algumas semanas) precisam estar resolvidos antes. Contrato e aditivo são
+  publicados juntos (o aditivo cita cláusulas do contrato).
+- **A tabela de promessas** da minuta do contrato (24 linhas), com o dono de
   cada uma e a data em que o plano dono entrou em produção.
+- **Disponibilidade e crédito** (§9.7 a §9.10): qual monitor mede a API e o
+  painel e onde fica o histórico por mês civil; como fechar o mês (minutos
+  fora, sem as janelas de manutenção comunicadas antes); o crédito
+  proporcional (`minutos fora ÷ minutos do mês × valor mensal daquele mês`),
+  lançado à mão como item `DISCOUNT` "Crédito por indisponibilidade" na fatura
+  da competência seguinte (plano 016); e, sem fatura seguinte, o pagamento por
+  Pix em até 30 dias do encerramento, fora do sistema.
+- **Administrador indicado** (decisão 10): o superadmin só cria usuário ADMIN
+  por indicação da Empresa e só troca o indicado a pedido dela, guardando o
+  pedido (e-mail do representante legal ou do contato principal). A troca
+  com documento enviado cancela o documento. Registre o achado do Estado
+  atual: o ADMIN do cliente consegue criar ou promover ADMIN pelo
+  `/companies/:id/users` e trocar e-mail e senha de outro ADMIN; fechar isso é
+  pendência fora deste plano.
 - **O que é cumprido à mão até o plano dono entrar**: enquanto o 015, o 016 e
   o 017 não estiverem em produção, o limite de licenças, a emissão de faturas,
   os avisos de atraso e a suspensão com aviso de 10 dias são feitos pela
@@ -1632,19 +1942,29 @@ que ele exista antes da publicação.
      mv contract_014.sql packages/db/prisma/migrations/<pasta>/migration.sql
    ```
 
-   O delta só pode ter: 3 `CREATE TYPE` (`ContractDocumentKind`,
-   `ContractTemplateStatus`, `ContractDocumentStatus`), 2 `CREATE TABLE`
-   (`billing_contract_templates`, `billing_contract_documents`), 4 índices (o
-   único de `kind, version` e os três `@@index`) e 5 `FOREIGN KEY` (documento →
-   empresa, contrato, termos, modelo e modelo das condições). Se preferir
-   escrever à mão, o resultado tem de ser o mesmo.
+   O delta só pode ter:
+   - 3 `CREATE TYPE` (`ContractDocumentKind`, `ContractTemplateStatus`,
+     `ContractDocumentStatus`);
+   - 2 `CREATE TABLE` (`billing_contract_templates`,
+     `billing_contract_documents`);
+   - 2 colunas novas em tabelas do 013: `"requestedByClient"` em
+     `billing_contract_terms` e `"designatedAdminId"` em
+     `billing_company_contracts` (passo 4);
+   - 4 índices (o único de `kind, version` e os três `@@index`);
+   - 6 `FOREIGN KEY`: documento → empresa, contrato, termos, modelo e modelo
+     das condições, e contrato → usuário indicado
+     (`billing_company_contracts_designatedAdminId_fkey`, para `"users"`).
+
+   Se preferir escrever à mão, o resultado tem de ser o mesmo.
 4. **No topo**, o comentário em português, no formato de
    `20261014120000_intel_llm_calls/migration.sql`:
 
    ```sql
    -- Contrato de licença de uso e aceite eletrônico (plano 014): modelos de
    -- texto versionados e os documentos enviados para aceite, com o texto
-   -- congelado, o SHA-256 e o registro do aceite. Só cria tipos e tabelas.
+   -- congelado, o SHA-256 e o registro do aceite. Cria tipos e tabelas e
+   -- acrescenta duas colunas a tabelas do plano 013: o aditivo a pedido da
+   -- Empresa nos termos e o administrador indicado no contrato.
    -- Dados: as versões v1 do contrato e do aditivo, em rascunho.
    ```
 
@@ -1658,7 +1978,7 @@ que ele exista antes da publicação.
    VALUES (
      gen_random_uuid()::text, 'CONTRACT', 1, 'DRAFT',
      $contrato_v1$<corpo do contrato>$contrato_v1$,
-     '1.0-minuta (15/10/2026): adaptado da minuta 1.6 do BaiaCerta, revisão jurídica de 04/10/2026',
+     '1.1-minuta (15/10/2026): adaptado da minuta 1.6 do BaiaCerta, revisão jurídica de 04/10/2026, com as decisões de 15/10/2026',
      NOW(), NOW()
    );
 
@@ -1666,7 +1986,7 @@ que ele exista antes da publicação.
    VALUES (
      gen_random_uuid()::text, 'AMENDMENT', 1, 'DRAFT',
      $aditivo_v1$<corpo do aditivo>$aditivo_v1$,
-     '1.0-minuta (15/10/2026): modelo de aditivo',
+     '1.1-minuta (15/10/2026): modelo de aditivo, com o administrador indicado',
      NOW(), NOW()
    );
    ```
@@ -1724,10 +2044,14 @@ que ele exista antes da publicação.
 
 **Verificar**: os itens 3, 6, 7 e 8 acima;
 `grep -nE "DROP|ALTER TABLE \"(companies|users|billing_[a-z_]+)\"|ALTER TYPE" packages/db/prisma/migrations/<pasta>/migration.sql`
-→ só as linhas `ALTER TABLE "billing_contract_documents" ADD CONSTRAINT …`
-das chaves estrangeiras; nada de `DROP`, de `ALTER TYPE` nem de `ALTER` em
-tabela que já existia. `npm run db:generate && npm run type-check` → exit 0;
-`git show --stat HEAD` → só o `migration.sql`.
+→ só estas linhas: as `ALTER TABLE "billing_contract_documents" ADD
+CONSTRAINT …` das chaves estrangeiras; `ALTER TABLE "billing_contract_terms"
+ADD COLUMN "requestedByClient" …`; e, em `billing_company_contracts`, o `ADD
+COLUMN "designatedAdminId" TEXT` e o `ADD CONSTRAINT
+"billing_company_contracts_designatedAdminId_fkey" … REFERENCES "users"("id")`.
+Nada de `DROP`, de `ALTER TYPE` nem de outro `ALTER` em tabela que já existia.
+`npm run db:generate && npm run type-check` → exit 0; `git show --stat HEAD` →
+só o `migration.sql`.
 
 ### Passo 16: Termos e Privacidade do site (outro repositório)
 
@@ -1742,10 +2066,17 @@ cumpre essa lista. A redação abaixo é o ponto de partida: ela segue a minuta 
 a revisão jurídica do BaiaCerta. Não prometa nada que não esteja na tabela de
 promessas da minuta.
 
+**Já feito em 15/10/2026, só confira** (commit `ec49444` do site, na `master`,
+feito por outra pessoa): a razão social "GH ENGENHARIA LTDA - ME" nas duas
+páginas e no rodapé delas; o encarregado com o nome completo, Gustavo Henrique
+Palitot Costa, na seção 12 da `privacidade.html` (`:243`), igual ao §8.8 do
+contrato e ao `CONTRATADA.encarregado`; o `CLAUDE.md:182` ("Controladora: GH
+ENGENHARIA LTDA - ME, CNPJ 07.841.407/0001-90."). Se algum deles não estiver
+na `master`, PARE: alguém desfez o commit.
+
 **`termos.html`**
 
 - `:127` — "Última atualização" com a data da execução.
-- `:136` — "GH ENGENHARIA LTDA" → "GH ENGENHARIA LTDA - ME".
 - `:139` — "Se houver proposta comercial ou contrato assinado com a Empresa
   Contratante, as condições específicas desse documento prevalecem…" → "Para
   a Empresa Contratante, o Contrato de Licença de Uso aceito no painel
@@ -1797,12 +2128,10 @@ promessas da minuta.
   Contrato de Licença de Uso: só valem depois de aceitas em termo aditivo, e o
   aumento de preço é comunicado com antecedência mínima de 30 dias." (contrato
   §13).
-- `:225` e o rodapé `:281` — razão social com "- ME".
 
 **`privacidade.html`**
 
-- `:127` — data da execução. `:136`, `:153` e o rodapé `:274` — "GH ENGENHARIA
-  LTDA - ME".
+- `:127` — data da execução.
 - `:174` (3.9) — "Quando a Empresa Contratante liga a camada" → "Quando a
   Empresa Contratante contrata a camada".
 - **Seção 3**, dois itens novos depois do 3.9:
@@ -1814,9 +2143,10 @@ promessas da minuta.
     cobrança." É a lista de campos do `ClientProfile` do 013; confira no
     schema e não declare nem mais nem menos (as observações internas da
     Addere não entram).
-  - "**3.11 Registro de aceite eletrônico.** Quando um administrador aceita o
-    Contrato de Licença de Uso ou um termo aditivo no painel, ou pede licenças
-    adicionais pelo painel, registramos quem fez (nome e e-mail), a data e a
+  - "**3.11 Registro de aceite eletrônico.** Quando o administrador indicado
+    pela Empresa Contratante aceita o Contrato de Licença de Uso ou um termo
+    aditivo no painel, ou pede licenças adicionais pelo painel, registramos
+    quem fez (nome e e-mail), a data e a
     hora, o endereço IP, a identificação do navegador e o código de
     integridade (SHA-256) do texto aceito." O pedido de licenças nasce no
     015; ele já entra aqui porque o contrato (§14.3) o promete e a Política
@@ -1844,18 +2174,15 @@ promessas da minuta.
   de "Bloqueia a publicação" da minuta (conferir o instrumento de cada
   fornecedor), que é processo, não código.
 
-**`CLAUDE.md` do site** (`:182`): "- Controladora: GH ENGENHARIA LTDA - ME,
-CNPJ 07.841.407/0001-90."
-
 **`sitemap.xml`** (`:4-5`): `lastmod` da privacidade e dos termos com a data da
-execução. O da raiz fica.
+execução (o `ec49444` deixou 2026-10-15; se for o mesmo dia, fica). O da raiz
+fica.
 
-**Não edite `index.html`.** Reporte, para decisão à parte:
-
-- `index.html:2153` e o mock `:2221-2235` dizem que o ADMIN liga a Inteligência
-  em Configurações. Depois deste plano, isso é falso, e a regra do site exige
-  evidência no código para toda afirmação.
-- `index.html:2408` e `:2503` usam "GH ENGENHARIA LTDA", sem "- ME".
+**Não edite `index.html`.** A branch `landing/inteligencia-pelo-contrato` do
+site já tem a correção; publicar a landing junto com o 014, nem antes nem
+depois. A correção trata do `index.html:2153` e do mock `:2221-2235`, que
+dizem que o ADMIN liga a Inteligência em Configurações. A razão social da
+landing (`:2408` e `:2503`) já está com "- ME" na `master` (`ec49444`).
 
 **Verificar** (no repo do site):
 
@@ -1867,7 +2194,10 @@ execução. O da raiz fica.
 - `grep -n "por representante ativo\|provedores de terceiros\|proposta comercial\|contrato assinado\|antecedência razoável" termos.html`
   → nada;
 - `grep -n "liga a camada\|liga a Camada" termos.html privacidade.html` → nada;
-- `git diff --stat` → só os quatro arquivos;
+- `grep -c "Gustavo Henrique Palitot Costa" privacidade.html` → 1 (só
+  conferência; o `ec49444` já fez);
+- `git diff --stat` → só `termos.html`, `privacidade.html` e, se a data mudou,
+  `sitemap.xml`;
 - um commit (`site: termos e privacidade acompanham o contrato de licença`),
   sem push e **sem deploy**. Termos e Privacidade só vão ao ar junto com a
   publicação do contrato em produção.
@@ -1885,6 +2215,12 @@ relatório final como lista a cumprir.
 2. **`WEB_URL`** do staging aponta para o painel do staging, e o de produção
    para o de produção.
 3. O ponta a ponta do Plano de testes.
+4. **Antes de publicar o contrato em produção:** o monitor de disponibilidade
+   da API e do painel no ar, com histórico mensal (§9.7; ver PARADA). No
+   repo do site, Termos e Privacidade (branch
+   `advisor/014-termos-e-privacidade`) e a landing (branch
+   `landing/inteligencia-pelo-contrato`) vão ao ar junto com o 014, nem antes
+   nem depois.
 
 ## Plano de testes
 
@@ -1896,9 +2232,10 @@ relatório final como lista a cumprir.
 - `__tests__/contract-fields.test.ts` — passo 5;
 - `__tests__/contract-templates.test.ts` — passo 6;
 - `__tests__/amendment-rules.test.ts` e `__tests__/contract-documents.test.ts`
-  — passo 7;
-- `__tests__/contract-accept.test.ts` e `__tests__/apply-due-terms.test.ts` —
-  passo 8;
+  — passo 7 (inclusive a troca do administrador indicado e o e-mail só para
+  ele);
+- `__tests__/contract-accept.test.ts` (inclusive só o indicado aceita) e
+  `__tests__/apply-due-terms.test.ts` — passo 8;
 - `admin-routes.test.ts`, bloco de config — passo 9;
 - `billing-routes.test.ts` (do 013), um caso novo: rascunho editado em
   PENDING_ACCEPTANCE — passo 7.
@@ -1908,7 +2245,8 @@ Padrão a espelhar: `admin-routes.test.ts` e o `billing-routes.test.ts` do 013
 roda `.test.ts`: as telas não ganham teste de render, por isso a lógica fica
 nos módulos puros de `packages/types` e de `lib/`.
 
-**Novos testes (web, Vitest):** `lib/__tests__/contract-hash.test.ts`.
+**Novos testes (web, Vitest):** `lib/__tests__/contract-hash.test.ts` e
+`lib/__tests__/contract-acceptance.test.ts`.
 
 **Ponta a ponta no staging** (banco próprio; depois do merge, por quem opera):
 
@@ -1918,13 +2256,23 @@ nos módulos puros de `packages/types` e de `lib/`.
 2. Cadastre o cliente e monte o contrato Pacote 10 Padrão, carência 0,
    vencimento dia 10. "Pré-visualizar": todos os campos preenchidos. Apague o
    CPF do representante: a prévia lista o campo e o envio é recusado.
-3. Sem ADMIN na empresa, "Enviar": "Crie o administrador da empresa antes de
-   enviar o contrato."
-4. Crie o ADMIN e envie. O e-mail chega com link para o painel **do staging**.
+3. Sem ADMIN na empresa: o select "Administrador indicado pela Empresa" vem
+   vazio, com o aviso de criar o administrador, e "Enviar" responde "Escolha
+   o administrador indicado pela Empresa antes de enviar."
+4. Crie dois ADMINs (Maria e João), indique Maria e envie. Só Maria recebe o
+   e-mail, com link para o painel **do staging**; João e o `billingEmail`
+   não recebem nada.
 5. Mude o dia de vencimento para 5: o documento aparece cancelado ("rascunho
    alterado depois do envio") e o contrato volta a rascunho. Envie de novo.
-6. Entre como ADMIN: a faixa aparece. Em `/contrato`, "Aceitar" só habilita com
-   a caixa marcada. Aceite. A faixa some; chegam os e-mails de confirmação.
+   Troque o indicado para João: o documento é cancelado de novo
+   ("administrador indicado trocado depois do envio"). Volte para Maria e
+   envie de novo.
+6. Entre como João: a faixa diz "Contrato aguardando o aceite de Maria Souza";
+   em `/contrato`, o texto aparece sem a caixa e sem o botão; um
+   `POST /billing/me/documents/:id/accept` com o token dele responde 403
+   `NOT_DESIGNATED_ADMIN`. Entre como Maria: a faixa diz "Contrato aguardando
+   seu aceite". Em `/contrato`, "Aceitar" só habilita com a caixa marcada.
+   Aceite. A faixa some para os dois; chegam os e-mails de confirmação.
 7. Na ficha: contrato ACTIVE, início hoje, 1ª competência no mês seguinte; na
    linha do tempo, o **seu** IP, o navegador e o hash.
 8. `/contrato/{id}/imprimir` no tema escuro: o PDF sai preto no branco, sem
@@ -1952,7 +2300,9 @@ nos módulos puros de `packages/types` e de `lib/`.
 ## Critérios de conclusão
 
 - [ ] Passo 1 conferido: os dois arquivos existem, todo campo está na lista
-      fechada, o corpo só usa a sintaxe suportada e toda promessa tem dono
+      fechada, o corpo só usa a sintaxe suportada, toda promessa tem dono e as
+      decisões de 15/10/2026 estão nos textos (administrador indicado,
+      encarregado, §9.7 a §9.10)
 - [ ] `npm run db:generate`, `npm run type-check` e `npm run lint` → exit 0
 - [ ] `npm test` (API, web e mobile) passa, com todos os casos novos
 - [ ] `npm run build:api && npm run build:web` → exit 0
@@ -1960,8 +2310,13 @@ nos módulos puros de `packages/types` e de `lib/`.
       aplicada com `migrate deploy` em banco limpo; `migrate diff --exit-code`
       → exit 0
 - [ ] A migration só cria os três enums, as duas tabelas `billing_contract_*`,
-      os 4 índices e as 5 chaves estrangeiras, e grava as duas v1 em DRAFT com
-      o corpo idêntico ao trecho entre os marcadores dos `docs/billing/*-v1.md`
+      as duas colunas novas (`requestedByClient` e `designatedAdminId`), os 4
+      índices e as 6 chaves estrangeiras, e grava as duas v1 em DRAFT com o
+      corpo idêntico ao trecho entre os marcadores dos `docs/billing/*-v1.md`
+- [ ] Só o administrador indicado aceita: `assertDesignatedAdmin` no
+      `acceptDocument`, dentro da transação; o envio recusa sem indicado e
+      manda um e-mail só, a ele; `grep -rn "COMPANY_HAS_NO_ADMIN" apps packages`
+      → nada
 - [ ] A migration está no último commit do monorepo, sozinha
 - [ ] Nenhum comando de banco contra o Neon; `migrate dev`, `migrate reset` e
       `db push` não aparecem em lugar nenhum; nenhum `.env` criado ou copiado
@@ -1980,17 +2335,20 @@ nos módulos puros de `packages/types` e de `lib/`.
       `requireCompanyAdmin`, `me.routes.ts` com `GET /billing/me`,
       `billing-mailer.ts` (`sendBillingEmail`, `escapeHtml`), `formatBrl` e
       `moneyToCents` em `billing.ts`, `syncIntelligenceWithTerms`,
-      `cancelSentDocuments` e `refreshUser`
+      `cancelSentDocuments`, `refreshUser`, `CompanyContract.designatedAdminId`,
+      `assertDesignatedAdmin` e `designatedAdmin` no `GET /billing/me`
 - [ ] Repo do site: um commit na branch `advisor/014-termos-e-privacidade`,
-      `<style>` idêntico nas duas páginas, sem deploy; os achados do
-      `index.html` reportados
+      `<style>` idêntico nas duas páginas, sem deploy; no relatório, o lembrete
+      de publicar a landing da branch `landing/inteligencia-pelo-contrato`
+      junto com o 014
 - [ ] Passo 17 listado no relatório final
 - [ ] Linha de status atualizada em `plans/README.md`
 
-**Promessas do contrato × sistema** (as 8 linhas do plano aprovado) — toda
-linha precisa de dono antes da publicação do contrato em produção. As linhas
-deste plano têm de estar cumpridas e testadas aqui; as outras ficam
-registradas em `docs/billing/README.md` com o plano que as cumpre.
+**Promessas do contrato × sistema** (as 8 linhas do plano aprovado e as 3 da
+meta de disponibilidade, que voltou ao contrato em 15/10/2026) — toda linha
+precisa de dono antes da publicação do contrato em produção. As linhas deste
+plano têm de estar cumpridas e testadas aqui; as outras ficam registradas em
+`docs/billing/README.md` com o plano ou o processo que as cumpre.
 
 | O contrato promete | Quem cumpre | Neste plano |
 |---|---|---|
@@ -2002,20 +2360,25 @@ registradas em `docs/billing/README.md` com o plano que as cumpre.
 | Licença adicional cobrada a partir do mês seguinte | Código, planos 015 e 016 | registrado |
 | Incidente comunicado em 48 h | Processo, em `docs/billing/README.md` | passo 14 |
 | Cópia dos dados em 30 + 15 dias e eliminação depois | Processo manual; a automação fica nas pendências | passo 14 |
+| Disponibilidade ≥ 99,5 % por mês civil (§9.7) | Monitor de disponibilidade com histórico mensal da API e do painel. **Pré-requisito de publicação do contrato**; ainda não existe | registrado (passo 14 e PARADA) |
+| Crédito proporcional abatido na fatura seguinte (§9.8) | Processo manual: item `DISCOUNT` "Crédito por indisponibilidade" na fatura, plano 016, com os minutos do monitor | registrado (passo 14) |
+| Crédito sem fatura seguinte pago por Pix em 30 dias (§9.10) | Processo manual | registrado (passo 14) |
 
-A minuta do contrato acrescentou 12 linhas a essa tabela (aviso de
-`contrato-licenca-de-uso-v1.md`, linhas 9 a 20). Três delas são deste plano e
-também são critério de conclusão:
+A minuta do contrato acrescentou 16 linhas a essa tabela (aviso de
+`contrato-licenca-de-uso-v1.md`, linhas 9 a 24). As três da disponibilidade
+(21 a 23) estão na tabela acima. Quatro são deste plano e também são critério
+de conclusão:
 
 | # na minuta | O contrato promete | Neste plano |
 |---|---|---|
 | 14 | Camada de Inteligência ligada e desligada pelo tipo de licença (§3.6) | passos 8 e 9: `syncIntelligenceWithTerms`, o 403/409 do `PUT` de config e o switch só leitura |
 | 16 | Registro do aceite (usuário, data e hora, IP, navegador, SHA-256), texto congelado, impressão em PDF (§14) | passos 3, 8 e 13; o IP real conferido no staging (passo 17) |
 | 17 | Aditivo sem aumento de valor, ou a pedido da Empresa, vale no aceite; com aumento (sem pedido) ou nova versão das condições, 30 dias (§13) | passo 7: `isPriceIncrease` e `assertAmendmentNotice` |
+| 24 | Só o administrador indicado no quadro-resumo aceita e pede licenças (§3.5, §14.1) | passos 7 e 8: o envio exige indicado, o e-mail vai só para ele e o aceite passa por `assertDesignatedAdmin` (403 `NOT_DESIGNATED_ADMIN`). O pedido de licenças é do 015, com a mesma função |
 
 As outras nove linhas acrescentadas têm dono em outro plano ou em processo, e
 vão para `docs/billing/README.md` (passo 14). Promessa do texto que não esteja
-em nenhuma das 20 linhas é PARADA (passo 1).
+em nenhuma das 24 linhas é PARADA (passo 1).
 
 ## Condições de PARADA
 
@@ -2037,6 +2400,9 @@ em nenhuma das 20 linhas é PARADA (passo 1).
   internacional não conferida; Termos e Privacidade do site não alinhados). O
   código impede a primeira; a segunda é processo, e o executor nunca publica
   modelo em produção.
+- Publicar o contrato sem o monitor de disponibilidade no ar. O §9.7 promete
+  99,5 % de cada mês civil, e o §9.8 calcula o crédito pelos minutos que só o
+  monitor mede (item 3 de "Bloqueia a publicação" da minuta).
 - Qualquer comando de migration sem as **duas** variáveis
   (`DATABASE_URL` e `DATABASE_URL_DIRECT`) apontando para `localhost`.
 - O delta da migration trazer qualquer coisa além do listado no passo 15
@@ -2067,7 +2433,10 @@ em nenhuma das 20 linhas é PARADA (passo 1).
 - **015**: o pedido de licenças aprovado vira termos EFFECTIVE de origem
   LICENSE_REQUEST, sem documento. A licença extra lançada pelo superadmin sem
   pedido (decisão 9) usa o "Propor aditivo" deste plano. O link "Ver contrato"
-  do `IntelConfigForm` passa a apontar para `/plano`.
+  do `IntelConfigForm` passa a apontar para `/plano`. O pedido de licenças
+  vale como contratação e, como o aceite, é só do administrador indicado: o
+  015 chama `assertDesignatedAdmin` e lê o `designatedAdmin` do
+  `GET /billing/me`.
 - **016**: absorve o ticker `apply-due-terms.ts` no agendador de cobrança e
   implementa o lembrete de documento pendente há mais de 3 dias (usa `sentAt`,
   `lastEmailAt` e `dedupeKey` por documento, com o `sendBillingEmail` deste
@@ -2090,24 +2459,43 @@ em nenhuma das 20 linhas é PARADA (passo 1).
 - **Implantação com a Inteligência ligada para teste + contrato Padrão**: a
   Inteligência desliga no aceite. É o contrato valendo, não bug.
 - **Landing**: `index.html:2153` e o mock `:2221-2235` do site dizem que o ADMIN
-  liga a Inteligência sozinho. Corrija antes de este plano ir a produção, pelas
-  regras do site (peso, teto de 240 KB, evidência no código).
+  liga a Inteligência sozinho. A branch `landing/inteligencia-pelo-contrato`
+  do site já tem a correção; publicar a landing junto com o 014, nem antes nem
+  depois. A razão social com "- ME" da landing já está na `master` do site
+  (`ec49444`).
 - **Aditivo a pedido da Empresa (desenho 7, decidido em 15/10/2026)**: o
   upgrade Padrão → Com Inteligência sobe o valor do pacote; com a caixa "A
   pedido da Empresa Contratante" marcada, ele vale no aceite, e é assim que o
   passo 9 do ponta a ponta acontece (as abas Hoje e Rota aparecem depois do
   aceite). Sem a caixa, espera 30 dias. A minuta pede ao advogado para
   confirmar o critério do §13, incluindo esta exceção.
-- **Quem aceita** (decisão 10): qualquer ADMIN ativo, que pode não ser o
-  representante legal do quadro-resumo. O §14.1 da minuta faz quem aceita
-  declarar ter poderes; a minuta pergunta ao advogado se isso basta. Se ele
-  disser que não, o aceite precisa de outra regra (ex.: só o e-mail do
-  representante), e isso muda o passo 8.
+- **Quem aceita** (decisão 10, revista em 15/10/2026): só o administrador
+  indicado pela Empresa no quadro-resumo, que pode não ser o representante
+  legal. O §14.1 da minuta faz quem aceita declarar ter poderes; a minuta
+  pergunta ao advogado se a indicação no quadro-resumo, aceita pelo próprio
+  indicado, basta como prova de poderes. Se ele disser que não, o aceite
+  precisa de outra regra (ex.: só o e-mail do representante), e isso muda o
+  passo 8.
+- **Troca de indicado com contrato ACTIVE** não exige aditivo. O contrato
+  aceito continua com o nome antigo (texto congelado), e o próximo aditivo já
+  sai com o novo, porque o aditivo v1.1 nomeia o indicado nas partes. A troca
+  só acontece a pedido da Empresa (processo do passo 14). Se o indicado sai da
+  empresa e ninguém avisa, aditivos e pedidos de licenças ficam travados: a
+  aba Contrato e o `/contrato` mostram o aviso de indicado inválido.
+- **ADMIN criando ADMIN** (achado de 15/10/2026, no Estado atual): pelo
+  `/companies/:id/users`, o ADMIN do cliente cria ou promove ADMIN, e por
+  essas rotas e pelo `/users` troca e-mail e senha de outro ADMIN. Este plano
+  não trava isso, porque o indicado só muda pelo select do superadmin.
+  Pendência: alinhar o `/companies/:id/users` ao `/users` (só o SUPERADMIN cria
+  ou promove ADMIN) e decidir se outro ADMIN pode mexer no e-mail, na senha, no
+  papel ou no ativo do indicado. O `companies-scope.test.ts` não cobre essas
+  rotas de usuário hoje.
 - **Assinatura por plataforma** (Clicksign, D4Sign, ZapSign) continua nas
   pendências da segunda etapa. O registro de aceite deste plano é o que existe
   até lá.
-- Quem revisar deve olhar, nesta ordem: (1) a transação do aceite e o
-  `updateMany` filtrando SENT; (2) o hash calculado no navegador sobre o texto
-  exibido; (3) o `trustProxy` por saltos e o teste da entrada forjada; (4) o
-  cancelamento automático quando o rascunho muda depois do envio; (5) a regra
+- Quem revisar deve olhar, nesta ordem: (1) a transação do aceite, o
+  `assertDesignatedAdmin` relendo o papel no banco e o `updateMany` filtrando
+  SENT; (2) o hash calculado no navegador sobre o texto exibido; (3) o
+  `trustProxy` por saltos e o teste da entrada forjada; (4) o cancelamento
+  automático quando o rascunho ou o indicado muda depois do envio; (5) a regra
   dos 30 dias com datas de São Paulo.

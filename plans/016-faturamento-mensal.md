@@ -86,13 +86,15 @@ Decisões padrão do plano aprovado que se aplicam aqui (decisão de produto de
   na fatura.
 - **8.** Quem opera o módulo é o papel SUPERADMIN atual. O histórico registra
   quem fez cada ação.
-- **10.** Qualquer ADMIN ativo da empresa pode aceitar, e o e-mail vai para
-  todos eles. Vale para o lembrete de documento pendente.
+- **10.** Só o administrador indicado pela Empresa aceita o contrato e os
+  aditivos (decisão de 15/10/2026, detalhada no plano 014,
+  `CompanyContract.designatedAdminId`). O lembrete de documento pendente vai
+  para ele.
 
-### Decisões deste plano (confirme com o Gustavo ao entregar)
+### Decisões deste plano (confirmadas pelo dono do produto em 15/10/2026)
 
-O plano aprovado não define estes pontos. Cada um está escolhido e justificado;
-se o Gustavo discordar, a mudança é pequena.
+O plano aprovado não definia estes pontos. As onze escolhas abaixo foram
+confirmadas como estão em 15/10/2026.
 
 - **D1. Fatura cancelada continua ocupando a competência.** A chave única
   `[companyId, competence]` não deixa outra fatura nascer para o mesmo mês. Se
@@ -126,6 +128,15 @@ se o Gustavo discordar, a mudança é pequena.
   `hoje ≥ vencimento − N dias` e `hoje ≤ vencimento`. Fatura com total 0 não
   recebe lembrete. **Lembrete de documento pendente: um só**, depois de 72 h do
   envio.
+- **Crédito por indisponibilidade** (contrato 1.1-minuta, §9.7 a §9.10; meta de
+  99,5 % de cada mês civil, decidida em 15/10/2026). Não há cálculo automático
+  neste plano: o superadmin lança, na fatura da competência seguinte, um item
+  `DISCOUNT` com a descrição "Crédito por indisponibilidade — MM/AAAA (N min)",
+  a partir dos minutos medidos pelo monitor de disponibilidade. O valor é
+  `minutos fora ÷ minutos do mês × valor mensal daquele mês`, o que o limita a
+  um valor mensal. Sem fatura seguinte (contrato encerrado), o crédito é pago
+  por Pix em até 30 dias, fora do sistema; registre isso nas observações da
+  última fatura. Automatizar fica para a segunda etapa.
 
 ## Estado atual
 

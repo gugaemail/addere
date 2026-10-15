@@ -1,12 +1,12 @@
 # Termo Aditivo ao Contrato de Licença de Uso do Addere — modelo v1
 
-**Versão:** 1.0-minuta
+**Versão:** 1.1-minuta
 **Data:** 15/10/2026
 **Origem:** redação nova. O modelo revisado do BaiaCerta (minuta 1.6) não tem aditivo; este texto
 segue o §13 (alterações) e o §14 (aceite eletrônico) de `docs/billing/contrato-licenca-de-uso-v1.md`.
 **Partes:** GH ENGENHARIA LTDA - ME (Addere) e a Empresa Contratante.
-**Aceite:** eletrônico, no painel do Addere, por um administrador da Empresa Contratante, com o mesmo
-registro do contrato.
+**Aceite:** eletrônico, no painel do Addere, pelo administrador indicado pela Empresa Contratante
+no quadro-resumo do contrato, com o mesmo registro do contrato.
 **No sistema:** o plano 014 grava como versão 1 do `ContractTemplate` de tipo AMENDMENT, em DRAFT,
 só o trecho entre os dois comentários de marcação (início e fim do texto publicável).
 
@@ -79,7 +79,7 @@ só o trecho entre os dois comentários de marcação (início e fim do texto pu
 ## PARTES
 
 - **Contratada:** {{contratada.razaoSocial}}, CNPJ {{contratada.cnpj}}, com sede em {{contratada.endereco}}, doravante Addere.
-- **Empresa Contratante:** {{cliente.razaoSocial}} ({{cliente.nomeFantasia}}), CNPJ {{cliente.cnpj}}, com sede em {{cliente.endereco}}, representada por {{cliente.representanteNome}}, CPF {{cliente.representanteCpf}}, {{cliente.representanteCargo}}.
+- **Empresa Contratante:** {{cliente.razaoSocial}} ({{cliente.nomeFantasia}}), CNPJ {{cliente.cnpj}}, com sede em {{cliente.endereco}}, representada por {{cliente.representanteNome}}, CPF {{cliente.representanteCpf}}, {{cliente.representanteCargo}}. Administrador indicado, que aceita este termo aditivo: {{cliente.administradorNome}}, {{cliente.administradorEmail}}.
 
 [[REVISAR: qualificação das partes pelos campos do cadastro]]
 
@@ -140,4 +140,5 @@ só o trecho entre os dois comentários de marcação (início e fim do texto pu
 
 | Versão | Data | Mudança |
 |---|---|---|
+| 1.1-minuta | 15/10/2026 | As partes passam a identificar o administrador indicado pela Empresa, o único que aceita o aditivo (decisão de 15/10/2026, §14.1 do contrato 1.1-minuta). |
 | 1.0-minuta | 15/10/2026 | Redação inicial, para acompanhar o contrato v1 (adaptado da minuta 1.6 dos Termos do BaiaCerta, revisão jurídica de 04/10/2026). O modelo revisado não tem aditivo, então **nada aqui ficou palavra por palavra** e todo o corpo leva marca REVISAR. Traz as partes, o Contrato alterado com a data do aceite original e o motivo, o quadro "antes" e "depois", a data em que as condições novas valem (a indicada ou o aceite, o que for posterior), a cobrança a partir da competência seguinte, o cancelamento sem ônus antes de um aumento (como o 8.3 e o 15 do modelo), a manutenção das demais cláusulas e o aceite eletrônico nos termos do §14 do Contrato. **Pendente de revisão jurídica.** |
