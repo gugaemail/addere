@@ -15,12 +15,6 @@ async function main() {
 
   console.log(`[eval] empresa: ${company.name}`)
   const summary = await runEval(company)
-  console.log(`[eval] promptVersion=${summary.promptVersion}`)
-  console.log(
-    `[eval] total=${summary.total} pass=${summary.passed} (de primeira=${summary.passedFirst}, ` +
-      `na regeneração=${summary.passedRetry}) fail=${summary.failed} ` +
-      `(bloqueado=${summary.blockedFailed}) skip=${summary.skipped}`
-  )
   // O que não passou de primeira, com a resposta reprovada — decide se o ajuste
   // é na regra do self-check ou no prompt
   for (const item of summary.notFirst) {
@@ -31,6 +25,15 @@ async function main() {
     })
   }
 
+  // Placar por último: com os casos impressos antes, ele é o que fica na tela
+  const ran = summary.total - summary.skipped
+  const firstPct = ran > 0 ? Math.round((summary.passedFirst / ran) * 100) : 0
+  console.log(`\n[eval] promptVersion=${summary.promptVersion}`)
+  console.log(
+    `[eval] total=${summary.total} pass=${summary.passed} (de primeira=${summary.passedFirst} = ${firstPct}%, ` +
+      `na regeneração=${summary.passedRetry}) fail=${summary.failed} ` +
+      `(bloqueado=${summary.blockedFailed}) skip=${summary.skipped}`
+  )
   // Critério do plano 012: zero falha em BLOCKED e ≥ 90 % de primeira.
   // Tudo SKIPPED também reprova — não testou nada.
   console.log(`[eval] ${summary.approved ? 'APROVADO' : 'REPROVADO'}`)

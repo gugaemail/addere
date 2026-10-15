@@ -59,6 +59,15 @@ const MUST_FAIL: Array<[string, string, SelfCheckFacts, string]> = [
   ['bloqueio citado em outro trecho não desarma', 'C2 está bloqueado, mas ofereça o mix novo.', portfolio, 'bloqueado C2'],
   // A janela do fato só é liberada como janela: "há 12 meses" é afirmação
   ['"há 12 meses" continua cobrado', 'C1 não compra há 12 meses.', portfolio, 'número fora dos fatos: 12'],
+  [
+    'medida do produto trocada (eval 15/10)',
+    'O PVC Esticável Dom. 280x030 saiu do mix de C1.',
+    {
+      ...portfolio,
+      products: [{ productCode: 'PA0003', productDesc: 'PVC ESTICAVEL DOM. 280 X 300' }],
+    },
+    'número fora dos fatos: 30',
+  ],
 ]
 
 const MUST_PASS: Array<[string, string, SelfCheckFacts]> = [
@@ -108,6 +117,15 @@ const MUST_PASS: Array<[string, string, SelfCheckFacts]> = [
     'Enquanto o título estiver em aberto o cliente fica bloqueado e isso trava qualquer venda nova.',
     blockedBriefing,
   ],
+  ['janela do orders12m: "nesses 12 meses" (eval 15/10)', 'C3 fez só 2 pedidos nesses 12 meses.', portfolio],
+  [
+    'descrição reescrita sem acento, caixa e espaço (eval 15/10)',
+    'O PVC Esticável Dom. 280x300 saiu do mix de C1.',
+    {
+      ...portfolio,
+      products: [{ productCode: 'PA0003', productDesc: 'PVC ESTICAVEL DOM. 280 X 300' }],
+    },
+  ],
   // Eval de 14/10: 9 das 21 reprovações eram a janela do orders12m
   ['janela do orders12m', 'C1 fez 10 pedidos nos últimos 12 meses.', portfolio],
   ['janela do orders12m, sem "últimos"', 'C3 tem 2 pedidos em 12 meses — histórico curto.', portfolio],
@@ -138,6 +156,8 @@ describe('mensagem para o cliente (customerFacingViolations)', () => {
     ['título vencido', 'Oi! Tem um título vencido aqui. Consegue ver?'],
     ['sem pergunta no fim', 'Oi! Faz 41 dias desde o último pedido. Passo aí amanhã.'],
     ['longa demais', `Oi! ${'Tudo certo por aí. '.repeat(25)}Posso passar?`],
+    ['cliente em terceira pessoa (eval 15/10)', 'E aí! Reparei que o C1 cortou o PVC do último pedido. Rolou algo?'],
+    ['ticket sem "médio" (eval 15/10)', 'Oi, C1! Vi que o ticket caiu bastante. Rolou algum problema?'],
   ])('reprova: %s', (_label, text) => {
     expect(customerFacingViolations(text)).toHaveLength(1)
   })
@@ -145,6 +165,7 @@ describe('mensagem para o cliente (customerFacingViolations)', () => {
   it.each([
     'Oi, Padaria! Faz 41 dias desde o último pedido de café. Quer que eu separe o de sempre?',
     'Olá! Notei que o açúcar saiu dos últimos pedidos. Ficou alguma dúvida de preço? 🙂',
+    'Oi, C1! Notei que o PVC saiu do seu último pedido. Rolou algum problema? Me fala.',
   ])('aprova: %s', (text) => {
     expect(customerFacingViolations(text)).toEqual([])
   })
