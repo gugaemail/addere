@@ -128,7 +128,10 @@ const CYCLE_CLAIM = words(
 )
 // Janela fixa do fato orders12m ("nos últimos 12 meses"). "Há 12 meses" continua
 // cobrado: aí o 12 é uma afirmação sobre o cliente, não o nome do fato.
-const WINDOW_PHRASE = words('(?:n[oa]s|em|d[oa]s)\\s+(?:[uú]ltimos\\s+)?12\\s+meses', 'giu')
+const WINDOW_PHRASE = words(
+  '(?:n[oa]s|em|d[oa]s|ness[ea]s|nest[ea]s|[uú]ltimos)\\s+(?:[uú]ltimos\\s+)?12\\s+meses',
+  'giu'
+)
 // Pseudônimo em caixa baixa ("c1") escapa da reidratação e chega cru na tela
 const MALFORMED_PSEUDONYM = /\bc\d+\b/g
 
@@ -161,7 +164,12 @@ const INTERNAL_LABELS = words(
   'u'
 )
 const INTERNAL_TERMS = words(
-  'rfm|pseud[oô]nimos?|ticket m[ée]dio|segmentos?|bloquead\\p{L}*|inadimpl\\p{L}*|vencid\\p{L}*|t[íi]tulos?'
+  'rfm|pseud[oô]nimos?|tickets?|segmentos?|bloquead\\p{L}*|inadimpl\\p{L}*|vencid\\p{L}*|t[íi]tulos?'
+)
+// A mensagem é PARA o cliente: "Reparei que o C1 cortou…" vira "Reparei que o
+// Padaria X cortou…" na tela dele (eval de 14/10). O nome só cabe na saudação.
+const THIRD_PERSON_CUSTOMER = words(
+  '(?:o|a|do|da|no|na|ao|à|pro|pra|pelo|pela|com o|com a)\\s+C\\d+'
 )
 export const MESSAGE_MAX_CHARS = 400
 export const HOME_LINE_MAX_CHARS = 140
@@ -185,6 +193,10 @@ export function extractNumbers(text: string): number[] {
     numbers.push(NUMBER_WORDS[match[1].toLowerCase()])
   }
   return numbers
+}
+
+function stripAccents(text: string): string {
+  return text.normalize('NFD').replace(/\p{M}/gu, '')
 }
 
 function escapeRegExp(text: string): string {
@@ -239,8 +251,14 @@ export function selfCheck(text: string, facts: SelfCheckFacts): SelfCheckResult 
       .flatMap((p) => [p.productDesc?.trim() ?? '', p.productCode.trim()])
       .filter((literal) => literal.length > 0)
       .sort((a, b) => b.length - a.length) // descrição longa antes do código contido nela
+    // O modelo reescreve a descrição ("PVC ESTICAVEL DOM. 280 X 300" vira "PVC
+    // Esticável Dom. 280x300"): sem acento, sem caixa e com espaço opcional, a
+    // descrição ainda é reconhecida. Medida trocada ("280x030") não casa e
+    // continua cobrada — aí o modelo errou o produto.
+    scannable = stripAccents(scannable)
     for (const literal of literals) {
-      scannable = scannable.replace(new RegExp(escapeRegExp(literal), 'gi'), ' ')
+      const pattern = escapeRegExp(stripAccents(literal)).replace(/\s+/g, '\\s*')
+      scannable = scannable.replace(new RegExp(pattern, 'gi'), ' ')
     }
     // O que sobrou com cara de código não está nos fatos
     for (const code of new Set(scannable.match(PRODUCT_CODE_LIKE) ?? [])) {
@@ -319,9 +337,14 @@ export function customerFacingViolations(text: string): string[] {
   if (trimmed.length > MESSAGE_MAX_CHARS) {
     violations.push(`mensagem com mais de ${MESSAGE_MAX_CHARS} caracteres`)
   }
-  if (!/\?[\s\p{Extended_Pictographic}\u{FE0F}]*$/u.test(trimmed)) {
+  // Pergunta numa das duas últimas frases: "Rolou algum problema? Me fala." é
+  // um fecho normal de WhatsApp
+  const lastTwo = trimmed.split(/(?<=[.!?])\s+/).slice(-2).join(' ')
+  if (!lastTwo.includes('?')) {
     violations.push('mensagem sem pergunta no fim')
   }
+  const thirdPerson = trimmed.match(THIRD_PERSON_CUSTOMER)
+  if (thirdPerson) violations.push(`cliente em terceira pessoa: ${thirdPerson[0]}`)
   const label = trimmed.match(INTERNAL_LABELS)
   if (label) violations.push(`rótulo interno na mensagem: ${label[0]}`)
   const term = trimmed.match(INTERNAL_TERMS)

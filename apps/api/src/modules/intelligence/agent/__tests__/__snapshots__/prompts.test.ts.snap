@@ -15,7 +15,10 @@ exports[`montagem de prompts (snapshot) > message: tom e situação em PT 1`] = 
 "Escreva UMA mensagem de WhatsApp (tom informal, "você").
 Situação: cliente sumiu — reabrir conversa citando o padrão de compra.
 Use o motivo real dos fatos (ciclo, mix cortado, tempo sem compra). Sem "passando para lembrar".
-Refira-se ao cliente pelo pseudônimo (C1) — o app troca pelo nome depois. Termine com uma pergunta.
+A mensagem é PARA o cliente: fale com ele em segunda pessoa ("você", "seu pedido").
+Use o pseudônimo (C1) só na saudação ("Oi, C1!") — o app troca pelo nome depois. Nunca "o C1" no meio do texto.
+Produto: pode reescrever a descrição em letra normal, mas nunca mude medida, número ou código.
+Nada de termo interno (ticket, ciclo de compra, status, segmento). Termine com uma pergunta.
 Não inclua a linha de frescor nesta mensagem (vai por fora).
 
 FATOS:
