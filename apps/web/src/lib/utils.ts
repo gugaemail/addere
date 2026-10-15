@@ -12,11 +12,32 @@ export function formatCurrency(value: string | number) {
   }).format(Number(value))
 }
 
+// Todos os clientes estão no Brasil: data com hora é exibida no horário de
+// Brasília, não no fuso de quem abre o painel.
+const BRAZIL_TIME_ZONE = 'America/Sao_Paulo'
+
+// Dia civil sem hora: a chave 'YYYY-MM-DD' ou a meia-noite UTC exata com que o
+// Prisma devolve um @db.Date (e com que o painel grava um <input type="date">).
+// Formatado no fuso do navegador, ele caía no dia anterior no Brasil (UTC−3).
+const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/
+const UTC_MIDNIGHT_ISO = /^\d{4}-\d{2}-\d{2}T00:00:00(\.0+)?Z$/
+
+function isCivilDate(date: string | Date): boolean {
+  if (typeof date === 'string') return DATE_ONLY.test(date) || UTC_MIDNIGHT_ISO.test(date)
+  return (
+    date.getUTCHours() === 0 &&
+    date.getUTCMinutes() === 0 &&
+    date.getUTCSeconds() === 0 &&
+    date.getUTCMilliseconds() === 0
+  )
+}
+
 export function formatDate(date: string | Date) {
   return new Intl.DateTimeFormat('pt-BR', {
     day: '2-digit',
     month: '2-digit',
     year: 'numeric',
+    timeZone: isCivilDate(date) ? 'UTC' : BRAZIL_TIME_ZONE,
   }).format(new Date(date))
 }
 
