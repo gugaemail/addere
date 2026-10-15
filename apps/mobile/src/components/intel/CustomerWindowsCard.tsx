@@ -8,11 +8,13 @@ import {
   View,
   Text,
   Modal,
+  Platform,
   TouchableOpacity,
   StyleSheet,
   Alert,
   ActivityIndicator,
 } from 'react-native'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Clock, Plus, Trash2 } from 'lucide-react-native'
 import type { CustomerWindowDto } from '@addere/types'
 import { isNetworkError, useCustomerWindows, useSaveCustomerWindows } from '../../hooks/useIntel'
@@ -29,6 +31,7 @@ import { WEEKDAY_SHORT } from '../../utils/calendar'
 import { Button } from '../ui/Button'
 import { Card } from '../ui/Card'
 import { Input } from '../ui/Input'
+import { KeyboardInsetView } from '../ui/KeyboardAware'
 import { colors, spacing, radius, typography } from '../../theme'
 
 interface CustomerWindowsCardProps {
@@ -57,6 +60,12 @@ export function CustomerWindowsCard({ customerCode, loja }: CustomerWindowsCardP
   const windows = useCustomerWindows(customerCode, loja, hasVendorCode)
   const save = useSaveCustomerWindows()
   const [open, setOpen] = useState(false)
+  // Android: o Modal é outra janela, e o RN acompanha o teclado pela janela
+  // principal — não dá para contar com o evento aqui. Ao tocar num horário, a
+  // folha vai para o topo e fica livre do teclado até fechar.
+  const [typing, setTyping] = useState(false)
+  const floating = Platform.OS === 'android' && typing
+  const insets = useSafeAreaInsets()
   const [weekday, setWeekday] = useState<number>(1)
   const [startTime, setStartTime] = useState('')
   const [endTime, setEndTime] = useState('')
@@ -85,6 +94,7 @@ export function CustomerWindowsCard({ customerCode, loja }: CustomerWindowsCardP
     setError(null)
     setStartTime('')
     setEndTime('')
+    setTyping(false)
     setOpen(true)
   }, [])
 
@@ -165,8 +175,21 @@ export function CustomerWindowsCard({ customerCode, loja }: CustomerWindowsCardP
       )}
 
       <Modal visible={open} transparent animationType="slide" onRequestClose={() => setOpen(false)}>
-        <TouchableOpacity style={s.overlay} activeOpacity={1} onPress={() => setOpen(false)}>
-          <View style={s.sheet} onStartShouldSetResponder={() => true}>
+        <KeyboardInsetView
+          style={[
+            s.overlay,
+            floating && { justifyContent: 'flex-start', paddingTop: insets.top + spacing.md },
+          ]}
+        >
+          <TouchableOpacity
+            style={StyleSheet.absoluteFill}
+            activeOpacity={1}
+            onPress={() => setOpen(false)}
+          />
+          <View
+            style={[s.sheet, floating && s.sheetFloating]}
+            onStartShouldSetResponder={() => true}
+          >
             <View style={s.handle} />
             <Text style={s.sheetTitle}>Novo horário</Text>
             <View style={s.dayRow}>
@@ -188,6 +211,7 @@ export function CustomerWindowsCard({ customerCode, loja }: CustomerWindowsCardP
               <View style={{ flex: 1 }}>
                 <Input
                   testID="input-janela-inicio"
+                  onFocus={() => setTyping(true)}
                   label="Início"
                   placeholder="08:00"
                   value={startTime}
@@ -199,6 +223,7 @@ export function CustomerWindowsCard({ customerCode, loja }: CustomerWindowsCardP
               <View style={{ flex: 1 }}>
                 <Input
                   testID="input-janela-fim"
+                  onFocus={() => setTyping(true)}
                   label="Fim"
                   placeholder="12:00"
                   value={endTime}
@@ -225,7 +250,7 @@ export function CustomerWindowsCard({ customerCode, loja }: CustomerWindowsCardP
               </Button>
             </View>
           </View>
-        </TouchableOpacity>
+        </KeyboardInsetView>
       </Modal>
     </Card>
   )
@@ -289,6 +314,7 @@ const s = StyleSheet.create({
     justifyContent: 'flex-end',
     backgroundColor: colors.overlay.scrim,
   },
+  sheetFloating: { borderRadius: radius.xl, marginHorizontal: spacing.md },
   sheet: {
     backgroundColor: colors.neutral.white,
     borderTopLeftRadius: radius.xl,

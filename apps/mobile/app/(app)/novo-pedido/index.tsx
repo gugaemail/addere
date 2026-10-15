@@ -23,6 +23,7 @@ import { Button, buttonForeground } from '../../../src/components/ui/Button'
 import { Card } from '../../../src/components/ui/Card'
 import { EmptyState } from '../../../src/components/ui/EmptyState'
 import { Input } from '../../../src/components/ui/Input'
+import { KeyboardAwareScrollView } from '../../../src/components/ui/KeyboardAware'
 import { LoadingState } from '../../../src/components/Skeleton'
 import { PickerField } from '../../../src/components/order-form/PickerField'
 import { StatusPill } from '../../../src/components/intel/StatusPill'
@@ -397,7 +398,7 @@ function Step3({
   }
 
   return (
-    <ScrollView testID="scroll-confirmacao" keyboardShouldPersistTaps="handled">
+    <KeyboardAwareScrollView testID="scroll-confirmacao">
       <Text style={styles.stepTitle}>Resumo do pedido</Text>
 
       <Card style={styles.summaryBox}>
@@ -542,7 +543,7 @@ function Step3({
       >
         Cancelar
       </Button>
-    </ScrollView>
+    </KeyboardAwareScrollView>
   )
 }
 

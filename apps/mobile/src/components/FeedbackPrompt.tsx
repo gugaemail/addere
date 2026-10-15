@@ -1,20 +1,13 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import {
-  View,
-  Text,
-  StyleSheet,
-  Modal,
-  TouchableOpacity,
-  KeyboardAvoidingView,
-  Platform,
-  Animated,
-} from 'react-native'
+import { View, Text, StyleSheet, Modal, TouchableOpacity, Platform, Animated } from 'react-native'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { ThumbsUp, ThumbsDown, X } from 'lucide-react-native'
 import { useSyncStore } from '../store/syncStore'
 import { api } from '../lib/api'
 import { colors, spacing, radius, typography } from '../theme'
 import { Button } from './ui/Button'
 import { Input } from './ui/Input'
+import { KeyboardInsetView } from './ui/KeyboardAware'
 
 let shownThisSession = false
 
@@ -24,6 +17,11 @@ export function FeedbackPrompt() {
   const [comment, setComment] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const slideAnim = useRef(new Animated.Value(300)).current
+  const insets = useSafeAreaInsets()
+  // Android: o Modal é outra janela, e o RN acompanha o teclado pela janela
+  // principal — não dá para contar com o evento aqui. Com o comentário aberto,
+  // a folha vai para o topo e fica livre do teclado.
+  const floating = Platform.OS === 'android' && step === 'comment'
 
   const justSyncedOrderAt = useSyncStore((s) => s.justSyncedOrderAt)
   const clearJustSyncedOrder = useSyncStore((s) => s.clearJustSyncedOrder)
@@ -97,12 +95,20 @@ export function FeedbackPrompt() {
       statusBarTranslucent
       onRequestClose={dismiss}
     >
-      <KeyboardAvoidingView
-        style={styles.overlay}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      <KeyboardInsetView
+        style={[
+          styles.overlay,
+          floating && { justifyContent: 'flex-start', paddingTop: insets.top + spacing.md },
+        ]}
       >
         <TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} onPress={dismiss} />
-        <Animated.View style={[styles.sheet, { transform: [{ translateY: slideAnim }] }]}>
+        <Animated.View
+          style={[
+            styles.sheet,
+            floating && styles.sheetFloating,
+            { transform: [{ translateY: slideAnim }] },
+          ]}
+        >
           {/* Alça */}
           <View style={styles.handle} />
 
@@ -182,7 +188,7 @@ export function FeedbackPrompt() {
             </View>
           )}
         </Animated.View>
-      </KeyboardAvoidingView>
+      </KeyboardInsetView>
     </Modal>
   )
 }
@@ -192,6 +198,10 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'flex-end',
     backgroundColor: colors.overlay.scrim,
+  },
+  sheetFloating: {
+    borderRadius: radius.xl,
+    marginHorizontal: spacing.md,
   },
   sheet: {
     backgroundColor: colors.neutral.white,

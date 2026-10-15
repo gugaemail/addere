@@ -3,15 +3,7 @@
 // Cliente bloqueado não recebe mensagem de oferta (plano 012): a API recusa
 // com 422 e a tela mostra o aviso em vez do molde local — que é de venda.
 import { useCallback, useMemo, useState } from 'react'
-import {
-  View,
-  Text,
-  ScrollView,
-  TouchableOpacity,
-  TextInput,
-  StyleSheet,
-  Alert,
-} from 'react-native'
+import { View, Text, TouchableOpacity, TextInput, StyleSheet, Alert } from 'react-native'
 import { useLocalSearchParams } from 'expo-router'
 import * as Clipboard from 'expo-clipboard'
 import { Copy, Lock, Send } from 'lucide-react-native'
@@ -29,6 +21,7 @@ import { localMessageFallback } from '../../../../src/utils/intelText'
 import { canMessageFor } from '../../../../src/utils/customerBlock'
 import { Card } from '../../../../src/components/ui/Card'
 import { SyncPill } from '../../../../src/components/intel/SyncPill'
+import { KeyboardAwareScrollView } from '../../../../src/components/ui/KeyboardAware'
 import { colors, spacing, radius, typography } from '../../../../src/theme'
 
 const TEMPLATES: { key: MessageTemplate; label: string; hint: string }[] = [
@@ -117,7 +110,11 @@ export default function MensagemScreen() {
   }, [text, messageId, messageSent])
 
   return (
-    <ScrollView testID="screen-mensagem" style={s.container} contentContainerStyle={s.content}>
+    <KeyboardAwareScrollView
+      testID="screen-mensagem"
+      style={s.container}
+      contentContainerStyle={s.content}
+    >
       <View style={s.headerRow}>
         <Text style={s.name}>{customerName}</Text>
         <SyncPill />
@@ -186,7 +183,7 @@ export default function MensagemScreen() {
           </View>
         </>
       )}
-    </ScrollView>
+    </KeyboardAwareScrollView>
   )
 }
 

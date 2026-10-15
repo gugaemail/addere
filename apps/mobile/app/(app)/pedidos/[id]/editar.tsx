@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { View, Text, ScrollView, StyleSheet, Alert, FlatList } from 'react-native'
+import { View, Text, StyleSheet, Alert, FlatList } from 'react-native'
 import { useLocalSearchParams, Stack, useRouter } from 'expo-router'
 import { Plus, Minus, Search } from 'lucide-react-native'
 import { usePedido, useAtualizarPedido } from '../../../../src/hooks/usePedidos'
@@ -16,6 +16,7 @@ import { Button } from '../../../../src/components/ui/Button'
 import { Card } from '../../../../src/components/ui/Card'
 import { EmptyState } from '../../../../src/components/ui/EmptyState'
 import { Input } from '../../../../src/components/ui/Input'
+import { KeyboardAwareScrollView } from '../../../../src/components/ui/KeyboardAware'
 import { LoadingState } from '../../../../src/components/Skeleton'
 import { PickerField } from '../../../../src/components/order-form/PickerField'
 import { CartItemEditor } from '../../../../src/components/order-form/CartItemEditor'
@@ -161,7 +162,7 @@ export default function EditarPedidoScreen() {
   }
 
   return (
-    <ScrollView
+    <KeyboardAwareScrollView
       style={s.container}
       contentContainerStyle={{ padding: spacing.md, paddingBottom: spacing.xl }}
     >
@@ -353,7 +354,7 @@ export default function EditarPedidoScreen() {
       >
         Cancelar
       </Button>
-    </ScrollView>
+    </KeyboardAwareScrollView>
   )
 }
 

@@ -8,7 +8,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   View,
   Text,
-  ScrollView,
   TouchableOpacity,
   TextInput,
   StyleSheet,
@@ -31,6 +30,7 @@ import { BeforeEnterCard } from '../../../../src/components/intel/BeforeEnterCar
 import { StatusPill } from '../../../../src/components/intel/StatusPill'
 import { SyncPill } from '../../../../src/components/intel/SyncPill'
 import { FreshnessFooter } from '../../../../src/components/intel/FreshnessFooter'
+import { KeyboardAwareScrollView } from '../../../../src/components/ui/KeyboardAware'
 import { colors, spacing, radius, typography } from '../../../../src/theme'
 
 const CHANNELS: { key: ContactChannel; label: string }[] = [
@@ -177,7 +177,11 @@ export default function VisitaScreen() {
   }
 
   return (
-    <ScrollView testID="screen-visita" style={s.container} contentContainerStyle={s.content}>
+    <KeyboardAwareScrollView
+      testID="screen-visita"
+      style={s.container}
+      contentContainerStyle={s.content}
+    >
       <View style={s.headerRow}>
         <View style={{ flex: 1 }}>
           <Text style={s.name}>{item.customerName}</Text>
@@ -299,7 +303,7 @@ export default function VisitaScreen() {
       </TouchableOpacity>
 
       <FreshnessFooter computedAt={plan?.freshness.lastSyncAt ?? null} />
-    </ScrollView>
+    </KeyboardAwareScrollView>
   )
 }
 
