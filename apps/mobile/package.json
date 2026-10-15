@@ -43,6 +43,7 @@
     "@tanstack/react-query-persist-client": "^5.100.14",
     "axios": "^1.15.0",
     "expo": "~54.0.37",
+    "expo-build-properties": "~1.0.10",
     "expo-clipboard": "~8.0.8",
     "expo-linking": "~8.0.11",
     "expo-local-authentication": "~17.0.9",
