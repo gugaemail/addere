@@ -1,6 +1,11 @@
 import { env } from '../../lib/env'
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify'
-import { loginSchema, forgotPasswordSchema, resetPasswordSchema } from './auth.schema'
+import {
+  loginSchema,
+  forgotPasswordSchema,
+  resetPasswordSchema,
+  RESET_EMAIL_FAILED_MESSAGE,
+} from './auth.schema'
 import {
   loginUser,
   createRefreshToken,
@@ -9,6 +14,7 @@ import {
   forgotPassword,
   resetPassword,
 } from './auth.service'
+import { AppError } from '../../lib/errors'
 import { authenticate } from '../../middleware/authenticate'
 import { getEffectivePermissions } from '../permissions/permissions.service'
 import { prisma } from '@addere/db'
@@ -225,8 +231,12 @@ export default async function authRoutes(app: FastifyInstance) {
         await forgotPassword(result.data.email)
       } catch (err) {
         app.log.error(err, '[auth] forgotPassword falhou')
+        // Quem pediu precisa saber que o e-mail não vai chegar: falha de envio
+        // (502) ou erro inesperado (500), sempre com o caminho do suporte
+        const status = err instanceof AppError ? err.statusCode : 500
+        return reply.status(status).send({ message: RESET_EMAIL_FAILED_MESSAGE })
       }
-      // Sempre retorna sucesso para não revelar se e-mail existe ou se ocorreu erro
+      // E-mail não cadastrado também responde sucesso, para não revelar quem existe
       return reply.send({
         message: 'Se o e-mail estiver cadastrado, você receberá as instruções em breve.',
       })

@@ -3,7 +3,9 @@ import { prisma } from '@addere/db'
 import bcrypt from 'bcryptjs'
 import { randomUUID } from 'crypto'
 import { Resend } from 'resend'
-import type { LoginInput } from './auth.schema'
+import { badGateway } from '../../lib/errors'
+import { captureError } from '../../lib/sentry'
+import { RESET_EMAIL_FAILED_MESSAGE, type LoginInput } from './auth.schema'
 
 const REFRESH_TOKEN_EXPIRES_DAYS = 30
 
@@ -72,6 +74,18 @@ export async function revokeRefreshToken(token: string): Promise<void> {
 const WEB_URL = env.WEB_URL ?? 'https://addere-web.vercel.app'
 const RESET_TOKEN_EXPIRES_HOURS = 1
 
+// Falha no envio vira erro com a mensagem de suporte. O e-mail que não existe
+// continua respondendo sucesso; só a falha de envio de um e-mail cadastrado
+// fica visível, e esconder essa falha deixava o usuário esperando um e-mail
+// que nunca chegaria.
+async function failResetEmail(token: string, cause: unknown): Promise<never> {
+  console.error('[auth] Falha ao enviar e-mail de reset via Resend:', cause)
+  captureError(cause, { module: 'auth', op: 'forgot-password' })
+  // O token não chegou a ninguém: não deixa um link válido sobrando
+  await prisma.passwordResetToken.delete({ where: { token } }).catch(() => undefined)
+  throw badGateway(RESET_EMAIL_FAILED_MESSAGE)
+}
+
 export async function forgotPassword(email: string): Promise<void> {
   const user = await prisma.user.findFirst({ where: { email, active: true } })
   if (!user) return // não revelar se email existe
@@ -83,6 +97,10 @@ export async function forgotPassword(email: string): Promise<void> {
   await prisma.passwordResetToken.create({ data: { token, userId: user.id, expiresAt } })
 
   if (!env.RESEND_API_KEY) {
+    // Em produção, sem chave ninguém recebe o link: é falha de envio
+    if (env.NODE_ENV === 'production') {
+      return failResetEmail(token, new Error('RESEND_API_KEY não configurada'))
+    }
     console.warn('[auth] RESEND_API_KEY não configurada — email de reset não enviado')
     return
   }
@@ -90,8 +108,11 @@ export async function forgotPassword(email: string): Promise<void> {
   const resend = new Resend(env.RESEND_API_KEY)
   const resetLink = `${WEB_URL}/resetar-senha?token=${token}`
 
+  // O resend devolve { data, error } e NÃO lança quando a API recusa o envio
+  // (domínio, chave, limite): sem olhar o `error`, a falha passava calada.
+  let failure: unknown
   try {
-    await resend.emails.send({
+    const { error } = await resend.emails.send({
       from: 'Addere <noreply@addere.com.br>',
       to: [user.email],
       subject: 'Redefinição de senha — Addere',
@@ -102,9 +123,11 @@ export async function forgotPassword(email: string): Promise<void> {
         <p>O link expira em ${RESET_TOKEN_EXPIRES_HOURS} hora. Se não foi você, ignore este e-mail.</p>
       `,
     })
+    failure = error
   } catch (err) {
-    console.error('[auth] Falha ao enviar e-mail de reset via Resend:', err)
+    failure = err
   }
+  if (failure) await failResetEmail(token, failure)
 }
 
 export async function resetPassword(token: string, newPassword: string): Promise<void> {
