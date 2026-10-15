@@ -5,6 +5,7 @@ import {
   formatDocumentDisplay,
   formatCEPDisplay,
   formatCurrency,
+  formatDate,
 } from '../utils'
 
 describe('maskDocument', () => {
@@ -55,5 +56,21 @@ describe('formatCurrency', () => {
   it('formata em BRL', () => {
     expect(formatCurrency(1234.5).replace(/\u00A0/g, ' ')).toBe('R$ 1.234,50')
     expect(formatCurrency('10').replace(/\u00A0/g, ' ')).toBe('R$ 10,00')
+  })
+})
+
+describe('formatDate', () => {
+  it('dia civil n\u00E3o cai no dia anterior (chave de dia e @db.Date)', () => {
+    expect(formatDate('2026-10-15')).toBe('15/10/2026')
+    expect(formatDate('2026-10-15T00:00:00.000Z')).toBe('15/10/2026')
+    expect(formatDate('2026-10-15T00:00:00Z')).toBe('15/10/2026')
+    expect(formatDate(new Date('2026-10-15T00:00:00.000Z'))).toBe('15/10/2026')
+  })
+
+  it('data com hora sai no hor\u00E1rio de Bras\u00EDlia, qualquer que seja o fuso do navegador', () => {
+    // 02:30 UTC de 15/10 = 23:30 de 14/10 em Bras\u00EDlia
+    expect(formatDate('2026-10-15T02:30:00.000Z')).toBe('14/10/2026')
+    expect(formatDate(new Date('2026-10-15T02:30:00.000Z'))).toBe('14/10/2026')
+    expect(formatDate('2026-10-15T15:00:00.000Z')).toBe('15/10/2026')
   })
 })

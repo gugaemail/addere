@@ -22,7 +22,7 @@ import {
 } from 'lucide-react'
 import { api, getAccessToken } from '@/lib/api'
 import { BRAND } from '@/lib/brand-tokens'
-import { cn } from '@/lib/utils'
+import { cn, formatDate } from '@/lib/utils'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
@@ -117,8 +117,8 @@ function PilotList() {
                   <div className="flex flex-wrap items-center gap-4 mt-3 text-xs text-[var(--text-muted)]">
                     <span className="flex items-center gap-1">
                       <Clock size={12} strokeWidth={1.5} />
-                      {new Date(pilot.startDate).toLocaleDateString('pt-BR')} →{' '}
-                      {new Date(pilot.endDate).toLocaleDateString('pt-BR')}
+                      {formatDate(pilot.startDate)} →{' '}
+                      {formatDate(pilot.endDate)}
                       {pilot.status === 'ACTIVE' &&
                         ` (${daysRemaining(pilot.endDate)} dias restantes)`}
                     </span>
@@ -427,7 +427,7 @@ function PilotDetail({ pilotId }: { pilotId: string }) {
             Piloto — {pilot.clientName}
           </h1>
           <p className="text-sm text-[var(--text-muted)] mt-1">
-            Início: {new Date(pilot.startDate).toLocaleDateString('pt-BR')}
+            Início: {formatDate(pilot.startDate)}
             {' · '}
             {daysRemaining(pilot.endDate)} dias restantes
           </p>
@@ -509,7 +509,7 @@ function PilotDetail({ pilotId }: { pilotId: string }) {
                 value,
                 name === 'total' ? 'Total' : 'Offline',
               ]}
-              labelFormatter={(label) => new Date(label).toLocaleDateString('pt-BR')}
+              labelFormatter={(label) => formatDate(String(label))}
             />
             <Legend formatter={(v) => (v === 'total' ? 'Total' : 'Offline')} />
             <Line
