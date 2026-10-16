@@ -30,6 +30,7 @@ import billingAdminRoutes from './modules/billing/billing.routes'
 import contractTemplatesRoutes from './modules/billing/contract-templates.routes'
 import contractDocumentsRoutes from './modules/billing/contract-documents.routes'
 import billingMeRoutes from './modules/billing/me.routes'
+import contractCancelRoutes from './modules/billing/contract-cancel.routes'
 import { initApplyDueTermsTicker } from './modules/billing/jobs/apply-due-terms'
 import { authenticate } from './middleware/authenticate'
 import { env } from './lib/env'
@@ -122,6 +123,7 @@ export async function buildApp(): Promise<FastifyInstance> {
   await app.register(billingAdminRoutes, { prefix: '/admin/billing' })
   await app.register(contractTemplatesRoutes, { prefix: '/admin/billing/contract-templates' })
   await app.register(contractDocumentsRoutes, { prefix: '/admin/billing' })
+  await app.register(contractCancelRoutes, { prefix: '/admin/billing' })
   await app.register(billingMeRoutes, { prefix: '/billing/me' })
 
   // Inicia schedulers de auto-sync após o servidor estar pronto

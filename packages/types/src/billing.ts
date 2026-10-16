@@ -384,6 +384,18 @@ export type BillingErrorCode =
   | 'AMENDMENT_NOT_YET_EFFECTIVE'
   | 'CONTRACT_NOT_ACTIVE'
   | 'INTEL_MANAGED_BY_CONTRACT'
+  // Plano 016
+  | 'CONTRACT_CANCEL_ALREADY_SCHEDULED'
+  | 'CONTRACT_CANCEL_NOT_SCHEDULED'
+  | 'INVOICE_ALREADY_EXISTS'
+  | 'INVOICE_PAID_IMMUTABLE'
+  | 'INVOICE_CANCELLED'
+  | 'INVOICE_ITEM_NOT_MANUAL'
+  | 'INVOICE_NEGATIVE_TOTAL'
+  | 'COMPETENCE_NOT_PAST'
+  | 'COMPETENCE_NOT_BILLABLE'
+  | 'DUE_DATE_IN_PAST'
+  | 'PAID_AT_IN_FUTURE'
 
 // ─── DTOs ────────────────────────────────────────────────────────────────────
 // Datas como string ISO; dinheiro como string '1234.56'.
@@ -463,6 +475,11 @@ export interface CompanyContractDto {
   dueDay: number
   overdueBlockDays: number | null // null = padrão das regras globais
   terms: ContractTermsDto[]
+  // Encerramento (plano 016): o contrato segue ACTIVE até endsAt
+  endsAt: string | null // 'YYYY-MM-DD', último dia coberto
+  cancelRequestedAt: string | null // ISO
+  cancelReason: string | null
+  deactivateCompanyOnEnd: boolean
 }
 
 export interface ClientListItemDto {
