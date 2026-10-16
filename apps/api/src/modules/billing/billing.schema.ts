@@ -60,8 +60,9 @@ export const packageActiveSchema = z.object({ active: z.boolean() })
 export type PackageCreateData = z.infer<typeof packageCreateSchema>
 export type PackageUpdateData = z.infer<typeof packageUpdateSchema>
 
-// autoBlockEnabled NÃO é declarado (decisão padrão 4): o zod remove a chave e o
-// valor gravado continua false. Só o plano 017 o liga, depois do OTA do app.
+// O bloqueio automático NÃO é declarado aqui (decisão padrão 4): o zod remove a
+// chave do corpo, e o valor gravado continua false. Só o plano 017 o liga,
+// depois do OTA do app.
 export const settingsSchema = z.object({
   overdueBlockDays: z.number().int().min(1).max(90),
   dueReminderDays: z.number().int().min(0).max(15),
