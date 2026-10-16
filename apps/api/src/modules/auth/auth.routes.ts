@@ -38,7 +38,10 @@ function cookieOptions(secure: boolean) {
 export default async function authRoutes(app: FastifyInstance) {
   const isProduction = env.NODE_ENV === 'production'
 
-  // POST /auth/login — rate limit: 10 tentativas por minuto por IP
+  // POST /auth/login — rate limit: 10 tentativas por minuto por IP.
+  // O plugin LANÇA o que o errorResponseBuilder devolve: sem statusCode, o
+  // handler global respondia 500 "Erro interno" no lugar do 429 (achado no
+  // teste do trustProxy, plano 014). Vale para os cinco limites deste arquivo.
   app.post(
     '/login',
     {
@@ -47,6 +50,7 @@ export default async function authRoutes(app: FastifyInstance) {
           max: 10,
           timeWindow: '1 minute',
           errorResponseBuilder: () => ({
+            statusCode: 429,
             message: 'Muitas tentativas. Aguarde 1 minuto e tente novamente.',
           }),
         },
@@ -100,6 +104,7 @@ export default async function authRoutes(app: FastifyInstance) {
           max: 30,
           timeWindow: '1 minute',
           errorResponseBuilder: () => ({
+            statusCode: 429,
             message: 'Muitas tentativas. Aguarde 1 minuto e tente novamente.',
           }),
         },
@@ -218,6 +223,7 @@ export default async function authRoutes(app: FastifyInstance) {
           max: 5,
           timeWindow: '5 minutes',
           errorResponseBuilder: () => ({
+            statusCode: 429,
             message: 'Muitas tentativas. Aguarde 5 minutos e tente novamente.',
           }),
         },
@@ -252,6 +258,7 @@ export default async function authRoutes(app: FastifyInstance) {
           max: 10,
           timeWindow: '5 minutes',
           errorResponseBuilder: () => ({
+            statusCode: 429,
             message: 'Muitas tentativas. Aguarde 5 minutos e tente novamente.',
           }),
         },
@@ -279,6 +286,7 @@ export default async function authRoutes(app: FastifyInstance) {
           max: 20,
           timeWindow: '1 minute',
           errorResponseBuilder: () => ({
+            statusCode: 429,
             message: 'Muitas tentativas. Aguarde 1 minuto e tente novamente.',
           }),
         },

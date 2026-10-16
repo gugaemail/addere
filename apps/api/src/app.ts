@@ -33,6 +33,19 @@ import { registerErrorHandling } from './lib/error-handler'
 
 export async function buildApp(): Promise<FastifyInstance> {
   const app = Fastify({
+    // IP real atrás do proxy do Render (plano 014: o aceite do contrato grava
+    // o IP de quem aceita). Número de saltos, e não `true`: com `true` o
+    // Fastify confia na cadeia inteira do X-Forwarded-For e o request.ip vira a
+    // entrada mais à esquerda, que o próprio cliente escreve. Com N, ele confia
+    // só nos N proxies mais próximos e ignora o que foi forjado à esquerda.
+    //
+    // Efeito no rate limit: o @fastify/rate-limit do login, do refresh, do
+    // forgot-password, do reset-password e do logout usa request.ip como chave,
+    // e o userRateLimit (lib/rate-limit.ts) cai nele sem usuário autenticado.
+    // Sem isto, atrás do proxy todos os clientes tendem a dividir um balde só
+    // (10 logins por minuto para o país inteiro); com isto, cada cliente tem o
+    // seu. O código dos limitadores não muda.
+    trustProxy: env.TRUST_PROXY_HOPS,
     logger: {
       level: env.NODE_ENV === 'production' ? 'info' : 'debug',
     },

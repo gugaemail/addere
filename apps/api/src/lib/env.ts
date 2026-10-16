@@ -28,6 +28,9 @@ const envSchema = z.object({
   // inicial de uma base inteira numa noite so.
   INTEL_GEO_MAX_PER_RUN: z.coerce.number().int().positive().max(20_000).default(300),
   WEB_URL: z.string().url().optional(),
+  // Quantos proxies ficam na frente da API (o Render, 1). O Fastify confia só
+  // nesses saltos do X-Forwarded-For para achar o IP de quem chama; 0 desliga.
+  TRUST_PROXY_HOPS: z.coerce.number().int().min(0).max(5).default(1),
 })
 
 export type Env = z.infer<typeof envSchema>
