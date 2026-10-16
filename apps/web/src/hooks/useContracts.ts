@@ -119,12 +119,21 @@ export function useClientDocuments(companyId: string) {
   })
 }
 
-export function useDocumentPreview(companyId: string) {
-  return useMutation({
-    mutationFn: (input: { carryConditions: boolean }) =>
+/**
+ * O que seria enviado agora (não grava nada). Query, e não mutation, para a
+ * aba saber de antemão se falta campo e desabilitar o "Enviar para aceite".
+ */
+export function useDocumentPreview(companyId: string, carryConditions: boolean, enabled: boolean) {
+  return useQuery({
+    queryKey: [...contractKeys.clientDocuments(companyId), 'preview', carryConditions] as const,
+    queryFn: () =>
       api
-        .post<DocumentPreviewDto>(`/admin/billing/clients/${companyId}/documents/preview`, input)
+        .post<DocumentPreviewDto>(`/admin/billing/clients/${companyId}/documents/preview`, {
+          carryConditions,
+        })
         .then((r) => r.data),
+    enabled: enabled && !!companyId,
+    retry: false,
   })
 }
 
