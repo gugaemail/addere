@@ -49,3 +49,20 @@ describe('parseEnv', () => {
     expect(() => parseEnv({ ...BASE, JWT_SECRET: '' })).toThrow(/JWT_SECRET/)
   })
 })
+
+describe('TRUST_PROXY_HOPS (plano 014)', () => {
+  it('padrão 1: o proxy do Render', () => {
+    expect(parseEnv(BASE).TRUST_PROXY_HOPS).toBe(1)
+    expect(parseEnv({ ...BASE, TRUST_PROXY_HOPS: '' }).TRUST_PROXY_HOPS).toBe(1)
+  })
+
+  it('aceita 0 (desliga) e 3', () => {
+    expect(parseEnv({ ...BASE, TRUST_PROXY_HOPS: '0' }).TRUST_PROXY_HOPS).toBe(0)
+    expect(parseEnv({ ...BASE, TRUST_PROXY_HOPS: '3' }).TRUST_PROXY_HOPS).toBe(3)
+  })
+
+  it('recusa 9 e abc', () => {
+    expect(() => parseEnv({ ...BASE, TRUST_PROXY_HOPS: '9' })).toThrow(/TRUST_PROXY_HOPS/)
+    expect(() => parseEnv({ ...BASE, TRUST_PROXY_HOPS: 'abc' })).toThrow(/TRUST_PROXY_HOPS/)
+  })
+})

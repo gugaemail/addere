@@ -4,6 +4,7 @@ import { conflict, notFound, unprocessable } from '../../lib/errors'
 import { changedFields, recordBillingEvent } from './billing-events'
 import type { ContractDraftData } from './billing.schema'
 import { CONTRACT_WITH_TERMS, toContractDto } from './clients.service'
+import { CANCEL_REASON_DRAFT_CHANGED, cancelSentDocuments } from './contract-documents.service'
 
 // Contrato em rascunho (plano 013). Antes do aceite nada começa: sem limite,
 // sem cobrança e sem mudança na Inteligência. Este arquivo NUNCA lê nem escreve
@@ -22,9 +23,11 @@ const TERMS_KEYS = [
 ] as const
 
 /**
- * Cria ou altera o rascunho do contrato da empresa. Só o DRAFT é editável: o
- * plano 014 troca a recusa de PENDING_ACCEPTANCE por "cancela o documento
- * enviado e volta para DRAFT" (decisão padrão 11).
+ * Cria ou altera o rascunho do contrato da empresa. DRAFT é editável; em
+ * PENDING_ACCEPTANCE, salvar cancela o documento enviado e volta o contrato a
+ * DRAFT, para o texto aceito ser sempre o dos termos gravados (plano 014,
+ * decisão 11). ACTIVE e CANCELLED continuam recusados: depois do aceite,
+ * mudança é por aditivo.
  *
  * Dois SUPERADMIN criando o mesmo contrato ao mesmo tempo esbarram no
  * companyId @unique (P2002 → 409 pelo handler global): quem perdeu recarrega.
@@ -99,7 +102,14 @@ export async function saveContractDraft(
         ...changedFields(null, termsData, TERMS_KEYS, TERMS_MONEY_KEYS),
       ]
     } else {
-      if (existing.status !== 'DRAFT') {
+      if (existing.status === 'PENDING_ACCEPTANCE') {
+        await cancelSentDocuments(tx, existing.id, actorId, CANCEL_REASON_DRAFT_CHANGED)
+        // Garante o DRAFT mesmo que não houvesse documento em SENT
+        await tx.companyContract.updateMany({
+          where: { id: existing.id, status: 'PENDING_ACCEPTANCE' },
+          data: { status: 'DRAFT' },
+        })
+      } else if (existing.status !== 'DRAFT') {
         throw conflict('Este contrato já saiu do rascunho', 'CONTRACT_NOT_DRAFT')
       }
       created = false

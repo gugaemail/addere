@@ -1,5 +1,6 @@
 'use client'
 
+import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useQueryClient } from '@tanstack/react-query'
@@ -41,6 +42,10 @@ import {
   usePackages,
   useSaveContractDraft,
 } from '@/hooks/useBilling'
+import { contractKeys, useClientDocuments } from '@/hooks/useContracts'
+import { Modal } from '@/components/ui/Modal'
+import { AmendmentForm } from './AmendmentForm'
+import { DocumentsPanel } from './DocumentsPanel'
 
 const SECTION_TITLE = 'text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wide'
 const LABEL = 'mb-1.5 block text-sm font-medium text-[var(--text-secondary)]'
@@ -94,15 +99,23 @@ const versionColumns: Column<ContractTermsDto>[] = [
   },
 ]
 
-// Aba Contrato da ficha (plano 013). Só o DRAFT é editável; enviar para aceite,
-// pré-visualizar e propor aditivo são do plano 014.
+// Aba Contrato da ficha (plano 013). O rascunho é editável em DRAFT e, desde o
+// plano 014, também em PENDING_ACCEPTANCE: salvar cancela o documento enviado
+// e o contrato volta a rascunho (decisão 11). Abaixo do formulário, o 014 põe
+// os documentos (indicado, prévia, envio, linha do tempo) e o aditivo.
 export function ContratoTab({ client }: { client: ClientDetailDto }) {
   const queryClient = useQueryClient()
   const contract = client.contract
   const isDraft = !contract || contract.status === 'DRAFT'
+  const isPending = contract?.status === 'PENDING_ACCEPTANCE'
+  const editable = isDraft || isPending
+  const isActive = contract?.status === 'ACTIVE'
+  const [pendingSave, setPendingSave] = useState<ContractDraftFormData | null>(null)
+  const [carryConditions, setCarryConditions] = useState(false)
 
   const { data: packages = [], isLoading: loadingPackages } = usePackages()
   const { data: settings } = useBillingSettings()
+  const { data: docs } = useClientDocuments(client.company.id)
   const save = useSaveContractDraft(client.company.id)
 
   const {
@@ -148,7 +161,16 @@ export function ContratoTab({ client }: { client: ClientDetailDto }) {
     }
   }
 
+  // Com o documento enviado, salvar pede confirmação antes (decisão 11)
   async function onSubmit(data: ContractDraftFormData) {
+    if (isPending) {
+      setPendingSave(data)
+      return
+    }
+    await saveDraft(data)
+  }
+
+  async function saveDraft(data: ContractDraftFormData) {
     const pkg = packages.find((p) => p.id === data.packageId)
     if (!pkg) {
       setError('packageId', { message: 'Escolha o pacote' })
@@ -174,7 +196,11 @@ export function ContratoTab({ client }: { client: ClientDetailDto }) {
     try {
       const saved = await save.mutateAsync(input)
       reset(defaultsFor(saved))
-      toast.success('Rascunho salvo.')
+      // O envio cancelado aparece na linha do tempo
+      await queryClient.invalidateQueries({ queryKey: contractKeys.all })
+      toast.success(
+        isPending ? 'Rascunho salvo. O documento enviado foi cancelado.' : 'Rascunho salvo.'
+      )
     } catch (err: unknown) {
       const code = getApiErrorCode(err)
       const message = getApiErrorMessage(err, 'Erro ao salvar o rascunho.')
@@ -197,12 +223,19 @@ export function ContratoTab({ client }: { client: ClientDetailDto }) {
         <p className="mb-4 text-sm font-medium text-[var(--text-primary)]">
           {isDraft
             ? 'Rascunho — o cliente ainda não vê este contrato.'
-            : 'Este contrato já saiu do rascunho.'}
+            : isPending
+              ? 'Enviado para aceite.'
+              : 'Este contrato já saiu do rascunho.'}
         </p>
+        {isPending && (
+          <p className="-mt-2 mb-4 rounded-lg border border-warning/30 bg-warning/10 px-3 py-2 text-sm text-[var(--text-primary)]">
+            Salvar cancela o documento enviado ao cliente; será preciso enviar de novo.
+          </p>
+        )}
 
         <form onSubmit={handleSubmit(onSubmit)} noValidate>
-          {/* Fora do rascunho, tudo fica só de leitura */}
-          <fieldset disabled={!isDraft} className="space-y-5">
+          {/* Depois do aceite (ACTIVE) e no cancelado, tudo fica só de leitura */}
+          <fieldset disabled={!editable} className="space-y-5">
             <section className="space-y-3">
               <p className={SECTION_TITLE}>Pacote</p>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -367,9 +400,9 @@ export function ContratoTab({ client }: { client: ClientDetailDto }) {
               </div>
             )}
 
-            {isDraft && (
+            {editable && (
               <div className="flex justify-end">
-                <Button type="submit" loading={isSubmitting}>
+                <Button type="submit" loading={isSubmitting || save.isPending}>
                   Salvar rascunho
                 </Button>
               </div>
@@ -377,6 +410,43 @@ export function ContratoTab({ client }: { client: ClientDetailDto }) {
           </fieldset>
         </form>
       </Card>
+
+      {contract && <DocumentsPanel client={client} carryConditions={carryConditions} />}
+
+      {isActive && docs && (
+        <AmendmentForm
+          key={docs.amendment?.termsId ?? 'novo'}
+          client={client}
+          docs={docs}
+          onCarryConditionsChange={setCarryConditions}
+        />
+      )}
+
+      <Modal
+        isOpen={pendingSave !== null}
+        onClose={() => setPendingSave(null)}
+        title="Salvar e cancelar o envio?"
+        className="max-w-md"
+      >
+        <p className="text-sm text-[var(--text-secondary)]">
+          Salvar cancela o documento enviado ao cliente; será preciso enviar de novo.
+        </p>
+        <div className="flex justify-end gap-2 pt-4">
+          <Button variant="outline" onClick={() => setPendingSave(null)}>
+            Voltar
+          </Button>
+          <Button
+            variant="danger"
+            onClick={() => {
+              const data = pendingSave
+              setPendingSave(null)
+              if (data) void saveDraft(data)
+            }}
+          >
+            Salvar e cancelar o envio
+          </Button>
+        </div>
+      </Modal>
 
       <section className="space-y-2">
         <p className={SECTION_TITLE}>Versões dos termos</p>

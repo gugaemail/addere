@@ -7,6 +7,9 @@ export * from './intelligence'
 
 // ─── Gestão Addere (planos 013 a 018) ──────────────────────────────────────
 export * from './billing'
+export * from './contract-template'
+export * from './reais-por-extenso'
+import type { PendingDocumentRef } from './contract-template'
 
 // ─── Auth ──────────────────────────────────────────────────────────────────
 
@@ -34,7 +37,12 @@ export interface UserPublic {
   // ─── E1c: devolvidos por GET /auth/me (opcionais p/ compatibilidade) ───
   companyId?: string | null
   permissions?: string[]
-  company?: { intelligenceEnabled: boolean; defaultTone: string } | null
+  company?: {
+    intelligenceEnabled: boolean
+    defaultTone: string
+    // Plano 014: documento enviado para aceite (só para ADMIN; o app ignora)
+    pendingDocument?: PendingDocumentRef | null
+  } | null
   // ─── E10: perfil de vendedor da Inteligência (detalhe da empresa) ───
   visitsPerDay?: number | null
   vehicle?: 'CAR' | 'MOTORCYCLE' | 'FOOT' | null

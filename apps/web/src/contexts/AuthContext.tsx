@@ -17,6 +17,8 @@ interface AuthContextValue {
   intelligenceEnabled: boolean
   login: (email: string, password: string) => Promise<UserPublic>
   logout: () => Promise<void>
+  /** Relê o GET /auth/me (ex.: depois do aceite do contrato, a faixa some). O 017 reaproveita. */
+  refreshUser: () => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null)
@@ -78,6 +80,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [queryClient])
 
+  // Plano 014: o aceite muda o documento pendente (e a Inteligência) do /auth/me
+  const refreshUser = useCallback(async () => {
+    const { data } = await api.get<UserPublic>('/auth/me')
+    setUser(data)
+  }, [])
+
   const permissions = user?.permissions ?? []
   const hasPermission = useCallback(
     (key: string) => user?.role === 'SUPERADMIN' || (user?.permissions ?? []).includes(key),
@@ -97,6 +105,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         intelligenceEnabled: user?.company?.intelligenceEnabled ?? false,
         login,
         logout,
+        refreshUser,
       }}
     >
       {children}

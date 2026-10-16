@@ -1,15 +1,23 @@
 'use client'
 
-// Formulário da configuração da Inteligência por empresa: liga/desliga a
-// camada, horários do sync, tom das mensagens, retenção e aceite do aviso
-// LGPD (§2.13). Um só formulário para dois lugares — a aba Inteligência de
-// Empresas (SUPERADMIN, `companyIdOverride`) e /configuracoes (ADMIN, tenant
-// do contexto) — para as regras de validação nunca divergirem.
+// Formulário da configuração da Inteligência por empresa: horários do sync,
+// tom das mensagens, retenção e aceite do aviso LGPD (§2.13). Um só formulário
+// para dois lugares — a aba Inteligência de Empresas (SUPERADMIN,
+// `companyIdOverride`) e /configuracoes (ADMIN, tenant do contexto) — para as
+// regras de validação nunca divergirem.
+//
+// Liga/desliga (plano 014): a Inteligência entra pelo contrato. O Switch só
+// aparece quando a API diz `canToggle` (SUPERADMIN, empresa sem contrato
+// ativo); nos outros casos vira status só de leitura.
 import { useEffect, useState } from 'react'
+import Link from 'next/link'
 import { toast } from 'sonner'
 import { ShieldCheck } from 'lucide-react'
-import { getApiErrorMessage } from '@/lib/api'
+import { getApiErrorCode, getApiErrorMessage } from '@/lib/api'
 import { useIntelConfig, useSaveIntelConfig } from '@/hooks/useIntel'
+import { useAuth } from '@/contexts/AuthContext'
+import { useCompanyContext } from '@/contexts/CompanyContext'
+import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { Spinner } from '@/components/ui/Spinner'
 import { Switch } from '@/components/ui/Switch'
@@ -28,6 +36,9 @@ interface IntelConfigFormProps {
 export function IntelConfigForm({ companyIdOverride, apiSqlConfigured = true }: IntelConfigFormProps) {
   const { data, isLoading } = useIntelConfig(companyIdOverride)
   const save = useSaveIntelConfig(companyIdOverride)
+  const { isSuperAdmin } = useAuth()
+  const { companyId: contextCompanyId } = useCompanyContext()
+  const companyId = companyIdOverride ?? contextCompanyId
 
   const [enabled, setEnabled] = useState(false)
   const [syncHour, setSyncHour] = useState('3')
@@ -68,7 +79,8 @@ export function IntelConfigForm({ companyIdOverride, apiSqlConfigured = true }: 
       return toast.error(`Retenção entre ${RETENTION_MIN_DAYS} e ${RETENTION_MAX_DAYS} dias`)
     try {
       await save.mutateAsync({
-        intelligenceEnabled: enabled,
+        // Só quem pode ligar à mão manda o flag; nos outros casos o contrato decide
+        ...(data?.canToggle ? { intelligenceEnabled: enabled } : {}),
         config: {
           syncHour: hour,
           syncEveryHours: every,
@@ -82,6 +94,12 @@ export function IntelConfigForm({ companyIdOverride, apiSqlConfigured = true }: 
         extra?.lgpdNoticeAcceptedAt ? 'Aceite registrado' : 'Configuração da Inteligência salva'
       )
     } catch (err) {
+      if (getApiErrorCode(err) === 'INTEL_MANAGED_BY_CONTRACT') {
+        // O contrato passou a definir a Inteligência com a tela aberta
+        setSeeded(false)
+        toast.error(getApiErrorMessage(err, 'A Inteligência é definida pelo contrato.'))
+        return
+      }
       toast.error(getApiErrorMessage(err, 'Erro ao salvar configuração'))
     }
   }
@@ -89,11 +107,52 @@ export function IntelConfigForm({ companyIdOverride, apiSqlConfigured = true }: 
   return (
     <div className="max-w-2xl space-y-5">
       <div className="rounded-xl border border-[var(--border)] bg-[var(--bg-surface)] p-4">
-        <Switch
-          checked={enabled}
-          onChange={setEnabled}
-          label="Camada de Inteligência ligada para esta empresa"
-        />
+        {data.canToggle ? (
+          <Switch
+            checked={enabled}
+            onChange={setEnabled}
+            label="Camada de Inteligência ligada para esta empresa"
+          />
+        ) : (
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-sm font-medium text-[var(--text-primary)]">
+              Camada de Inteligência
+            </span>
+            <Badge variant={data.intelligenceEnabled ? 'success' : 'neutral'}>
+              {isSuperAdmin
+                ? data.intelligenceEnabled
+                  ? 'Incluída no contrato'
+                  : 'Não incluída no contrato'
+                : data.intelligenceEnabled
+                  ? 'Incluída no seu plano'
+                  : 'Não incluída no seu plano — fale com a Addere'}
+            </Badge>
+          </div>
+        )}
+        {!data.canToggle && (
+          <p className="mt-1.5 text-xs text-[var(--text-secondary)]">
+            {isSuperAdmin ? (
+              <>
+                Definida pelo contrato.{' '}
+                {companyId && (
+                  <Link
+                    href={`/gestao/clientes/${companyId}`}
+                    className="font-medium text-brand hover:underline"
+                  >
+                    Ver na Gestão Addere →
+                  </Link>
+                )}
+              </>
+            ) : (
+              <>
+                Definida pelo seu contrato.{' '}
+                <Link href="/contrato" className="font-medium text-brand hover:underline">
+                  Ver contrato →
+                </Link>
+              </>
+            )}
+          </p>
+        )}
         <p className="mt-1.5 text-xs text-[var(--text-secondary)]">
           Liga o sync noturno, o motor de sinais e o plano do dia no app dos vendedores.
           {!apiSqlConfigured && (

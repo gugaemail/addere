@@ -33,6 +33,16 @@ services:
         sync: false
       - key: CORS_ORIGIN
         value: https://addere.vercel.app
+      # Proxies na frente da API (plano 014): confira no staging que o IP do
+      # cliente aparece nos logs (remoteAddress); se aparecer o do proxy, use 2
+      - key: TRUST_PROXY_HOPS
+        value: '1'
+      # Links e envio dos e-mails (reset de senha e contrato para aceite).
+      # WEB_URL é o painel deste ambiente; sem ela o link cai no fallback
+      - key: WEB_URL
+        sync: false
+      - key: RESEND_API_KEY
+        sync: false
 
   # ── STAGING ─────────────────────────────────────────────────────────────────
   - type: web
@@ -65,3 +75,13 @@ services:
         sync: false
       - key: CORS_ORIGIN
         value: https://addere-staging.vercel.app
+      # Proxies na frente da API (plano 014): confira no staging que o IP do
+      # cliente aparece nos logs (remoteAddress); se aparecer o do proxy, use 2
+      - key: TRUST_PROXY_HOPS
+        value: '1'
+      # Links e envio dos e-mails (reset de senha e contrato para aceite).
+      # WEB_URL é o painel deste ambiente; sem ela o link cai no fallback
+      - key: WEB_URL
+        sync: false
+      - key: RESEND_API_KEY
+        sync: false

@@ -113,9 +113,11 @@ model Company {
   customerWindows       CustomerWindow[]
 
   // ─── Gestão Addere (plano 013) ───
-  clientProfile ClientProfile?
-  contract      CompanyContract?
-  billingEvents BillingEvent[]
+  clientProfile     ClientProfile?
+  contract          CompanyContract?
+  billingEvents     BillingEvent[]
+  // ─── Contrato e aceite (plano 014) ───
+  contractDocuments ContractDocument[]
 
   @@map("companies")
 }
@@ -178,15 +180,16 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  refreshTokens        RefreshToken[]
-  orders               Order[]
-  pilotEvents          PilotEvent[]         @relation("UserPilotEvents")
-  pilotFeedbacks       PilotFeedback[]      @relation("UserPilotFeedbacks")
-  passwordResetTokens  PasswordResetToken[]
-  helpReports          HelpReport[]
-  permissions          UserPermission[]
-  billingEvents        BillingEvent[]       @relation("BillingEventActor")
-  contractTermsCreated ContractTerms[]      @relation("ContractTermsAuthor")
+  refreshTokens         RefreshToken[]
+  orders                Order[]
+  pilotEvents           PilotEvent[]         @relation("UserPilotEvents")
+  pilotFeedbacks        PilotFeedback[]      @relation("UserPilotFeedbacks")
+  passwordResetTokens   PasswordResetToken[]
+  helpReports           HelpReport[]
+  permissions           UserPermission[]
+  billingEvents         BillingEvent[]       @relation("BillingEventActor")
+  contractTermsCreated  ContractTerms[]      @relation("ContractTermsAuthor")
+  designatedInContracts CompanyContract[]    @relation("ContractDesignatedAdmin")
 
   @@unique([companyId, idVendProt]) // dois usuários com o mesmo código veriam o mesmo plano (§8 do plano)
   @@map("users")
@@ -940,8 +943,8 @@ model VisitPlanItem {
   movedToPlanId   String?
 
   // Preenchidos quando há geocodificação (E15-F1); ordem por distância (E16)
-  lat           Decimal? @db.Decimal(9, 6)
-  lng           Decimal? @db.Decimal(9, 6)
+  lat           Decimal?  @db.Decimal(9, 6)
+  lng           Decimal?  @db.Decimal(9, 6)
   distFromPrevM Int?
   etaMin        Int?
   plannedTime   String? // "08:30"
@@ -961,7 +964,7 @@ model VisitPlanItem {
 // ─────────────────────────────────────────
 
 model Visit {
-  id               String       @id @default(uuid())
+  id               String          @id @default(uuid())
   clientId         String // uuid gerado no app
   vendorCode       String
   customerCode     String
@@ -969,17 +972,17 @@ model Visit {
   planItemId       String? // null = visita fora do plano (sinal importante)
   arrivedAt        DateTime
   leftAt           DateTime?
-  lat              Decimal?     @db.Decimal(9, 6) // GPS só no check-in (D10); zerado após 90 dias (D4)
-  lng              Decimal?     @db.Decimal(9, 6)
+  lat              Decimal?        @db.Decimal(9, 6) // GPS só no check-in (D10); zerado após 90 dias (D4)
+  lng              Decimal?        @db.Decimal(9, 6)
   accuracyM        Int?
   result           VisitResult?
-  source           VisitSource  @default(CHECKIN)
+  source           VisitSource     @default(CHECKIN)
   channel          ContactChannel? // só em source=REMOTE (plano 011)
   noOrderReason    String?
   orderId          String? // Order.id quando result=ORDER
   notes            String?
   createdOfflineAt DateTime?
-  syncedAt         DateTime     @default(now())
+  syncedAt         DateTime        @default(now())
 
   companyId String
   company   Company @relation(fields: [companyId], references: [id])
@@ -1272,10 +1275,18 @@ model CompanyContract {
   overdueBlockDays      Int? // null = padrão de BillingSettings
   seatGuardVersion      Int            @default(0) // linha de trava da criação de usuários (plano 015); não é dado
 
+  // Administrador indicado pela Empresa (plano 014): o único que aceita o
+  // contrato e os aditivos e pede licenças adicionais (015). Escolhido pelo
+  // superadmin na aba Contrato. Ponteiro vivo, com chave estrangeira (exceção
+  // da decisão de desenho 8).
+  designatedAdminId String?
+  designatedAdmin   User?   @relation("ContractDesignatedAdmin", fields: [designatedAdminId], references: [id])
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  terms ContractTerms[]
+  terms     ContractTerms[]
+  documents ContractDocument[]
 
   @@map("billing_company_contracts")
 }
@@ -1293,20 +1304,25 @@ model ContractTerms {
   proposedEffectiveFrom DateTime? // "vale a partir de" do aditivo (plano 014)
   effectiveFrom         DateTime? // gravado no aceite ou na aprovação
 
-  packageId      String
-  package        LicensePackage @relation(fields: [packageId], references: [id])
-  licenseType    LicenseType
-  includedSeats  Int // sempre preenchido: do pacote, ou digitado no Ilimitado
-  extraSeats     Int            @default(0)
-  packagePrice   Decimal        @db.Decimal(14, 2) // valor total mensal do pacote, negociado
-  extraSeatPrice Decimal        @db.Decimal(14, 2) // por licença adicional, negociado
-  reason         String?
+  packageId         String
+  package           LicensePackage @relation(fields: [packageId], references: [id])
+  licenseType       LicenseType
+  includedSeats     Int // sempre preenchido: do pacote, ou digitado no Ilimitado
+  extraSeats        Int            @default(0)
+  packagePrice      Decimal        @db.Decimal(14, 2) // valor total mensal do pacote, negociado
+  extraSeatPrice    Decimal        @db.Decimal(14, 2) // por licença adicional, negociado
+  reason            String?
+  // Aditivo a pedido da Empresa Contratante (plano 014): vale no aceite mesmo
+  // com aumento de preço, e o motivo diz o que ela pediu
+  requestedByClient Boolean        @default(false)
 
   createdById String?
   createdBy   User?   @relation("ContractTermsAuthor", fields: [createdById], references: [id])
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  documents ContractDocument[]
 
   @@unique([contractId, version])
   @@index([contractId, status])
@@ -1341,4 +1357,88 @@ model BillingSettings {
   updatedAt        DateTime @updatedAt
 
   @@map("billing_settings")
+}
+
+// ─── Contrato de licença de uso e aceite eletrônico (plano 014) ───
+
+enum ContractDocumentKind {
+  CONTRACT // Contrato de Licença de Uso
+  AMENDMENT // aditivo
+}
+
+enum ContractTemplateStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum ContractDocumentStatus {
+  SENT
+  ACCEPTED
+  CANCELLED
+}
+
+// Modelo do texto do contrato e do aditivo, versionado (plano 014). Markdown
+// restrito com campos {{grupo.campo}}. Um só PUBLISHED por kind (garantido no
+// serviço). Editar um publicado cria uma versão nova.
+model ContractTemplate {
+  id            String                 @id @default(uuid())
+  kind          ContractDocumentKind
+  version       Int
+  status        ContractTemplateStatus @default(DRAFT)
+  body          String
+  changeNote    String?
+  createdById   String? // null = gravado pela migration
+  publishedAt   DateTime?
+  publishedById String?
+  createdAt     DateTime               @default(now())
+  updatedAt     DateTime               @updatedAt
+
+  documents          ContractDocument[] @relation("DocumentTemplate")
+  conditionDocuments ContractDocument[] @relation("DocumentConditionsTemplate")
+
+  @@unique([kind, version])
+  @@index([kind, status])
+  @@map("billing_contract_templates")
+}
+
+// Documento enviado para aceite (plano 014). renderedBody e sha256 nunca mudam
+// depois de criados: o texto aceito é este, não o modelo atual.
+model ContractDocument {
+  id                String                 @id @default(uuid())
+  kind              ContractDocumentKind
+  status            ContractDocumentStatus @default(SENT)
+  renderedBody      String
+  sha256            String
+  sentAt            DateTime               @default(now())
+  sentById          String
+  lastEmailAt       DateTime?
+  acceptedAt        DateTime?
+  acceptedById      String?
+  acceptedByName    String? // congelado no aceite
+  acceptedByEmail   String? // congelado no aceite
+  acceptedIp        String?
+  acceptedUserAgent String?
+  cancelledAt       DateTime?
+  cancelledById     String?
+  cancelReason      String?
+  createdAt         DateTime               @default(now())
+  updatedAt         DateTime               @updatedAt
+
+  companyId            String
+  company              Company           @relation(fields: [companyId], references: [id])
+  contractId           String
+  contract             CompanyContract   @relation(fields: [contractId], references: [id])
+  termsId              String
+  terms                ContractTerms     @relation(fields: [termsId], references: [id])
+  templateId           String
+  template             ContractTemplate  @relation("DocumentTemplate", fields: [templateId], references: [id])
+  // Condições gerais que este documento carrega: o próprio modelo num CONTRACT;
+  // num aditivo, só quando ele leva o cliente a uma versão nova.
+  conditionsTemplateId String?
+  conditionsTemplate   ContractTemplate? @relation("DocumentConditionsTemplate", fields: [conditionsTemplateId], references: [id])
+
+  @@index([companyId, status])
+  @@index([contractId, sentAt])
+  @@map("billing_contract_documents")
 }

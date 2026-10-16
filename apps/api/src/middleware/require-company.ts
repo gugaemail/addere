@@ -39,6 +39,23 @@ export function requireCompanyScope(param = 'id') {
   }
 }
 
+/**
+ * preHandler das rotas /billing/me/* (plano 014): só o ADMIN de uma empresa.
+ * O SUPERADMIN também leva 403, porque tem as rotas /admin/billing. Deixa
+ * QUALQUER ADMIN da empresa passar: o que só o administrador indicado faz
+ * (aceitar, e no 015 pedir licenças) confere também assertDesignatedAdmin,
+ * dentro da transação. O 015, o 016 e o 017 usam esta mesma guarda.
+ */
+export function requireCompanyAdmin() {
+  return async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
+    await authenticate(request, reply)
+    if (reply.sent) return
+    if (request.user.role !== 'ADMIN' || !request.user.companyId) {
+      return reply.status(403).send({ message: 'Acesso restrito ao administrador da empresa' })
+    }
+  }
+}
+
 // Para rotas que recebem companyId no body/params: ADMIN só acessa a própria
 // empresa; SUPERADMIN acessa qualquer uma.
 export function assertSameCompany(
