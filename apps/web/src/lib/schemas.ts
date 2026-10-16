@@ -1,5 +1,6 @@
 import { z } from 'zod'
-import { isValidCpf } from '@addere/types'
+import { DUE_DAY_MAX, DUE_DAY_MIN, GRACE_MONTHS_MAX, isValidCpf } from '@addere/types'
+import { moneyInputToApi } from './billing-ui'
 
 export const loginSchema = z.object({
   email: z.string().email('Email inválido'),
@@ -157,3 +158,51 @@ export const clientFormSchema = z.object({
 })
 
 export type ClientFormData = z.infer<typeof clientFormSchema>
+
+// ─── Gestão Addere — contrato em rascunho (plano 013) ───────────────────────
+// Strings do formulário. A quantidade incluída só é digitada no pacote sem
+// quantidade fixa (Ilimitado); a tela confere isso no submit, porque o schema
+// não conhece o pacote. A API valida de novo (billing.schema.ts).
+
+const intInRange = (v: string, min: number, max: number) =>
+  /^\d+$/.test(v.trim()) && Number(v) >= min && Number(v) <= max
+
+export const contractDraftFormSchema = z
+  .object({
+    packageId: z.string().min(1, 'Escolha o pacote'),
+    licenseType: z.enum(['STANDARD', 'INTELLIGENCE']),
+    includedSeats: z.string(),
+    extraSeats: z.string().refine((v) => intInRange(v, 0, 10000), 'Número inteiro de 0 a 10000'),
+    packagePrice: z.string().refine((v) => moneyInputToApi(v) !== null, 'Valor inválido'),
+    extraSeatPrice: z.string().refine((v) => moneyInputToApi(v) !== null, 'Valor inválido'),
+    graceMonths: z
+      .string()
+      .refine((v) => intInRange(v, 0, GRACE_MONTHS_MAX), `De 0 a ${GRACE_MONTHS_MAX} meses`),
+    dueDay: z
+      .string()
+      .refine(
+        (v) => intInRange(v, DUE_DAY_MIN, DUE_DAY_MAX),
+        `Entre os dias ${DUE_DAY_MIN} e ${DUE_DAY_MAX}`
+      ),
+    useDefaultBlockDays: z.boolean(),
+    overdueBlockDays: z.string(),
+    reason: z.string().max(500, 'Máximo de 500 caracteres'),
+  })
+  .superRefine((d, ctx) => {
+    if (d.includedSeats.trim() && !intInRange(d.includedSeats, 1, 10000)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['includedSeats'],
+        message: 'Número inteiro de 1 a 10000',
+      })
+    }
+    if (!d.useDefaultBlockDays && !intInRange(d.overdueBlockDays, 1, 90)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['overdueBlockDays'],
+        message: 'Entre 1 e 90 dias',
+      })
+    }
+  })
+
+export type ContractDraftFormData = z.infer<typeof contractDraftFormSchema>

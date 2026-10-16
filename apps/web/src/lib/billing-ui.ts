@@ -1,11 +1,17 @@
 // Gestão Addere (plano 013) — rótulos, cores e conversão de dinheiro do painel.
 // Puro e testado em __tests__/billing-ui.test.ts; as telas não têm teste de render.
-import type {
-  BillingEventType,
-  ClientStatus,
-  ContractStatus,
-  ContractTermsStatus,
-  LicenseType,
+import {
+  computeBillingCalendar,
+  contractMonthlyTotal,
+  resolveCurrentTerms,
+  type BillingEventType,
+  type ClientStatus,
+  type CompanyContractDto,
+  type ContractStatus,
+  type ContractTermsDto,
+  type ContractTermsStatus,
+  type LicensePackageDto,
+  type LicenseType,
 } from '@addere/types'
 import { parseOfficialNumber } from './reconciliation'
 
@@ -121,4 +127,98 @@ export function moneyApiToInput(value: string | null | undefined): string {
   const n = Number(value)
   if (!Number.isFinite(n)) return ''
   return n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+}
+
+// ─── Termos do contrato (a ficha recebe as datas como string ISO) ────────────
+
+/** Termos que valem agora (EFFECTIVE); null antes do aceite */
+export function currentTermsOf(
+  contract: CompanyContractDto | null | undefined,
+  now: Date
+): ContractTermsDto | null {
+  if (!contract) return null
+  const terms = contract.terms.map((dto) => ({
+    status: dto.status,
+    version: dto.version,
+    effectiveFrom: dto.effectiveFrom ? new Date(dto.effectiveFrom) : null,
+    dto,
+  }))
+  return resolveCurrentTerms(terms, now)?.dto ?? null
+}
+
+/** A proposta em aberto (PROPOSED de maior versão), editada no rascunho */
+export function proposedTermsOf(
+  contract: CompanyContractDto | null | undefined
+): ContractTermsDto | null {
+  if (!contract) return null
+  return (
+    contract.terms
+      .filter((t) => t.status === 'PROPOSED')
+      .sort((a, b) => b.version - a.version)[0] ?? null
+  )
+}
+
+// ─── Formulário do rascunho ──────────────────────────────────────────────────
+
+/** Preços de tabela do pacote para o tipo de licença (só pré-preenchem o contrato) */
+export function listPricesFor(
+  pkg: LicensePackageDto,
+  licenseType: LicenseType
+): { packagePrice: string | null; extraSeatPrice: string | null } {
+  return licenseType === 'INTELLIGENCE'
+    ? {
+        packagePrice: pkg.listPriceIntelligence,
+        extraSeatPrice: pkg.listExtraSeatPriceIntelligence,
+      }
+    : { packagePrice: pkg.listPriceStandard, extraSeatPrice: pkg.listExtraSeatPriceStandard }
+}
+
+/** Total mensal ao vivo a partir do que está digitado; null se algum campo é inválido */
+export function draftMonthlyTotal(input: {
+  packagePrice: string
+  extraSeats: string
+  extraSeatPrice: string
+}): string | null {
+  const packagePrice = moneyInputToApi(input.packagePrice)
+  const extraSeatPrice = moneyInputToApi(input.extraSeatPrice)
+  if (packagePrice === null || extraSeatPrice === null) return null
+  if (!/^\d+$/.test(input.extraSeats.trim())) return null
+  return contractMonthlyTotal({
+    packagePrice,
+    extraSeats: Number(input.extraSeats),
+    extraSeatPrice,
+  })
+}
+
+/**
+ * Prévia "se aceito hoje": 1ª competência cobrada e 1ª fatura. Valor fora da
+ * faixa devolve null (a prévia some), sem deixar o RangeError escapar.
+ */
+export function acceptancePreview(
+  input: { graceMonths: string; dueDay: string },
+  now: Date
+): { firstBilledCompetence: Date; firstDueDate: Date } | null {
+  if (!/^\d+$/.test(input.graceMonths.trim()) || !/^\d+$/.test(input.dueDay.trim())) return null
+  try {
+    return computeBillingCalendar({
+      acceptDate: now,
+      graceMonths: Number(input.graceMonths),
+      dueDay: Number(input.dueDay),
+    })
+  } catch {
+    return null
+  }
+}
+
+let todayFormatter: Intl.DateTimeFormat | null = null
+
+/** Dia civil de hoje em São Paulo, 'DD/MM/AAAA' */
+export function todayInSaoPaulo(now: Date): string {
+  todayFormatter ??= new Intl.DateTimeFormat('pt-BR', {
+    timeZone: 'America/Sao_Paulo',
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  })
+  return todayFormatter.format(now)
 }
