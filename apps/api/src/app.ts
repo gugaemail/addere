@@ -29,6 +29,8 @@ import permissionsRoutes, { userPermissionsRoutes } from './modules/permissions/
 import billingAdminRoutes from './modules/billing/billing.routes'
 import contractTemplatesRoutes from './modules/billing/contract-templates.routes'
 import contractDocumentsRoutes from './modules/billing/contract-documents.routes'
+import billingMeRoutes from './modules/billing/me.routes'
+import { initApplyDueTermsTicker } from './modules/billing/jobs/apply-due-terms'
 import { authenticate } from './middleware/authenticate'
 import { env } from './lib/env'
 import { registerErrorHandling } from './lib/error-handler'
@@ -120,6 +122,7 @@ export async function buildApp(): Promise<FastifyInstance> {
   await app.register(billingAdminRoutes, { prefix: '/admin/billing' })
   await app.register(contractTemplatesRoutes, { prefix: '/admin/billing/contract-templates' })
   await app.register(contractDocumentsRoutes, { prefix: '/admin/billing' })
+  await app.register(billingMeRoutes, { prefix: '/billing/me' })
 
   // Inicia schedulers de auto-sync após o servidor estar pronto
   initSentry()
@@ -135,6 +138,14 @@ export async function buildApp(): Promise<FastifyInstance> {
     }
     registerIntelJobHandlers()
     initIntelScheduler()
+    // Termos com "vale a partir de" no futuro mudam a Inteligência na data
+    // (plano 014). O 016 absorve este ticker no agendador de cobrança.
+    try {
+      initApplyDueTermsTicker()
+    } catch (err) {
+      captureError(err, { module: 'apply-due-terms' })
+      app.log.error({ err }, '[apply-due-terms] ticker não iniciou neste boot')
+    }
   })
 
   return app

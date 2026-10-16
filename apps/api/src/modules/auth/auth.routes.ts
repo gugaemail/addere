@@ -17,6 +17,7 @@ import {
 import { AppError } from '../../lib/errors'
 import { authenticate } from '../../middleware/authenticate'
 import { getEffectivePermissions } from '../permissions/permissions.service'
+import { findPendingDocument } from '../billing/me.service'
 import { prisma } from '@addere/db'
 
 const COOKIE_NAME = 'refreshToken'
@@ -176,6 +177,11 @@ export default async function authRoutes(app: FastifyInstance) {
       const intelligenceConfig = (user.company?.intelligenceConfig ?? null) as {
         defaultTone?: string
       } | null
+      // Contrato aguardando aceite (plano 014): só o ADMIN vê a faixa do painel.
+      // O painel compara pendingDocument.designatedAdmin.id com o usuário; o
+      // app ignora o campo.
+      const pendingDocument =
+        user.role === 'ADMIN' && user.companyId ? await findPendingDocument(user.companyId) : null
 
       return reply.send({
         id: user.id,
@@ -198,6 +204,7 @@ export default async function authRoutes(app: FastifyInstance) {
           ? {
               intelligenceEnabled: user.company.intelligenceEnabled,
               defaultTone: intelligenceConfig?.defaultTone ?? 'informal',
+              pendingDocument,
             }
           : null,
       })
