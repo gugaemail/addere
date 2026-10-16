@@ -206,3 +206,37 @@ export const contractDraftFormSchema = z
   })
 
 export type ContractDraftFormData = z.infer<typeof contractDraftFormSchema>
+
+// ─── Gestão Addere — pacotes e regras de cobrança (plano 013) ───────────────
+
+const optionalFormMoney = z
+  .string()
+  .refine((v) => !v.trim() || moneyInputToApi(v) !== null, 'Valor inválido')
+
+export const packageFormSchema = z.object({
+  // O código só é editável na criação (o campo fica só de leitura na edição)
+  code: z
+    .string()
+    .trim()
+    .regex(/^[A-Z0-9_]{2,20}$/, 'Código: 2 a 20 letras maiúsculas, números ou _'),
+  name: z.string().trim().min(1, 'Nome obrigatório').max(60, 'Máximo de 60 caracteres'),
+  // Vazio = quantidade definida no contrato (Ilimitado)
+  seats: z
+    .string()
+    .refine((v) => !v.trim() || intInRange(v, 1, 10000), 'Número inteiro de 1 a 10000'),
+  listPriceStandard: optionalFormMoney,
+  listPriceIntelligence: optionalFormMoney,
+  listExtraSeatPriceStandard: optionalFormMoney,
+  listExtraSeatPriceIntelligence: optionalFormMoney,
+  sortOrder: z.string().refine((v) => intInRange(v, 0, 1000), 'De 0 a 1000'),
+})
+
+export type PackageFormData = z.infer<typeof packageFormSchema>
+
+export const billingSettingsFormSchema = z.object({
+  overdueBlockDays: z.string().refine((v) => intInRange(v, 1, 90), 'Entre 1 e 90 dias'),
+  dueReminderDays: z.string().refine((v) => intInRange(v, 0, 15), 'Entre 0 e 15 dias'),
+  notifyEmail: optionalFormEmail,
+})
+
+export type BillingSettingsFormData = z.infer<typeof billingSettingsFormSchema>
