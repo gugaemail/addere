@@ -3,12 +3,18 @@
 // Cadastro e edição de usuário — um só modal para /users, criar, editar e
 // copiar. Substituiu o CreateUserModal (que só criava) e o UserModal preso à
 // aba da empresa (que só editava lá dentro).
+import { useState } from 'react'
+import Link from 'next/link'
 import { useForm } from 'react-hook-form'
+import { useQueryClient } from '@tanstack/react-query'
+import { AlertTriangle } from 'lucide-react'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { toast } from 'sonner'
-import type { UserPublic } from '@addere/types'
+import { consumesSeat, type SeatSubject, type SeatUsage, type UserPublic } from '@addere/types'
 import { makeUserFormSchema, type UserFormData } from '@/lib/schemas'
-import { api, getApiErrorMessage } from '@/lib/api'
+import { api, getApiErrorCode, getApiErrorMessage } from '@/lib/api'
+import { seatBlocksSave } from '@/lib/seats'
+import { billingKeys } from '@/hooks/useBilling'
 import {
   PROFILE_LABELS,
   SELECTABLE_PROFILES,
@@ -34,6 +40,11 @@ interface UserFormModalProps {
   companyName?: string | null
   /** Usuários com intel.manager da mesma empresa (D3b) — select de gerente. */
   managers: { id: string; name: string }[]
+  /**
+   * Licenças da empresa (plano 015). No limite, o salvar trava quando a
+   * escrita passaria a ocupar uma licença; a API confere de novo.
+   */
+  seats?: SeatUsage | null
   onClose: () => void
   onSaved: () => void
 }
@@ -50,6 +61,7 @@ export function UserFormModal({
   companyId,
   companyName,
   managers,
+  seats,
   onClose,
   onSaved,
 }: UserFormModalProps) {
@@ -88,7 +100,10 @@ export function UserFormModal({
   // Só o SUPERADMIN cria ou promove administradores (a API devolve 403 para
   // os demais) — o ADMIN da empresa não deve nem ver a opção. Se o usuário
   // editado já é ADMIN, a opção fica para o select mostrar o perfil atual.
-  const { isSuperAdmin } = useAuth()
+  const { isAdmin, isSuperAdmin } = useAuth()
+  const queryClient = useQueryClient()
+  // Recusa da API por licença (outro ADMIN ocupou a última com o modal aberto)
+  const [seatRefusal, setSeatRefusal] = useState<string | null>(null)
   const profiles = SELECTABLE_PROFILES.filter(
     (key) => key !== 'ADMIN' || isSuperAdmin || (user && profileOf(user) === 'ADMIN')
   )
@@ -132,9 +147,16 @@ export function UserFormModal({
           ...(hasVendorProfile(data.profile) && vendorBody(data)),
         })
       }
+      void queryClient.invalidateQueries({ queryKey: billingKeys.seats })
       onSaved()
     } catch (err: unknown) {
-      toast.error(getApiErrorMessage(err, 'Erro ao salvar usuário.'))
+      const code = getApiErrorCode(err)
+      const message = getApiErrorMessage(err, 'Erro ao salvar usuário.')
+      toast.error(message)
+      if (code === 'SEAT_LIMIT_REACHED' || code === 'CONTRACT_CANCELLED') {
+        setSeatRefusal(message)
+        void queryClient.invalidateQueries({ queryKey: billingKeys.seats })
+      }
     }
   }
 
@@ -142,6 +164,22 @@ export function UserFormModal({
   // companyId nulo e o usuário some da empresa e da Equipe em campo, que
   // filtra por ela.
   const missingCompany = (isNew || orphan) && !companyId
+
+  // Licenças (plano 015): o perfil é observado, então trocar para
+  // Administrador tira o aviso e libera o salvar
+  const seatBefore: SeatSubject | null =
+    mode === 'edit' && user
+      ? { role: user.role, active: user.active, companyId: user.companyId ?? null }
+      : null
+  const seatAfter: SeatSubject = {
+    role: profileToPayload(profile).role,
+    active: mode === 'edit' && user ? user.active : true,
+    companyId: orphan ? companyId : mode === 'edit' ? (user?.companyId ?? null) : companyId,
+  }
+  const atLimit = seatBlocksSave(seats, seatBefore, seatAfter)
+  // A recusa da API vale enquanto a escrita ainda ocuparia uma licença
+  const refused = seatRefusal !== null && consumesSeat(seatBefore, seatAfter)
+  const seatBlocked = atLimit || refused
 
   return (
     <Modal isOpen onClose={onClose} title={TITLES[mode]}>
@@ -268,11 +306,44 @@ export function UserFormModal({
           </p>
         )}
 
+        {seatBlocked && (
+          <p className="flex items-start gap-2 rounded-lg border border-warning/30 bg-warning/5 px-3 py-2 text-sm text-[var(--text-secondary)]">
+            <AlertTriangle
+              size={16}
+              strokeWidth={1.5}
+              className="mt-0.5 shrink-0 text-warning"
+              aria-hidden
+            />
+            <span>
+              {atLimit && seats?.limit != null ? (
+                <>
+                  {isSuperAdmin ? 'A empresa' : 'Sua empresa'} já usa {seats.used} de {seats.limit}{' '}
+                  licenças. Vendedores e gerentes ocupam licença; administradores não.{' '}
+                  {isSuperAdmin ? (
+                    'Desative alguém ou ajuste o contrato em Gestão Addere › Clientes.'
+                  ) : isAdmin ? (
+                    <>
+                      Desative alguém ou{' '}
+                      <Link href="/plano" className="font-medium text-brand hover:underline">
+                        solicite mais licenças →
+                      </Link>
+                    </>
+                  ) : (
+                    'Desative alguém para liberar uma licença.'
+                  )}
+                </>
+              ) : (
+                seatRefusal
+              )}
+            </span>
+          </p>
+        )}
+
         <div className="flex justify-end gap-3 pt-2">
           <Button type="button" variant="secondary" onClick={onClose}>
             Cancelar
           </Button>
-          <Button type="submit" loading={isSubmitting} disabled={missingCompany}>
+          <Button type="submit" loading={isSubmitting} disabled={missingCompany || seatBlocked}>
             {mode === 'edit' ? 'Salvar' : 'Criar usuário'}
           </Button>
         </div>

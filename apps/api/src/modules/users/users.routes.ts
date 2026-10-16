@@ -1,5 +1,6 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify'
 import { requirePermission } from '../../middleware/authenticate'
+import { AppError } from '../../lib/errors'
 import { createUserSchema, updateUserSchema } from './users.schema'
 import {
   listUsers,
@@ -60,6 +61,10 @@ export default async function usersRoutes(app: FastifyInstance) {
         const user = await createUser(result.data, request.user)
         return reply.status(201).send(user)
       } catch (err) {
+        // AppError (SEAT_LIMIT_REACHED, CONTRACT_CANCELLED, 404 e 422 dos services)
+        // segue para o handler global com status, code e details. Só o Error
+        // genérico mantém o mapeamento antigo.
+        if (err instanceof AppError) throw err
         return reply.status(409).send({ message: (err as Error).message })
       }
     }
@@ -89,6 +94,8 @@ export default async function usersRoutes(app: FastifyInstance) {
       try {
         return reply.send(await updateUserById(id, result.data, request.user))
       } catch (err) {
+        // AppError segue para o handler global, como no POST /users
+        if (err instanceof AppError) throw err
         if (err instanceof ForbiddenError) {
           return reply.status(403).send({ message: err.message })
         }
@@ -108,6 +115,8 @@ export default async function usersRoutes(app: FastifyInstance) {
         const user = await toggleUserActive(id, request.user)
         return reply.send(user)
       } catch (err) {
+        // AppError segue para o handler global, como no POST /users
+        if (err instanceof AppError) throw err
         return reply.status(404).send({ message: (err as Error).message })
       }
     }

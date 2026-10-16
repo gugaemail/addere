@@ -48,6 +48,9 @@ export interface BillingEventRef {
   invoiceId?: string
   invoiceNumber?: number
   itemId?: string
+  // Plano 015: pedido de licenças e os termos que a aprovação criou
+  licenseRequestId?: string
+  termsId?: string
 }
 
 export function isUniqueViolation(err: unknown): boolean {

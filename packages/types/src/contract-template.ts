@@ -8,7 +8,13 @@
 // antigos aparecem. Quem mexer nele precisa manter o mesmo HTML para os corpos
 // v1 (o teste com os textos reais de docs/billing/ ajuda a perceber).
 
-import { moneyToCents, type ContractStatus, type LicenseType } from './billing'
+import {
+  moneyToCents,
+  type ContractStatus,
+  type LicenseRequestDto,
+  type LicenseType,
+  type SeatUsage,
+} from './billing'
 
 export type ContractDocumentKind = 'CONTRACT' | 'AMENDMENT'
 export type ContractTemplateStatus = 'DRAFT' | 'PUBLISHED' | 'ARCHIVED'
@@ -681,6 +687,10 @@ export interface MyBillingDto {
   scheduledTerms: MyTermsDto | null // aceito, com effectiveFrom no futuro
   pendingDocument: PendingDocumentRef | null
   designatedAdmin: DesignatedAdminRef | null
+  // Plano 015: só vêm quando o cliente vê um contrato (sem contrato ou em
+  // rascunho, a resposta é a do 014, com as cinco chaves acima)
+  seats?: SeatUsage
+  licenseRequests?: LicenseRequestDto[] // os 20 mais recentes da empresa
 }
 
 /** GET /billing/me/documents */

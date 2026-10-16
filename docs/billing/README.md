@@ -183,6 +183,124 @@ criados.
 - Só com um modelo de aditivo que preveja o anexo, validado pelo advogado. O
   aditivo v1 diz que as demais cláusulas não mudam e **não** serve para isso.
 
+## Licenças
+
+Plano 015. O contrato vende N licenças; a trava faz o número valer.
+
+### Quem ocupa licença
+
+- Usuário **ativo** com perfil vendedor ou gerente (`SALESPERSON`) dentro da
+  empresa. ADMIN é grátis. Desativar libera a licença na hora.
+- Fonte única da contagem: `countSeatHolders`, em
+  `apps/api/src/modules/billing/seat-guard.ts`. A leitura (`GET
+  /billing/me/seats`, o `/plano` e a aba Licenças da ficha) e a trava usam a
+  mesma função. O 018 também.
+- O limite é `includedSeats + extraSeats` dos termos atuais
+  (`resolveCurrentTerms`). O Ilimitado passa pela mesma trava, com a quantidade
+  digitada no contrato.
+- Sem contrato (teste, piloto, implantação), em rascunho ou aguardando aceite:
+  sem limite. Contrato cancelado: ninguém é criado nem ativado (409
+  `CONTRACT_CANCELLED`).
+- Redução de pacote não desativa ninguém: o medidor mostra "acima do limite"
+  e a trava recusa novas ativações até o ADMIN desativar usuários.
+- A trava vale também para o SUPERADMIN. Passar do limite sem pedido do
+  cliente é aditivo (decisão 9), não atalho.
+
+### A trava: `writeWithSeatGuard`
+
+Os seis pontos que criam, ativam, vinculam ou mudam alguém para
+`SALESPERSON`, e todos passam por `writeWithSeatGuard`:
+
+| # | Onde | O que faz |
+|---|---|---|
+| 1 | `users.service.ts` `createUser` | `POST /users` |
+| 2 | `companies.service.ts` `createUser` | `POST /companies/:id/users` |
+| 3 | `users.service.ts` `toggleUserActive` | `PATCH /users/:id/active` |
+| 4 | `companies.service.ts` `toggleUserActive` | `PATCH /companies/:id/users/:userId/active` |
+| 5 | `companies.service.ts` `updateUser` | `PATCH /companies/:id/users/:userId` e `PATCH /users/:id`, que delega para cá |
+| 6 | `users.service.ts` `updateUserById` | vínculo de usuário órfão a uma empresa |
+
+**Regra:** todo caminho novo que cria, ativa, vincula ou muda alguém para
+`SALESPERSON` (importação em lote, SSO, convite) tem de passar por
+`writeWithSeatGuard`. Quando a segunda etapa unificar os dois `createUser`, os
+seis viram cinco: atualize esta tabela junto. Os scripts de operador
+(`packages/db/prisma/seed.ts` e `apps/api/scripts/seed-demo-tenant.ts`)
+escrevem direto no banco, de propósito fora da trava.
+
+Só entra na trava a escrita que **passa a ocupar** uma licença
+(`consumesSeat`); desativar nunca entra. No limite, a resposta é 409
+`SEAT_LIMIT_REACHED` com `details: { used, limit }`.
+
+**Por que duas escritas ao mesmo tempo não furam o limite.** A trava começa
+com um `UPDATE` do contador `seatGuardVersion` na linha do contrato da
+empresa. Todo `UPDATE` no Postgres prende a linha até o fim da transação: a
+segunda escrita da mesma empresa espera a primeira terminar. No READ COMMITTED
+(o padrão do Postgres e do Neon), a contagem que ela roda depois de liberada é
+um comando novo e já vê o vendedor que a primeira gravou. Com 19 de 20, a
+primeira conta 19 e grava; a segunda conta 20 e recusa. Empresas diferentes
+não esperam umas pelas outras.
+
+Três coisas desfazem a garantia **sem nenhum teste ficar vermelho** (o mock
+não simula concorrência):
+
+1. mudar o nível de isolamento da transação (SERIALIZABLE ou REPEATABLE READ
+   trocariam a fila por erro de serialização);
+2. contar antes da trava (a ordem é: trava, contrato e termos, contagem,
+   escrita);
+3. escrever com `prisma` em vez do `db` que a trava entrega.
+
+Quem revisar uma mudança na trava confere, nesta ordem: o `updateMany` antes
+do `count`; o `write` usando `db`; os seis pontos chamando
+`writeWithSeatGuard`.
+
+### Pedido de licenças adicionais
+
+- Só o **administrador indicado** pede (decisão 10), no `/plano`. O pedido
+  mostra o preço por licença dos termos atuais e vale como contratação, sem
+  aditivo (§3.5 e §14.3). Os outros ADMINs veem o botão desativado, com o
+  nome do indicado; o `POST /billing/me/license-requests` dá 403
+  `NOT_DESIGNATED_ADMIN`.
+- A declaração aceita sai de `licenseRequestDeclaration` (`@addere/types`): o
+  painel mostra o resultado e a API grava o mesmo texto, com o SHA-256, nome e
+  e-mail de quem pediu, IP e navegador.
+- Um pedido pendente por empresa (409 `LICENSE_REQUEST_PENDING`). Preço
+  diferente do atual: 409 `LICENSE_PRICE_CHANGED`, e o modal passa a mostrar o
+  preço novo.
+- O aviso vai por e-mail para o `notifyEmail` das regras de cobrança. Sem ele
+  (ou sem `RESEND_API_KEY`), o pedido é gravado e o e-mail é pulado com aviso
+  no log; o superadmin vê o pedido em Gestão Addere › Solicitações de qualquer
+  forma.
+
+Ciclo: **PENDING → APPROVED** ou **PENDING → REJECTED**.
+
+- **Aprovar** cria termos novos EFFECTIVE na hora (`origin LICENSE_REQUEST`),
+  copiando os valores dos termos atuais e somando a quantidade em
+  `extraSeats`. O limite sobe na hora. A Inteligência é sincronizada pela
+  mesma regra do aceite.
+- A aprovação recusa com 409: contrato que não está ativo
+  (`CONTRACT_NOT_ACTIVE`); aditivo em rascunho ou enviado
+  (`AMENDMENT_PENDING`: o aditivo foi montado sobre os termos antigos e, ao ser
+  aceito, apagaria as licenças aprovadas; aprove depois do aceite do aditivo,
+  ou cancele o aditivo antes); aditivo aceito que ainda não passou a valer
+  (`AMENDMENT_NOT_YET_EFFECTIVE`, pelo mesmo motivo); preço dos termos
+  diferente do que o cliente aceitou (`LICENSE_PRICE_CHANGED`); pedido já
+  decidido (`LICENSE_REQUEST_ALREADY_DECIDED`).
+- **Recusar** exige o motivo, que o ADMIN vê no `/plano`. Nenhum e-mail sai na
+  decisão.
+- Trocar o indicado não mexe em pedido pendente: a declaração foi aceita por
+  quem era o indicado na hora.
+- **Cobrança:** os termos aprovados entram com `effectiveFrom` = o momento da
+  aprovação, e o 016 cobra pelos termos vigentes no início de cada competência.
+  Licença liberada no mês M não é cobrada em M; entra na fatura a partir de
+  M+1, como a declaração promete.
+
+### Retenção dos pedidos
+
+O pedido guarda o IP, o navegador e o texto aceito, tratados por execução de
+contrato (LGPD, art. 7º, V), com a mesma retenção do registro de aceite:
+durante a vigência e por 5 anos depois do encerramento. Nenhum job de expurgo
+toca `billing_license_requests`.
+
 ## Faturamento (plano 016)
 
 Mensal e pós-pago, com baixa manual. O sistema calcula a fatura, registra,

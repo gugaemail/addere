@@ -26,13 +26,15 @@ import { ManualInvoiceModal } from '@/components/billing/InvoiceModals'
 import { CadastroTab } from './tabs/CadastroTab'
 import { ContratoTab } from './tabs/ContratoTab'
 import { HistoricoTab } from './tabs/HistoricoTab'
+import { LicencasTab } from './tabs/LicencasTab'
 
-type Tab = 'cadastro' | 'contrato' | 'faturas' | 'historico'
+type Tab = 'cadastro' | 'contrato' | 'faturas' | 'licencas' | 'historico'
 
 const TABS: { key: Tab; label: string }[] = [
   { key: 'cadastro', label: 'Cadastro' },
   { key: 'contrato', label: 'Contrato' },
   { key: 'faturas', label: 'Faturas' },
+  { key: 'licencas', label: 'Licenças' }, // plano 015
   { key: 'historico', label: 'Histórico' },
 ]
 
@@ -209,6 +211,7 @@ export default function ClientePage() {
       {/* key: o formulário recomeça se o contrato mudar de status (ex.: saiu do rascunho) */}
       {tab === 'contrato' && <ContratoTab key={contract?.status ?? 'NONE'} client={client} />}
       {tab === 'faturas' && <FaturasTab companyId={company.id} />}
+      {tab === 'licencas' && <LicencasTab companyId={company.id} />}
       {tab === 'historico' && <HistoricoTab companyId={company.id} />}
     </div>
   )

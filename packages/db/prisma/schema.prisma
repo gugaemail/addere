@@ -120,6 +120,8 @@ model Company {
   contractDocuments ContractDocument[]
   // ─── Faturamento (plano 016) ───
   invoices          Invoice[]
+  // ─── Licenças adicionais (plano 015) ───
+  licenseRequests   LicenseRequest[]
 
   @@map("companies")
 }
@@ -182,16 +184,18 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  refreshTokens         RefreshToken[]
-  orders                Order[]
-  pilotEvents           PilotEvent[]         @relation("UserPilotEvents")
-  pilotFeedbacks        PilotFeedback[]      @relation("UserPilotFeedbacks")
-  passwordResetTokens   PasswordResetToken[]
-  helpReports           HelpReport[]
-  permissions           UserPermission[]
-  billingEvents         BillingEvent[]       @relation("BillingEventActor")
-  contractTermsCreated  ContractTerms[]      @relation("ContractTermsAuthor")
-  designatedInContracts CompanyContract[]    @relation("ContractDesignatedAdmin")
+  refreshTokens          RefreshToken[]
+  orders                 Order[]
+  pilotEvents            PilotEvent[]         @relation("UserPilotEvents")
+  pilotFeedbacks         PilotFeedback[]      @relation("UserPilotFeedbacks")
+  passwordResetTokens    PasswordResetToken[]
+  helpReports            HelpReport[]
+  permissions            UserPermission[]
+  billingEvents          BillingEvent[]       @relation("BillingEventActor")
+  contractTermsCreated   ContractTerms[]      @relation("ContractTermsAuthor")
+  designatedInContracts  CompanyContract[]    @relation("ContractDesignatedAdmin")
+  licenseRequestsMade    LicenseRequest[]     @relation("LicenseRequestRequester")
+  licenseRequestsDecided LicenseRequest[]     @relation("LicenseRequestDecider")
 
   @@unique([companyId, idVendProt]) // dois usuários com o mesmo código veriam o mesmo plano (§8 do plano)
   @@map("users")
@@ -1332,7 +1336,8 @@ model ContractTerms {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  documents ContractDocument[]
+  documents      ContractDocument[]
+  licenseRequest LicenseRequest? // o pedido aprovado que criou estes termos (plano 015)
 
   @@unique([contractId, version])
   @@index([contractId, status])
@@ -1540,4 +1545,45 @@ model InvoiceItem {
 
   @@index([invoiceId])
   @@map("billing_invoice_items")
+}
+
+// ─── Licenças adicionais (plano 015) ───
+
+enum LicenseRequestStatus {
+  PENDING // aguardando o superadmin
+  APPROVED // virou termos EFFECTIVE (origin LICENSE_REQUEST)
+  REJECTED // recusado, com motivo
+}
+
+// Pedido de licenças do administrador indicado (plano 015). A declaração
+// aceita é o aceite: aprovado, vira termos na hora, sem aditivo.
+model LicenseRequest {
+  id                 String               @id @default(uuid())
+  quantity           Int
+  message            String? // texto livre do ADMIN, até 500 caracteres
+  unitPriceShown     Decimal              @db.Decimal(14, 2) // preço por licença mostrado no modal
+  declarationText    String // a frase exata que o ADMIN viu
+  declarationSha256  String // SHA-256 (hex) de declarationText
+  requestedByName    String // congelado no pedido, como no aceite do contrato
+  requestedByEmail   String
+  requestedIp        String?
+  requestedUserAgent String?
+  status             LicenseRequestStatus @default(PENDING)
+  decidedAt          DateTime?
+  decisionReason     String? // obrigatório na recusa
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
+
+  companyId        String
+  company          Company        @relation(fields: [companyId], references: [id])
+  requestedById    String
+  requestedBy      User           @relation("LicenseRequestRequester", fields: [requestedById], references: [id])
+  decidedById      String?
+  decidedBy        User?          @relation("LicenseRequestDecider", fields: [decidedById], references: [id])
+  resultingTermsId String?        @unique
+  resultingTerms   ContractTerms? @relation(fields: [resultingTermsId], references: [id])
+
+  @@index([companyId, status])
+  @@index([status, createdAt])
+  @@map("billing_license_requests")
 }
