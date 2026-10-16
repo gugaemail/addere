@@ -32,6 +32,7 @@ import contractDocumentsRoutes from './modules/billing/contract-documents.routes
 import billingMeRoutes from './modules/billing/me.routes'
 import contractCancelRoutes from './modules/billing/contract-cancel.routes'
 import { initApplyDueTermsTicker } from './modules/billing/jobs/apply-due-terms'
+import { initBillingScheduler } from './modules/billing/jobs/billing-scheduler'
 import { authenticate } from './middleware/authenticate'
 import { env } from './lib/env'
 import { registerErrorHandling } from './lib/error-handler'
@@ -140,6 +141,7 @@ export async function buildApp(): Promise<FastifyInstance> {
     }
     registerIntelJobHandlers()
     initIntelScheduler()
+    initBillingScheduler()
     // Termos com "vale a partir de" no futuro mudam a Inteligência na data
     // (plano 014). O 016 absorve este ticker no agendador de cobrança.
     try {
