@@ -5,6 +5,9 @@ export { FIELD_REGISTRY, FIELD_REGISTRY_KEYS } from './field-registry'
 // ─── Camada de Inteligência ────────────────────────────────────────────────
 export * from './intelligence'
 
+// ─── Gestão Addere (planos 013 a 018) ──────────────────────────────────────
+export * from './billing'
+
 // ─── Auth ──────────────────────────────────────────────────────────────────
 
 export type UserRole = 'SUPERADMIN' | 'ADMIN' | 'SALESPERSON'
