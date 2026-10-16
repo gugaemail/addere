@@ -13,6 +13,7 @@ import {
   LogOut,
   Menu,
   Moon,
+  Package,
   Route,
   Settings,
   SlidersHorizontal,
@@ -44,9 +45,9 @@ interface NavItem {
   icon: LucideIcon
   requires?: NavRequirement
   /**
-   * Destino de quem não é SUPERADMIN. "Empresas" leva o SUPERADMIN à lista e o
-   * ADMIN direto à ficha da empresa dele — não existe lista de uma empresa só.
-   * Sem companyId resolvido, o item não é renderizado.
+   * Destino de quem não é SUPERADMIN. "Empresas" leva o ADMIN direto à ficha da
+   * empresa dele — não existe lista de uma empresa só. Sem companyId resolvido,
+   * o item não é renderizado.
    */
   hrefForCompany?: (companyId: string) => string
 }
@@ -59,6 +60,36 @@ interface NavGroup {
 // Grupos da sidebar (E9). O gating é puro (lib/nav-gating) e testado;
 // grupos sem itens visíveis somem inteiros.
 const NAV_GROUPS: NavGroup[] = [
+  {
+    // Gestão Addere (plano 013): cadastro comercial, contrato e pacotes — só
+    // o SUPERADMIN. Painel, Faturas, Solicitações e Modelos de contrato
+    // entram nos planos 014 a 018.
+    title: 'Gestão Addere',
+    items: [
+      {
+        href: '/gestao/clientes',
+        label: 'Clientes',
+        // A ficha técnica (/empresas/[id]) é aberta a partir do cliente
+        match: (p) => p.startsWith('/gestao/clientes') || p.startsWith('/empresas'),
+        icon: Building2,
+        requires: 'superadmin',
+      },
+      {
+        href: '/gestao/pacotes',
+        label: 'Pacotes e regras',
+        match: (p) => p.startsWith('/gestao/pacotes'),
+        icon: Package,
+        requires: 'superadmin',
+      },
+      {
+        href: '/piloto',
+        label: 'Piloto',
+        match: (p) => p.startsWith('/piloto'),
+        icon: BarChart3,
+        requires: 'superadmin',
+      },
+    ],
+  },
   {
     title: 'Operação',
     items: [
@@ -150,20 +181,15 @@ const NAV_GROUPS: NavGroup[] = [
       },
       {
         // E23: o ADMIN cadastra e confere a integração da própria empresa
-        // (filiais, clientes, produtos, pedidos, Protheus, campos e logs)
-        href: '/dashboard',
+        // (filiais, clientes, produtos, pedidos, Protheus, campos e logs). Só o
+        // ADMIN: o SUPERADMIN chega às empresas por Clientes, na Gestão Addere
+        // (plano 013), e abre a ficha técnica pelo botão "Integração"
+        href: '/empresas',
         label: 'Empresas',
-        match: (p) => p.startsWith('/dashboard') || p.startsWith('/empresas'),
+        match: (p) => p.startsWith('/empresas'),
         icon: Building2,
-        requires: 'admin',
+        requires: 'companyAdmin',
         hrefForCompany: (companyId) => `/empresas/${companyId}`,
-      },
-      {
-        href: '/piloto',
-        label: 'Piloto',
-        match: (p) => p.startsWith('/piloto'),
-        icon: BarChart3,
-        requires: 'superadmin',
       },
     ],
   },

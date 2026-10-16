@@ -58,6 +58,17 @@ describe('canSeeNavItem', () => {
   it('SUPERADMIN passa por qualquer permission', () => {
     expect(canSeeNavItem({ permission: 'intel.admin' }, ctx({ isSuperAdmin: true }))).toBe(true)
   })
+
+  // Plano 013: o item Empresas é a ficha da própria empresa; o SUPERADMIN tem a
+  // lista de Clientes na Gestão Addere
+  it("'companyAdmin' só para o ADMIN da empresa", () => {
+    expect(canSeeNavItem('companyAdmin', ctx({ isAdmin: true }))).toBe(true)
+    expect(canSeeNavItem('companyAdmin', ctx({ isSuperAdmin: true }))).toBe(false)
+    expect(
+      canSeeNavItem('companyAdmin', ctx({ hasPermission: (k) => k === 'intel.manager' }))
+    ).toBe(false)
+    expect(canSeeNavItem('companyAdmin', ctx())).toBe(false)
+  })
 })
 
 describe('filterNavGroups', () => {
@@ -106,5 +117,26 @@ describe('filterNavGroups', () => {
     expect(admin[0].items.map((i) => i.href)).toEqual(['/vendedores', '/configuracoes'])
     expect(filterNavGroups(mixed, ctx({ isSuperAdmin: true }))[0].items).toHaveLength(3)
     expect(filterNavGroups(mixed, ctx({ hasPermission: (k) => k === 'intel.manager' }))).toEqual([])
+  })
+
+  // Plano 013: o grupo Empresa fica com Vendedores e Configurações ('admin') e
+  // Empresas ('companyAdmin'); o Piloto foi para a Gestão Addere
+  it('grupo Empresa: ADMIN vê os três, SUPERADMIN só os dois primeiros', () => {
+    const empresa = [
+      {
+        title: 'Empresa',
+        items: [
+          { href: '/vendedores', requires: 'admin' as const },
+          { href: '/configuracoes', requires: 'admin' as const },
+          { href: '/empresas', requires: 'companyAdmin' as const },
+        ],
+      },
+    ]
+    const hrefs = (c: NavGateContext) => filterNavGroups(empresa, c)[0].items.map((i) => i.href)
+    expect(hrefs(ctx({ isAdmin: true }))).toEqual(['/vendedores', '/configuracoes', '/empresas'])
+    expect(hrefs(ctx({ isSuperAdmin: true }))).toEqual(['/vendedores', '/configuracoes'])
+    expect(filterNavGroups(empresa, ctx({ hasPermission: (k) => k === 'intel.manager' }))).toEqual(
+      []
+    )
   })
 })

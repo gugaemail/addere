@@ -87,14 +87,15 @@ export default function EmpresaPage() {
       {/* Header */}
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          {/* "Voltar" é para a lista de empresas, que só o SUPERADMIN tem —
-              para o ADMIN esta é a única ficha, e o link cairia no gate */}
+          {/* "Voltar" é para a ficha do cliente na Gestão Addere, que só o
+              SUPERADMIN tem — para o ADMIN esta é a única ficha, e o link
+              cairia no gate */}
           {isSuperAdmin && (
             <Button
               variant="ghost"
               size="sm"
               leftIcon={ArrowLeft}
-              onClick={() => router.push('/dashboard')}
+              onClick={() => router.push(`/gestao/clientes/${company.id}`)}
               className="mb-3 -ml-3 text-[var(--text-muted)] hover:text-brand font-medium"
             >
               Voltar

@@ -65,7 +65,7 @@ export default async function companiesRoutes(app: FastifyInstance) {
 
   // POST /companies — cria empresa
   app.post('/', superadmin, async (request: FastifyRequest, reply: FastifyReply) => {
-    const company = await createCompany(createCompanySchema.parse(request.body))
+    const company = await createCompany(createCompanySchema.parse(request.body), request.user.sub)
     return reply.status(201).send(company)
   })
 

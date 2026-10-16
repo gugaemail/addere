@@ -112,6 +112,11 @@ model Company {
   geoAddresses          GeoAddress[]
   customerWindows       CustomerWindow[]
 
+  // ─── Gestão Addere (plano 013) ───
+  clientProfile ClientProfile?
+  contract      CompanyContract?
+  billingEvents BillingEvent[]
+
   @@map("companies")
 }
 
@@ -173,13 +178,15 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  refreshTokens       RefreshToken[]
-  orders              Order[]
-  pilotEvents         PilotEvent[]         @relation("UserPilotEvents")
-  pilotFeedbacks      PilotFeedback[]      @relation("UserPilotFeedbacks")
-  passwordResetTokens PasswordResetToken[]
-  helpReports         HelpReport[]
-  permissions         UserPermission[]
+  refreshTokens        RefreshToken[]
+  orders               Order[]
+  pilotEvents          PilotEvent[]         @relation("UserPilotEvents")
+  pilotFeedbacks       PilotFeedback[]      @relation("UserPilotFeedbacks")
+  passwordResetTokens  PasswordResetToken[]
+  helpReports          HelpReport[]
+  permissions          UserPermission[]
+  billingEvents        BillingEvent[]       @relation("BillingEventActor")
+  contractTermsCreated ContractTerms[]      @relation("ContractTermsAuthor")
 
   @@unique([companyId, idVendProt]) // dois usuários com o mesmo código veriam o mesmo plano (§8 do plano)
   @@map("users")
@@ -1156,4 +1163,182 @@ model CustomerWindow {
 
   @@unique([companyId, customerCode, loja, weekday])
   @@map("intel_customer_windows")
+}
+
+// ═════════════════════════════════════════
+// Gestão Addere — cadastro comercial, contrato e cobrança (planos 013 a 018)
+// Só o SUPERADMIN escreve. Dinheiro Decimal(14,2). Competência e vencimento
+// são @db.Date: meia-noite UTC do dia civil em America/Sao_Paulo, como
+// VisitPlan.date. Antes do aceite nada começa: sem limite e sem cobrança.
+// ═════════════════════════════════════════
+
+enum LicenseType {
+  STANDARD // Padrão — sem Inteligência
+  INTELLIGENCE // Com Inteligência
+}
+
+enum ContractStatus {
+  DRAFT // rascunho: só a Addere vê
+  PENDING_ACCEPTANCE // enviado, esperando o aceite do ADMIN (plano 014)
+  ACTIVE // aceito: limite e cobrança valem
+  CANCELLED // encerrado (plano 016)
+}
+
+enum ContractTermsStatus {
+  PROPOSED // ainda não vale; nunca conta para limite nem para cobrança
+  EFFECTIVE // vale a partir de effectiveFrom; nunca mais é alterado
+  WITHDRAWN // proposta descartada
+}
+
+enum ContractTermsOrigin {
+  CONTRACT // termos do contrato original
+  AMENDMENT // aditivo aceito pelo ADMIN (plano 014)
+  LICENSE_REQUEST // pedido de licenças aprovado (plano 015)
+}
+
+// Catálogo de pacotes. O preço de tabela só pré-preenche o contrato; o valor
+// negociado mora em ContractTerms.
+model LicensePackage {
+  id                             String   @id @default(uuid())
+  code                           String   @unique // P10 | P20 | P30 | UNLIMITED; não muda depois de criado
+  name                           String
+  seats                          Int? // null = quantidade digitada no contrato (Ilimitado)
+  listPriceStandard              Decimal? @db.Decimal(14, 2) // total mensal do pacote, Padrão
+  listPriceIntelligence          Decimal? @db.Decimal(14, 2) // total mensal do pacote, Com Inteligência
+  listExtraSeatPriceStandard     Decimal? @db.Decimal(14, 2) // por licença adicional, Padrão
+  listExtraSeatPriceIntelligence Decimal? @db.Decimal(14, 2) // por licença adicional, Com Inteligência
+  active                         Boolean  @default(true)
+  sortOrder                      Int      @default(0)
+  createdAt                      DateTime @default(now())
+  updatedAt                      DateTime @updatedAt
+
+  terms ContractTerms[]
+
+  @@map("billing_license_packages")
+}
+
+// Cadastro comercial, 1:1 com Company. Separado de Company para os dados
+// pessoais (representante legal e contatos) não vazarem nas listagens técnicas.
+model ClientProfile {
+  companyId String  @id
+  company   Company @relation(fields: [companyId], references: [id])
+
+  legalName         String // razão social
+  tradeName         String? // nome fantasia
+  stateRegistration String? // inscrição estadual; "ISENTO" vale
+
+  addressStreet     String?
+  addressNumber     String?
+  addressComplement String?
+  addressDistrict   String? // bairro
+  addressCity       String?
+  addressState      String? // UF
+  addressZip        String? // CEP, só dígitos
+
+  // Representante legal — entra no quadro-resumo do contrato (plano 014)
+  legalRepName String?
+  legalRepCpf  String? // só dígitos
+  legalRepRole String? // cargo
+
+  contactName  String?
+  contactEmail String?
+  contactPhone String?
+
+  // Contato de cobrança — recebe as faturas e os avisos (planos 016 e 017)
+  billingContactName String?
+  billingEmail       String?
+  billingPhone       String?
+
+  notes String? // observação interna da Addere; nunca vai ao contrato
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("billing_client_profiles")
+}
+
+// Contrato, 1:1 com Company. Sem linha = empresa sem contrato (teste, piloto
+// ou implantação): sem limite e sem cobrança.
+model CompanyContract {
+  id        String  @id @default(uuid())
+  companyId String  @unique
+  company   Company @relation(fields: [companyId], references: [id])
+
+  status                ContractStatus @default(DRAFT)
+  startDate             DateTime?      @db.Date // dia do aceite em São Paulo (plano 014)
+  graceMonths           Int            @default(0) // 0 = sem carência
+  firstBilledCompetence DateTime?      @db.Date // gravada no aceite: mês do aceite + 1 + carência
+  dueDay                Int // 1 a 10, validado no zod
+  overdueBlockDays      Int? // null = padrão de BillingSettings
+  seatGuardVersion      Int            @default(0) // linha de trava da criação de usuários (plano 015); não é dado
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  terms ContractTerms[]
+
+  @@map("billing_company_contracts")
+}
+
+// Versões dos termos. EFFECTIVE nunca é alterado: mudança vira versão nova.
+// Só o PROPOSED de um contrato em DRAFT é editado no lugar.
+model ContractTerms {
+  id         String              @id @default(uuid())
+  contractId String
+  contract   CompanyContract     @relation(fields: [contractId], references: [id])
+  version    Int // 1, 2, 3… por contrato
+  status     ContractTermsStatus @default(PROPOSED)
+  origin     ContractTermsOrigin @default(CONTRACT)
+
+  proposedEffectiveFrom DateTime? // "vale a partir de" do aditivo (plano 014)
+  effectiveFrom         DateTime? // gravado no aceite ou na aprovação
+
+  packageId      String
+  package        LicensePackage @relation(fields: [packageId], references: [id])
+  licenseType    LicenseType
+  includedSeats  Int // sempre preenchido: do pacote, ou digitado no Ilimitado
+  extraSeats     Int            @default(0)
+  packagePrice   Decimal        @db.Decimal(14, 2) // valor total mensal do pacote, negociado
+  extraSeatPrice Decimal        @db.Decimal(14, 2) // por licença adicional, negociado
+  reason         String?
+
+  createdById String?
+  createdBy   User?   @relation("ContractTermsAuthor", fields: [createdById], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([contractId, version])
+  @@index([contractId, status])
+  @@map("billing_contract_terms")
+}
+
+// Histórico e auditoria. O payload guarda só os NOMES dos campos alterados,
+// nunca os valores (LGPD). `type` segue a lista fechada BILLING_EVENT_TYPES
+// de @addere/types.
+model BillingEvent {
+  id        String   @id @default(uuid())
+  type      String
+  companyId String? // null nos eventos globais (pacotes e regras)
+  company   Company? @relation(fields: [companyId], references: [id])
+  actorId   String? // null = job (planos 016 e 017)
+  actor     User?    @relation("BillingEventActor", fields: [actorId], references: [id])
+  payload   Json     @default("{}")
+  dedupeKey String?  @unique // idempotência dos e-mails (planos 016 e 017)
+  createdAt DateTime @default(now())
+
+  @@index([companyId, createdAt])
+  @@map("billing_events")
+}
+
+// Regras globais, linha única (id "global", criada pela migration).
+model BillingSettings {
+  id               String   @id @default("global")
+  overdueBlockDays Int      @default(15) // dias de atraso para suspender; o contrato pode ter exceção
+  dueReminderDays  Int      @default(3) // lembrete antes do vencimento (plano 016)
+  autoBlockEnabled Boolean  @default(false) // nasce desligado; só o plano 017 liga, depois do OTA
+  notifyEmail      String? // e-mail da Addere que recebe os avisos
+  updatedAt        DateTime @updatedAt
+
+  @@map("billing_settings")
 }

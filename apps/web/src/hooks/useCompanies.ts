@@ -22,31 +22,6 @@ export function useCompanies() {
   })
 }
 
-export function useCreateCompany() {
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: (data: { name: string; cnpj: string; idProtheus?: string }) =>
-      api.post('/companies', data).then((r) => r.data),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: companiesKeys.all }),
-  })
-}
-
-export function useUpdateCompany() {
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: ({
-      id,
-      ...data
-    }: {
-      id: string
-      name: string
-      cnpj: string
-      idProtheus: string | null
-    }) => api.patch(`/companies/${id}`, data).then((r) => r.data),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: companiesKeys.all }),
-  })
-}
-
 export function useToggleCompanyActive() {
   const queryClient = useQueryClient()
   return useMutation({
