@@ -1,11 +1,15 @@
 import { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify'
 import { z } from 'zod'
+import { requireAnyPermission } from '../../middleware/authenticate'
 import { requireCompanyAdmin } from '../../middleware/require-company'
+import { resolveTenant } from '../../middleware/resolve-tenant'
 import { documentIdParam } from './contract-documents.schema'
 import { acceptDocument, getMyBilling, getMyDocument, listMyDocuments } from './me.service'
+import { getSeatUsage } from './seats.service'
 
 // O contrato do ADMIN da empresa (plano 014) — registrado com o prefixo
-// /billing/me. Todas com requireCompanyAdmin: qualquer ADMIN da empresa lê;
+// /billing/me. Todas com requireCompanyAdmin (menos o GET /seats do 015, que
+// também atende o SUPERADMIN com ?companyId=): qualquer ADMIN da empresa lê;
 // aceitar confere também o administrador indicado (assertDesignatedAdmin).
 // O 015, o 016 e o 017 acrescentam as rotas deles neste arquivo.
 
@@ -21,6 +25,19 @@ export default async function billingMeRoutes(app: FastifyInstance) {
   app.get('/', companyAdmin, async (request: FastifyRequest, reply: FastifyReply) => {
     return reply.send(await getMyBilling(companyOf(request), new Date()))
   })
+
+  // Licenças em uso (plano 015): o contador e o aviso de /users. Guarda própria,
+  // não a do ADMIN: quem gerencia usuários lê a própria empresa, e o SUPERADMIN
+  // lê qualquer uma com ?companyId= (a empresa ativa da barra lateral)
+  app.get(
+    '/seats',
+    { preHandler: requireAnyPermission('users.manage') },
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const company = await resolveTenant(request, reply, 'query')
+      if (!company) return
+      return reply.send(await getSeatUsage(company.id, new Date()))
+    }
+  )
 
   app.get('/documents', companyAdmin, async (request: FastifyRequest, reply: FastifyReply) => {
     return reply.send(await listMyDocuments(companyOf(request)))
