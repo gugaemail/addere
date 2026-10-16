@@ -967,3 +967,113 @@ describe('PUT /admin/billing/clients/:companyId/contract', () => {
     expect(prismaMock.company.update).not.toHaveBeenCalled()
   })
 })
+
+// ─── POST /companies com cadastro (plano 013) ────────────────────────────────
+
+describe('POST /companies com cadastro', () => {
+  const created = {
+    id: COMPANY_A,
+    name: 'Distribuidora Vale',
+    cnpj: '12.345.678/0001-90',
+    idProtheus: '01',
+    active: true,
+  }
+
+  beforeEach(() => {
+    prismaMock.company.create.mockResolvedValue(created)
+  })
+
+  it('com cadastro: empresa, cadastro e CLIENT_CREATED na mesma transação', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/companies',
+      headers: auth('super'),
+      payload: clientBody,
+    })
+    expect(res.statusCode).toBe(201)
+    expect(res.json()).toMatchObject({ id: COMPANY_A, name: 'Distribuidora Vale' })
+    expect(prismaMock.$transaction).toHaveBeenCalledTimes(1)
+    expect(prismaMock.company.create).toHaveBeenCalledWith({
+      data: { name: 'Distribuidora Vale', cnpj: '12.345.678/0001-90', idProtheus: '01' },
+    })
+    expect(prismaMock.clientProfile.create.mock.calls[0][0].data).toMatchObject({
+      companyId: COMPANY_A,
+      legalName: 'Distribuidora Vale Verde Ltda',
+      legalRepCpf: '11144477735',
+      addressZip: '01310100',
+    })
+    const event = prismaMock.billingEvent.create.mock.calls[0][0].data
+    expect(event).toMatchObject({
+      type: 'CLIENT_CREATED',
+      companyId: COMPANY_A,
+      actorId: 'super-1',
+    })
+    expect(event.payload.fields).toEqual(
+      expect.arrayContaining(['legalName', 'legalRepCpf', 'billingEmail'])
+    )
+    expect(event.payload.fields).not.toContain('notes')
+    expect(JSON.stringify(event)).not.toContain('11144477735')
+  })
+
+  it('sem cadastro: 201 como antes, sem cadastro e com o evento', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/companies',
+      headers: auth('super'),
+      payload: { name: 'Nova', cnpj: '00.000.000/0001-00' },
+    })
+    expect(res.statusCode).toBe(201)
+    expect(prismaMock.company.create).toHaveBeenCalledWith({
+      data: { name: 'Nova', cnpj: '00.000.000/0001-00' },
+    })
+    expect(prismaMock.clientProfile.create).not.toHaveBeenCalled()
+    expect(prismaMock.billingEvent.create).toHaveBeenCalledWith({
+      data: {
+        type: 'CLIENT_CREATED',
+        companyId: COMPANY_A,
+        actorId: 'super-1',
+        payload: { fields: [] },
+      },
+    })
+  })
+
+  it('CNPJ repetido → 409 CNPJ_TAKEN', async () => {
+    prismaMock.company.create.mockRejectedValue(p2002())
+    const res = await app.inject({
+      method: 'POST',
+      url: '/companies',
+      headers: auth('super'),
+      payload: clientBody,
+    })
+    expect(res.statusCode).toBe(409)
+    expect(res.json()).toEqual({
+      message: 'Já existe uma empresa com este CNPJ',
+      code: 'CNPJ_TAKEN',
+    })
+  })
+
+  it('CPF inválido no cadastro → 400, sem escrita', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/companies',
+      headers: auth('super'),
+      payload: { ...clientBody, profile: { ...profileBody, legalRepCpf: '111.111.111-11' } },
+    })
+    expect(res.statusCode).toBe(400)
+    expect(prismaMock.$transaction).not.toHaveBeenCalled()
+    expect(prismaMock.company.create).not.toHaveBeenCalled()
+    expect(prismaMock.clientProfile.create).not.toHaveBeenCalled()
+    expect(prismaMock.billingEvent.create).not.toHaveBeenCalled()
+  })
+
+  it('ADMIN → 403', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/companies',
+      headers: auth('adminA'),
+      payload: clientBody,
+    })
+    expect(res.statusCode).toBe(403)
+    expect(prismaMock.company.create).not.toHaveBeenCalled()
+  })
+})

@@ -3,8 +3,11 @@ import bcrypt from 'bcryptjs'
 import { encryptCredential } from '../../lib/protheus-crypto'
 import { invalidateToken } from '../sync/protheus.client'
 import { applySchedule, clearSchedule } from '../sync/scheduler'
-import { notFound, unprocessable } from '../../lib/errors'
+import { conflict, notFound, unprocessable } from '../../lib/errors'
 import { applyDefaultPermissions } from '../permissions/permissions.service'
+import { changedFields, isUniqueViolation, recordBillingEvent } from '../billing/billing-events'
+import type { ClientProfileData } from '../billing/billing.schema'
+import { createClientProfile, PROFILE_KEYS } from '../billing/clients.service'
 
 const MAX_PAGE_SIZE = 500
 
@@ -70,10 +73,31 @@ export interface CreateCompanyInput {
   name: string
   cnpj: string
   idProtheus?: string
+  profile?: ClientProfileData // cadastro comercial (plano 013), opcional
 }
 
-export async function createCompany(input: CreateCompanyInput) {
-  return prisma.company.create({ data: input })
+// Empresa, cadastro comercial e o evento CLIENT_CREATED numa transação só. O
+// evento leva os nomes dos campos do cadastro preenchidos ([] sem cadastro).
+export async function createCompany(input: CreateCompanyInput, actorId: string) {
+  const { profile, ...data } = input
+  try {
+    return await prisma.$transaction(async (tx) => {
+      const company = await tx.company.create({ data })
+      if (profile) await createClientProfile(tx, company.id, profile)
+      await recordBillingEvent(tx, {
+        type: 'CLIENT_CREATED',
+        companyId: company.id,
+        actorId,
+        fields: profile ? changedFields(null, profile, PROFILE_KEYS) : [],
+      })
+      return company
+    })
+  } catch (err) {
+    if (isUniqueViolation(err)) {
+      throw conflict('Já existe uma empresa com este CNPJ', 'CNPJ_TAKEN')
+    }
+    throw err
+  }
 }
 
 export async function toggleCompanyActive(id: string, active: boolean) {
