@@ -80,3 +80,74 @@ body .leaflet-popup-content {
 body .leaflet-popup-content p {
   margin: 0 0 2px;
 }
+
+/* Texto do contrato e do aditivo (plano 014), saída de renderContractMarkdown:
+   só h1 a h3, p, ul, ol, li, hr e strong, sem classe. Títulos em Plus Jakarta
+   Sans, corpo em Inter, espaçamento em múltiplos de 4 e cores por variável
+   (vale nos dois temas). */
+.contract-doc {
+  font-family: var(--font-body), sans-serif;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--text-primary);
+}
+
+.contract-doc h1,
+.contract-doc h2,
+.contract-doc h3 {
+  font-family: var(--font-heading), sans-serif;
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: -0.01em;
+}
+
+.contract-doc h1 {
+  font-size: 20px;
+  margin: 0 0 16px;
+}
+
+.contract-doc h2 {
+  font-size: 16px;
+  margin: 28px 0 12px;
+}
+
+.contract-doc h3 {
+  font-size: 14px;
+  margin: 20px 0 8px;
+}
+
+.contract-doc p {
+  margin: 0 0 12px;
+}
+
+.contract-doc ul,
+.contract-doc ol {
+  margin: 0 0 12px;
+  padding-left: 20px;
+}
+
+.contract-doc ul {
+  list-style: disc;
+}
+
+.contract-doc ol {
+  list-style: decimal;
+}
+
+.contract-doc li {
+  margin: 0 0 4px;
+}
+
+.contract-doc hr {
+  border: 0;
+  border-top: 1px solid var(--border);
+  margin: 24px 0;
+}
+
+.contract-doc strong {
+  font-weight: 600;
+}
+
+.contract-doc > :first-child {
+  margin-top: 0;
+}

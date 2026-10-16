@@ -10,6 +10,7 @@ import {
   BarChart3,
   CircleUser,
   Database,
+  FileText,
   LogOut,
   Menu,
   Moon,
@@ -62,8 +63,9 @@ interface NavGroup {
 const NAV_GROUPS: NavGroup[] = [
   {
     // Gestão Addere (plano 013): cadastro comercial, contrato e pacotes — só
-    // o SUPERADMIN. Painel, Faturas, Solicitações e Modelos de contrato
-    // entram nos planos 014 a 018.
+    // o SUPERADMIN. Modelos de contrato entrou no 014, antes de Pacotes e
+    // regras; Faturas (016) e Solicitações (015) entram antes dele, e o Painel
+    // no 018.
     title: 'Gestão Addere',
     items: [
       {
@@ -72,6 +74,13 @@ const NAV_GROUPS: NavGroup[] = [
         // A ficha técnica (/empresas/[id]) é aberta a partir do cliente
         match: (p) => p.startsWith('/gestao/clientes') || p.startsWith('/empresas'),
         icon: Building2,
+        requires: 'superadmin',
+      },
+      {
+        href: '/gestao/modelos',
+        label: 'Modelos de contrato',
+        match: (p) => p.startsWith('/gestao/modelos'),
+        icon: FileText,
         requires: 'superadmin',
       },
       {
