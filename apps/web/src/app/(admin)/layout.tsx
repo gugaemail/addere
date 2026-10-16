@@ -9,6 +9,7 @@ import {
   Building2,
   BarChart3,
   CircleUser,
+  CreditCard,
   Database,
   FileSignature,
   FileText,
@@ -206,6 +207,15 @@ const NAV_GROUPS: NavGroup[] = [
         label: 'Contrato',
         match: (p) => p.startsWith('/contrato'),
         icon: FileSignature,
+        requires: 'companyAdmin',
+      },
+      {
+        // Planos 015 e 016: o plano, as licenças e as faturas da empresa. Só o
+        // ADMIN; o SUPERADMIN vê as faturas em Gestão Addere › Faturas
+        href: '/plano',
+        label: 'Plano e cobrança',
+        match: (p) => p.startsWith('/plano'),
+        icon: CreditCard,
         requires: 'companyAdmin',
       },
       {
