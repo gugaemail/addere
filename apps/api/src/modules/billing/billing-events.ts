@@ -38,6 +38,12 @@ export function changedFields(
 export interface BillingEventRef {
   packageCode?: string
   termsVersion?: number
+  // Plano 014: modelos de contrato e documentos (nunca o texto, o IP ou o e-mail)
+  templateKind?: 'CONTRACT' | 'AMENDMENT'
+  templateVersion?: number
+  documentId?: string
+  documentKind?: 'CONTRACT' | 'AMENDMENT'
+  requestedByClient?: boolean // aditivo a pedido da Empresa (decisão de desenho 7)
 }
 
 export function isUniqueViolation(err: unknown): boolean {
