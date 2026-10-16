@@ -112,3 +112,12 @@ export function getApiErrorMessage(err: unknown, fallback = 'Erro inesperado'): 
   }
   return fallback
 }
+
+// Código legível por máquina da API (AppError.code), ex.: 'CNPJ_TAKEN'
+export function getApiErrorCode(err: unknown): string | null {
+  if (err && typeof err === 'object' && 'response' in err) {
+    const code = (err as { response?: { data?: { code?: unknown } } }).response?.data?.code
+    if (typeof code === 'string' && code) return code
+  }
+  return null
+}
