@@ -3,6 +3,7 @@
 export type NavRequirement =
   | 'superadmin'
   | 'admin'
+  | 'companyAdmin'
   | { permission: string | string[]; orAdmin?: boolean }
 
 // Configuração da Inteligência (Consultas, Premissas): só intel.admin, igual à
@@ -23,6 +24,8 @@ export function canSeeNavItem(
   if (!requires) return true
   if (requires === 'superadmin') return ctx.isSuperAdmin
   if (requires === 'admin') return ctx.isAdmin || ctx.isSuperAdmin
+  // Só o ADMIN da empresa — o SUPERADMIN tem o equivalente na Gestão Addere
+  if (requires === 'companyAdmin') return ctx.isAdmin && !ctx.isSuperAdmin
   if (ctx.isSuperAdmin) return true // SUPERADMIN tem o catálogo inteiro
   // orAdmin: item também aberto por papel — a home do ADMIN é /inteligencia
   // (resolveHome), então o item precisa existir mesmo sem a permissão

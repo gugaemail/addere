@@ -14,9 +14,10 @@ export function canAccessPanel(user: PanelUser): boolean {
   return user.role === 'SUPERADMIN' || user.role === 'ADMIN' || hasIntelPermission(user.permissions)
 }
 
-// Home por papel: SUPERADMIN cai nas Empresas; demais na Inteligência
+// Home por papel: SUPERADMIN cai nos Clientes da Gestão Addere (plano 013),
+// até o plano 018 criar o painel /gestao; demais na Inteligência
 export function resolveHome(user: PanelUser): string {
-  return user.role === 'SUPERADMIN' ? '/dashboard' : '/inteligencia'
+  return user.role === 'SUPERADMIN' ? '/gestao/clientes' : '/inteligencia'
 }
 
 // Destino guardado no `?next=` do login. Só caminho interno: absoluto

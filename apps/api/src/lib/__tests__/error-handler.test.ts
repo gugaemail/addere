@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import Fastify, { FastifyInstance } from 'fastify'
 import { z } from 'zod'
 import { registerErrorHandling } from '../error-handler'
-import { AppError, notFound, unprocessable } from '../errors'
+import { AppError, conflict, notFound, unprocessable } from '../errors'
 
 let app: FastifyInstance
 
@@ -24,6 +24,12 @@ beforeAll(async () => {
   })
   app.get('/custom-status', async () => {
     throw Object.assign(new Error('payload muito grande'), { statusCode: 413 })
+  })
+  app.get('/conflict-code', async () => {
+    throw conflict('Já saiu do rascunho', 'CONTRACT_NOT_DRAFT')
+  })
+  app.get('/unprocessable-code-details', async () => {
+    throw unprocessable('x', { a: 1 }, 'X')
   })
 
   await app.ready()
@@ -70,5 +76,21 @@ describe('error handler global', () => {
 
   it('AppError expõe statusCode', () => {
     expect(new AppError(409, 'x').statusCode).toBe(409)
+  })
+
+  it('AppError com código responde { message, code }', async () => {
+    const res = await app.inject({ method: 'GET', url: '/conflict-code' })
+    expect(res.statusCode).toBe(409)
+    expect(res.json()).toEqual({ message: 'Já saiu do rascunho', code: 'CONTRACT_NOT_DRAFT' })
+  })
+
+  it('AppError com código e details responde os três', async () => {
+    const res = await app.inject({ method: 'GET', url: '/unprocessable-code-details' })
+    expect(res.statusCode).toBe(422)
+    expect(res.json()).toEqual({ message: 'x', code: 'X', details: { a: 1 } })
+  })
+
+  it('AppError sem código não tem code', () => {
+    expect(new AppError(409, 'x').code).toBeUndefined()
   })
 })

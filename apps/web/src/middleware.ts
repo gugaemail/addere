@@ -21,7 +21,7 @@ export function middleware(request: NextRequest) {
   }
 
   if (isPublic && hasSession) {
-    // '/' decide a home pelo papel (E9): SUPERADMIN → /dashboard; demais → /inteligencia
+    // '/' decide a home pelo papel (E9): SUPERADMIN → /gestao/clientes; demais → /inteligencia
     const next = safeNextPath(request.nextUrl.searchParams.get('next'))
     return NextResponse.redirect(new URL(next ?? '/', request.url))
   }

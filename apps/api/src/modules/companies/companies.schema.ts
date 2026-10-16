@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { FIELD_REGISTRY_KEYS } from '@addere/types'
+import { clientProfileSchema } from '../billing/billing.schema'
 
 // Códigos Protheus interpolados nos placeholders {{FILIAL}}/{{VENDEDOR}} das
 // consultas SQL da camada de Inteligência — formato restrito por segurança (E2)
@@ -9,6 +10,8 @@ export const createCompanySchema = z.object({
   name: z.string().min(1),
   cnpj: z.string().min(1),
   idProtheus: z.string().optional(),
+  // Cadastro comercial da Gestão Addere (plano 013); o corpo sem ele continua válido
+  profile: clientProfileSchema.optional(),
 })
 
 export const updateCompanySchema = z

@@ -3,15 +3,18 @@ import { ZodError } from 'zod'
 import { Prisma } from '@prisma/client'
 import { AppError } from './errors'
 
-// Error handler global — formato único de erro: { message }. Services lançam
-// AppError com o status; Zod e Prisma são mapeados aqui; o resto vira 500 sem
-// vazar detalhes internos. Extraído de app.ts para ser testável isoladamente.
+// Error handler global — formato único de erro: { message, code?, details? }.
+// Services lançam AppError com o status (e, quando o cliente precisa reagir,
+// um código legível por máquina); Zod e Prisma são mapeados aqui; o resto vira
+// 500 sem vazar detalhes internos. Extraído de app.ts para ser testável isoladamente.
 export function registerErrorHandling(app: FastifyInstance): void {
   app.setErrorHandler((err, request, reply) => {
     if (err instanceof AppError) {
-      return reply
-        .status(err.statusCode)
-        .send(err.details === undefined ? { message: err.message } : { message: err.message, details: err.details })
+      return reply.status(err.statusCode).send({
+        message: err.message,
+        ...(err.code === undefined ? {} : { code: err.code }),
+        ...(err.details === undefined ? {} : { details: err.details }),
+      })
     }
     if (err instanceof ZodError) {
       return reply.status(400).send({ message: err.errors[0]?.message ?? 'Dados inválidos' })

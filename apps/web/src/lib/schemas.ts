@@ -1,4 +1,6 @@
 import { z } from 'zod'
+import { DUE_DAY_MAX, DUE_DAY_MIN, GRACE_MONTHS_MAX, isValidCpf } from '@addere/types'
+import { moneyInputToApi } from './billing-ui'
 
 export const loginSchema = z.object({
   email: z.string().email('Email inválido'),
@@ -105,3 +107,136 @@ export const productSchema = z.object({
 })
 
 export type ProductFormData = z.infer<typeof productSchema>
+
+// ─── Gestão Addere — cadastro do cliente (plano 013) ────────────────────────
+// Strings do formulário; o ClientFormModal converte vazio em null e grava CPF e
+// CEP só com dígitos. A API valida de novo (billing.schema.ts).
+
+const digitsOf = (v: string | undefined) => (v ?? '').replace(/\D/g, '')
+const isBlank = (v: string | undefined) => !v || !v.trim()
+
+const optionalFormEmail = z
+  .string()
+  .optional()
+  .refine((v) => isBlank(v) || z.string().email().safeParse(v?.trim()).success, 'E-mail inválido')
+
+export const clientFormSchema = z.object({
+  // Empresa
+  name: z.string().trim().min(1, 'Nome no sistema obrigatório'),
+  cnpj: z.string().refine((v) => digitsOf(v).length === 14, 'CNPJ deve ter 14 dígitos'),
+  idProtheus: z.string().max(20, 'Máximo de 20 caracteres').optional(),
+  stateRegistration: z.string().optional(),
+  legalName: z.string().trim().min(2, 'Razão social obrigatória'),
+  tradeName: z.string().optional(),
+  // Endereço
+  addressStreet: z.string().optional(),
+  addressNumber: z.string().optional(),
+  addressComplement: z.string().optional(),
+  addressDistrict: z.string().optional(),
+  addressCity: z.string().optional(),
+  addressState: z.string().optional(),
+  addressZip: z
+    .string()
+    .optional()
+    .refine((v) => isBlank(v) || digitsOf(v).length === 8, 'CEP deve ter 8 dígitos'),
+  // Representante legal
+  legalRepName: z.string().optional(),
+  legalRepCpf: z
+    .string()
+    .optional()
+    .refine((v) => isBlank(v) || isValidCpf(v ?? ''), 'CPF inválido'),
+  legalRepRole: z.string().optional(),
+  // Contatos
+  contactName: z.string().optional(),
+  contactEmail: optionalFormEmail,
+  contactPhone: z.string().optional(),
+  billingContactName: z.string().optional(),
+  billingEmail: optionalFormEmail,
+  billingPhone: z.string().optional(),
+  // Observações (só a Addere vê)
+  notes: z.string().max(2000, 'Máximo de 2000 caracteres').optional(),
+})
+
+export type ClientFormData = z.infer<typeof clientFormSchema>
+
+// ─── Gestão Addere — contrato em rascunho (plano 013) ───────────────────────
+// Strings do formulário. A quantidade incluída só é digitada no pacote sem
+// quantidade fixa (Ilimitado); a tela confere isso no submit, porque o schema
+// não conhece o pacote. A API valida de novo (billing.schema.ts).
+
+const intInRange = (v: string, min: number, max: number) =>
+  /^\d+$/.test(v.trim()) && Number(v) >= min && Number(v) <= max
+
+export const contractDraftFormSchema = z
+  .object({
+    packageId: z.string().min(1, 'Escolha o pacote'),
+    licenseType: z.enum(['STANDARD', 'INTELLIGENCE']),
+    includedSeats: z.string(),
+    extraSeats: z.string().refine((v) => intInRange(v, 0, 10000), 'Número inteiro de 0 a 10000'),
+    packagePrice: z.string().refine((v) => moneyInputToApi(v) !== null, 'Valor inválido'),
+    extraSeatPrice: z.string().refine((v) => moneyInputToApi(v) !== null, 'Valor inválido'),
+    graceMonths: z
+      .string()
+      .refine((v) => intInRange(v, 0, GRACE_MONTHS_MAX), `De 0 a ${GRACE_MONTHS_MAX} meses`),
+    dueDay: z
+      .string()
+      .refine(
+        (v) => intInRange(v, DUE_DAY_MIN, DUE_DAY_MAX),
+        `Entre os dias ${DUE_DAY_MIN} e ${DUE_DAY_MAX}`
+      ),
+    useDefaultBlockDays: z.boolean(),
+    overdueBlockDays: z.string(),
+    reason: z.string().max(500, 'Máximo de 500 caracteres'),
+  })
+  .superRefine((d, ctx) => {
+    if (d.includedSeats.trim() && !intInRange(d.includedSeats, 1, 10000)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['includedSeats'],
+        message: 'Número inteiro de 1 a 10000',
+      })
+    }
+    if (!d.useDefaultBlockDays && !intInRange(d.overdueBlockDays, 1, 90)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['overdueBlockDays'],
+        message: 'Entre 1 e 90 dias',
+      })
+    }
+  })
+
+export type ContractDraftFormData = z.infer<typeof contractDraftFormSchema>
+
+// ─── Gestão Addere — pacotes e regras de cobrança (plano 013) ───────────────
+
+const optionalFormMoney = z
+  .string()
+  .refine((v) => !v.trim() || moneyInputToApi(v) !== null, 'Valor inválido')
+
+export const packageFormSchema = z.object({
+  // O código só é editável na criação (o campo fica só de leitura na edição)
+  code: z
+    .string()
+    .trim()
+    .regex(/^[A-Z0-9_]{2,20}$/, 'Código: 2 a 20 letras maiúsculas, números ou _'),
+  name: z.string().trim().min(1, 'Nome obrigatório').max(60, 'Máximo de 60 caracteres'),
+  // Vazio = quantidade definida no contrato (Ilimitado)
+  seats: z
+    .string()
+    .refine((v) => !v.trim() || intInRange(v, 1, 10000), 'Número inteiro de 1 a 10000'),
+  listPriceStandard: optionalFormMoney,
+  listPriceIntelligence: optionalFormMoney,
+  listExtraSeatPriceStandard: optionalFormMoney,
+  listExtraSeatPriceIntelligence: optionalFormMoney,
+  sortOrder: z.string().refine((v) => intInRange(v, 0, 1000), 'De 0 a 1000'),
+})
+
+export type PackageFormData = z.infer<typeof packageFormSchema>
+
+export const billingSettingsFormSchema = z.object({
+  overdueBlockDays: z.string().refine((v) => intInRange(v, 1, 90), 'Entre 1 e 90 dias'),
+  dueReminderDays: z.string().refine((v) => intInRange(v, 0, 15), 'Entre 0 e 15 dias'),
+  notifyEmail: optionalFormEmail,
+})
+
+export type BillingSettingsFormData = z.infer<typeof billingSettingsFormSchema>
