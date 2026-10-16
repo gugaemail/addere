@@ -172,7 +172,7 @@ export async function sendBillingEmailOnce(input: {
     throw err
   }
 
-  let failure: unknown = null
+  let failure: unknown
   try {
     const resend = new Resend(env.RESEND_API_KEY)
     const { error } = await resend.emails.send(

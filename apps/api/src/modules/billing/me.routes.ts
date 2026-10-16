@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { requireCompanyAdmin } from '../../middleware/require-company'
 import { documentIdParam } from './contract-documents.schema'
 import { acceptDocument, getMyBilling, getMyDocument, listMyDocuments } from './me.service'
+import { listMyInvoices } from './invoices.service'
 
 // O contrato do ADMIN da empresa (plano 014) — registrado com o prefixo
 // /billing/me. Todas com requireCompanyAdmin: qualquer ADMIN da empresa lê;
@@ -54,4 +55,11 @@ export default async function billingMeRoutes(app: FastifyInstance) {
       )
     }
   )
+
+  // Plano 016: as faturas da própria empresa, só leitura, sem observação
+  // interna, motivo de cancelamento nem o nome de quem deu a baixa. Fica neste
+  // prefixo de propósito: o 017 libera /billing/me/* para empresa bloqueada.
+  app.get('/invoices', companyAdmin, async (request: FastifyRequest, reply: FastifyReply) => {
+    return reply.send(await listMyInvoices(companyOf(request), new Date()))
+  })
 }
