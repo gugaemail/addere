@@ -23,6 +23,7 @@ import {
 } from './designated-admin'
 import { syncIntelligenceWithTerms } from './jobs/apply-due-terms'
 import { buildSeatUsage } from './seats.service'
+import { listMyLicenseRequests } from './license-requests.service'
 
 // O contrato visto pelo ADMIN da empresa (plano 014), em /billing/me. Todo
 // ADMIN da empresa lê; só o administrador indicado aceita. LGPD: o ADMIN lê os
@@ -138,12 +139,14 @@ export async function getMyBilling(companyId: string, now: Date): Promise<MyBill
     scheduledTerms: toMyTerms(scheduled),
     pendingDocument: await findPendingDocument(companyId),
     designatedAdmin: designatedAdminRef(contract),
-    // Plano 015: licenças em uso e o limite (só com contrato ACTIVE)
+    // Plano 015: licenças em uso, o limite (só com contrato ACTIVE) e os
+    // pedidos de licenças da empresa
     seats: await buildSeatUsage(
       companyId,
       contract.status,
       contract.status === 'ACTIVE' ? current : null
     ),
+    licenseRequests: await listMyLicenseRequests(companyId),
   }
 }
 
