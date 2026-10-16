@@ -151,3 +151,59 @@ body .leaflet-popup-content p {
 .contract-doc > :first-child {
   margin-top: 0;
 }
+
+/* Impressão do contrato (plano 014): preto no branco também no tema escuro,
+   sem sombras nem bordas de card, e o bloco de aceite inteiro numa página.
+   Sidebar e barra do celular somem pelo print:hidden do layout. */
+@media print {
+  @page {
+    margin: 16mm;
+  }
+
+  :root,
+  .dark {
+    --bg-page: #fff;
+    --bg-surface: #fff;
+    --bg-subtle: #fff;
+    --border: #000;
+    --text-primary: #000;
+    --text-secondary: #000;
+    --text-muted: #000;
+    color-scheme: light;
+  }
+
+  html,
+  body {
+    background: #fff !important;
+    color: #000 !important;
+  }
+
+  body * {
+    color: #000 !important;
+    background-color: transparent !important;
+    box-shadow: none !important;
+    text-shadow: none !important;
+  }
+
+  .print-document,
+  .print-document * {
+    border-color: transparent !important;
+  }
+
+  .print-document .contract-doc hr,
+  .print-document .acceptance-record {
+    border-color: #000 !important;
+  }
+
+  .contract-doc h1,
+  .contract-doc h2,
+  .contract-doc h3 {
+    break-after: avoid;
+    page-break-after: avoid;
+  }
+
+  .acceptance-record {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+}

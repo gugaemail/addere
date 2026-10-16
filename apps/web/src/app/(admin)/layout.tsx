@@ -10,6 +10,7 @@ import {
   BarChart3,
   CircleUser,
   Database,
+  FileSignature,
   FileText,
   LogOut,
   Menu,
@@ -36,6 +37,7 @@ import { canAccessPanel } from '@/lib/home-redirect'
 import { profileLabel } from '@/lib/user-profile'
 import { filterNavGroups, INTEL_ADMIN_ONLY, type NavRequirement } from '@/lib/nav-gating'
 import { Logo } from '@/components/Logo'
+import { PendingContractBanner } from '@/components/contracts/PendingContractBanner'
 import { Spinner } from '@/components/ui/Spinner'
 import type { UserPublic } from '@addere/types'
 
@@ -188,6 +190,15 @@ const NAV_GROUPS: NavGroup[] = [
         match: (p) => p.startsWith('/configuracoes'),
         icon: Settings,
         requires: 'admin',
+      },
+      {
+        // Plano 014: o Contrato de Licença de Uso e os aditivos da empresa. Só
+        // o ADMIN; o SUPERADMIN vê os contratos na ficha do cliente
+        href: '/contrato',
+        label: 'Contrato',
+        match: (p) => p.startsWith('/contrato'),
+        icon: FileSignature,
+        requires: 'companyAdmin',
       },
       {
         // E23: o ADMIN cadastra e confere a integração da própria empresa
@@ -348,7 +359,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       <aside
         id="admin-sidebar"
         className={cn(
-          'fixed inset-y-0 left-0 z-40 w-64 overflow-y-auto bg-navy dark:bg-[var(--bg-page)] text-white flex flex-col border-r border-white/5 shrink-0 transition-transform duration-200',
+          'fixed inset-y-0 left-0 z-40 w-64 overflow-y-auto bg-navy dark:bg-[var(--bg-page)] text-white flex flex-col border-r border-white/5 shrink-0 transition-transform duration-200 print:hidden',
           'lg:static lg:z-auto lg:w-56 lg:translate-x-0',
           menuOpen ? 'translate-x-0' : '-translate-x-full'
         )}
@@ -438,7 +449,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       {/* Coluna de conteúdo */}
       <div className="flex min-w-0 flex-1 flex-col">
         {/* Barra superior do celular: o único jeito de abrir o menu abaixo de lg */}
-        <header className="sticky top-0 z-20 flex items-center gap-3 border-b border-[var(--border)] bg-[var(--bg-surface)] px-4 py-3 lg:hidden">
+        <header className="sticky top-0 z-20 flex items-center gap-3 border-b border-[var(--border)] bg-[var(--bg-surface)] px-4 py-3 lg:hidden print:hidden">
           <button
             type="button"
             onClick={() => setMenuOpen(true)}
@@ -458,13 +469,19 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         {/* Enquanto a sessão é restaurada (reload/link direto) as páginas não
             montam: suas queries sairiam sem token, cairiam em 401 e disputariam
             o refresh com o AuthContext. */}
-        <main className="flex-1 overflow-auto p-4 sm:p-6 lg:p-8">
+        <main className="flex-1 overflow-auto p-4 sm:p-6 lg:p-8 print:overflow-visible print:p-0">
           {isLoading ? (
             <div className="flex justify-center pt-24">
               <Spinner size="lg" />
             </div>
           ) : (
-            children
+            <>
+              {/* Plano 014: contrato ou aditivo aguardando aceite (some em /contrato) */}
+              {isAdmin && user?.company?.pendingDocument && !pathname.startsWith('/contrato') && (
+                <PendingContractBanner pending={user.company.pendingDocument} userId={user.id} />
+              )}
+              {children}
+            </>
           )}
         </main>
       </div>
