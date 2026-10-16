@@ -350,7 +350,7 @@ mudou (skill, briefing e o hash passou a cobrir modelo e prompts).
 
 | Plano | Título | Prioridade | Esforço | Toca o app? | Depende de | Status |
 |-------|--------|------------|---------|-------------|------------|--------|
-| 013 | Cadastro de clientes, pacotes e contrato em rascunho | P1 | L | não | — | TODO |
+| 013 | Cadastro de clientes, pacotes e contrato em rascunho | P1 | L | não | — | **DONE** (16/10/2026). Desvios: migration validada num Postgres descartável na porta 5433, porque a 5432 estava ocupada; dinheiro do painel lido por `parseMoneyInput` próprio ("1.800" = 1800), não pelo `parseOfficialNumber` da reconciliação |
 | 014 | Contrato de licença de uso e aceite eletrônico no painel | P1 | L | não | 013 | TODO |
 | 015 | Limite de licenças por contrato e pedido de licenças adicionais | P1 | M | não | 014 | TODO |
 | 016 | Faturamento mensal pós-pago com baixa manual | P1 | L | não | 014 | TODO |
