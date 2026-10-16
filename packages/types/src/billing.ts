@@ -540,3 +540,90 @@ export interface ContractDraftInput {
   overdueBlockDays: number | null // null = padrão das regras globais
   reason: string | null
 }
+
+// ─── Faturamento (plano 016) ─────────────────────────────────────────────────
+// Datas de calendário como 'YYYY-MM-DD' e competência como 'YYYY-MM', nunca
+// como timestamp: é o que impede o deslocamento de um dia no navegador.
+// Dinheiro como string com duas casas ('2139.80').
+
+export type InvoiceStatus = 'OPEN' | 'PAID' | 'CANCELLED'
+export type InvoiceDisplayStatus = InvoiceStatus | 'OVERDUE'
+export type InvoiceOrigin = 'JOB' | 'MANUAL'
+export type InvoiceItemKind = 'PACKAGE' | 'EXTRA_SEATS' | 'DISCOUNT' | 'ADJUSTMENT'
+export type InvoicePaymentMethod = 'PIX' | 'BOLETO' | 'TRANSFER' | 'CARD' | 'OTHER'
+
+export const INVOICE_PAYMENT_METHODS: readonly InvoicePaymentMethod[] = [
+  'PIX',
+  'BOLETO',
+  'TRANSFER',
+  'CARD',
+  'OTHER',
+]
+
+/**
+ * Vencida = OPEN e vencimento < hoje. Os dois em 'YYYYMMDD', hoje em São Paulo.
+ * É a regra única de "vencida": o 017 (aviso e bloqueio) e o 018 (painel) usam
+ * esta função, não uma segunda.
+ */
+export function invoiceDisplayStatus(
+  status: InvoiceStatus,
+  dueYmd: string,
+  todayYmd: string
+): InvoiceDisplayStatus {
+  return status === 'OPEN' && dueYmd < todayYmd ? 'OVERDUE' : status
+}
+
+export interface InvoiceItemDto {
+  id: string
+  kind: InvoiceItemKind
+  description: string
+  quantity: number
+  unitPrice: string // '1990.00'
+  amount: string
+  manual: boolean
+}
+
+export interface InvoiceDto {
+  id: string
+  number: number
+  companyId: string
+  companyName: string
+  competence: string // 'YYYY-MM'
+  dueDate: string // 'YYYY-MM-DD'
+  status: InvoiceStatus
+  displayStatus: InvoiceDisplayStatus
+  origin: InvoiceOrigin
+  total: string
+  paidAt: string | null // 'YYYY-MM-DD'
+  paidAmount: string | null
+  paymentMethod: InvoicePaymentMethod | null
+  paymentNote: string | null
+  paidByName: string | null
+  nfNumber: string | null
+  notes: string | null
+  cancelledAt: string | null // ISO
+  cancelledByName: string | null
+  cancelReason: string | null
+  items: InvoiceItemDto[]
+}
+
+export interface InvoiceListResponse {
+  items: InvoiceDto[]
+  total: number
+  page: number
+  pageSize: number
+}
+
+/** O que o ADMIN do cliente vê: sem observação interna, motivo e nomes. */
+export type MyInvoiceDto = Pick<
+  InvoiceDto,
+  | 'id'
+  | 'number'
+  | 'competence'
+  | 'dueDate'
+  | 'displayStatus'
+  | 'total'
+  | 'paidAt'
+  | 'nfNumber'
+  | 'items'
+>
