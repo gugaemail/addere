@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft, ExternalLink } from 'lucide-react'
+import { ArrowLeft, ExternalLink, Plus } from 'lucide-react'
 import { toast } from 'sonner'
 import { CLIENT_STATUS_LABELS } from '@addere/types'
 import { Badge } from '@/components/ui/Badge'
@@ -20,17 +20,53 @@ import {
 } from '@/lib/billing-ui'
 import { billingKeys, useClient } from '@/hooks/useBilling'
 import { useToggleCompanyActive } from '@/hooks/useCompanies'
+import type { InvoiceFilters } from '@/hooks/useInvoices'
+import { InvoicesTable } from '@/components/billing/InvoicesTable'
+import { ManualInvoiceModal } from '@/components/billing/InvoiceModals'
 import { CadastroTab } from './tabs/CadastroTab'
 import { ContratoTab } from './tabs/ContratoTab'
 import { HistoricoTab } from './tabs/HistoricoTab'
 
-type Tab = 'cadastro' | 'contrato' | 'historico'
+type Tab = 'cadastro' | 'contrato' | 'faturas' | 'historico'
 
 const TABS: { key: Tab; label: string }[] = [
   { key: 'cadastro', label: 'Cadastro' },
   { key: 'contrato', label: 'Contrato' },
+  { key: 'faturas', label: 'Faturas' },
   { key: 'historico', label: 'Histórico' },
 ]
+
+// Aba Faturas (plano 016): a tabela de /gestao/faturas sem a coluna Cliente, e
+// a fatura avulsa já com o cliente escolhido
+function FaturasTab({ companyId }: { companyId: string }) {
+  const [filters, setFilters] = useState<InvoiceFilters>({
+    status: '',
+    competence: '',
+    companyId,
+    page: 1,
+    pageSize: 50,
+  })
+  const [showManual, setShowManual] = useState(false)
+  return (
+    <div className="space-y-3">
+      <div className="flex justify-end">
+        <Button leftIcon={Plus} onClick={() => setShowManual(true)}>
+          Fatura avulsa
+        </Button>
+      </div>
+      <div className="overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--bg-surface)] shadow-card">
+        <InvoicesTable
+          filters={filters}
+          showCompany={false}
+          onPageChange={(page) => setFilters((current) => ({ ...current, page }))}
+        />
+      </div>
+      {showManual && (
+        <ManualInvoiceModal companyId={companyId} onClose={() => setShowManual(false)} />
+      )}
+    </div>
+  )
+}
 
 function PageSkeleton() {
   return (
@@ -172,6 +208,7 @@ export default function ClientePage() {
       {tab === 'cadastro' && <CadastroTab client={client} />}
       {/* key: o formulário recomeça se o contrato mudar de status (ex.: saiu do rascunho) */}
       {tab === 'contrato' && <ContratoTab key={contract?.status ?? 'NONE'} client={client} />}
+      {tab === 'faturas' && <FaturasTab companyId={company.id} />}
       {tab === 'historico' && <HistoricoTab companyId={company.id} />}
     </div>
   )
