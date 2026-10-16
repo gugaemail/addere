@@ -1,9 +1,10 @@
 'use client'
 
-// Configurações da empresa (E22): o ADMIN liga a Inteligência, ajusta sync,
-// tom e retenção e registra o aceite do aviso LGPD por conta própria — antes
-// só o SUPERADMIN fazia isso, na aba Inteligência de Empresas. O formulário é
-// o mesmo (components/intel/IntelConfigForm), só muda de onde vem o tenant.
+// Configurações da empresa (E22): o ADMIN ajusta sync, tom e retenção e
+// registra o aceite do aviso LGPD por conta própria. Ligar e desligar a
+// Inteligência não é mais dele: ela entra pelo contrato (plano 014) e aqui
+// aparece só como status. O formulário é o mesmo da aba Inteligência de
+// Empresas (components/intel/IntelConfigForm), só muda de onde vem o tenant.
 import { useAuth } from '@/contexts/AuthContext'
 import { useCompanyContext } from '@/contexts/CompanyContext'
 import { needsActiveCompany } from '@/lib/intel-helpers'
@@ -31,8 +32,8 @@ export default function ConfiguracoesPage() {
           Configurações
         </h1>
         <p className="text-sm text-[var(--text-muted)]">
-          Camada de Inteligência da sua empresa: ligar, horários do sync, tom das mensagens e
-          retenção de dados.
+          Camada de Inteligência da sua empresa: horários do sync, tom das mensagens e retenção de
+          dados. A Inteligência entra pelo contrato.
         </p>
       </div>
 

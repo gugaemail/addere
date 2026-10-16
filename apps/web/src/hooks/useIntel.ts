@@ -139,6 +139,10 @@ export type HealthResponse = HealthReport & {
 export interface ConfigResponse {
   intelligenceEnabled: boolean
   config: IntelligenceConfig
+  // Plano 014: com contrato ACTIVE a Inteligência segue o contrato; só o
+  // SUPERADMIN, e só sem contrato ativo, liga e desliga à mão
+  managedByContract: boolean
+  canToggle: boolean
 }
 
 // ─── W3 · Consultas ───

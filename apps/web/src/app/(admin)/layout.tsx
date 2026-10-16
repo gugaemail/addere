@@ -164,7 +164,8 @@ const NAV_GROUPS: NavGroup[] = [
     title: 'Empresa',
     items: [
       // Self-service do ADMIN (E22): ficha dos vendedores e configuração da
-      // Inteligência sem depender do SUPERADMIN
+      // Inteligência (sync, tom e retenção) sem depender do SUPERADMIN. Ligar e
+      // desligar a Inteligência é do contrato (plano 014), não do ADMIN
       {
         href: '/vendedores',
         label: 'Vendedores',
