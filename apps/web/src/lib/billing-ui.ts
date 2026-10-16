@@ -11,6 +11,7 @@ import {
   type ContractTermsDto,
   type ContractTermsStatus,
   type LicensePackageDto,
+  type LicenseRequestStatus,
   type LicenseType,
 } from '@addere/types'
 
@@ -49,6 +50,10 @@ export const BILLING_EVENT_LABELS: Record<BillingEventType, string> = {
   AMENDMENT_WITHDRAWN: 'Aditivo descartado',
   INTELLIGENCE_APPLIED: 'Inteligência aplicada pelo contrato',
   DESIGNATED_ADMIN_CHANGED: 'Administrador indicado alterado',
+  // Plano 015
+  LICENSE_REQUEST_CREATED: 'Licenças adicionais pedidas',
+  LICENSE_REQUEST_APPROVED: 'Pedido de licenças aprovado',
+  LICENSE_REQUEST_REJECTED: 'Pedido de licenças recusado',
 }
 
 // Rótulo de cada campo que aparece no histórico. Campo sem rótulo aparece cru.
@@ -122,6 +127,19 @@ export const TERMS_STATUS_LABELS: Record<ContractTermsStatus, string> = {
   PROPOSED: 'Proposto',
   EFFECTIVE: 'Vigente',
   WITHDRAWN: 'Descartado',
+}
+
+// Plano 015: situação do pedido de licenças
+export const LICENSE_REQUEST_STATUS_LABELS: Record<LicenseRequestStatus, string> = {
+  PENDING: 'Pendente',
+  APPROVED: 'Aprovado',
+  REJECTED: 'Recusado',
+}
+
+export const LICENSE_REQUEST_STATUS_BADGE: Record<LicenseRequestStatus, BadgeVariant> = {
+  PENDING: 'warning',
+  APPROVED: 'success',
+  REJECTED: 'danger',
 }
 
 const THOUSANDS_ONLY = /^\d{1,3}(\.\d{3})+$/
