@@ -1,15 +1,8 @@
 import { useState } from 'react'
-import {
-  View,
-  Text,
-  StyleSheet,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  Alert,
-} from 'react-native'
+import { View, Text, StyleSheet, ScrollView, Alert } from 'react-native'
 import { useRouter } from 'expo-router'
 import { Input } from '../../src/components/ui/Input'
+import { KeyboardInsetView } from '../../src/components/ui/KeyboardAware'
 import { Button } from '../../src/components/ui/Button'
 import { LogoMark } from '../../src/components/brand/LogoMark'
 import { api } from '../../src/lib/api'
@@ -49,10 +42,7 @@ export default function EsqueciSenhaScreen() {
   }
 
   return (
-    <KeyboardAvoidingView
-      style={s.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-    >
+    <KeyboardInsetView style={s.container}>
       <ScrollView contentContainerStyle={s.scroll} keyboardShouldPersistTaps="handled">
         <View style={s.card}>
           <View style={s.logoGroup}>
@@ -104,7 +94,7 @@ export default function EsqueciSenhaScreen() {
           )}
         </View>
       </ScrollView>
-    </KeyboardAvoidingView>
+    </KeyboardInsetView>
   )
 }
 
