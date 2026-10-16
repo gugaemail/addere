@@ -187,6 +187,8 @@ acima e abaixo deles fica de fora.
 > | 22 | Crédito proporcional à indisponibilidade, abatido na fatura da competência seguinte | §9.8 | Processo manual: item `DISCOUNT` "Crédito por indisponibilidade" na fatura (plano 016), com os minutos medidos pelo monitor |
 > | 23 | Crédito sem fatura seguinte pago por Pix em até 30 dias | §9.10 | Processo manual |
 > | 24 | Só o administrador indicado no quadro-resumo aceita e pede licenças | §3.5, §14.1 | Código, planos 014 e 015 |
+> | 25 | A Addere rescinde com aviso de no mínimo 30 dias, salvo uso ilícito ou violação grave | §12.2 | Processo, em `docs/billing/README.md`: o cancelamento é registrado (plano 016) para uma data ≥ aviso + 30 dias |
+> | 26 | Encerrado o contrato, o acesso é bloqueado | §12.4 | Código, planos 016 (o cancelamento desativa a empresa) e 017 (empresa desativada é bloqueada). Até lá, o superadmin desativa à mão |
 
 ---
 

@@ -63,9 +63,11 @@ enquanto não entrou, vale o processo de "O que é cumprido à mão".
 | 22 | Crédito proporcional abatido na fatura da competência seguinte | §9.8 | Processo, com o item `DISCOUNT` do 016 | — |
 | 23 | Crédito sem fatura seguinte pago por Pix em até 30 dias | §9.10 | Processo (abaixo) | — |
 | 24 | Só o administrador indicado aceita e pede licenças | §3.5, §14.1 | Planos 014 (aceite) e 015 (pedido) | 014 junto com o 013; 015 ainda não |
+| 25 | A Addere rescinde com aviso de no mínimo 30 dias | §12.2 | Processo (abaixo) | — |
+| 26 | Encerrado o contrato, o acesso é bloqueado | §12.4 | Planos 016 e 017; até lá, à mão (abaixo) | ainda não |
 
-Duas promessas das condições gerais não têm linha própria na tabela da minuta
-e ficam registradas aqui, com o dono:
+As linhas 25 e 26 entraram na tabela da minuta em 16/10/2026, achadas na
+execução do 014. O processo de cada uma:
 
 - **§12.2 — a Addere rescinde com aviso de no mínimo 30 dias**, salvo uso
   ilícito ou violação grave. Processo: o aviso sai por e-mail, de
