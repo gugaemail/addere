@@ -18,8 +18,15 @@ interface SyncStatusBarProps {
 
 export function SyncStatusBar({ style }: SyncStatusBarProps) {
   const router = useRouter()
-  const { networkAvailable, isSyncing, pendingCount, pendingItems, errorItems, hasPending } =
-    useSyncQueue()
+  const {
+    networkAvailable,
+    isSyncing,
+    pendingCount,
+    pendingItems,
+    errorItems,
+    hasPending,
+    syncNow,
+  } = useSyncQueue()
 
   if (!networkAvailable) {
     return (
@@ -74,7 +81,11 @@ export function SyncStatusBar({ style }: SyncStatusBarProps) {
       <TouchableOpacity
         testID="sync-status-pending"
         style={[s.bar, s.pending, style]}
-        onPress={() => router.push('/(app)/pedidos/pendentes')}
+        // "Sincronizar agora" sincroniza de verdade; antes só abria a fila
+        onPress={() => {
+          syncNow()
+          router.push('/(app)/pedidos/pendentes')
+        }}
         activeOpacity={0.85}
       >
         <Upload size={14} color={colors.neutral.white} strokeWidth={1.5} />

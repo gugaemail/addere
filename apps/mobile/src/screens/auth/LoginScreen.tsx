@@ -19,7 +19,9 @@ import type { CompanyFieldConfig, SyncSchedule, UserPublic } from '@addere/types
 
 const schema = z.object({
   email: z.string().email('Email inválido'),
-  password: z.string().min(6, 'Senha deve ter no mínimo 6 caracteres'),
+  // Mesmo mínimo da API (auth.schema.ts): com 6 ou 7 o app deixava passar e a
+  // API devolvia "Dados inválidos"
+  password: z.string().min(8, 'Senha deve ter no mínimo 8 caracteres'),
 })
 
 export function LoginScreen() {
