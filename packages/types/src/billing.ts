@@ -54,6 +54,32 @@ export function competenceStartInstant(competence: Date): Date {
   return new Date(Date.UTC(competence.getUTCFullYear(), competence.getUTCMonth(), 1, 3))
 }
 
+/**
+ * Dia civil de São Paulo do instante, como @db.Date (meia-noite UTC). É o
+ * startDate do aceite e a forma de formatar instantes com formatBillingDate.
+ */
+export function civilDaySaoPaulo(instant: Date): Date {
+  const { year, month, day } = civilDateInSaoPaulo(instant)
+  return new Date(Date.UTC(year, month - 1, day))
+}
+
+/**
+ * 'AAAA-MM-DD' → 00:01 de São Paulo desse dia: é como o "vale a partir de" de
+ * um aditivo é gravado (plano 014). Na competência que começa nesse dia, o
+ * termo já entra depois das 00:00 e é cobrado só no mês seguinte. UTC−3 fixo,
+ * como em competenceStartInstant. Lança RangeError para data inválida.
+ */
+export function effectiveInstantOfDay(ymd: string): Date {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(ymd)
+  if (!m) throw new RangeError(`data inválida: ${ymd}`)
+  const [year, month, day] = [Number(m[1]), Number(m[2]), Number(m[3])]
+  const civil = new Date(Date.UTC(year, month - 1, day))
+  if (civil.getUTCMonth() !== month - 1 || civil.getUTCDate() !== day) {
+    throw new RangeError(`data inválida: ${ymd}`)
+  }
+  return new Date(Date.UTC(year, month - 1, day, 3, 1))
+}
+
 /** A fatura da competência M sai no início de M+1 e vence no dia `dueDay` de M+1. */
 export function dueDateForCompetence(competence: Date, dueDay: number): Date {
   return new Date(Date.UTC(competence.getUTCFullYear(), competence.getUTCMonth() + 1, dueDay))
@@ -135,6 +161,27 @@ function toCents(value: string): number {
   const m = /^(\d+)(?:\.(\d{1,2}))?$/.exec(value.trim())
   if (!m) throw new RangeError(`valor monetário inválido: ${value}`)
   return Number(m[1]) * 100 + Number((m[2] ?? '').padEnd(2, '0'))
+}
+
+/**
+ * '1234.56' → 123456 centavos. É o toCents acima, exportado (plano 014) para
+ * comparar e converter dinheiro sem ponto flutuante. Lança RangeError para
+ * valor que não seja dígitos com até duas casas.
+ */
+export function moneyToCents(value: string): number {
+  return toCents(value)
+}
+
+/**
+ * Dinheiro → 'R$ 1.234,56', com espaço comum, ponto de milhar e vírgula
+ * decimal. Sem Intl de propósito: o texto entra no contrato com hash, e o Intl
+ * usa espaço não separável, cujo caractere muda com a versão do ICU. Converte
+ * por centavos; número passa por toFixed(2) antes.
+ */
+export function formatBrl(value: string | number): string {
+  const cents = moneyToCents(typeof value === 'number' ? value.toFixed(2) : value)
+  const integer = String(Math.floor(cents / 100)).replace(/\B(?=(\d{3})+(?!\d))/g, '.')
+  return `R$ ${integer},${String(cents % 100).padStart(2, '0')}`
 }
 
 /** packagePrice + extraSeats × extraSeatPrice. Cobra o contratado, não o uso. */
@@ -284,6 +331,17 @@ export const BILLING_EVENT_TYPES = [
   'PACKAGE_ACTIVATED',
   'PACKAGE_DEACTIVATED',
   'SETTINGS_UPDATED',
+  // Plano 014: modelos de contrato, documentos e aceite
+  'TEMPLATE_VERSION_CREATED',
+  'TEMPLATE_PUBLISHED',
+  'DOCUMENT_SENT',
+  'DOCUMENT_RESENT',
+  'DOCUMENT_CANCELLED',
+  'DOCUMENT_ACCEPTED',
+  'AMENDMENT_PROPOSED',
+  'AMENDMENT_WITHDRAWN',
+  'INTELLIGENCE_APPLIED',
+  'DESIGNATED_ADMIN_CHANGED',
 ] as const
 export type BillingEventType = (typeof BILLING_EVENT_TYPES)[number]
 
@@ -294,6 +352,24 @@ export type BillingErrorCode =
   | 'INCLUDED_SEATS_REQUIRED'
   | 'PACKAGE_CODE_TAKEN'
   | 'CNPJ_TAKEN'
+  // Plano 014
+  | 'TEMPLATE_DRAFT_EXISTS'
+  | 'TEMPLATE_NOT_DRAFT'
+  | 'TEMPLATE_NOT_PUBLISHABLE'
+  | 'TEMPLATE_NOT_PUBLISHED'
+  | 'NOTHING_TO_SEND'
+  | 'DESIGNATED_ADMIN_REQUIRED'
+  | 'DESIGNATED_ADMIN_INVALID'
+  | 'NOT_DESIGNATED_ADMIN'
+  | 'CONTRACT_FIELDS_MISSING'
+  | 'DOCUMENT_ALREADY_SENT'
+  | 'DOCUMENT_NOT_PENDING'
+  | 'DOCUMENT_HASH_MISMATCH'
+  | 'AMENDMENT_NOTICE_TOO_SHORT'
+  | 'AMENDMENT_REASON_REQUIRED'
+  | 'AMENDMENT_NOT_YET_EFFECTIVE'
+  | 'CONTRACT_NOT_ACTIVE'
+  | 'INTEL_MANAGED_BY_CONTRACT'
 
 // ─── DTOs ────────────────────────────────────────────────────────────────────
 // Datas como string ISO; dinheiro como string '1234.56'.
