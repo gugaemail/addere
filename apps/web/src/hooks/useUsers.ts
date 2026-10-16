@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import type { UserPublic } from '@addere/types'
 import type { CreateUserFormData } from '@/lib/schemas'
+import { billingKeys } from './useBilling'
 
 export function useUsers() {
   return useQuery({
@@ -36,6 +37,8 @@ export function useToggleUser() {
     mutationFn: (id: string) => api.patch<UserPublic>(`/users/${id}/active`).then((r) => r.data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['users'] })
+      // Ativar ou desativar muda as licenças em uso (plano 015)
+      queryClient.invalidateQueries({ queryKey: billingKeys.seats })
     },
   })
 }
