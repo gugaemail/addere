@@ -49,6 +49,10 @@ export const BILLING_EVENT_LABELS: Record<BillingEventType, string> = {
   AMENDMENT_WITHDRAWN: 'Aditivo descartado',
   INTELLIGENCE_APPLIED: 'Inteligência aplicada pelo contrato',
   DESIGNATED_ADMIN_CHANGED: 'Administrador indicado alterado',
+  // Plano 015
+  LICENSE_REQUEST_CREATED: 'Licenças adicionais pedidas',
+  LICENSE_REQUEST_APPROVED: 'Pedido de licenças aprovado',
+  LICENSE_REQUEST_REJECTED: 'Pedido de licenças recusado',
 }
 
 // Rótulo de cada campo que aparece no histórico. Campo sem rótulo aparece cru.
