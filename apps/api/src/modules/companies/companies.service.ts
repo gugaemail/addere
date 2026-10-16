@@ -8,6 +8,7 @@ import { applyDefaultPermissions } from '../permissions/permissions.service'
 import { changedFields, isUniqueViolation, recordBillingEvent } from '../billing/billing-events'
 import type { ClientProfileData } from '../billing/billing.schema'
 import { createClientProfile, PROFILE_KEYS } from '../billing/clients.service'
+import { writeWithSeatGuard } from '../billing/seat-guard'
 
 const MAX_PAGE_SIZE = 500
 
@@ -296,29 +297,32 @@ async function assertValidManager(companyId: string, managerId: string, selfId?:
 export async function createUser(companyId: string, input: CreateUserInput) {
   if (input.managerId) await assertValidManager(companyId, input.managerId)
   const passwordHash = await bcrypt.hash(input.password, 12)
-  const user = await prisma.user.create({
-    data: {
-      ...input,
-      password: passwordHash,
-      companyId,
-      idVendProt: input.idVendProt ?? null,
-      managerId: input.managerId ?? null,
-    },
-    select: {
-      id: true,
-      name: true,
-      email: true,
-      role: true,
-      active: true,
-      idVendProt: true,
-      createdAt: true,
-      visitsPerDay: true,
-      vehicle: true,
-      servedCities: true,
-      messageTone: true,
-      managerId: true,
-    },
-  })
+  // Vendedor e gerente ocupam licença: a criação passa pela trava (plano 015)
+  const user = await writeWithSeatGuard(null, { role: input.role, active: true, companyId }, (db) =>
+    db.user.create({
+      data: {
+        ...input,
+        password: passwordHash,
+        companyId,
+        idVendProt: input.idVendProt ?? null,
+        managerId: input.managerId ?? null,
+      },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        active: true,
+        idVendProt: true,
+        createdAt: true,
+        visitsPerDay: true,
+        vehicle: true,
+        servedCities: true,
+        messageTone: true,
+        managerId: true,
+      },
+    })
+  )
 
   // Permissões padrão do role (mesmo catálogo do seed — decisão D3c)
   await applyDefaultPermissions(user.id, user.role)
@@ -333,11 +337,14 @@ export async function toggleUserActive(companyId: string, id: string, active: bo
   if (!active) {
     await prisma.refreshToken.deleteMany({ where: { userId: id } })
   }
-  return prisma.user.update({
-    where: { id },
-    data: { active },
-    select: { id: true, name: true, email: true, role: true, active: true, createdAt: true },
-  })
+  // Reativar vendedor ou gerente ocupa licença; desativar nunca passa pela trava
+  return writeWithSeatGuard(exists, { ...exists, active }, (db) =>
+    db.user.update({
+      where: { id },
+      data: { active },
+      select: { id: true, name: true, email: true, role: true, active: true, createdAt: true },
+    })
+  )
 }
 
 // ─── Users (update) ──────────────────────────────────────────────────────────
@@ -367,29 +374,31 @@ export async function updateUser(companyId: string, id: string, input: UpdateUse
   if (input.managerId !== undefined) data.managerId = input.managerId
   if (input.password) data.password = await bcrypt.hash(input.password, 12)
 
-  // Invalida todas as sessões ativas ao trocar role ou senha
+  // Invalida todas as sessões ativas ao trocar role ou senha — dentro da
+  // escrita travada: uma troca de ADMIN para vendedor recusada pelo limite de
+  // licenças não desloga ninguém (plano 015)
   const sensitiveChange = input.role !== undefined || !!input.password
-  if (sensitiveChange) {
-    await prisma.refreshToken.deleteMany({ where: { userId: id } })
-  }
 
-  return prisma.user.update({
-    where: { id },
-    data,
-    select: {
-      id: true,
-      name: true,
-      email: true,
-      role: true,
-      active: true,
-      idVendProt: true,
-      createdAt: true,
-      visitsPerDay: true,
-      vehicle: true,
-      servedCities: true,
-      messageTone: true,
-      managerId: true,
-    },
+  return writeWithSeatGuard(exists, { ...exists, role: input.role ?? exists.role }, async (db) => {
+    if (sensitiveChange) await db.refreshToken.deleteMany({ where: { userId: id } })
+    return db.user.update({
+      where: { id },
+      data,
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        active: true,
+        idVendProt: true,
+        createdAt: true,
+        visitsPerDay: true,
+        vehicle: true,
+        servedCities: true,
+        messageTone: true,
+        managerId: true,
+      },
+    })
   })
 }
 

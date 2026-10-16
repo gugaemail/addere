@@ -9,6 +9,7 @@ import {
   revokePermissions,
 } from '../permissions/permissions.service'
 import { updateUser as updateCompanyUser } from '../companies/companies.service'
+import { writeWithSeatGuard } from '../billing/seat-guard'
 
 const userSelect = {
   id: true,
@@ -116,16 +117,19 @@ export async function createUser(input: CreateUserInput, requester: JwtPayload) 
   const companyId =
     requester.role === 'SUPERADMIN' ? (input.companyId ?? null) : requester.companyId
 
-  const user = await prisma.user.create({
-    data: {
-      name: input.name,
-      email: input.email,
-      password: hashedPassword,
-      role: input.role,
-      companyId,
-    },
-    select: userSelect,
-  })
+  // Vendedor e gerente ocupam licença: a criação passa pela trava (plano 015)
+  const user = await writeWithSeatGuard(null, { role: input.role, active: true, companyId }, (db) =>
+    db.user.create({
+      data: {
+        name: input.name,
+        email: input.email,
+        password: hashedPassword,
+        role: input.role,
+        companyId,
+      },
+      select: userSelect,
+    })
+  )
 
   // Com origem informada, copia as permissões dela; senão aplica os defaults do role
   // (mesmo catálogo do seed — ADMIN nasce com intel.admin, decisão D3c)
@@ -157,11 +161,14 @@ export async function toggleUserActive(id: string, requester: JwtPayload) {
     await prisma.refreshToken.deleteMany({ where: { userId: id } })
   }
 
-  return prisma.user.update({
-    where: { id },
-    data: { active: !user.active },
-    select: userSelect,
-  })
+  // Reativar vendedor ou gerente ocupa licença; desativar nunca passa pela trava
+  return writeWithSeatGuard(user, { ...user, active: !user.active }, (db) =>
+    db.user.update({
+      where: { id },
+      data: { active: !user.active },
+      select: userSelect,
+    })
+  )
 }
 
 /**
@@ -171,7 +178,10 @@ export async function toggleUserActive(id: string, requester: JwtPayload) {
  * usuário e delegamos, em vez de manter duas versões que divergem.
  */
 export async function updateUserById(id: string, input: UpdateUserInput, requester: JwtPayload) {
-  const target = await prisma.user.findUnique({ where: { id }, select: { companyId: true } })
+  const target = await prisma.user.findUnique({
+    where: { id },
+    select: { companyId: true, role: true, active: true },
+  })
   if (!target) throw new Error('Usuário não encontrado')
 
   // Usuário sem empresa só o SUPERADMIN alcança (é o caso do próprio SUPERADMIN)
@@ -193,7 +203,13 @@ export async function updateUserById(id: string, input: UpdateUserInput, request
       select: { id: true },
     })
     if (!company) throw new Error('Empresa não encontrada')
-    await prisma.user.update({ where: { id }, data: { companyId } })
+    // Vincular vendedor ou gerente ativo ocupa licença na empresa. Vale o papel
+    // final: o órfão que vira ADMIN nesta mesma requisição não precisa de uma
+    await writeWithSeatGuard(
+      target,
+      { role: input.role ?? target.role, active: target.active, companyId },
+      (db) => db.user.update({ where: { id }, data: { companyId } })
+    )
     scopeId = companyId
   }
   if (!scopeId) {
