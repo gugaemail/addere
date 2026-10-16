@@ -18,9 +18,48 @@ import {
   listPricesFor,
   moneyApiToInput,
   moneyInputToApi,
+  parseMoneyInput,
   proposedTermsOf,
   todayInSaoPaulo,
 } from '../billing-ui'
+
+describe('parseMoneyInput', () => {
+  it('com vírgula: formato brasileiro', () => {
+    expect(parseMoneyInput('1.800,50')).toBe(1800.5)
+    expect(parseMoneyInput('1800,5')).toBe(1800.5)
+    expect(parseMoneyInput('12.345.678,90')).toBe(12345678.9)
+  })
+
+  it('sem vírgula e só grupos de milhar: os pontos são milhar', () => {
+    expect(parseMoneyInput('1.800')).toBe(1800)
+    expect(parseMoneyInput('12.345.678')).toBe(12345678)
+  })
+
+  it('fora isso, número simples', () => {
+    expect(parseMoneyInput('1800')).toBe(1800)
+    expect(parseMoneyInput('1.5')).toBe(1.5)
+    expect(parseMoneyInput('1.80')).toBe(1.8)
+    expect(parseMoneyInput('1800.00')).toBe(1800)
+  })
+
+  it('aceita R$ e espaços', () => {
+    expect(parseMoneyInput('R$ 1.800,00')).toBe(1800)
+    expect(parseMoneyInput('  R$1.800  ')).toBe(1800)
+  })
+
+  it('vazio, lixo e negativo → null', () => {
+    expect(parseMoneyInput('')).toBeNull()
+    expect(parseMoneyInput('   ')).toBeNull()
+    expect(parseMoneyInput('R$')).toBeNull()
+    expect(parseMoneyInput('abc')).toBeNull()
+    expect(parseMoneyInput('12abc')).toBeNull()
+    expect(parseMoneyInput('1,2,3')).toBeNull()
+    expect(parseMoneyInput('0x10')).toBeNull()
+    expect(parseMoneyInput('1e3')).toBeNull()
+    expect(parseMoneyInput('-5')).toBeNull()
+    expect(parseMoneyInput('-5,00')).toBeNull()
+  })
+})
 
 describe('moneyInputToApi', () => {
   it('converte o que se digita no Brasil para o formato da API', () => {
@@ -28,6 +67,8 @@ describe('moneyInputToApi', () => {
     expect(moneyInputToApi('95,5')).toBe('95.50')
     expect(moneyInputToApi('1800.00')).toBe('1800.00')
     expect(moneyInputToApi('R$ 2.086,50')).toBe('2086.50')
+    // Ponto de milhar sem centavos: mil e oitocentos, não R$ 1,80
+    expect(moneyInputToApi('1.800')).toBe('1800.00')
   })
 
   it('vazio, inválido ou negativo → null', () => {

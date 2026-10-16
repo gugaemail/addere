@@ -13,7 +13,6 @@ import {
   type LicensePackageDto,
   type LicenseType,
 } from '@addere/types'
-import { parseOfficialNumber } from './reconciliation'
 
 // Repete a união de variantes do Badge (components/ui/Badge.tsx), que não é exportada
 export type BadgeVariant = 'success' | 'warning' | 'danger' | 'info' | 'neutral'
@@ -114,11 +113,36 @@ export const TERMS_STATUS_LABELS: Record<ContractTermsStatus, string> = {
   WITHDRAWN: 'Descartado',
 }
 
-/** Dinheiro digitado ('1.800,00', '95,5', '1800.00') → '1800.00'; vazio ou inválido → null */
+const THOUSANDS_ONLY = /^\d{1,3}(\.\d{3})+$/
+const PLAIN_NUMBER = /^(\d+(\.\d*)?|\.\d+)$/
+
+/**
+ * Valor em reais digitado na cobrança → número; vazio, inválido ou negativo →
+ * null. Leitor próprio, e não o parseOfficialNumber da reconciliação, porque
+ * aqui "1.800" é mil e oitocentos (ponto de milhar), não 1,80:
+ * - com vírgula, formato brasileiro: tira os pontos e a vírgula vira ponto
+ *   ("1.800,50" e "1800,5" = 1800.5);
+ * - sem vírgula e só com grupos de milhar: os pontos são milhar ("1.800" = 1800;
+ *   "12.345.678" = 12345678);
+ * - fora isso, número simples ("1800"; "1.5" = 1.5; "1.80" = 1.8).
+ */
+export function parseMoneyInput(text: string): number | null {
+  const s = text.trim().replace(/[R$\s]/g, '')
+  if (!s) return null
+  let normalized: string
+  if (s.includes(',')) normalized = s.replace(/\./g, '').replace(',', '.')
+  else if (THOUSANDS_ONLY.test(s)) normalized = s.replace(/\./g, '')
+  else normalized = s
+  // Sinal, expoente, hexadecimal e afins não passam: só dígitos e um ponto
+  if (!PLAIN_NUMBER.test(normalized)) return null
+  const n = Number(normalized)
+  return Number.isFinite(n) && n >= 0 ? n : null
+}
+
+/** Dinheiro digitado ('1.800,00', '1.800', '95,5') → '1800.00'; vazio ou inválido → null */
 export function moneyInputToApi(text: string): string | null {
-  const n = parseOfficialNumber(text, 'currency')
-  if (n === null || n < 0) return null
-  return n.toFixed(2)
+  const n = parseMoneyInput(text)
+  return n === null ? null : n.toFixed(2)
 }
 
 /** '1800.00' da API → '1.800,00' no campo; volta pelo moneyInputToApi sem perda */
