@@ -39,6 +39,8 @@ export interface UserPublic {
   messageTone?: string | null
   managerId?: string | null
   intelManager?: boolean // tem a permissão intel.manager (D3b)
+  canChangeCarrier?: boolean // tem orders.change_carrier (GET /users)
+  canChangePaymentTerms?: boolean // tem orders.change_payment_terms (GET /users)
   companyName?: string | null // devolvido por GET /users (o SUPERADMIN vê várias empresas) e GET /auth/me
 }
 

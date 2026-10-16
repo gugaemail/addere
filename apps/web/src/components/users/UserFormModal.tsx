@@ -77,6 +77,9 @@ export function UserFormModal({
       servedCities: (user?.servedCities ?? []).join(', '),
       messageTone: (user?.messageTone ?? '') as '' | 'informal' | 'formal',
       managerId: user?.managerId ?? '',
+      // Vendedor novo nasce com as duas, como no padrão do perfil na API
+      canChangeCarrier: user?.canChangeCarrier ?? true,
+      canChangePaymentTerms: user?.canChangePaymentTerms ?? true,
     },
   })
 
@@ -99,6 +102,8 @@ export function UserFormModal({
       servedCities: parseCities(data.servedCities ?? ''),
       messageTone: data.messageTone || null,
       managerId: data.managerId || null,
+      canChangeCarrier: !!data.canChangeCarrier,
+      canChangePaymentTerms: !!data.canChangePaymentTerms,
     }
   }
 
@@ -218,6 +223,31 @@ export function UserFormModal({
                   ))}
               </FormSelect>
             </div>
+            <fieldset className="space-y-2">
+              <legend className="mb-1.5 text-sm font-medium text-[var(--text-secondary)]">
+                No pedido, pode alterar
+              </legend>
+              <label className="flex cursor-pointer items-center gap-2 text-sm text-[var(--text-primary)]">
+                <input
+                  type="checkbox"
+                  className="h-4 w-4 cursor-pointer rounded border-[var(--border)] accent-brand focus:ring-brand"
+                  {...register('canChangeCarrier')}
+                />
+                a transportadora
+              </label>
+              <label className="flex cursor-pointer items-center gap-2 text-sm text-[var(--text-primary)]">
+                <input
+                  type="checkbox"
+                  className="h-4 w-4 cursor-pointer rounded border-[var(--border)] accent-brand focus:ring-brand"
+                  {...register('canChangePaymentTerms')}
+                />
+                a condição de pagamento
+              </label>
+              <p className="text-xs text-[var(--text-muted)]">
+                Desmarcado, o pedido sai com a transportadora e a condição de pagamento do cadastro
+                do cliente. O vendedor vê a mudança quando fechar e abrir o app de novo.
+              </p>
+            </fieldset>
           </>
         )}
 

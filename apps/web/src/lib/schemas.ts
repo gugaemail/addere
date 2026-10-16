@@ -50,6 +50,9 @@ export const companyUserBaseSchema = z.object({
   servedCities: z.string().optional(),
   messageTone: z.enum(['', 'informal', 'formal']).optional(),
   managerId: z.string().optional(),
+  // Permissões do pedido no app (orders.change_carrier / change_payment_terms)
+  canChangeCarrier: z.boolean().optional(),
+  canChangePaymentTerms: z.boolean().optional(),
 })
 
 export type UserFormData = z.infer<typeof companyUserBaseSchema>

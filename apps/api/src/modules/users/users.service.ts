@@ -29,6 +29,53 @@ const userSelect = {
   company: { select: { name: true } },
 } as const
 
+// Permissões do pedido no app que o administrador da empresa liga e desliga no
+// formulário do usuário (o modal de Permissões é só do SUPERADMIN). Sem elas, o
+// pedido sai com a transportadora e a condição padrão do cliente no Protheus.
+const ORDER_PERMISSIONS = {
+  canChangeCarrier: 'orders.change_carrier',
+  canChangePaymentTerms: 'orders.change_payment_terms',
+} as const
+
+type OrderPermissionFlags = { [K in keyof typeof ORDER_PERMISSIONS]?: boolean }
+const ORDER_FLAGS = Object.keys(ORDER_PERMISSIONS) as (keyof typeof ORDER_PERMISSIONS)[]
+const ORDER_KEYS: string[] = Object.values(ORDER_PERMISSIONS)
+
+// true concede, false revoga, ausente não mexe
+async function applyOrderPermissions(userId: string, flags: OrderPermissionFlags) {
+  const grant = ORDER_FLAGS.filter((f) => flags[f] === true).map((f) => ORDER_PERMISSIONS[f])
+  const revoke = ORDER_FLAGS.filter((f) => flags[f] === false).map((f) => ORDER_PERMISSIONS[f])
+
+  // Sem a linha no catálogo a concessão não grava nada, e o vendedor seguiria
+  // travado com a caixa marcada na tela
+  if ((await grantPermissions(userId, grant)) < grant.length) {
+    throw new Error('Permissão de pedido não cadastrada no sistema. Fale com o suporte da Addere.')
+  }
+  await revokePermissions(userId, revoke)
+}
+
+function orderFlagsFrom(keys: Set<string> | undefined): Required<OrderPermissionFlags> {
+  return {
+    canChangeCarrier: !!keys?.has(ORDER_PERMISSIONS.canChangeCarrier),
+    canChangePaymentTerms: !!keys?.has(ORDER_PERMISSIONS.canChangePaymentTerms),
+  }
+}
+
+/** Quais das `keys` cada usuário tem, numa consulta só. */
+async function permissionKeysByUser(userIds: string[], keys: string[]) {
+  const rows = await prisma.userPermission.findMany({
+    where: { userId: { in: userIds }, permission: { key: { in: keys } } },
+    select: { userId: true, permission: { select: { key: true } } },
+  })
+  const byUser = new Map<string, Set<string>>()
+  for (const row of rows) {
+    const set = byUser.get(row.userId) ?? new Set<string>()
+    set.add(row.permission.key)
+    byUser.set(row.userId, set)
+  }
+  return byUser
+}
+
 // SUPERADMIN enxerga todos os usuários; demais roles apenas os da própria empresa
 export async function listUsers(requester: JwtPayload) {
   const where = requester.role === 'SUPERADMIN' ? {} : { companyId: requester.companyId }
@@ -40,19 +87,22 @@ export async function listUsers(requester: JwtPayload) {
   })
 
   // Quem tem intel.manager (D3b) — é o que distingue "Gerente" de "Vendedor" na
-  // tela, já que o enum Role não tem esse valor. Mesma consulta de
-  // companies.service.ts, aqui sem recorte por empresa.
-  const managerHolders = await prisma.userPermission.findMany({
-    where: { userId: { in: users.map((u) => u.id) }, permission: { key: 'intel.manager' } },
-    select: { userId: true },
-  })
-  const managerSet = new Set(managerHolders.map((m) => m.userId))
+  // tela, já que o enum Role não tem esse valor — e as permissões do pedido,
+  // que o formulário de edição mostra marcadas ou não.
+  const keysByUser = await permissionKeysByUser(
+    users.map((u) => u.id),
+    ['intel.manager', ...ORDER_KEYS]
+  )
 
-  return users.map(({ company, ...user }) => ({
-    ...user,
-    companyName: company?.name ?? null,
-    intelManager: managerSet.has(user.id),
-  }))
+  return users.map(({ company, ...user }) => {
+    const keys = keysByUser.get(user.id)
+    return {
+      ...user,
+      companyName: company?.name ?? null,
+      intelManager: !!keys?.has('intel.manager'),
+      ...orderFlagsFrom(keys),
+    }
+  })
 }
 
 export async function createUser(input: CreateUserInput, requester: JwtPayload) {
@@ -90,7 +140,11 @@ export async function createUser(input: CreateUserInput, requester: JwtPayload) 
   // ser permissionado numa segunda tela, depois de criado.
   if (input.intelManager) await grantPermissions(user.id, ['intel.manager'])
 
-  return { ...user, intelManager: !!input.intelManager }
+  // As caixas do pedido vêm por cima do padrão do perfil (ou da cópia)
+  await applyOrderPermissions(user.id, input)
+  const orderKeys = (await permissionKeysByUser([user.id], ORDER_KEYS)).get(user.id)
+
+  return { ...user, intelManager: !!input.intelManager, ...orderFlagsFrom(orderKeys) }
 }
 
 export async function toggleUserActive(id: string, requester: JwtPayload) {
@@ -124,7 +178,7 @@ export async function updateUserById(id: string, input: UpdateUserInput, request
   if (requester.role !== 'SUPERADMIN' && target.companyId !== requester.companyId) {
     throw new ForbiddenError('Não é permitido editar usuários de outra empresa')
   }
-  const { intelManager, companyId, ...profile } = input
+  const { intelManager, companyId, canChangeCarrier, canChangePaymentTerms, ...profile } = input
 
   // Vincular empresa é conserto de cadastro órfão, não mudança de lotação:
   // mover alguém de empresa arrastaria junto pedidos, gerente e código de
@@ -157,7 +211,14 @@ export async function updateUserById(id: string, input: UpdateUserInput, request
     else await revokePermissions(id, ['intel.manager'])
   }
 
-  return { ...user, intelManager: intelManager ?? (await hasIntelManager(id)) }
+  await applyOrderPermissions(id, { canChangeCarrier, canChangePaymentTerms })
+  const orderKeys = (await permissionKeysByUser([id], ORDER_KEYS)).get(id)
+
+  return {
+    ...user,
+    intelManager: intelManager ?? (await hasIntelManager(id)),
+    ...orderFlagsFrom(orderKeys),
+  }
 }
 
 async function hasIntelManager(userId: string): Promise<boolean> {

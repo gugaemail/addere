@@ -11,6 +11,10 @@ export const createUserSchema = z.object({
   // Perfil "Gerente" do painel = role SALESPERSON + intel.manager (decisão D3:
   // o enum Role não ganha valor novo). A permissão nunca é default do role.
   intelManager: z.boolean().optional(),
+  // Permissões do pedido no app (orders.change_carrier e
+  // orders.change_payment_terms), ligadas pelo administrador da empresa.
+  canChangeCarrier: z.boolean().optional(),
+  canChangePaymentTerms: z.boolean().optional(),
 })
 
 export const updateUserSchema = z.object({
@@ -19,6 +23,10 @@ export const updateUserSchema = z.object({
   password: z.string().min(8, 'Senha deve ter pelo menos 8 caracteres').optional(),
   role: z.enum(['ADMIN', 'SALESPERSON']).optional(),
   intelManager: z.boolean().optional(),
+  // Permissões do pedido no app (orders.change_carrier e
+  // orders.change_payment_terms), ligadas pelo administrador da empresa.
+  canChangeCarrier: z.boolean().optional(),
+  canChangePaymentTerms: z.boolean().optional(),
   idVendProt: z.string().max(20).nullable().optional(),
   visitsPerDay: z.number().int().min(1).max(50).nullable().optional(),
   vehicle: z.enum(['CAR', 'MOTORCYCLE', 'FOOT']).nullable().optional(),
