@@ -118,6 +118,8 @@ model Company {
   billingEvents     BillingEvent[]
   // ─── Contrato e aceite (plano 014) ───
   contractDocuments ContractDocument[]
+  // ─── Faturamento (plano 016) ───
+  invoices          Invoice[]
 
   @@map("companies")
 }
@@ -1282,6 +1284,14 @@ model CompanyContract {
   designatedAdminId String?
   designatedAdmin   User?   @relation("ContractDesignatedAdmin", fields: [designatedAdminId], references: [id])
 
+  // Encerramento (plano 016): sem multa, com efeito no fim do mês, que é cobrado.
+  // O contrato segue ACTIVE até endsAt; o agendador o passa a CANCELLED no dia seguinte.
+  endsAt                 DateTime? @db.Date // último dia coberto (sempre o último dia de um mês)
+  cancelRequestedAt      DateTime?
+  cancelRequestedById    String?
+  cancelReason           String?
+  deactivateCompanyOnEnd Boolean   @default(false) // "Desativar empresa também"
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -1441,4 +1451,93 @@ model ContractDocument {
   @@index([companyId, status])
   @@index([contractId, sentAt])
   @@map("billing_contract_documents")
+}
+
+// ═════════════════════════════════════════
+// Faturamento (plano 016) — mensal, pós-pago, baixa manual
+// Dinheiro Decimal(14,2); competência e vencimento em @db.Date
+// ═════════════════════════════════════════
+
+enum InvoiceStatus {
+  OPEN // em aberto; "vencida" é derivada na leitura (OPEN e vencimento < hoje em SP)
+  PAID // baixa dada; valores e itens ficam imutáveis
+  CANCELLED // não será cobrada; continua ocupando a competência
+}
+
+enum InvoiceOrigin {
+  JOB // gerada pelo agendador
+  MANUAL // fatura avulsa, criada pelo superadmin
+}
+
+enum InvoiceItemKind {
+  PACKAGE // valor total do pacote dos termos da competência
+  EXTRA_SEATS // licenças adicionais × preço unitário
+  DISCOUNT // desconto manual, gravado negativo
+  ADJUSTMENT // acréscimo ou ajuste manual, com sinal
+}
+
+enum InvoicePaymentMethod {
+  PIX
+  BOLETO
+  TRANSFER // TED ou DOC
+  CARD
+  OTHER
+}
+
+model Invoice {
+  id         String        @id @default(uuid())
+  number     Int           @unique @default(autoincrement()) // sequencial global (SERIAL)
+  competence DateTime      @db.Date // dia 1 do mês cobrado
+  dueDate    DateTime      @db.Date
+  status     InvoiceStatus @default(OPEN)
+  origin     InvoiceOrigin @default(JOB)
+  termsId    String? // ContractTerms usados no cálculo; termos nunca são apagados
+  total      Decimal       @db.Decimal(14, 2) // soma dos itens, refeita a cada mudança
+
+  // Baixa
+  paidAt        DateTime?             @db.Date // data do pagamento informada
+  paidAmount    Decimal?              @db.Decimal(14, 2)
+  paymentMethod InvoicePaymentMethod?
+  paymentNote   String?
+  paidById      String? // User.id de quem deu a baixa
+  paidByName    String? // nome congelado na baixa
+
+  nfNumber String? // NFS-e emitida por fora
+  notes    String? // observação interna; o ADMIN do cliente não vê
+
+  // Cancelamento
+  cancelledAt     DateTime?
+  cancelledById   String?
+  cancelledByName String?
+  cancelReason    String?
+
+  createdById String? // null = agendador
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  companyId String
+  company   Company       @relation(fields: [companyId], references: [id])
+  items     InvoiceItem[]
+
+  @@unique([companyId, competence]) // uma fatura por empresa e competência: é a idempotência do gerador
+  @@index([status, dueDate])
+  @@map("billing_invoices")
+}
+
+model InvoiceItem {
+  id          String          @id @default(uuid())
+  kind        InvoiceItemKind
+  description String
+  quantity    Int             @default(1)
+  unitPrice   Decimal         @db.Decimal(14, 2)
+  amount      Decimal         @db.Decimal(14, 2) // com sinal: DISCOUNT é negativo
+  manual      Boolean         @default(false) // true sobrevive ao recálculo
+  createdById String?
+  createdAt   DateTime        @default(now())
+
+  invoiceId String
+  invoice   Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@index([invoiceId])
+  @@map("billing_invoice_items")
 }
