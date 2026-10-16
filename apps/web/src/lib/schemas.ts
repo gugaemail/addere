@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { isValidCpf } from '@addere/types'
 
 export const loginSchema = z.object({
   email: z.string().email('Email inválido'),
@@ -105,3 +106,54 @@ export const productSchema = z.object({
 })
 
 export type ProductFormData = z.infer<typeof productSchema>
+
+// ─── Gestão Addere — cadastro do cliente (plano 013) ────────────────────────
+// Strings do formulário; o ClientFormModal converte vazio em null e grava CPF e
+// CEP só com dígitos. A API valida de novo (billing.schema.ts).
+
+const digitsOf = (v: string | undefined) => (v ?? '').replace(/\D/g, '')
+const isBlank = (v: string | undefined) => !v || !v.trim()
+
+const optionalFormEmail = z
+  .string()
+  .optional()
+  .refine((v) => isBlank(v) || z.string().email().safeParse(v?.trim()).success, 'E-mail inválido')
+
+export const clientFormSchema = z.object({
+  // Empresa
+  name: z.string().trim().min(1, 'Nome no sistema obrigatório'),
+  cnpj: z.string().refine((v) => digitsOf(v).length === 14, 'CNPJ deve ter 14 dígitos'),
+  idProtheus: z.string().max(20, 'Máximo de 20 caracteres').optional(),
+  stateRegistration: z.string().optional(),
+  legalName: z.string().trim().min(2, 'Razão social obrigatória'),
+  tradeName: z.string().optional(),
+  // Endereço
+  addressStreet: z.string().optional(),
+  addressNumber: z.string().optional(),
+  addressComplement: z.string().optional(),
+  addressDistrict: z.string().optional(),
+  addressCity: z.string().optional(),
+  addressState: z.string().optional(),
+  addressZip: z
+    .string()
+    .optional()
+    .refine((v) => isBlank(v) || digitsOf(v).length === 8, 'CEP deve ter 8 dígitos'),
+  // Representante legal
+  legalRepName: z.string().optional(),
+  legalRepCpf: z
+    .string()
+    .optional()
+    .refine((v) => isBlank(v) || isValidCpf(v ?? ''), 'CPF inválido'),
+  legalRepRole: z.string().optional(),
+  // Contatos
+  contactName: z.string().optional(),
+  contactEmail: optionalFormEmail,
+  contactPhone: z.string().optional(),
+  billingContactName: z.string().optional(),
+  billingEmail: optionalFormEmail,
+  billingPhone: z.string().optional(),
+  // Observações (só a Addere vê)
+  notes: z.string().max(2000, 'Máximo de 2000 caracteres').optional(),
+})
+
+export type ClientFormData = z.infer<typeof clientFormSchema>

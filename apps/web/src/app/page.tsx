@@ -1,7 +1,7 @@
 'use client'
 
-// Home raiz (E9): decide o destino pelo papel — SUPERADMIN → /dashboard
-// (Empresas); demais → /inteligencia. O middleware manda sessões ativas
+// Home raiz (E9): decide o destino pelo papel — SUPERADMIN → /gestao/clientes
+// (Clientes, na Gestão Addere); demais → /inteligencia. O middleware manda sessões ativas
 // para cá; sem sessão restaurável, volta ao login.
 import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
