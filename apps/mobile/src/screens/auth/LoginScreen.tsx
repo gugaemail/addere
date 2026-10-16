@@ -1,13 +1,5 @@
 import { useState, useEffect } from 'react'
-import {
-  View,
-  Text,
-  StyleSheet,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  Alert,
-} from 'react-native'
+import { View, Text, StyleSheet, ScrollView, Alert } from 'react-native'
 import { useRouter } from 'expo-router'
 import { z } from 'zod'
 import AsyncStorage from '@react-native-async-storage/async-storage'
@@ -19,6 +11,7 @@ import { api } from '../../lib/api'
 import { LogoMark } from '../../components/brand/LogoMark'
 import { getApiErrorMessage } from '../../lib/errors'
 import { Input } from '../../components/ui/Input'
+import { KeyboardInsetView } from '../../components/ui/KeyboardAware'
 import { Button, buttonForeground } from '../../components/ui/Button'
 import { Fingerprint } from 'lucide-react-native'
 import { colors, spacing, radius, typography } from '../../theme'
@@ -113,10 +106,7 @@ export function LoginScreen() {
   }
 
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-    >
+    <KeyboardInsetView style={styles.container}>
       <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
         <View style={styles.card}>
           {/* Logo group */}
@@ -182,7 +172,7 @@ export function LoginScreen() {
           </View>
         </View>
       </ScrollView>
-    </KeyboardAvoidingView>
+    </KeyboardInsetView>
   )
 }
 
