@@ -207,6 +207,39 @@ export const contractDraftFormSchema = z
 
 export type ContractDraftFormData = z.infer<typeof contractDraftFormSchema>
 
+// Aditivo (plano 014): os mesmos termos do rascunho, mais "vale a partir de",
+// o motivo (obrigatório: entra no texto do aditivo) e as duas caixas
+export const amendmentFormSchema = z
+  .object({
+    packageId: z.string().min(1, 'Escolha o pacote'),
+    licenseType: z.enum(['STANDARD', 'INTELLIGENCE']),
+    includedSeats: z.string(),
+    extraSeats: z.string().refine((v) => intInRange(v, 0, 10000), 'Número inteiro de 0 a 10000'),
+    packagePrice: z.string().refine((v) => moneyInputToApi(v) !== null, 'Valor inválido'),
+    extraSeatPrice: z.string().refine((v) => moneyInputToApi(v) !== null, 'Valor inválido'),
+    proposedEffectiveFrom: z
+      .string()
+      .refine((v) => !v || /^\d{4}-\d{2}-\d{2}$/.test(v), 'Data inválida'),
+    reason: z
+      .string()
+      .trim()
+      .min(1, 'Informe o motivo do aditivo')
+      .max(500, 'Máximo de 500 caracteres'),
+    requestedByClient: z.boolean(),
+    carryConditions: z.boolean(),
+  })
+  .superRefine((d, ctx) => {
+    if (d.includedSeats.trim() && !intInRange(d.includedSeats, 1, 10000)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['includedSeats'],
+        message: 'Número inteiro de 1 a 10000',
+      })
+    }
+  })
+
+export type AmendmentFormData = z.infer<typeof amendmentFormSchema>
+
 // ─── Gestão Addere — pacotes e regras de cobrança (plano 013) ───────────────
 
 const optionalFormMoney = z

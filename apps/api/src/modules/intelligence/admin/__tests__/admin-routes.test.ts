@@ -85,6 +85,10 @@ beforeEach(() => {
 })
 
 const auth = (sub: string) => ({ authorization: `Bearer ${tokens[sub]}` })
+// SUPERADMIN só nos testes do config (plano 014)
+const superAuth = () => ({
+  authorization: `Bearer ${app.jwt.sign({ sub: 'super-1', email: 's@a.com', role: 'SUPERADMIN' })}`,
+})
 
 describe('autenticação e permissões', () => {
   it('sem token → 401', async () => {
@@ -568,19 +572,89 @@ describe('rotas de config e parâmetros', () => {
     expect(body.config.defaultTone).toBe('informal')
   })
 
-  it('PUT config liga a camada e persiste o merge', async () => {
-    prismaMock.company.update.mockResolvedValue({
-      intelligenceEnabled: true,
-      intelligenceConfig: { syncHour: 4 },
-    })
+  // Plano 014: a Inteligência entra pelo contrato. Antes, o ADMIN ligava a
+  // camada por aqui; agora leva 403, e quem liga à mão é só o SUPERADMIN, em
+  // empresa sem contrato ACTIVE.
+  it('PUT config: o ADMIN não liga a camada (403 INTEL_MANAGED_BY_CONTRACT)', async () => {
     const res = await app.inject({
       method: 'PUT',
       url: '/intel/admin/config',
       headers: auth('admin-a'),
       payload: { intelligenceEnabled: true, config: { syncHour: 4 } },
     })
+    expect(res.statusCode).toBe(403)
+    expect(res.json()).toEqual({
+      message: 'A Inteligência é definida pelo contrato da empresa. Fale com a Addere.',
+      code: 'INTEL_MANAGED_BY_CONTRACT',
+    })
+    expect(prismaMock.company.update).not.toHaveBeenCalled()
+  })
+
+  it('PUT config: o ADMIN mandando o mesmo valor grava o config sem o flag', async () => {
+    prismaMock.company.update.mockResolvedValue({
+      intelligenceEnabled: false,
+      intelligenceConfig: { syncHour: 4 },
+    })
+    const res = await app.inject({
+      method: 'PUT',
+      url: '/intel/admin/config',
+      headers: auth('admin-a'),
+      payload: { intelligenceEnabled: false, config: { syncHour: 4 } },
+    })
     expect(res.statusCode).toBe(200)
     expect(res.json().config.syncHour).toBe(4)
+    const data = prismaMock.company.update.mock.calls[0][0].data
+    expect(data).not.toHaveProperty('intelligenceEnabled')
+    expect(data.intelligenceConfig).toMatchObject({ syncHour: 4 })
+  })
+
+  it('PUT config: o SUPERADMIN liga a camada em empresa sem contrato', async () => {
+    prismaMock.company.update.mockResolvedValue({
+      intelligenceEnabled: true,
+      intelligenceConfig: null,
+    })
+    const res = await app.inject({
+      method: 'PUT',
+      url: '/intel/admin/config',
+      headers: superAuth(),
+      payload: { companyId: COMPANY_A, intelligenceEnabled: true },
+    })
+    expect(res.statusCode).toBe(200)
+    expect(prismaMock.company.update.mock.calls[0][0].data.intelligenceEnabled).toBe(true)
+    expect(res.json().intelligenceEnabled).toBe(true)
+  })
+
+  it('PUT config: o SUPERADMIN com contrato ACTIVE → 409 (muda por aditivo)', async () => {
+    prismaMock.companyContract.findUnique.mockResolvedValue({ status: 'ACTIVE' })
+    const res = await app.inject({
+      method: 'PUT',
+      url: '/intel/admin/config',
+      headers: superAuth(),
+      payload: { companyId: COMPANY_A, intelligenceEnabled: true },
+    })
+    expect(res.statusCode).toBe(409)
+    expect(res.json().code).toBe('INTEL_MANAGED_BY_CONTRACT')
+    expect(prismaMock.company.update).not.toHaveBeenCalled()
+  })
+
+  it('GET config devolve managedByContract e canToggle', async () => {
+    const get = async (headers: Record<string, string>, url = '/intel/admin/config') =>
+      (await app.inject({ method: 'GET', url, headers })).json()
+
+    // ADMIN nunca liga à mão
+    expect(await get(auth('admin-a'))).toMatchObject({ managedByContract: false, canToggle: false })
+    const superUrl = `/intel/admin/config?companyId=${COMPANY_A}`
+    expect(await get(superAuth(), superUrl)).toMatchObject({
+      managedByContract: false,
+      canToggle: true,
+    })
+
+    prismaMock.companyContract.findUnique.mockResolvedValue({ status: 'ACTIVE' })
+    expect(await get(auth('admin-a'))).toMatchObject({ managedByContract: true, canToggle: false })
+    expect(await get(superAuth(), superUrl)).toMatchObject({
+      managedByContract: true,
+      canToggle: false,
+    })
   })
 
   it('PUT config com campo desconhecido falha alto em vez de ignorar', async () => {

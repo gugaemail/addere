@@ -38,6 +38,17 @@ export const BILLING_EVENT_LABELS: Record<BillingEventType, string> = {
   PACKAGE_ACTIVATED: 'Pacote ativado',
   PACKAGE_DEACTIVATED: 'Pacote desativado',
   SETTINGS_UPDATED: 'Regras de cobrança alteradas',
+  // Plano 014
+  TEMPLATE_VERSION_CREATED: 'Versão de modelo criada',
+  TEMPLATE_PUBLISHED: 'Modelo publicado',
+  DOCUMENT_SENT: 'Documento enviado',
+  DOCUMENT_RESENT: 'E-mail reenviado',
+  DOCUMENT_CANCELLED: 'Documento cancelado',
+  DOCUMENT_ACCEPTED: 'Documento aceito',
+  AMENDMENT_PROPOSED: 'Aditivo proposto',
+  AMENDMENT_WITHDRAWN: 'Aditivo descartado',
+  INTELLIGENCE_APPLIED: 'Inteligência aplicada pelo contrato',
+  DESIGNATED_ADMIN_CHANGED: 'Administrador indicado alterado',
 }
 
 // Rótulo de cada campo que aparece no histórico. Campo sem rótulo aparece cru.

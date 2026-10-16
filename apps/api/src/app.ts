@@ -27,12 +27,29 @@ import helpRoutes from './modules/help/help.routes'
 import usersRoutes from './modules/users/users.routes'
 import permissionsRoutes, { userPermissionsRoutes } from './modules/permissions/permissions.routes'
 import billingAdminRoutes from './modules/billing/billing.routes'
+import contractTemplatesRoutes from './modules/billing/contract-templates.routes'
+import contractDocumentsRoutes from './modules/billing/contract-documents.routes'
+import billingMeRoutes from './modules/billing/me.routes'
+import { initApplyDueTermsTicker } from './modules/billing/jobs/apply-due-terms'
 import { authenticate } from './middleware/authenticate'
 import { env } from './lib/env'
 import { registerErrorHandling } from './lib/error-handler'
 
 export async function buildApp(): Promise<FastifyInstance> {
   const app = Fastify({
+    // IP real atrás do proxy do Render (plano 014: o aceite do contrato grava
+    // o IP de quem aceita). Número de saltos, e não `true`: com `true` o
+    // Fastify confia na cadeia inteira do X-Forwarded-For e o request.ip vira a
+    // entrada mais à esquerda, que o próprio cliente escreve. Com N, ele confia
+    // só nos N proxies mais próximos e ignora o que foi forjado à esquerda.
+    //
+    // Efeito no rate limit: o @fastify/rate-limit do login, do refresh, do
+    // forgot-password, do reset-password e do logout usa request.ip como chave,
+    // e o userRateLimit (lib/rate-limit.ts) cai nele sem usuário autenticado.
+    // Sem isto, atrás do proxy todos os clientes tendem a dividir um balde só
+    // (10 logins por minuto para o país inteiro); com isto, cada cliente tem o
+    // seu. O código dos limitadores não muda.
+    trustProxy: env.TRUST_PROXY_HOPS,
     logger: {
       level: env.NODE_ENV === 'production' ? 'info' : 'debug',
     },
@@ -103,6 +120,9 @@ export async function buildApp(): Promise<FastifyInstance> {
   await app.register(userPermissionsRoutes, { prefix: '/users' })
   await app.register(permissionsRoutes)
   await app.register(billingAdminRoutes, { prefix: '/admin/billing' })
+  await app.register(contractTemplatesRoutes, { prefix: '/admin/billing/contract-templates' })
+  await app.register(contractDocumentsRoutes, { prefix: '/admin/billing' })
+  await app.register(billingMeRoutes, { prefix: '/billing/me' })
 
   // Inicia schedulers de auto-sync após o servidor estar pronto
   initSentry()
@@ -118,6 +138,14 @@ export async function buildApp(): Promise<FastifyInstance> {
     }
     registerIntelJobHandlers()
     initIntelScheduler()
+    // Termos com "vale a partir de" no futuro mudam a Inteligência na data
+    // (plano 014). O 016 absorve este ticker no agendador de cobrança.
+    try {
+      initApplyDueTermsTicker()
+    } catch (err) {
+      captureError(err, { module: 'apply-due-terms' })
+      app.log.error({ err }, '[apply-due-terms] ticker não iniciou neste boot')
+    }
   })
 
   return app
