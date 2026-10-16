@@ -9,6 +9,7 @@ import {
   Building2,
   BarChart3,
   CircleUser,
+  CreditCard,
   Database,
   FileSignature,
   FileText,
@@ -198,6 +199,15 @@ const NAV_GROUPS: NavGroup[] = [
         label: 'Contrato',
         match: (p) => p.startsWith('/contrato'),
         icon: FileSignature,
+        requires: 'companyAdmin',
+      },
+      {
+        // Plano 015: o plano, as licenças em uso e o pedido de licenças. Só o
+        // ADMIN; o SUPERADMIN vê tudo isso na ficha do cliente e em Solicitações
+        href: '/plano',
+        label: 'Plano e cobrança',
+        match: (p) => p.startsWith('/plano'),
+        icon: CreditCard,
         requires: 'companyAdmin',
       },
       {

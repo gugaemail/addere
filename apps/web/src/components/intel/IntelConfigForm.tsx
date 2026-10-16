@@ -146,8 +146,8 @@ export function IntelConfigForm({ companyIdOverride, apiSqlConfigured = true }: 
             ) : (
               <>
                 Definida pelo seu contrato.{' '}
-                <Link href="/contrato" className="font-medium text-brand hover:underline">
-                  Ver contrato →
+                <Link href="/plano" className="font-medium text-brand hover:underline">
+                  Ver plano →
                 </Link>
               </>
             )}
