@@ -33,6 +33,12 @@ services:
         sync: false
       - key: CORS_ORIGIN
         value: https://addere.vercel.app
+      # Agendador do faturamento (plano 016). Ligar só de propósito: no staging,
+      # para teste; em produção, depois do primeiro contrato aceito. Ao ligar no
+      # painel, troque aqui também — senão uma sincronização do Blueprint volta
+      # o valor para 'false'.
+      - key: BILLING_JOBS_ENABLED
+        value: 'false'
       # Proxies na frente da API (plano 014): confira no staging que o IP do
       # cliente aparece nos logs (remoteAddress); se aparecer o do proxy, use 2
       - key: TRUST_PROXY_HOPS
@@ -75,6 +81,12 @@ services:
         sync: false
       - key: CORS_ORIGIN
         value: https://addere-staging.vercel.app
+      # Agendador do faturamento (plano 016). Ligar só de propósito: no staging,
+      # para teste; em produção, depois do primeiro contrato aceito. Ao ligar no
+      # painel, troque aqui também — senão uma sincronização do Blueprint volta
+      # o valor para 'false'.
+      - key: BILLING_JOBS_ENABLED
+        value: 'false'
       # Proxies na frente da API (plano 014): confira no staging que o IP do
       # cliente aparece nos logs (remoteAddress); se aparecer o do proxy, use 2
       - key: TRUST_PROXY_HOPS
