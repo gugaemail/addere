@@ -138,6 +138,10 @@ describe('termos do contrato', () => {
     dueDay: 10,
     overdueBlockDays: null,
     terms: list,
+    endsAt: null,
+    cancelRequestedAt: null,
+    cancelReason: null,
+    deactivateCompanyOnEnd: false,
   })
 
   it('o atual é o EFFECTIVE vigente; o proposto é o PROPOSED de maior versão', () => {

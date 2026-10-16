@@ -50,6 +50,20 @@ export const BILLING_EVENT_LABELS: Record<BillingEventType, string> = {
   AMENDMENT_WITHDRAWN: 'Aditivo descartado',
   INTELLIGENCE_APPLIED: 'Inteligência aplicada pelo contrato',
   DESIGNATED_ADMIN_CHANGED: 'Administrador indicado alterado',
+  // Plano 016
+  INVOICE_GENERATED: 'Fatura gerada pelo faturamento',
+  INVOICE_CREATED: 'Fatura avulsa criada',
+  INVOICE_RECALCULATED: 'Fatura recalculada',
+  INVOICE_PAID: 'Baixa da fatura',
+  INVOICE_CANCELLED: 'Fatura cancelada',
+  INVOICE_ITEM_ADDED: 'Item lançado na fatura',
+  INVOICE_ITEM_REMOVED: 'Item removido da fatura',
+  INVOICE_UPDATED: 'NF ou observação da fatura alterada',
+  INVOICE_DUE_REMINDER_SENT: 'Lembrete de vencimento enviado',
+  DOCUMENT_PENDING_REMINDER_SENT: 'Lembrete de documento pendente enviado',
+  CONTRACT_CANCEL_SCHEDULED: 'Cancelamento do contrato agendado',
+  CONTRACT_CANCEL_REVERTED: 'Cancelamento do contrato desfeito',
+  CONTRACT_ENDED: 'Contrato encerrado',
   // Plano 015
   LICENSE_REQUEST_CREATED: 'Licenças adicionais pedidas',
   LICENSE_REQUEST_APPROVED: 'Pedido de licenças aprovado',
@@ -105,6 +119,18 @@ export const BILLING_FIELD_LABELS: Record<string, string> = {
   active: 'Status',
   dueReminderDays: 'Lembrete antes do vencimento',
   notifyEmail: 'E-mail da Addere para os avisos',
+  // Faturas e encerramento (plano 016)
+  items: 'Itens',
+  total: 'Total',
+  paidAt: 'Data do pagamento',
+  paidAmount: 'Valor recebido',
+  paymentMethod: 'Forma de pagamento',
+  paymentNote: 'Observação da baixa',
+  nfNumber: 'Nota fiscal',
+  cancelReason: 'Motivo',
+  endsAt: 'Término do contrato',
+  deactivateCompanyOnEnd: 'Desativar a empresa no encerramento',
+  intelligenceEnabled: 'Inteligência',
 }
 
 export function billingFieldLabel(key: string): string {

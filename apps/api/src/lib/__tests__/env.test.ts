@@ -66,3 +66,21 @@ describe('TRUST_PROXY_HOPS (plano 014)', () => {
     expect(() => parseEnv({ ...BASE, TRUST_PROXY_HOPS: 'abc' })).toThrow(/TRUST_PROXY_HOPS/)
   })
 })
+
+describe('BILLING_JOBS_ENABLED (plano 016)', () => {
+  it("sem a variável, o agendador do faturamento fica desligado ('false')", () => {
+    expect(parseEnv(BASE).BILLING_JOBS_ENABLED).toBe('false')
+  })
+
+  it("criada sem valor no painel (string vazia) também fica 'false'", () => {
+    expect(parseEnv({ ...BASE, BILLING_JOBS_ENABLED: '' }).BILLING_JOBS_ENABLED).toBe('false')
+  })
+
+  it("aceita 'true', ligado de propósito", () => {
+    expect(parseEnv({ ...BASE, BILLING_JOBS_ENABLED: 'true' }).BILLING_JOBS_ENABLED).toBe('true')
+  })
+
+  it("recusa 'sim'", () => {
+    expect(() => parseEnv({ ...BASE, BILLING_JOBS_ENABLED: 'sim' })).toThrow(/BILLING_JOBS_ENABLED/)
+  })
+})

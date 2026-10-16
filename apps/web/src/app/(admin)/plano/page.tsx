@@ -15,6 +15,7 @@ import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { Spinner } from '@/components/ui/Spinner'
 import { LicenseRequestModal } from '@/components/billing/LicenseRequestModal'
+import { MyInvoicesSection } from '@/components/billing/MyInvoicesSection'
 import { LicenseRequestsTable } from '@/components/billing/LicenseRequestsTable'
 import { SeatHoldersList } from '@/components/billing/SeatHoldersList'
 import { SeatMeter } from '@/components/billing/SeatMeter'
@@ -24,10 +25,10 @@ import { getApiErrorMessage } from '@/lib/api'
 import { LICENSE_TYPE_LABELS } from '@/lib/billing-ui'
 import { licenseRequestBlockedReason, monthlyIncrease } from '@/lib/seats'
 
-// Plano e cobrança do ADMIN da empresa (plano 015): o plano em vigor, as
-// licenças em uso e os pedidos de licenças adicionais. Só o administrador
-// indicado pede (decisão padrão 10); os outros ADMINs veem o botão desativado,
-// com o nome dele. O 016 acrescenta as faturas abaixo destes blocos.
+// Plano e cobrança do ADMIN da empresa: o plano em vigor, as licenças em uso e
+// os pedidos de licenças adicionais (plano 015) e, abaixo, as faturas (plano
+// 016). Só o administrador indicado pede (decisão padrão 10); os outros ADMINs
+// veem o botão desativado, com o nome dele.
 
 function PlanCard({ terms, startDate }: { terms: MyTermsDto; startDate: string | null }) {
   return (
@@ -137,8 +138,8 @@ export default function PlanoPage() {
       <Card className="max-w-2xl p-6">
         <h1 className="text-lg font-semibold text-[var(--text-primary)]">Plano e cobrança</h1>
         <p className="mt-1 text-sm text-[var(--text-secondary)]">
-          O plano, as licenças e os pedidos de cada cliente ficam na ficha do cliente, em Gestão
-          Addere.
+          O plano, as licenças, os pedidos e as faturas de cada cliente ficam na ficha do
+          cliente, em Gestão Addere.
         </p>
         <div className="mt-3 flex flex-wrap gap-4">
           <Link href="/gestao/clientes" className="text-sm font-medium text-brand hover:underline">
@@ -149,6 +150,9 @@ export default function PlanoPage() {
             className="text-sm font-medium text-brand hover:underline"
           >
             Ver solicitações →
+          </Link>
+          <Link href="/gestao/faturas" className="text-sm font-medium text-brand hover:underline">
+            Ver faturas →
           </Link>
         </div>
       </Card>
@@ -192,7 +196,7 @@ export default function PlanoPage() {
           Plano e cobrança
         </h1>
         <p className="mt-1 text-sm text-[var(--text-muted)]">
-          Seu contrato, suas licenças e os pedidos de licenças adicionais
+          Seu contrato, suas licenças, os pedidos de licenças adicionais e as faturas
         </p>
       </div>
 
@@ -220,6 +224,10 @@ export default function PlanoPage() {
           <LicenseRequestsTable requests={requests} />
         </section>
       )}
+
+      {/* Plano 016: as faturas aparecem mesmo sem contrato ativo (a do mês do
+          encerramento sai depois do fim) */}
+      <MyInvoicesSection />
 
       {requesting && current && (
         <LicenseRequestModal

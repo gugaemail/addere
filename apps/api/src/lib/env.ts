@@ -31,6 +31,10 @@ const envSchema = z.object({
   // Quantos proxies ficam na frente da API (o Render, 1). O Fastify confia só
   // nesses saltos do X-Forwarded-For para achar o IP de quem chama; 0 desliga.
   TRUST_PROXY_HOPS: z.coerce.number().int().min(0).max(5).default(1),
+  // Agendador do faturamento (plano 016): gera faturas, encerra contratos e
+  // manda lembretes. Desligado por padrão. Em produção, só liga depois do
+  // primeiro contrato aceito; no staging, só de propósito, para teste.
+  BILLING_JOBS_ENABLED: z.enum(['true', 'false']).default('false'),
 })
 
 export type Env = z.infer<typeof envSchema>

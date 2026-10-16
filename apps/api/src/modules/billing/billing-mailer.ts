@@ -1,7 +1,17 @@
+import type { Prisma } from '@prisma/client'
 import { Resend } from 'resend'
-import { CONTRATADA } from '@addere/types'
+import { prisma } from '@addere/db'
+import {
+  CONTRACT_DOCUMENT_KIND_LABELS,
+  CONTRATADA,
+  formatBillingDate,
+  formatBrl,
+  type BillingEventType,
+  type ContractDocumentKind,
+} from '@addere/types'
 import { env } from '../../lib/env'
 import { captureError } from '../../lib/sentry'
+import { isUniqueViolation } from './billing-events'
 
 // Envio de e-mail da Gestão Addere (plano 014), no padrão do reset de senha
 // (auth.service.ts). O 015 e o 016 acrescentam aqui as funções deles.
@@ -64,5 +74,203 @@ export async function sendBillingEmail(input: {
   } catch (err) {
     captureError(err, { module: 'billing', op: 'send-email' })
     return false
+  }
+}
+
+// ─── Envio com deduplicação (plano 016) ─────────────────────────────────────
+// Lembretes do agendador: o mesmo e-mail não pode sair duas vezes, nem com dois
+// ticks, nem com dois processos durante um deploy, nem com um jobs/run manual
+// no meio do tick automático. A trava é o dedupeKey único do BillingEvent: a
+// reserva vem ANTES do envio, e só um envio que não aconteceu a libera.
+
+export type SendOutcome = 'sent' | 'duplicate' | 'skipped' | 'failed'
+
+const FROM = 'Addere <noreply@addere.com.br>' // o mesmo do reset de senha
+
+/** Minúsculas, sem espaço, sem vazio e sem repetição, na ordem de chegada */
+export function normalizeRecipients(emails: ReadonlyArray<string | null | undefined>): string[] {
+  const seen = new Set<string>()
+  for (const email of emails) {
+    const normalized = email?.trim().toLowerCase()
+    if (normalized) seen.add(normalized)
+  }
+  return [...seen]
+}
+
+/** Contato de cobrança do cadastro mais os ADMINs ativos da empresa */
+export async function billingRecipients(companyId: string): Promise<string[]> {
+  const [profile, admins] = await Promise.all([
+    prisma.clientProfile.findUnique({ where: { companyId }, select: { billingEmail: true } }),
+    prisma.user.findMany({
+      where: { companyId, role: 'ADMIN', active: true },
+      select: { email: true },
+    }),
+  ])
+  return normalizeRecipients([profile?.billingEmail, ...admins.map((a) => a.email)])
+}
+
+/** Responder vai para o e-mail da Addere das regras de cobrança; sem ele, o contato da Addere */
+async function replyToAddress(): Promise<string> {
+  const settings = await prisma.billingSettings.findUnique({
+    where: { id: 'global' },
+    select: { notifyEmail: true },
+  })
+  return settings?.notifyEmail?.trim() || CONTRATADA.emailContato
+}
+
+async function releaseReservation(dedupeKey: string): Promise<void> {
+  try {
+    // A única exclusão de BillingEvent permitida: a reserva de um envio que
+    // não aconteceu. Sem ela, o lembrete nunca mais sairia.
+    await prisma.billingEvent.deleteMany({ where: { dedupeKey } })
+  } catch (err) {
+    captureError(err, { module: 'billing', op: 'release-reservation' })
+  }
+}
+
+/**
+ * Envia uma vez só por `dedupeKey`. A ordem importa:
+ *
+ * 1. sem RESEND_API_KEY ou sem destinatário → 'skipped', sem gravar nada
+ *    (quando a chave entrar, o lembrete ainda sai);
+ * 2. reserva: cria o BillingEvent com o dedupeKey, autor null. P2002 →
+ *    'duplicate' (outro tick ou outro processo já mandou);
+ * 3. envia com idempotencyKey = dedupeKey (o Resend também deduplica);
+ * 4. `error` no retorno, ou exceção: apaga a reserva, Sentry, 'failed' (o
+ *    próximo tick tenta de novo);
+ * 5. sucesso → 'sent'.
+ *
+ * Erro de banco na reserva (não P2002) é lançado: nada foi reservado nem
+ * enviado, e quem chama decide se é transitório.
+ */
+export async function sendBillingEmailOnce(input: {
+  companyId: string
+  dedupeKey: string // ex.: 'invoice:<id>:due-reminder'
+  eventType: BillingEventType
+  payload: Record<string, unknown> // só ids e nomes de campo
+  to: string[]
+  subject: string
+  html: string
+}): Promise<SendOutcome> {
+  const to = normalizeRecipients(input.to)
+  if (!env.RESEND_API_KEY || to.length === 0) return 'skipped'
+
+  const replyTo = await replyToAddress()
+
+  try {
+    await prisma.billingEvent.create({
+      data: {
+        type: input.eventType,
+        companyId: input.companyId,
+        actorId: null,
+        payload: input.payload as Prisma.InputJsonObject,
+        dedupeKey: input.dedupeKey,
+      },
+    })
+  } catch (err) {
+    if (isUniqueViolation(err)) return 'duplicate'
+    throw err
+  }
+
+  let failure: unknown
+  try {
+    const resend = new Resend(env.RESEND_API_KEY)
+    const { error } = await resend.emails.send(
+      { from: FROM, to, replyTo, subject: input.subject, html: input.html },
+      { idempotencyKey: input.dedupeKey }
+    )
+    failure = error
+  } catch (err) {
+    failure = err
+  }
+
+  if (failure) {
+    await releaseReservation(input.dedupeKey)
+    // Sem destinatário, assunto nem a mensagem do Resend (pode citar o endereço)
+    const name =
+      failure instanceof Error ? failure.name : String((failure as { name?: unknown }).name)
+    captureError(new Error(`Resend recusou o envio: ${name}`), {
+      module: 'billing',
+      op: 'send-email-once',
+      eventType: input.eventType,
+    })
+    return 'failed'
+  }
+  return 'sent'
+}
+
+// ─── Modelos dos lembretes (plano 016) ──────────────────────────────────────
+// Todo texto do banco (nome da empresa, descrição de item) passa por escapeHtml.
+
+const MONTHS = [
+  'janeiro',
+  'fevereiro',
+  'março',
+  'abril',
+  'maio',
+  'junho',
+  'julho',
+  'agosto',
+  'setembro',
+  'outubro',
+  'novembro',
+  'dezembro',
+]
+
+/** Competência (@db.Date do dia 1) por extenso: 'outubro de 2026' */
+export function competenceInWords(competence: Date): string {
+  return `${MONTHS[competence.getUTCMonth()]} de ${competence.getUTCFullYear()}`
+}
+
+/** Número da fatura com seis dígitos: 124 → '000124' */
+export function invoiceNumberLabel(n: number): string {
+  return String(n).padStart(6, '0')
+}
+
+export interface DueReminderInvoice {
+  number: number
+  competence: Date // @db.Date
+  dueDate: Date // @db.Date
+  total: string // '2139.80'
+  items: Array<{ description: string; amount: string }>
+}
+
+export function dueReminderEmail(
+  companyName: string,
+  invoice: DueReminderInvoice
+): { subject: string; html: string } {
+  const due = formatBillingDate(invoice.dueDate)
+  const rows = invoice.items
+    .map((i) => `<li>${escapeHtml(i.description)}: ${escapeHtml(formatBrl(i.amount))}</li>`)
+    .join('\n')
+  const link = webUrl('/plano')
+  return {
+    subject: `Fatura do Addere vence em ${due}`,
+    html: [
+      `<p>Olá. Este é um lembrete da fatura do Addere de ${escapeHtml(companyName)}.</p>`,
+      `<p>Fatura ${invoiceNumberLabel(invoice.number)}, referente a ${competenceInWords(invoice.competence)}, no valor de ${escapeHtml(formatBrl(invoice.total))}, com vencimento em ${due}.</p>`,
+      `<ul>\n${rows}\n</ul>`,
+      '<p>As faturas ficam no painel do Addere, em Plano e cobrança. Se o pagamento já foi feito, desconsidere este lembrete.</p>',
+      `<p><a href="${escapeHtml(link)}">Ver as faturas no painel</a></p>`,
+      '<p>Addere</p>',
+    ].join('\n'),
+  }
+}
+
+export function documentPendingReminderEmail(
+  doc: { id: string; kind: ContractDocumentKind },
+  recipientName: string
+): { subject: string; html: string } {
+  const label = CONTRACT_DOCUMENT_KIND_LABELS[doc.kind]
+  // O mesmo link do e-mail de envio do 014 (contract-email.ts)
+  const link = webUrl(`/contrato/${doc.id}`)
+  return {
+    subject: `Lembrete: ${label} do Addere aguardando seu aceite`,
+    html: [
+      `<p>Olá, ${escapeHtml(recipientName)}.</p>`,
+      `<p>O ${escapeHtml(label)} da sua empresa continua aguardando o seu aceite no painel do Addere. Você é o administrador indicado pela sua empresa para esse aceite.</p>`,
+      `<p><a href="${escapeHtml(link)}">Ler e aceitar o ${escapeHtml(label)}</a></p>`,
+      '<p>Addere</p>',
+    ].join('\n'),
   }
 }
