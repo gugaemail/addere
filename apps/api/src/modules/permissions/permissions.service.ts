@@ -42,9 +42,10 @@ export async function setUserPermissions(userId: string, keys: string[]): Promis
 }
 
 // Concede as permissões informadas sem remover as existentes (diferente de
-// setUserPermissions, que substitui o conjunto inteiro).
-export async function grantPermissions(userId: string, keys: string[]): Promise<void> {
-  if (keys.length === 0) return
+// setUserPermissions, que substitui o conjunto inteiro). Devolve quantas das
+// chaves existiam no catálogo: chave fora dele não é concedida e não dá erro.
+export async function grantPermissions(userId: string, keys: string[]): Promise<number> {
+  if (keys.length === 0) return 0
 
   const permissions = await prisma.permission.findMany({ where: { key: { in: keys } } })
   await prisma.userPermission.createMany({
@@ -53,6 +54,7 @@ export async function grantPermissions(userId: string, keys: string[]): Promise<
   })
 
   invalidateUserPermissions(userId)
+  return permissions.length
 }
 
 // Revoga as permissões informadas, deixando as demais intactas.
