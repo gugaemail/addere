@@ -310,3 +310,157 @@ describe('POST /users', () => {
     })
   })
 })
+
+// Transportadora e condição de pagamento no pedido do app: o administrador da
+// empresa liga e desliga por usuário no formulário de edição (o modal de
+// Permissões é só do SUPERADMIN).
+describe('permissões do pedido no formulário do usuário', () => {
+  const CARRIER = 'orders.change_carrier'
+  const PAYMENT = 'orders.change_payment_terms'
+
+  /** Linhas concedidas ao alvo nas consultas por lote; o resto segue o padrão. */
+  function targetHolds(keys: string[]) {
+    prismaMock.userPermission.findMany.mockImplementation(
+      async (args: { where: { userId?: string | { in: string[] } } }) => {
+        const userId = args.where.userId
+        if (typeof userId === 'object') {
+          return keys.map((key) => ({ userId: TARGET, permission: { key } }))
+        }
+        return (PERMISSIONS_BY_SUB[userId ?? ''] ?? []).map((key) => ({ permission: { key } }))
+      }
+    )
+  }
+
+  function editable() {
+    targetInCompany(COMPANY_A)
+    prismaMock.user.findFirst.mockResolvedValue({ id: TARGET, companyId: COMPANY_A })
+    prismaMock.user.update.mockResolvedValue({ id: TARGET })
+  }
+
+  it('ADMIN desliga a troca de transportadora do vendedor', async () => {
+    editable()
+    targetHolds([PAYMENT])
+
+    const res = await app.inject({
+      method: 'PATCH',
+      url: `/users/${TARGET}`,
+      headers: auth('admin-a'),
+      payload: { canChangeCarrier: false },
+    })
+
+    expect(res.statusCode).toBe(200)
+    expect(res.json()).toMatchObject({ canChangeCarrier: false, canChangePaymentTerms: true })
+    expect(prismaMock.userPermission.deleteMany.mock.calls[0][0].where).toEqual({
+      userId: TARGET,
+      permission: { key: { in: [CARRIER] } },
+    })
+    expect(prismaMock.userPermission.createMany).not.toHaveBeenCalled()
+  })
+
+  it('ADMIN liga as duas', async () => {
+    editable()
+    targetHolds([CARRIER, PAYMENT])
+    prismaMock.permission.findMany.mockResolvedValue([{ id: 'p-carrier' }, { id: 'p-payment' }])
+
+    const res = await app.inject({
+      method: 'PATCH',
+      url: `/users/${TARGET}`,
+      headers: auth('admin-a'),
+      payload: { canChangeCarrier: true, canChangePaymentTerms: true },
+    })
+
+    expect(res.statusCode).toBe(200)
+    expect(res.json()).toMatchObject({ canChangeCarrier: true, canChangePaymentTerms: true })
+    expect(prismaMock.permission.findMany.mock.calls[0][0].where.key.in).toEqual([CARRIER, PAYMENT])
+    expect(prismaMock.userPermission.createMany.mock.calls[0][0].data).toEqual([
+      { userId: TARGET, permissionId: 'p-carrier' },
+      { userId: TARGET, permissionId: 'p-payment' },
+    ])
+  })
+
+  it('sem a permissão no catálogo, avisa em vez de fingir que gravou', async () => {
+    editable()
+    prismaMock.permission.findMany.mockResolvedValue([])
+
+    const res = await app.inject({
+      method: 'PATCH',
+      url: `/users/${TARGET}`,
+      headers: auth('admin-a'),
+      payload: { canChangeCarrier: true },
+    })
+
+    expect(res.statusCode).not.toBe(200)
+    expect(res.json().message).toMatch(/não cadastrada/)
+  })
+
+  it('ADMIN não mexe nas permissões de usuário de outra empresa', async () => {
+    targetInCompany(COMPANY_B)
+
+    const res = await app.inject({
+      method: 'PATCH',
+      url: `/users/${TARGET}`,
+      headers: auth('admin-a'),
+      payload: { canChangeCarrier: true, canChangePaymentTerms: true },
+    })
+
+    expect(res.statusCode).toBe(403)
+    expect(prismaMock.userPermission.createMany).not.toHaveBeenCalled()
+    expect(prismaMock.userPermission.deleteMany).not.toHaveBeenCalled()
+  })
+
+  it('vendedor não libera a troca para si mesmo', async () => {
+    const res = await app.inject({
+      method: 'PATCH',
+      url: `/users/sales-a`,
+      headers: auth('sales-a'),
+      payload: { canChangeCarrier: true },
+    })
+
+    expect(res.statusCode).toBe(403)
+    expect(prismaMock.userPermission.createMany).not.toHaveBeenCalled()
+  })
+
+  it('vendedor criado com a caixa desmarcada perde a permissão do padrão', async () => {
+    prismaMock.user.findUnique.mockImplementation(async (args: { where: { email?: string } }) =>
+      args.where.email ? null : { active: true }
+    )
+    prismaMock.user.create.mockResolvedValue({ id: 'novo', role: 'SALESPERSON' })
+    prismaMock.permission.findMany.mockResolvedValue([{ id: 'p-payment' }])
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/users',
+      headers: auth('admin-a'),
+      payload: {
+        name: 'Vendedor Novo',
+        email: 'vendedor@a.com',
+        password: 'senha12345',
+        role: 'SALESPERSON',
+        canChangeCarrier: false,
+        canChangePaymentTerms: true,
+      },
+    })
+
+    expect(res.statusCode).toBe(201)
+    expect(prismaMock.userPermission.deleteMany.mock.calls[0][0].where).toEqual({
+      userId: 'novo',
+      permission: { key: { in: [CARRIER] } },
+    })
+  })
+
+  it('a lista diz o que cada um pode, para o formulário abrir marcado certo', async () => {
+    prismaMock.user.findMany.mockResolvedValue([
+      { id: TARGET, name: 'Ana', role: 'SALESPERSON', company: { name: 'A' } },
+    ])
+    targetHolds([CARRIER, 'intel.manager'])
+
+    const res = await app.inject({ method: 'GET', url: '/users', headers: auth('admin-a') })
+
+    expect(res.statusCode).toBe(200)
+    expect(res.json()[0]).toMatchObject({
+      intelManager: true,
+      canChangeCarrier: true,
+      canChangePaymentTerms: false,
+    })
+  })
+})
