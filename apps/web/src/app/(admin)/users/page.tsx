@@ -6,9 +6,13 @@ export const dynamic = 'force-dynamic'
 // tinha busca, ordenação, paginação, edição e cópia — a tela nova só listava.
 import { useMemo, useState } from 'react'
 import { Plus } from 'lucide-react'
+import { toast } from 'sonner'
 import type { UserPublic } from '@addere/types'
 import { useUsers, useToggleUser } from '@/hooks/useUsers'
 import { useCompanies } from '@/hooks/useCompanies'
+import { useSeats } from '@/hooks/useBilling'
+import { getApiErrorMessage } from '@/lib/api'
+import { seatsSubtitle } from '@/lib/seats'
 import { useAuth } from '@/contexts/AuthContext'
 import { useCompanyContext } from '@/contexts/CompanyContext'
 import { PageHeader } from '@/components/layout/PageHeader'
@@ -39,6 +43,9 @@ export default function UsersPage() {
   // Já em cache: a sidebar carrega a mesma lista para o seletor de empresa
   const { data: companies } = useCompanies()
   const toggleUser = useToggleUser()
+  // Licenças (plano 015): o ADMIN lê a própria empresa; o SUPERADMIN, a empresa
+  // ativa da barra lateral (sem ela, a consulta fica desligada)
+  const { data: seats } = useSeats(isSuperAdmin ? companyId : undefined)
 
   const [form, setForm] = useState<FormState>(null)
   const [permissionsUser, setPermissionsUser] = useState<UserPublic | null>(null)
@@ -162,7 +169,13 @@ export default function UsersPage() {
             size="sm"
             variant={u.active ? 'danger' : 'secondary'}
             loading={toggleUser.isPending}
-            onClick={() => toggleUser.mutate(u.id)}
+            onClick={() =>
+              toggleUser.mutate(u.id, {
+                // A reativação no limite de licenças é recusada pela API
+                onError: (err) =>
+                  toast.error(getApiErrorMessage(err, 'Erro ao alterar o usuário.')),
+              })
+            }
           >
             {u.active ? 'Desativar' : 'Ativar'}
           </Button>
@@ -175,7 +188,9 @@ export default function UsersPage() {
     <div>
       <PageHeader
         title="Usuários"
-        subtitle="Vendedores, gerentes e administradores"
+        subtitle={['Vendedores, gerentes e administradores', seatsSubtitle(seats)]
+          .filter(Boolean)
+          .join(' · ')}
         action={
           <Button onClick={() => setForm({ mode: 'create' })} leftIcon={Plus}>
             Novo usuário
@@ -224,6 +239,7 @@ export default function UsersPage() {
           companyId={form.user?.companyId ?? companyId}
           companyName={companies?.find((c) => c.id === formCompanyId)?.name ?? null}
           managers={managers}
+          seats={seats}
           onClose={() => setForm(null)}
           onSaved={() => {
             setForm(null)

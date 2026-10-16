@@ -9,9 +9,11 @@ import {
   Building2,
   BarChart3,
   CircleUser,
+  CreditCard,
   Database,
   FileSignature,
   FileText,
+  Inbox,
   LogOut,
   Menu,
   Moon,
@@ -66,8 +68,8 @@ const NAV_GROUPS: NavGroup[] = [
   {
     // Gestão Addere (plano 013): cadastro comercial, contrato e pacotes — só
     // o SUPERADMIN. Modelos de contrato entrou no 014, antes de Pacotes e
-    // regras; Faturas (016) e Solicitações (015) entram antes dele, e o Painel
-    // no 018.
+    // regras; Solicitações (015) entrou antes dele, Faturas (016) entra ali
+    // também, e o Painel no 018.
     title: 'Gestão Addere',
     items: [
       {
@@ -76,6 +78,14 @@ const NAV_GROUPS: NavGroup[] = [
         // A ficha técnica (/empresas/[id]) é aberta a partir do cliente
         match: (p) => p.startsWith('/gestao/clientes') || p.startsWith('/empresas'),
         icon: Building2,
+        requires: 'superadmin',
+      },
+      {
+        // Plano 015: pedidos de licenças adicionais dos clientes
+        href: '/gestao/solicitacoes',
+        label: 'Solicitações',
+        match: (p) => p.startsWith('/gestao/solicitacoes'),
+        icon: Inbox,
         requires: 'superadmin',
       },
       {
@@ -198,6 +208,15 @@ const NAV_GROUPS: NavGroup[] = [
         label: 'Contrato',
         match: (p) => p.startsWith('/contrato'),
         icon: FileSignature,
+        requires: 'companyAdmin',
+      },
+      {
+        // Plano 015: o plano, as licenças em uso e o pedido de licenças. Só o
+        // ADMIN; o SUPERADMIN vê tudo isso na ficha do cliente e em Solicitações
+        href: '/plano',
+        label: 'Plano e cobrança',
+        match: (p) => p.startsWith('/plano'),
+        icon: CreditCard,
         requires: 'companyAdmin',
       },
       {

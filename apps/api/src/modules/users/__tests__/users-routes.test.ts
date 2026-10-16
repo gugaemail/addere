@@ -464,3 +464,187 @@ describe('permissões do pedido no formulário do usuário', () => {
     })
   })
 })
+
+// Trava de licenças (plano 015, passo 3): os caminhos 1, 3 e 6 e o 5 pela rota
+// global. Contrato ACTIVE com limite 22 (20 + 2) e 22 em uso, salvo quando o
+// caso diz outro. Sem configurar o contrato, o mock responde "sem contrato" e
+// os casos acima seguem sem limite.
+describe('trava de licenças', () => {
+  function seatsInUse(used: number, status = 'ACTIVE') {
+    prismaMock.companyContract.updateMany.mockResolvedValue({ count: 1 })
+    prismaMock.companyContract.findUnique.mockResolvedValue({ id: 'contract-1', status })
+    prismaMock.contractTerms.findMany.mockResolvedValue([
+      {
+        status: 'EFFECTIVE',
+        version: 1,
+        effectiveFrom: new Date('2026-09-01T12:00:00Z'),
+        includedSeats: 20,
+        extraSeats: 2,
+      },
+    ])
+    prismaMock.user.count.mockResolvedValue(used)
+  }
+
+  /** Alvo com papel, status e empresa — o findUnique também responde ao authenticate */
+  function target(row: { role: string; active: boolean; companyId: string | null }) {
+    prismaMock.user.findUnique.mockImplementation(async (args: { where: { id?: string } }) =>
+      args.where.id === TARGET ? row : { active: true }
+    )
+    prismaMock.user.findFirst.mockResolvedValue({ id: TARGET, ...row })
+  }
+
+  function newUserEmailFree() {
+    prismaMock.user.findUnique.mockImplementation(async (args: { where: { email?: string } }) =>
+      args.where.email ? null : { active: true }
+    )
+  }
+
+  const newSeller = {
+    name: 'Vendedor Novo',
+    email: 'novo@example.com',
+    password: 'senha12345',
+    role: 'SALESPERSON',
+  }
+
+  beforeEach(() => {
+    seatsInUse(22)
+  })
+
+  it('caminho 1 no limite: POST /users recusa com o código e o detalhe', async () => {
+    newUserEmailFree()
+    const res = await app.inject({
+      method: 'POST',
+      url: '/users',
+      headers: auth('admin-a'),
+      payload: newSeller,
+    })
+    expect(res.statusCode).toBe(409)
+    expect(res.json()).toMatchObject({
+      code: 'SEAT_LIMIT_REACHED',
+      details: { used: 22, limit: 22 },
+    })
+    expect(prismaMock.user.create).not.toHaveBeenCalled()
+  })
+
+  it('caminho 1: ADMIN é grátis, nem passa pela trava', async () => {
+    newUserEmailFree()
+    prismaMock.user.create.mockResolvedValue({ id: 'novo', role: 'ADMIN' })
+    const res = await app.inject({
+      method: 'POST',
+      url: '/users',
+      headers: auth('super-1'),
+      payload: { ...newSeller, role: 'ADMIN', companyId: COMPANY_A },
+    })
+    expect(res.statusCode).toBe(201)
+    expect(prismaMock.companyContract.updateMany).not.toHaveBeenCalled()
+  })
+
+  it('caminho 1, limite − 1: cria', async () => {
+    seatsInUse(21)
+    newUserEmailFree()
+    prismaMock.user.create.mockResolvedValue({ id: 'novo', role: 'SALESPERSON' })
+    const res = await app.inject({
+      method: 'POST',
+      url: '/users',
+      headers: auth('admin-a'),
+      payload: newSeller,
+    })
+    expect(res.statusCode).toBe(201)
+    expect(prismaMock.user.create).toHaveBeenCalledTimes(1)
+  })
+
+  it('caminho 3: reativar vendedor no limite recusa', async () => {
+    target({ role: 'SALESPERSON', active: false, companyId: COMPANY_A })
+    const res = await app.inject({
+      method: 'PATCH',
+      url: `/users/${TARGET}/active`,
+      headers: auth('admin-a'),
+    })
+    expect(res.statusCode).toBe(409)
+    expect(res.json().code).toBe('SEAT_LIMIT_REACHED')
+    expect(prismaMock.user.update).not.toHaveBeenCalled()
+  })
+
+  it('caminho 3: reativar abaixo do limite passa', async () => {
+    seatsInUse(21)
+    target({ role: 'SALESPERSON', active: false, companyId: COMPANY_A })
+    prismaMock.user.update.mockResolvedValue({ id: TARGET, active: true })
+    const res = await app.inject({
+      method: 'PATCH',
+      url: `/users/${TARGET}/active`,
+      headers: auth('admin-a'),
+    })
+    expect(res.statusCode).toBe(200)
+  })
+
+  it('caminho 3: desativar no limite passa, sem trava', async () => {
+    target({ role: 'SALESPERSON', active: true, companyId: COMPANY_A })
+    prismaMock.user.update.mockResolvedValue({ id: TARGET, active: false })
+    const res = await app.inject({
+      method: 'PATCH',
+      url: `/users/${TARGET}/active`,
+      headers: auth('admin-a'),
+    })
+    expect(res.statusCode).toBe(200)
+    expect(prismaMock.companyContract.updateMany).not.toHaveBeenCalled()
+  })
+
+  it('caminho 5 pela rota global: ADMIN para Gerente recusa com o código', async () => {
+    // Prova que o catch do PATCH /users/:id repassa o AppError
+    target({ role: 'ADMIN', active: true, companyId: COMPANY_A })
+    const res = await app.inject({
+      method: 'PATCH',
+      url: `/users/${TARGET}`,
+      headers: auth('admin-a'),
+      payload: { role: 'SALESPERSON', intelManager: true },
+    })
+    expect(res.statusCode).toBe(409)
+    expect(res.json().code).toBe('SEAT_LIMIT_REACHED')
+    expect(prismaMock.refreshToken.deleteMany).not.toHaveBeenCalled()
+    expect(prismaMock.user.update).not.toHaveBeenCalled()
+  })
+
+  it('caminho 6: vincular órfão vendedor ativo no limite recusa', async () => {
+    target({ role: 'SALESPERSON', active: true, companyId: null })
+    prismaMock.company.findUnique.mockResolvedValue({ id: COMPANY_A })
+    const res = await app.inject({
+      method: 'PATCH',
+      url: `/users/${TARGET}`,
+      headers: auth('super-1'),
+      payload: { name: 'Órfão', companyId: COMPANY_A },
+    })
+    expect(res.statusCode).toBe(409)
+    expect(res.json().code).toBe('SEAT_LIMIT_REACHED')
+    expect(prismaMock.user.update).not.toHaveBeenCalled()
+  })
+
+  it('caminho 6: vincular órfão inativo não ocupa licença', async () => {
+    target({ role: 'SALESPERSON', active: false, companyId: null })
+    prismaMock.company.findUnique.mockResolvedValue({ id: COMPANY_A })
+    prismaMock.user.update.mockResolvedValue({ id: TARGET, name: 'Órfão' })
+    const res = await app.inject({
+      method: 'PATCH',
+      url: `/users/${TARGET}`,
+      headers: auth('super-1'),
+      payload: { name: 'Órfão', companyId: COMPANY_A },
+    })
+    expect(res.statusCode).toBe(200)
+    expect(prismaMock.user.update.mock.calls[0][0].data).toEqual({ companyId: COMPANY_A })
+    expect(prismaMock.companyContract.updateMany).not.toHaveBeenCalled()
+  })
+
+  it('o 422 de gerente inválido deixa de sair como 404', async () => {
+    target({ role: 'SALESPERSON', active: true, companyId: COMPANY_A })
+    // assertValidManager não acha o gerente
+    prismaMock.user.findFirst.mockImplementation(async (args: { where: { id: string } }) =>
+      args.where.id === TARGET ? { id: TARGET, role: 'SALESPERSON', active: true } : null
+    )
+    const res = await app.inject({
+      method: 'PATCH',
+      url: `/users/${TARGET}`,
+      headers: auth('admin-a'),
+      payload: { managerId: '44444444-4444-4444-8444-444444444444' },
+    })
+    expect(res.statusCode).toBe(422)
+  })
+})

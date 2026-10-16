@@ -194,6 +194,52 @@ export function contractMonthlyTotal(t: {
   return `${Math.floor(cents / 100)}.${String(cents % 100).padStart(2, '0')}`
 }
 
+// ─── Licenças (plano 015) ────────────────────────────────────────────────────
+// Quem ocupa licença: vendedor ou gerente (SALESPERSON) ativo, dentro de uma
+// empresa. ADMIN é grátis; desativar libera a licença na hora.
+
+/** O que importa de um usuário para a licença, antes e depois de uma escrita. */
+export interface SeatSubject {
+  role: string
+  active: boolean
+  companyId: string | null
+}
+
+/** Vendedor ou gerente (SALESPERSON) ativo, dentro de uma empresa, ocupa licença. */
+export function holdsSeat(u: SeatSubject): boolean {
+  // === true e !!: usuário sem role nem active (mock de teste, select parcial)
+  // cai em "não ocupa"
+  return !!u.companyId && u.active === true && u.role === 'SALESPERSON'
+}
+
+/** A escrita passa a ocupar uma licença que antes não ocupava, na mesma empresa? */
+export function consumesSeat(before: SeatSubject | null, after: SeatSubject): boolean {
+  if (!holdsSeat(after)) return false
+  return !(before !== null && holdsSeat(before) && before.companyId === after.companyId)
+}
+
+/** Limite do contrato: incluídas + adicionais. O Ilimitado tem quantidade digitada. */
+export function seatLimit(terms: { includedSeats: number; extraSeats: number }): number {
+  return terms.includedSeats + terms.extraSeats
+}
+
+/** "Perto do limite" — o medidor fica em alerta; o 018 usa o mesmo corte. */
+export const SEAT_NEAR_LIMIT_RATIO = 0.9
+
+/**
+ * A frase que o administrador indicado aceita ao pedir licenças adicionais.
+ * O painel mostra o resultado e a API grava o mesmo texto, com o SHA-256: a
+ * função e as entradas são as mesmas, então o texto gravado é o mostrado. O
+ * plural é o texto aprovado em 15/10/2026, palavra por palavra; o singular só
+ * faz a concordância. Dinheiro pelo formatBrl, sem Intl.
+ */
+export function licenseRequestDeclaration(quantity: number, unitPrice: string | number): string {
+  const price = formatBrl(unitPrice)
+  return quantity === 1
+    ? `Ao enviar, você contrata 1 licença adicional a ${price} por mês, cobrada a partir do mês seguinte à liberação.`
+    : `Ao enviar, você contrata ${quantity} licenças adicionais a ${price} por mês cada, cobradas a partir do mês seguinte à liberação.`
+}
+
 // ─── Situação do cliente ─────────────────────────────────────────────────────
 // Fonte única da situação: o 016 passa hasOverdueInvoice, o 017 passa
 // accessBlockReason e o 018 reaproveita a função. A precedência está nos
@@ -342,6 +388,10 @@ export const BILLING_EVENT_TYPES = [
   'AMENDMENT_WITHDRAWN',
   'INTELLIGENCE_APPLIED',
   'DESIGNATED_ADMIN_CHANGED',
+  // Plano 015: pedido de licenças adicionais
+  'LICENSE_REQUEST_CREATED',
+  'LICENSE_REQUEST_APPROVED',
+  'LICENSE_REQUEST_REJECTED',
 ] as const
 export type BillingEventType = (typeof BILLING_EVENT_TYPES)[number]
 
@@ -370,6 +420,13 @@ export type BillingErrorCode =
   | 'AMENDMENT_NOT_YET_EFFECTIVE'
   | 'CONTRACT_NOT_ACTIVE'
   | 'INTEL_MANAGED_BY_CONTRACT'
+  // Plano 015
+  | 'SEAT_LIMIT_REACHED'
+  | 'CONTRACT_CANCELLED'
+  | 'LICENSE_PRICE_CHANGED'
+  | 'LICENSE_REQUEST_PENDING'
+  | 'LICENSE_REQUEST_ALREADY_DECIDED'
+  | 'AMENDMENT_PENDING'
 
 // ─── DTOs ────────────────────────────────────────────────────────────────────
 // Datas como string ISO; dinheiro como string '1234.56'.
@@ -495,6 +552,62 @@ export interface BillingEventDto {
   fields: string[] // só os nomes dos campos alterados, nunca os valores
   createdAt: string
 }
+
+// ─── Licenças (plano 015) ────────────────────────────────────────────────────
+
+/** Quem ocupa licença: vendedor ou gerente ativo da empresa */
+export interface SeatHolder {
+  id: string
+  name: string
+  email: string
+  intelManager: boolean // true = Gerente
+}
+
+/**
+ * Licenças da empresa. `enforced` só é true com contrato ACTIVE; sem isso não
+ * há limite, e `limit` e `available` são null.
+ */
+export interface SeatUsage {
+  contractStatus: ContractStatus | null
+  enforced: boolean
+  used: number
+  limit: number | null
+  available: number | null
+  overLimit: boolean // redução de pacote: ninguém é desativado, só não entra mais
+  holders: SeatHolder[]
+}
+
+export type LicenseRequestStatus = 'PENDING' | 'APPROVED' | 'REJECTED'
+
+export interface LicenseRequestDto {
+  id: string
+  companyId: string
+  companyName: string
+  quantity: number
+  message: string | null
+  unitPriceShown: string // '99.00'
+  monthlyIncrease: string // quantidade × preço, '198.00'
+  declarationText: string
+  status: LicenseRequestStatus
+  requestedAt: string
+  requestedByName: string
+  decidedAt: string | null
+  decidedByName: string | null
+  decisionReason: string | null
+  resultingTermsId: string | null
+  // Auditoria: só as rotas de superadmin preenchem
+  requestedIp?: string | null
+  declarationSha256?: string
+}
+
+export interface LicenseRequestInput {
+  quantity: number
+  message?: string
+  unitPriceShown: string
+}
+
+export type LicenseRequestDecision =
+  { decision: 'APPROVE' } | { decision: 'REJECT'; reason: string }
 
 // ─── Entradas ────────────────────────────────────────────────────────────────
 

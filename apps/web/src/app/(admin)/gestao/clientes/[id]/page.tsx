@@ -23,12 +23,14 @@ import { useToggleCompanyActive } from '@/hooks/useCompanies'
 import { CadastroTab } from './tabs/CadastroTab'
 import { ContratoTab } from './tabs/ContratoTab'
 import { HistoricoTab } from './tabs/HistoricoTab'
+import { LicencasTab } from './tabs/LicencasTab'
 
-type Tab = 'cadastro' | 'contrato' | 'historico'
+type Tab = 'cadastro' | 'contrato' | 'licencas' | 'historico'
 
 const TABS: { key: Tab; label: string }[] = [
   { key: 'cadastro', label: 'Cadastro' },
   { key: 'contrato', label: 'Contrato' },
+  { key: 'licencas', label: 'Licenças' }, // plano 015
   { key: 'historico', label: 'Histórico' },
 ]
 
@@ -172,6 +174,7 @@ export default function ClientePage() {
       {tab === 'cadastro' && <CadastroTab client={client} />}
       {/* key: o formulário recomeça se o contrato mudar de status (ex.: saiu do rascunho) */}
       {tab === 'contrato' && <ContratoTab key={contract?.status ?? 'NONE'} client={client} />}
+      {tab === 'licencas' && <LicencasTab companyId={company.id} />}
       {tab === 'historico' && <HistoricoTab companyId={company.id} />}
     </div>
   )

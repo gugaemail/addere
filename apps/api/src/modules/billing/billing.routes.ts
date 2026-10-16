@@ -20,6 +20,12 @@ import {
 } from './catalog.service'
 import { getClient, listClientEvents, listClients, updateClient } from './clients.service'
 import { saveContractDraft } from './contract.service'
+import {
+  decideLicenseRequestSchema,
+  licenseRequestIdParam,
+  listLicenseRequestsQuerySchema,
+} from './license-requests.schema'
+import { decideLicenseRequest, listLicenseRequests } from './license-requests.service'
 
 // Gestão Addere (plano 013) — registrado com o prefixo /admin/billing. Só o
 // SUPERADMIN opera o módulo (decisão padrão 8); o autor de cada ação, gravado
@@ -107,6 +113,23 @@ export default async function billingAdminRoutes(app: FastifyInstance) {
       const { companyId } = companyIdParam.parse(request.params)
       const input = contractDraftSchema.parse(request.body)
       return reply.send(await saveContractDraft(companyId, input, request.user.sub))
+    }
+  )
+
+  // ─── Pedidos de licenças (plano 015) ───────────────────────────────────────
+
+  app.get('/license-requests', superadmin, async (request: FastifyRequest, reply: FastifyReply) => {
+    const query = listLicenseRequestsQuerySchema.parse(request.query)
+    return reply.send(await listLicenseRequests(query))
+  })
+
+  app.post(
+    '/license-requests/:id/decide',
+    superadmin,
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const { id } = licenseRequestIdParam.parse(request.params)
+      const body = decideLicenseRequestSchema.parse(request.body)
+      return reply.send(await decideLicenseRequest(id, body, request.user.sub, new Date()))
     }
   )
 }

@@ -10,10 +10,17 @@ import type {
   CompanyContractDto,
   ContractDraftInput,
   LicensePackageDto,
+  LicenseRequestDecision,
+  LicenseRequestDto,
+  LicenseRequestInput,
+  LicenseRequestStatus,
+  SeatUsage,
 } from '@addere/types'
 
 // Gestão Addere (plano 013) — só o SUPERADMIN chega às telas que usam estes
-// hooks (gestao/layout.tsx), e a API responde 403 a qualquer outro papel.
+// hooks (gestao/layout.tsx), e a API responde 403 a qualquer outro papel. A
+// exceção são as licenças do 015: useSeats e useCreateLicenseRequest também
+// servem ao ADMIN da empresa.
 
 export const billingKeys = {
   all: ['billing'] as const,
@@ -22,6 +29,16 @@ export const billingKeys = {
   events: (id: string) => ['billing', 'clients', id, 'events'] as const,
   packages: ['billing', 'packages'] as const,
   settings: ['billing', 'settings'] as const,
+  // Plano 015
+  seats: ['billing', 'seats'] as const,
+  seatsOf: (companyId: string | undefined) => ['billing', 'seats', companyId ?? 'me'] as const,
+  licenseRequests: (filters: LicenseRequestFilters) =>
+    ['billing', 'license-requests', filters.status ?? 'ALL', filters.companyId ?? 'ALL'] as const,
+}
+
+export interface LicenseRequestFilters {
+  status?: LicenseRequestStatus
+  companyId?: string
 }
 
 export interface PackageInput {
@@ -161,5 +178,55 @@ export function useUpdateBillingSettings() {
     mutationFn: (input: BillingSettingsInput) =>
       api.put<BillingSettingsDto>('/admin/billing/settings', input).then((r) => r.data),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: billingKeys.settings }),
+  })
+}
+
+// ─── Licenças (plano 015) ────────────────────────────────────────────────────
+
+/**
+ * Licenças em uso da empresa. `undefined` = a do token (ADMIN); um id = a
+ * empresa pedida (SUPERADMIN, empresa ativa ou a ficha); `null` = SUPERADMIN
+ * sem empresa ativa, e a consulta fica desligada.
+ */
+export function useSeats(companyId?: string | null) {
+  return useQuery({
+    queryKey: billingKeys.seatsOf(companyId ?? undefined),
+    queryFn: () =>
+      api
+        .get<SeatUsage>('/billing/me/seats', { params: companyId ? { companyId } : undefined })
+        .then((r) => r.data),
+    enabled: companyId !== null,
+  })
+}
+
+/** O pedido do administrador indicado; quem chama recarrega o GET /billing/me */
+export function useCreateLicenseRequest() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (input: LicenseRequestInput) =>
+      api.post<LicenseRequestDto>('/billing/me/license-requests', input).then((r) => r.data),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: billingKeys.all }),
+  })
+}
+
+export function useLicenseRequests(filters: LicenseRequestFilters = {}) {
+  return useQuery({
+    queryKey: billingKeys.licenseRequests(filters),
+    queryFn: () =>
+      api
+        .get<LicenseRequestDto[]>('/admin/billing/license-requests', { params: filters })
+        .then((r) => r.data),
+  })
+}
+
+export function useDecideLicenseRequest() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, ...decision }: LicenseRequestDecision & { id: string }) =>
+      api
+        .post<LicenseRequestDto>(`/admin/billing/license-requests/${id}/decide`, decision)
+        .then((r) => r.data),
+    // A aprovação muda o limite, os termos e a situação na lista de clientes
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: billingKeys.all }),
   })
 }
