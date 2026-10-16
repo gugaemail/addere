@@ -619,6 +619,13 @@ export interface ClientDocumentsDto {
   activePilot: boolean
   designatedAdmin: (DesignatedAdminRef & { email: string }) | null
   adminCandidates: AdminCandidateDto[]
+  // O aditivo proposto, com o que não está no ContractTermsDto do 013
+  amendment: {
+    termsId: string
+    version: number
+    requestedByClient: boolean
+    proposedEffectiveFrom: string | null // 'AAAA-MM-DD'
+  } | null
 }
 
 /** POST /admin/billing/clients/:companyId/documents/preview */

@@ -900,6 +900,39 @@ describe('PUT /admin/billing/clients/:companyId/contract', () => {
     expectNoContractWrite()
   })
 
+  it('aguardando aceite (plano 014): cancela o documento enviado e edita como rascunho', async () => {
+    prismaMock.companyContract.findUnique
+      .mockResolvedValueOnce(contractRow({ status: 'PENDING_ACCEPTANCE' }))
+      .mockResolvedValueOnce(contractRow())
+    prismaMock.contractDocument.findMany.mockResolvedValue([
+      { id: 'doc-1', kind: 'CONTRACT', companyId: COMPANY_A },
+    ])
+    prismaMock.contractDocument.updateMany.mockResolvedValue({ count: 1 })
+    const res = await app.inject({
+      method: 'PUT',
+      url,
+      headers: auth('super'),
+      payload: { ...draftBody, dueDay: 5 },
+    })
+    expect(res.statusCode).toBe(200)
+    expect(prismaMock.contractDocument.updateMany.mock.calls[0][0]).toMatchObject({
+      where: { contractId: 'contract-1', status: 'SENT' },
+      data: { status: 'CANCELLED', cancelReason: 'Rascunho alterado depois do envio' },
+    })
+    expect(prismaMock.companyContract.updateMany).toHaveBeenCalledWith({
+      where: { id: 'contract-1', status: 'PENDING_ACCEPTANCE' },
+      data: { status: 'DRAFT' },
+    })
+    // Segue o fluxo do rascunho: grava a mudança, com o cancelamento antes
+    expect(prismaMock.companyContract.update.mock.calls[0][0].data).toMatchObject({ dueDay: 5 })
+    expect(
+      prismaMock.billingEvent.create.mock.calls.map(
+        (c: [{ data: { type: string } }]) => c[0].data.type
+      )
+    ).toEqual(['DOCUMENT_CANCELLED', 'CONTRACT_DRAFT_UPDATED'])
+    expect(prismaMock.$transaction).toHaveBeenCalledTimes(1)
+  })
+
   it.each([
     ['dueDay 0', { dueDay: 0 }],
     ['dueDay 11', { dueDay: 11 }],

@@ -28,6 +28,7 @@ import usersRoutes from './modules/users/users.routes'
 import permissionsRoutes, { userPermissionsRoutes } from './modules/permissions/permissions.routes'
 import billingAdminRoutes from './modules/billing/billing.routes'
 import contractTemplatesRoutes from './modules/billing/contract-templates.routes'
+import contractDocumentsRoutes from './modules/billing/contract-documents.routes'
 import { authenticate } from './middleware/authenticate'
 import { env } from './lib/env'
 import { registerErrorHandling } from './lib/error-handler'
@@ -118,6 +119,7 @@ export async function buildApp(): Promise<FastifyInstance> {
   await app.register(permissionsRoutes)
   await app.register(billingAdminRoutes, { prefix: '/admin/billing' })
   await app.register(contractTemplatesRoutes, { prefix: '/admin/billing/contract-templates' })
+  await app.register(contractDocumentsRoutes, { prefix: '/admin/billing' })
 
   // Inicia schedulers de auto-sync após o servidor estar pronto
   initSentry()
