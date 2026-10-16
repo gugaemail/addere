@@ -17,6 +17,20 @@ const epochIsCurrent = (epoch: number) => epoch === sessionEpoch
 const TOKEN_KEY = 'addere_access_token'
 const USER_KEY = 'addere_user'
 export const REFRESH_TOKEN_KEY = 'addere_refresh_token'
+// As permissões da última sessão valem até o /auth/me/permissions responder.
+// Sem elas, quem abria o app sem internet ficava com os campos do pedido que
+// dependem de permissão (transportadora, condição de pagamento) travados.
+const PERMISSIONS_KEY = 'addere_permissions'
+
+function parsePermissions(json: string | null): string[] {
+  if (!json) return []
+  try {
+    const value: unknown = JSON.parse(json)
+    return Array.isArray(value) ? value.filter((k): k is string => typeof k === 'string') : []
+  } catch {
+    return []
+  }
+}
 
 interface AuthState {
   user: UserPublic | null
@@ -61,6 +75,7 @@ export const useAuthStore = create<AuthState>((set) => ({
     await Promise.all([
       SecureStore.deleteItemAsync(TOKEN_KEY),
       SecureStore.deleteItemAsync(USER_KEY),
+      SecureStore.deleteItemAsync(PERMISSIONS_KEY),
       // REFRESH_TOKEN_KEY é mantido para permitir re-autenticação biométrica após logout
     ])
     set({ user: null, accessToken: null, permissions: [] })
@@ -77,6 +92,8 @@ export const useAuthStore = create<AuthState>((set) => ({
       })
       if (!epochIsCurrent(epoch)) return
       set({ permissions: data.keys })
+      // Falha ao gravar só custa o próximo boot offline; a sessão atual já tem
+      await SecureStore.setItemAsync(PERMISSIONS_KEY, JSON.stringify(data.keys))
     } catch {
       // Mantém as permissões atuais (ex: offline) — não bloqueia o app
     }
@@ -151,25 +168,30 @@ export const useAuthStore = create<AuthState>((set) => ({
     // O guard de biometria roda em paralelo e pode limpar a sessão no meio da
     // hidratação: `hydrated` sempre avança (senão o app trava no splash), mas
     // usuário e token só voltam se a época ainda for a mesma.
-    const applySession = (partial: { user?: UserPublic | null; accessToken?: string | null }) =>
-      set(epochIsCurrent(epoch) ? { ...partial, hydrated: true } : { hydrated: true })
+    const applySession = (
+      partial: Partial<Pick<AuthState, 'user' | 'accessToken' | 'permissions'>>
+    ) => set(epochIsCurrent(epoch) ? { ...partial, hydrated: true } : { hydrated: true })
 
     const dropSession = async () => {
       await Promise.all([
         SecureStore.deleteItemAsync(TOKEN_KEY),
         SecureStore.deleteItemAsync(USER_KEY),
         SecureStore.deleteItemAsync(REFRESH_TOKEN_KEY),
+        SecureStore.deleteItemAsync(PERMISSIONS_KEY),
       ])
-      applySession({ accessToken: null, user: null })
+      applySession({ accessToken: null, user: null, permissions: [] })
     }
 
-    const [token, userJson] = await Promise.all([
+    const [token, userJson, permissionsJson] = await Promise.all([
       SecureStore.getItemAsync(TOKEN_KEY),
       SecureStore.getItemAsync(USER_KEY),
+      SecureStore.getItemAsync(PERMISSIONS_KEY),
     ])
     const user = userJson ? (JSON.parse(userJson) as UserPublic) : null
 
     if (token) {
+      // Valem até o fetchPermissions abaixo responder — e ficam se ele falhar
+      if (epochIsCurrent(epoch)) set({ permissions: parsePermissions(permissionsJson) })
       try {
         const newToken = await useAuthStore.getState().refreshSession()
         applySession({ user })
