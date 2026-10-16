@@ -160,3 +160,87 @@ describe('hydrate', () => {
     expect(SecureStore.deleteItemAsync).not.toHaveBeenCalledWith('addere_access_token')
   })
 })
+
+// Sem internet no boot, o vendedor ficava com os campos do pedido que dependem
+// de permissão (transportadora, condição de pagamento) travados: as permissões
+// só existiam em memória e começavam vazias.
+describe('permissões guardadas no aparelho', () => {
+  const keychain = (values: Record<string, string | null>) =>
+    (SecureStore.getItemAsync as jest.Mock).mockImplementation(
+      async (key: string) => values[key] ?? null
+    )
+  const offline = () => {
+    const semRede = Object.assign(new Error('Network Error'), { code: 'ERR_NETWORK' })
+    mockPost.mockRejectedValue(semRede)
+    mockGet.mockRejectedValue(semRede)
+  }
+
+  it('sem internet no boot, as da última sessão continuam valendo', async () => {
+    keychain({
+      addere_access_token: 'token-bom',
+      addere_user: JSON.stringify(USER),
+      addere_permissions: JSON.stringify(['orders.change_carrier']),
+    })
+    offline()
+
+    await useAuthStore.getState().hydrate()
+
+    const state = useAuthStore.getState()
+    expect(state.accessToken).toBe('token-bom')
+    expect(state.permissions).toEqual(['orders.change_carrier'])
+  })
+
+  it('com internet, as do servidor substituem as guardadas e são gravadas', async () => {
+    keychain({
+      addere_access_token: 'token-bom',
+      addere_user: JSON.stringify(USER),
+      addere_refresh_token: 'refresh-x',
+      addere_permissions: JSON.stringify(['orders.change_carrier']),
+    })
+    mockPost.mockResolvedValue({ data: { accessToken: 'novo', refreshToken: 'novo-r' } })
+    mockGet.mockImplementation(async (url: string) =>
+      url.endsWith('/permissions')
+        ? { data: { keys: ['orders.change_payment_terms'] } }
+        : { data: USER }
+    )
+
+    await useAuthStore.getState().hydrate()
+
+    expect(useAuthStore.getState().permissions).toEqual(['orders.change_payment_terms'])
+    expect(SecureStore.setItemAsync).toHaveBeenCalledWith(
+      'addere_permissions',
+      JSON.stringify(['orders.change_payment_terms'])
+    )
+  })
+
+  it('guardado corrompido não derruba o boot', async () => {
+    keychain({
+      addere_access_token: 'token-bom',
+      addere_user: JSON.stringify(USER),
+      addere_permissions: '{não é json',
+    })
+    offline()
+
+    await useAuthStore.getState().hydrate()
+
+    expect(useAuthStore.getState().permissions).toEqual([])
+    expect(useAuthStore.getState().accessToken).toBe('token-bom')
+  })
+
+  it('sem sessão no aparelho, as guardadas não são lidas', async () => {
+    keychain({ addere_permissions: JSON.stringify(['orders.change_carrier']) })
+
+    await useAuthStore.getState().hydrate()
+
+    expect(useAuthStore.getState().permissions).toEqual([])
+  })
+
+  it('o logout apaga as guardadas', async () => {
+    useAuthStore.setState({ permissions: ['orders.change_carrier'] })
+
+    await useAuthStore.getState().clearAuth()
+
+    expect(useAuthStore.getState().permissions).toEqual([])
+    expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith('addere_permissions')
+  })
+})
