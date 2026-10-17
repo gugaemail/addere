@@ -18,6 +18,7 @@ import {
   Menu,
   Moon,
   Package,
+  Receipt,
   Route,
   Settings,
   SlidersHorizontal,
@@ -78,6 +79,13 @@ const NAV_GROUPS: NavGroup[] = [
         // A ficha técnica (/empresas/[id]) é aberta a partir do cliente
         match: (p) => p.startsWith('/gestao/clientes') || p.startsWith('/empresas'),
         icon: Building2,
+        requires: 'superadmin',
+      },
+      {
+        href: '/gestao/faturas',
+        label: 'Faturas',
+        match: (p) => p.startsWith('/gestao/faturas'),
+        icon: Receipt,
         requires: 'superadmin',
       },
       {
@@ -211,8 +219,9 @@ const NAV_GROUPS: NavGroup[] = [
         requires: 'companyAdmin',
       },
       {
-        // Plano 015: o plano, as licenças em uso e o pedido de licenças. Só o
-        // ADMIN; o SUPERADMIN vê tudo isso na ficha do cliente e em Solicitações
+        // Planos 015 e 016: o plano, as licenças, os pedidos de licenças e as
+        // faturas da empresa. Só o ADMIN; o SUPERADMIN vê tudo isso na ficha do
+        // cliente, em Solicitações e em Faturas
         href: '/plano',
         label: 'Plano e cobrança',
         match: (p) => p.startsWith('/plano'),

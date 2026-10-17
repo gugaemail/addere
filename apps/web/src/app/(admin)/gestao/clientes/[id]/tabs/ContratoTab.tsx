@@ -46,6 +46,7 @@ import { contractKeys, useClientDocuments } from '@/hooks/useContracts'
 import { Modal } from '@/components/ui/Modal'
 import { AmendmentForm } from './AmendmentForm'
 import { DocumentsPanel } from './DocumentsPanel'
+import { ContractEnding } from '@/components/billing/CancelContractModal'
 
 const SECTION_TITLE = 'text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wide'
 const LABEL = 'mb-1.5 block text-sm font-medium text-[var(--text-secondary)]'
@@ -421,6 +422,9 @@ export function ContratoTab({ client }: { client: ClientDetailDto }) {
           onCarryConditionsChange={setCarryConditions}
         />
       )}
+
+      {/* Plano 016: cancelamento com efeito no fim do mês */}
+      <ContractEnding client={client} />
 
       <Modal
         isOpen={pendingSave !== null}

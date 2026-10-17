@@ -14,7 +14,7 @@ function fmtDecimal(value: string | number | null | undefined): string {
   }).format(num)
 }
 
-function buildHtml(order: Order): string {
+export function buildHtml(order: Order): string {
   const emissao = order.emissao ?? order.createdAt
   const dateFormatted = fmtData(emissao)
   const generatedAt = fmtData(new Date().toISOString())
@@ -51,14 +51,15 @@ function buildHtml(order: Order): string {
     ? `<p>Cód. Protheus: <strong>${order.protheusOrderId}</strong></p>`
     : ''
   const documentBlock = order.customer.document ? `<p>${order.customer.document}</p>` : ''
-  const observacoesBlock =
-    order.notes || order.mennota
-      ? `
+  // Só a Obs. Nota Fiscal: o PDF vai para o cliente, e a Obs. Interna é a
+  // que "não sai na nota" — o PDF a imprimia no lugar da outra.
+  const observacoesBlock = order.mennota
+    ? `
     <div class="obs-box">
       <p class="label-sm">Observações</p>
-      <p>${order.notes ?? order.mennota}</p>
+      <p>${order.mennota}</p>
     </div>`
-      : ''
+    : ''
 
   return `<!DOCTYPE html>
 <html lang="pt-BR">

@@ -388,6 +388,20 @@ export const BILLING_EVENT_TYPES = [
   'AMENDMENT_WITHDRAWN',
   'INTELLIGENCE_APPLIED',
   'DESIGNATED_ADMIN_CHANGED',
+  // Plano 016: faturas, lembretes e encerramento do contrato
+  'INVOICE_GENERATED',
+  'INVOICE_CREATED',
+  'INVOICE_RECALCULATED',
+  'INVOICE_PAID',
+  'INVOICE_CANCELLED',
+  'INVOICE_ITEM_ADDED',
+  'INVOICE_ITEM_REMOVED',
+  'INVOICE_UPDATED',
+  'INVOICE_DUE_REMINDER_SENT',
+  'DOCUMENT_PENDING_REMINDER_SENT',
+  'CONTRACT_CANCEL_SCHEDULED',
+  'CONTRACT_CANCEL_REVERTED',
+  'CONTRACT_ENDED',
   // Plano 015: pedido de licenças adicionais
   'LICENSE_REQUEST_CREATED',
   'LICENSE_REQUEST_APPROVED',
@@ -420,6 +434,18 @@ export type BillingErrorCode =
   | 'AMENDMENT_NOT_YET_EFFECTIVE'
   | 'CONTRACT_NOT_ACTIVE'
   | 'INTEL_MANAGED_BY_CONTRACT'
+  // Plano 016
+  | 'CONTRACT_CANCEL_ALREADY_SCHEDULED'
+  | 'CONTRACT_CANCEL_NOT_SCHEDULED'
+  | 'INVOICE_ALREADY_EXISTS'
+  | 'INVOICE_PAID_IMMUTABLE'
+  | 'INVOICE_CANCELLED'
+  | 'INVOICE_ITEM_NOT_MANUAL'
+  | 'INVOICE_NEGATIVE_TOTAL'
+  | 'COMPETENCE_NOT_PAST'
+  | 'COMPETENCE_NOT_BILLABLE'
+  | 'DUE_DATE_IN_PAST'
+  | 'PAID_AT_IN_FUTURE'
   // Plano 015
   | 'SEAT_LIMIT_REACHED'
   | 'CONTRACT_CANCELLED'
@@ -506,6 +532,11 @@ export interface CompanyContractDto {
   dueDay: number
   overdueBlockDays: number | null // null = padrão das regras globais
   terms: ContractTermsDto[]
+  // Encerramento (plano 016): o contrato segue ACTIVE até endsAt
+  endsAt: string | null // 'YYYY-MM-DD', último dia coberto
+  cancelRequestedAt: string | null // ISO
+  cancelReason: string | null
+  deactivateCompanyOnEnd: boolean
 }
 
 export interface ClientListItemDto {
@@ -653,3 +684,90 @@ export interface ContractDraftInput {
   overdueBlockDays: number | null // null = padrão das regras globais
   reason: string | null
 }
+
+// ─── Faturamento (plano 016) ─────────────────────────────────────────────────
+// Datas de calendário como 'YYYY-MM-DD' e competência como 'YYYY-MM', nunca
+// como timestamp: é o que impede o deslocamento de um dia no navegador.
+// Dinheiro como string com duas casas ('2139.80').
+
+export type InvoiceStatus = 'OPEN' | 'PAID' | 'CANCELLED'
+export type InvoiceDisplayStatus = InvoiceStatus | 'OVERDUE'
+export type InvoiceOrigin = 'JOB' | 'MANUAL'
+export type InvoiceItemKind = 'PACKAGE' | 'EXTRA_SEATS' | 'DISCOUNT' | 'ADJUSTMENT'
+export type InvoicePaymentMethod = 'PIX' | 'BOLETO' | 'TRANSFER' | 'CARD' | 'OTHER'
+
+export const INVOICE_PAYMENT_METHODS: readonly InvoicePaymentMethod[] = [
+  'PIX',
+  'BOLETO',
+  'TRANSFER',
+  'CARD',
+  'OTHER',
+]
+
+/**
+ * Vencida = OPEN e vencimento < hoje. Os dois em 'YYYYMMDD', hoje em São Paulo.
+ * É a regra única de "vencida": o 017 (aviso e bloqueio) e o 018 (painel) usam
+ * esta função, não uma segunda.
+ */
+export function invoiceDisplayStatus(
+  status: InvoiceStatus,
+  dueYmd: string,
+  todayYmd: string
+): InvoiceDisplayStatus {
+  return status === 'OPEN' && dueYmd < todayYmd ? 'OVERDUE' : status
+}
+
+export interface InvoiceItemDto {
+  id: string
+  kind: InvoiceItemKind
+  description: string
+  quantity: number
+  unitPrice: string // '1990.00'
+  amount: string
+  manual: boolean
+}
+
+export interface InvoiceDto {
+  id: string
+  number: number
+  companyId: string
+  companyName: string
+  competence: string // 'YYYY-MM'
+  dueDate: string // 'YYYY-MM-DD'
+  status: InvoiceStatus
+  displayStatus: InvoiceDisplayStatus
+  origin: InvoiceOrigin
+  total: string
+  paidAt: string | null // 'YYYY-MM-DD'
+  paidAmount: string | null
+  paymentMethod: InvoicePaymentMethod | null
+  paymentNote: string | null
+  paidByName: string | null
+  nfNumber: string | null
+  notes: string | null
+  cancelledAt: string | null // ISO
+  cancelledByName: string | null
+  cancelReason: string | null
+  items: InvoiceItemDto[]
+}
+
+export interface InvoiceListResponse {
+  items: InvoiceDto[]
+  total: number
+  page: number
+  pageSize: number
+}
+
+/** O que o ADMIN do cliente vê: sem observação interna, motivo e nomes. */
+export type MyInvoiceDto = Pick<
+  InvoiceDto,
+  | 'id'
+  | 'number'
+  | 'competence'
+  | 'dueDate'
+  | 'displayStatus'
+  | 'total'
+  | 'paidAt'
+  | 'nfNumber'
+  | 'items'
+>

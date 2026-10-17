@@ -1,4 +1,4 @@
-import type { CustomerStatus } from '@addere/types'
+import type { CustomerStatus, InvoiceDisplayStatus } from '@addere/types'
 
 // Pill de status do cliente (motor da Inteligência). Cores fixas em toda tela
 // (tokens status.* do tailwind.config — doc de arquitetura §W*).
@@ -18,6 +18,37 @@ interface StatusPillProps {
 
 export function StatusPill({ status, className = '' }: StatusPillProps) {
   const style = STATUS_STYLES[status]
+  return (
+    <span
+      className={[
+        'inline-flex items-center rounded-full px-2.5 py-0.5',
+        'text-xs font-semibold leading-none',
+        style.className,
+        className,
+      ].join(' ')}
+    >
+      {style.label}
+    </span>
+  )
+}
+
+// Pill de status da fatura (plano 016): a mesma casca, com as classes de token
+// do Badge. "Vencida" é derivada (OPEN com vencimento antes de hoje).
+const INVOICE_STATUS_STYLES: Record<InvoiceDisplayStatus, { label: string; className: string }> = {
+  OPEN: { label: 'Em aberto', className: 'bg-brand/10 text-brand' },
+  OVERDUE: { label: 'Vencida', className: 'bg-danger/10 text-danger' },
+  PAID: { label: 'Paga', className: 'bg-success/10 text-success' },
+  CANCELLED: { label: 'Cancelada', className: 'bg-muted/10 text-muted' },
+}
+
+export function InvoiceStatusPill({
+  status,
+  className = '',
+}: {
+  status: InvoiceDisplayStatus
+  className?: string
+}) {
+  const style = INVOICE_STATUS_STYLES[status]
   return (
     <span
       className={[

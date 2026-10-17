@@ -10,6 +10,21 @@ export interface SubmitOrderResult {
   data?: Order
 }
 
+/**
+ * O pedido vale como check-in (plano 006) só para quem tem o plano do dia: a
+ * visita implícita vai para /intel/app/visits, que exige a Inteligência ligada
+ * e código de vendedor. Sem os dois a API recusa (403/422), e cada pedido
+ * deixava na fila um envio com erro "requer ação manual".
+ */
+export function logsImplicitVisit(input: {
+  intelEnabled: boolean
+  hasVendorCode: boolean
+  protheusCode?: string | null
+  loja?: string | null
+}): boolean {
+  return input.intelEnabled && input.hasVendorCode && !!input.protheusCode && !!input.loja
+}
+
 // Chamado quando o wizard de novo pedido ganha foco: inicia o timer de
 // duração e registra o evento ORDER_STARTED no tracking do piloto
 export function startOrderSession() {

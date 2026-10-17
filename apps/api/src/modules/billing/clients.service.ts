@@ -16,6 +16,7 @@ import { conflict, notFound } from '../../lib/errors'
 import { changedFields, isUniqueViolation, recordBillingEvent } from './billing-events'
 import type { ClientData, ClientProfileData } from './billing.schema'
 import { moneyToString } from './catalog.service'
+import { dateToIsoDay } from './competence'
 
 // Cadastro comercial do cliente (plano 013). LGPD: a lista não devolve
 // representante nem contatos; só a ficha devolve, e só ao SUPERADMIN.
@@ -116,6 +117,11 @@ export function toContractDto(c: ContractWithTerms): CompanyContractDto {
     dueDay: c.dueDay,
     overdueBlockDays: c.overdueBlockDays,
     terms: c.terms.map(toTermsDto),
+    // Encerramento (plano 016): o fim é dia civil e viaja como 'YYYY-MM-DD'
+    endsAt: c.endsAt ? dateToIsoDay(c.endsAt) : null,
+    cancelRequestedAt: iso(c.cancelRequestedAt),
+    cancelReason: c.cancelReason,
+    deactivateCompanyOnEnd: c.deactivateCompanyOnEnd,
   }
 }
 

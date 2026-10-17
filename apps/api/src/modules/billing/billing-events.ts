@@ -44,6 +44,10 @@ export interface BillingEventRef {
   documentId?: string
   documentKind?: 'CONTRACT' | 'AMENDMENT'
   requestedByClient?: boolean // aditivo a pedido da Empresa (decisão de desenho 7)
+  // Plano 016: faturas (nunca valor, descrição de item ou motivo)
+  invoiceId?: string
+  invoiceNumber?: number
+  itemId?: string
   // Plano 015: pedido de licenças e os termos que a aprovação criou
   licenseRequestId?: string
   termsId?: string

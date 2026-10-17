@@ -300,3 +300,115 @@ O pedido guarda o IP, o navegador e o texto aceito, tratados por execução de
 contrato (LGPD, art. 7º, V), com a mesma retenção do registro de aceite:
 durante a vigência e por 5 anos depois do encerramento. Nenhum job de expurgo
 toca `billing_license_requests`.
+
+## Faturamento (plano 016)
+
+Mensal e pós-pago, com baixa manual. O sistema calcula a fatura, registra,
+lembra o cliente do vencimento e guarda a baixa; a Addere cobra por fora
+(Pix, boleto, transferência) e o superadmin dá a baixa em Gestão Addere ›
+Faturas. Não há gateway nem boleto automático.
+
+### O agendador, de hora em hora
+
+Na ordem, e cada passo isolado dos outros (um que falha não impede os
+seguintes; queda de banco só vai ao log, o resto vai ao Sentry):
+
+1. **Faturas**: gera as da competência anterior, no fuso de São Paulo. Às 22h
+   de Brasília do dia 31 ainda é o mês que termina. Cobra só contrato aceito
+   (ACTIVE, ou CANCELLED no mês em que terminou), a partir da primeira
+   competência cobrada (o mês do aceite e a carência ficam de fora), com os
+   termos que valiam antes das 00:00 do dia 1 da competência. A fatura vence no
+   dia do contrato, no mês seguinte à competência.
+2. **Encerramento**: passa a CANCELLED o contrato cujo último dia já passou
+   (ver "Fim do contrato").
+3. **Lembrete de vencimento**: um só por fatura em aberto com total maior que
+   zero, no primeiro tick dentro de "dias de aviso" antes do vencimento (Pacotes
+   e regras), ao contato de cobrança e aos ADMINs ativos.
+4. **Lembrete de documento pendente**: um só por contrato ou aditivo enviado há
+   72 h ou mais, ao administrador indicado.
+
+### Como ligar
+
+A variável `BILLING_JOBS_ENABLED` nasce `false` em todo lugar (`env.ts`, os dois
+`.env.example` e os dois serviços do `render.yaml`). Ligar é operação, não
+código, e nesta ordem:
+
+1. deploy da API com a migration `billing_invoices` no ar;
+2. no painel do Render, `BILLING_JOBS_ENABLED=true` no serviço;
+3. o mesmo valor no `render.yaml`, senão a próxima sincronização do Blueprint
+   volta para `false`;
+4. no log de boot, `[billing-scheduler] ticker de 1 h iniciado` (desligado, o
+   log diz `[billing-scheduler] desligado (BILLING_JOBS_ENABLED=false)`).
+
+Staging só de propósito, para teste (o banco do staging é outro, ninguém é
+cobrado de verdade). Produção só depois do primeiro contrato aceito. Nunca na
+máquina local: o `.env` local aponta para um banco real.
+
+### Rodar agora
+
+`POST /admin/billing/jobs/run` (o botão "Rodar faturamento" da tela de
+Faturas) roda o mesmo tick na hora e devolve o resumo. Funciona com a env
+desligada: é a ferramenta de incidente. É seguro repetir: a fatura tem uma
+por empresa e competência, e cada e-mail tem um `dedupeKey`, então nada sai
+duas vezes, nem com um tick automático rodando junto.
+
+### Regras da fatura
+
+- **D1. Fatura cancelada ocupa a competência.** Cancelar quer dizer "este mês
+  não será cobrado", e a fatura cancelada não volta. Para cobrar o mês depois,
+  só um ajuste na fatura seguinte.
+- **D2 e D3. Mês antigo entra por fatura avulsa.** O agendador só fatura a
+  competência anterior. A avulsa é só para mês anterior ao corrente, sem fatura
+  nessa competência, com vencimento a partir de hoje; com "usar o pacote do
+  contrato", só para mês que o contrato cobre.
+- **D4. Fatura paga só muda NF e observação.** Valores, itens, situação e baixa
+  ficam como estão. Correção de fatura paga vira item de ajuste na seguinte.
+- **D5. A baixa quita**, mesmo com valor diferente do total (juros,
+  arredondamento). O valor recebido fica registrado; diferença a cobrar vira
+  ajuste na próxima fatura.
+- **Recalcular** (só em aberto) refaz os itens do contrato pelos termos da
+  competência e mantém os descontos e ajustes manuais. Não muda o vencimento.
+- **Fatura que nasce vencida** (env ligada tarde, servidor fora do ar no dia 1)
+  vai ao Sentry. O vencimento não é prorrogado; a liberação até uma data é do
+  plano 017.
+- **Crédito por indisponibilidade**: item `DISCOUNT` à mão, na fatura da
+  competência seguinte (ver "Disponibilidade e crédito").
+
+### E-mails: reserva e liberação
+
+Cada lembrete tem um `dedupeKey` único no `BillingEvent`:
+
+- `invoice:<id>:due-reminder` — vencimento;
+- `document:<id>:pending-reminder` — documento pendente.
+
+A reserva (o `BillingEvent` com o `dedupeKey`) é gravada **antes** do envio.
+Chave repetida quer dizer que outro tick já mandou: não envia. Se o Resend
+recusa (o SDK devolve `error` sem lançar) ou a chamada falha, a reserva é
+apagada e o próximo tick tenta de novo; é a única exclusão de `BillingEvent`
+permitida. Sem `RESEND_API_KEY` ou sem destinatário, nada é gravado, e o
+lembrete ainda sai quando a chave entrar. O Resend recebe o mesmo
+`dedupeKey` como `idempotencyKey`. O 017 usa o mesmo padrão para o aviso de
+suspensão (`invoice:<id>:<etapa>`).
+
+### Fim do contrato
+
+- **Cancelar** (ficha do cliente › Contrato › Encerramento): o contrato termina
+  no último dia do mês do pedido, em São Paulo, e esse mês é cobrado (decisão
+  6). O agendamento cancela os documentos enviados que ainda aguardavam aceite.
+  "Desativar a empresa também" vem marcado (D7). Pode ser desfeito até o último
+  dia do mês (D8); os documentos cancelados não voltam.
+- **D6. No dia seguinte ao fim**, o agendador, numa transação só: passa o
+  contrato a CANCELLED, desliga a Inteligência (é o contrato que a liga desde o
+  014), cancela documentos enviados que tenham sobrado e, com a opção marcada,
+  desativa a empresa (e para o auto-sync). Antes do 017, empresa desativada
+  ainda não perde o acesso: até lá, vale o processo da §12.4 acima.
+- A Addere rescindindo (§12.2): o sistema sempre encerra no último dia do mês
+  em que o cancelamento é registrado. Registre-o no mês cujo último dia caia pelo
+  menos 30 dias depois do aviso.
+
+### Retenção
+
+Fatura é registro fiscal: nenhuma `Invoice` nem `InvoiceItem` de fatura paga é
+apagada, e o encerramento do contrato não apaga nada. O número da fatura é
+sequencial e global, interno (pode ter buraco quando duas criações disputam a
+mesma competência); o número fiscal é o da NF, lançado à mão.

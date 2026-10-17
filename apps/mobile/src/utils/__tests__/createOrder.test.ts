@@ -1,4 +1,4 @@
-import { submitOrder } from '../createOrder'
+import { submitOrder, logsImplicitVisit } from '../createOrder'
 import { useSyncStore } from '../../store/syncStore'
 
 jest.mock('@react-native-async-storage/async-storage', () =>
@@ -65,5 +65,28 @@ describe('submitOrder', () => {
     expect(result.synced).toBe(false)
     expect(useSyncStore.getState().queue).toHaveLength(1)
     expect(useSyncStore.getState().queue[0].status).toBe('pending')
+  })
+})
+
+// O pedido vale como check-in (plano 006) só para quem tem o plano do dia. Sem
+// isso, a trilha Dashboard ganhava um envio recusado na fila a cada pedido.
+describe('logsImplicitVisit', () => {
+  const base = { intelEnabled: true, hasVendorCode: true, protheusCode: '000123', loja: '01' }
+
+  it('registra a visita para quem tem Inteligência e código de vendedor', () => {
+    expect(logsImplicitVisit(base)).toBe(true)
+  })
+
+  it('não registra com a Inteligência desligada (a API responde 403)', () => {
+    expect(logsImplicitVisit({ ...base, intelEnabled: false })).toBe(false)
+  })
+
+  it('não registra sem código de vendedor (a API responde 422)', () => {
+    expect(logsImplicitVisit({ ...base, hasVendorCode: false })).toBe(false)
+  })
+
+  it('não registra cliente sem código ou loja do Protheus', () => {
+    expect(logsImplicitVisit({ ...base, protheusCode: null })).toBe(false)
+    expect(logsImplicitVisit({ ...base, loja: '' })).toBe(false)
   })
 })
