@@ -24,18 +24,35 @@ const STATUS_LABEL = {
   synced: 'Sincronizado',
 } as const
 
-function getCustomerName(payload: unknown): string {
-  try {
-    const p = payload as CreateOrderInput
-    return p.customerId ? `Cliente ID: ${p.customerId.slice(0, 8)}...` : '—'
-  } catch {
-    return '—'
-  }
+// A fila leva mais que pedidos (visitas, resultados, votos, mudanças no plano)
+const TYPE_LABEL: Record<SyncQueueItem['type'], string> = {
+  order: 'Pedido',
+  visit: 'Visita',
+  visitResult: 'Resultado da visita',
+  feedback: 'Avaliação do plano',
+  planPatch: 'Mudança no plano',
+  messageSent: 'Mensagem enviada',
 }
 
-function QueueItemCard({ item, onRetry }: { item: SyncQueueItem; onRetry: (id: string) => void }) {
+function getItemTitle(item: SyncQueueItem): string {
+  const type = TYPE_LABEL[item.type] ?? 'Envio'
+  if (item.type !== 'order') return type
+  const p = item.payload as CreateOrderInput | null
+  return p?.customerId ? `${type} · Cliente ID: ${p.customerId.slice(0, 8)}...` : type
+}
+
+function QueueItemCard({
+  item,
+  onRetry,
+  onDiscard,
+}: {
+  item: SyncQueueItem
+  onRetry: (id: string) => void
+  onDiscard: (item: SyncQueueItem) => void
+}) {
   const color = STATUS_COLOR[item.status]
   const label = STATUS_LABEL[item.status]
+  const exhausted = item.status === 'error' && item.attempts >= item.maxAttempts
 
   return (
     <Card>
@@ -55,26 +72,38 @@ function QueueItemCard({ item, onRetry }: { item: SyncQueueItem; onRetry: (id: s
         <Text style={s.date}>{fmtDataHora(item.createdAt)}</Text>
       </View>
 
-      <Text style={s.customer}>{getCustomerName(item.payload)}</Text>
+      <Text style={s.customer}>{getItemTitle(item)}</Text>
 
       {item.status === 'error' && (
         <>
           <Text style={s.error}>{item.lastError}</Text>
           <Text style={s.attempts}>
-            Tentativas: {item.attempts}/{item.maxAttempts}
+            {exhausted
+              ? 'O app parou de tentar. Reenvie quando o motivo acima estiver resolvido.'
+              : `Tentativas: ${item.attempts}/${item.maxAttempts}`}
           </Text>
-          {item.attempts < item.maxAttempts && (
+          <View style={s.actionsRow}>
             <Button
               testID={`retry-item-${item.id}`}
               variant="secondary"
               size="xs"
-              style={s.retryBtn}
               onPress={() => onRetry(item.id)}
               icon={<RefreshCw size={12} color={buttonForeground.secondary} strokeWidth={1.5} />}
             >
               Reenviar
             </Button>
-          )}
+            {/* Pedido nunca é descartado por aqui: só o que o app registra sozinho */}
+            {exhausted && item.type !== 'order' && (
+              <Button
+                testID={`discard-item-${item.id}`}
+                variant="ghostDanger"
+                size="xs"
+                onPress={() => onDiscard(item)}
+              >
+                Descartar
+              </Button>
+            )}
+          </View>
         </>
       )}
     </Card>
@@ -82,11 +111,33 @@ function QueueItemCard({ item, onRetry }: { item: SyncQueueItem; onRetry: (id: s
 }
 
 export default function PendentesScreen() {
-  const { pendingItems, queue, isSyncing, errorItems, syncNow, retryItem, dismissSynced } =
-    useSyncQueue()
+  const {
+    pendingItems,
+    queue,
+    isSyncing,
+    errorItems,
+    syncNow,
+    retryItem,
+    discardItem,
+    dismissSynced,
+  } = useSyncQueue()
 
   const syncedItems = queue.filter((item) => item.status === 'synced')
   const activeItems = pendingItems
+  // Esgotados (5 tentativas ou recusa definitiva) também aparecem: sumiam da
+  // lista e a faixa seguia dizendo "requer ação manual" sem mostrar onde
+  const exhaustedItems = errorItems.filter((item) => item.attempts >= item.maxAttempts)
+
+  function handleDiscard(item: SyncQueueItem) {
+    Alert.alert(
+      'Descartar envio',
+      `${TYPE_LABEL[item.type] ?? 'Envio'} não será mais enviado. Pedidos não são afetados.`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        { text: 'Descartar', style: 'destructive', onPress: () => discardItem(item.id) },
+      ]
+    )
+  }
 
   function handleRetryAll() {
     Alert.alert('Reenviar todos', 'Deseja tentar reenviar todos os pedidos com erro?', [
@@ -124,11 +175,11 @@ export default function PendentesScreen() {
       )}
 
       <FlatList
-        data={[...activeItems, ...syncedItems]}
+        data={[...activeItems, ...exhaustedItems, ...syncedItems]}
         keyExtractor={(item) => item.id}
         renderItem={({ item, index }) => (
           <View testID={`queue-item-${index}`}>
-            <QueueItemCard item={item} onRetry={retryItem} />
+            <QueueItemCard item={item} onRetry={retryItem} onDiscard={handleDiscard} />
           </View>
         )}
         onRefresh={syncNow}
@@ -203,9 +254,11 @@ const s = StyleSheet.create({
     color: colors.neutral.textSub,
     marginTop: spacing.xs,
   },
-  retryBtn: {
+  actionsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
     marginTop: spacing.sm,
-    alignSelf: 'flex-start',
   },
   clearBtn: {
     marginTop: spacing.md,

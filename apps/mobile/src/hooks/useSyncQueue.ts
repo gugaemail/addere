@@ -42,8 +42,13 @@ export function useSyncQueue() {
     clearSynced()
   }
 
+  function discardItem(id: string) {
+    useSyncStore.getState().discardItem(id)
+  }
+
   return {
     queue,
+    discardItem,
     pendingCount,
     hasPending,
     isSyncing,

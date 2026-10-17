@@ -140,3 +140,16 @@ describe('dono da fila (aparelho compartilhado)', () => {
     expect(selectPendingCount(getStore())).toBe(1)
   })
 })
+
+describe('discardItem', () => {
+  it('tira só o item indicado da fila', () => {
+    const keep = getStore().enqueue('order', { customerId: 'c1' })
+    const drop = getStore().enqueue('visit', { clientId: 'v1' })
+    getStore().markFailedPermanently(drop, 'Inteligência não habilitada para esta empresa')
+
+    getStore().discardItem(drop)
+
+    const ids = useSyncStore.getState().queue.map((i) => i.id)
+    expect(ids).toEqual([keep])
+  })
+})

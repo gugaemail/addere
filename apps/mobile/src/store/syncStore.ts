@@ -38,6 +38,8 @@ interface SyncStoreState {
   markFailedPermanently: (id: string, error: string) => void
   setNetworkAvailable: (available: boolean) => void
   clearSynced: () => void
+  /** Tira um item da fila de vez — a tela só oferece para o que não é pedido */
+  discardItem: (id: string) => void
   setIsSyncing: (value: boolean) => void
   setLastSyncAt: (at: string) => void
   clearJustSyncedOrder: () => void
@@ -127,6 +129,8 @@ export const useSyncStore = create<SyncStoreState>()(
 
       clearSynced: () =>
         set((s) => ({ queue: s.queue.filter((item) => item.status !== 'synced') })),
+
+      discardItem: (id) => set((s) => ({ queue: s.queue.filter((item) => item.id !== id) })),
 
       setIsSyncing: (value) => set({ isSyncing: value }),
 
