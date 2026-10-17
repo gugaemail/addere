@@ -21,6 +21,13 @@ const acceptSchema = z.object({
 })
 
 export default async function billingMeRoutes(app: FastifyInstance) {
+  // Tudo em /billing/me continua acessível com a empresa bloqueada (plano 017):
+  // é por aqui que o ADMIN vê a fatura, o contrato e o pedido de licenças. O
+  // onRoute é encapsulado: vale só para as rotas deste plugin.
+  app.addHook('onRoute', (routeOptions) => {
+    routeOptions.config = { ...routeOptions.config, allowBlockedCompany: true }
+  })
+
   const companyAdmin = { preHandler: requireCompanyAdmin() }
   // A guarda garante o companyId do ADMIN
   const companyOf = (request: FastifyRequest) => request.user.companyId as string
