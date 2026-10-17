@@ -244,9 +244,42 @@ export function licenseRequestDeclaration(quantity: number, unitPrice: string | 
 }
 
 // ─── Situação do cliente ─────────────────────────────────────────────────────
-// Fonte única da situação: o 016 passa hasOverdueInvoice, o 017 passa
-// accessBlockReason e o 018 reaproveita a função. A precedência está nos
-// testes; quem mudar a ordem muda os testes junto.
+// Fonte única da situação: a lista de Clientes, a ficha e o painel do 018 leem
+// esta função, com as faturas em aberto e o motivo do bloqueio reais. A
+// precedência está nos testes em tabela (billing-rules.test.ts); quem mudar a
+// ordem muda os testes junto.
+//
+// Dias como 'YYYYMMDD': hoje em São Paulo (ymdSaoPaulo na API) e o @db.Date
+// lido em UTC (dateToYmdUtc). É o formato de invoiceDisplayStatus.
+
+/** 'YYYYMM' de um @db.Date (competência), lido em UTC */
+function ymOfCivilDate(d: Date): string {
+  return `${d.getUTCFullYear()}${String(d.getUTCMonth() + 1).padStart(2, '0')}`
+}
+
+/**
+ * Fatura em aberto vencida: vencimento ANTERIOR a hoje, em dias civis. Vence
+ * hoje não é vencida. Os dois 'YYYYMMDD'; quem chama passa só faturas OPEN.
+ */
+export function isInvoiceOverdue(dueDate: string, today: string): boolean {
+  return dueDate < today
+}
+
+/**
+ * O contrato já é cobrado no mês corrente? ACTIVE e com a 1ª competência
+ * cobrada já chegada (mês de `today` ≥ mês da firstBilledCompetence). Fica de
+ * fora o mês do aceite, que nunca é cobrado, e a carência. É a pergunta do MRR
+ * faturável do painel, diferente da situação IN_GRACE, que só existe com
+ * carência > 0. ACTIVE sem firstBilledCompetence não deveria existir (o aceite
+ * grava os dois juntos); se aparecer, não é faturável — o lado que não infla.
+ */
+export function isBillableNow(
+  contract: { status: ContractStatus; firstBilledCompetence: Date | null } | null,
+  today: string
+): boolean {
+  if (!contract || contract.status !== 'ACTIVE' || !contract.firstBilledCompetence) return false
+  return today.slice(0, 6) >= ymOfCivilDate(contract.firstBilledCompetence)
+}
 
 export type ClientStatus =
   | 'NO_CONTRACT'
@@ -267,24 +300,42 @@ export const CLIENT_STATUS_LABELS: Record<ClientStatus, string> = {
   CANCELLED: 'Cancelado',
 }
 
+/** A ordem da linha "Clientes por situação" do painel (plano 018) */
+export const CLIENT_STATUS_ORDER: readonly ClientStatus[] = [
+  'NO_CONTRACT',
+  'AWAITING_ACCEPTANCE',
+  'IN_GRACE',
+  'CURRENT',
+  'OVERDUE',
+  'BLOCKED',
+  'CANCELLED',
+]
+
+// Plano 018: tudo obrigatório, para o compilador apontar quem ainda não passa
+// os dados reais de fatura e de bloqueio.
 export interface ClientStatusInput {
   contract: {
     status: ContractStatus
     graceMonths: number
     firstBilledCompetence: Date | null
   } | null
-  now: Date
-  hasOverdueInvoice?: boolean // existe a partir do plano 016
-  // existe a partir do plano 017: o mesmo motivo que o authenticate usa.
-  // OVERDUE/MANUAL = accessBlockedAt gravado; INACTIVE = empresa desativada.
-  accessBlockReason?: 'OVERDUE' | 'MANUAL' | 'INACTIVE' | null
+  /** Hoje em São Paulo, 'YYYYMMDD' (ymdSaoPaulo na API) */
+  today: string
+  /** Vencimentos das faturas OPEN da empresa, 'YYYYMMDD' (dateToYmdUtc do @db.Date) */
+  openInvoiceDueDates: readonly string[]
+  /**
+   * O mesmo motivo que o authenticate usa (resolveCompanyAccess, plano 017):
+   * OVERDUE/MANUAL = accessBlockedAt gravado; INACTIVE = empresa desativada.
+   * A liberação manual (blockExemptUntil) não entra: liberada com fatura
+   * vencida é OVERDUE.
+   */
+  accessBlockReason: 'OVERDUE' | 'MANUAL' | 'INACTIVE' | null
 }
 
 export function deriveClientStatus(input: ClientStatusInput): ClientStatus {
-  const { contract, now } = input
-  const reason = input.accessBlockReason ?? null
+  const { contract, today, accessBlockReason: reason } = input
   if (reason === 'OVERDUE' || reason === 'MANUAL') return 'BLOCKED'
-  if (input.hasOverdueInvoice) return 'OVERDUE'
+  if (input.openInvoiceDueDates.some((due) => isInvoiceOverdue(due, today))) return 'OVERDUE'
   if (contract?.status === 'CANCELLED') return 'CANCELLED'
   // Desativada e não cancelada: ninguém da empresa entra, então é bloqueada
   if (reason === 'INACTIVE') return 'BLOCKED'
@@ -293,7 +344,7 @@ export function deriveClientStatus(input: ClientStatusInput): ClientStatus {
   if (
     contract.graceMonths > 0 &&
     contract.firstBilledCompetence &&
-    startOfCompetence(now) < contract.firstBilledCompetence
+    today.slice(0, 6) < ymOfCivilDate(contract.firstBilledCompetence)
   ) {
     return 'IN_GRACE'
   }
@@ -715,15 +766,15 @@ export const INVOICE_PAYMENT_METHODS: readonly InvoicePaymentMethod[] = [
 
 /**
  * Vencida = OPEN e vencimento < hoje. Os dois em 'YYYYMMDD', hoje em São Paulo.
- * É a regra única de "vencida": o 017 (aviso e bloqueio) e o 018 (painel) usam
- * esta função, não uma segunda.
+ * A comparação é a de isInvoiceOverdue (018), que a situação do cliente e o
+ * painel também usam: uma regra só de "vencida".
  */
 export function invoiceDisplayStatus(
   status: InvoiceStatus,
   dueYmd: string,
   todayYmd: string
 ): InvoiceDisplayStatus {
-  return status === 'OPEN' && dueYmd < todayYmd ? 'OVERDUE' : status
+  return status === 'OPEN' && isInvoiceOverdue(dueYmd, todayYmd) ? 'OVERDUE' : status
 }
 
 export interface InvoiceItemDto {

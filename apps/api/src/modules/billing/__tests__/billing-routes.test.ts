@@ -642,6 +642,55 @@ describe('GET /admin/billing/clients', () => {
       },
     })
   })
+
+  it('situação com fatura vencida e bloqueio reais, numa consulta de faturas só (plano 018)', async () => {
+    const COMPANY_C = '33333333-3333-4333-8333-333333333333'
+    const activeContract = {
+      status: 'ACTIVE',
+      graceMonths: 0,
+      firstBilledCompetence: new Date('2026-01-01T00:00:00Z'),
+      terms: [],
+    }
+    const row = (id: string, name: string, accessBlockedAt: Date | null) => ({
+      ...companyRow,
+      id,
+      name,
+      clientProfile: null,
+      accessBlockedAt,
+      accessBlockReason: accessBlockedAt ? 'OVERDUE' : null,
+      contract: activeContract,
+    })
+    prismaMock.company.findMany.mockResolvedValue([
+      row(COMPANY_A, 'Atacado Ponte Alta', null),
+      row(COMPANY_B, 'Casa do Campo', new Date('2026-10-01T12:00:00Z')),
+      row(COMPANY_C, 'Mercado Sol', null),
+    ])
+    // A rota usa o relógio de verdade: uma fatura de 2020 já venceu, uma de 2099 ainda não
+    prismaMock.invoice.findMany.mockResolvedValue([
+      { companyId: COMPANY_A, dueDate: new Date('2020-01-10T00:00:00Z') },
+      { companyId: COMPANY_B, dueDate: new Date('2020-01-10T00:00:00Z') },
+      { companyId: COMPANY_C, dueDate: new Date('2099-01-10T00:00:00Z') },
+    ])
+
+    const res = await app.inject({
+      method: 'GET',
+      url: '/admin/billing/clients',
+      headers: auth('super'),
+    })
+    expect(res.statusCode).toBe(200)
+    expect(res.json().map((c: { id: string; status: string }) => [c.id, c.status])).toEqual([
+      [COMPANY_A, 'OVERDUE'],
+      [COMPANY_B, 'BLOCKED'], // bloqueado vence vencido
+      [COMPANY_C, 'CURRENT'],
+    ])
+    // Uma consulta de faturas para a página inteira, nada por empresa
+    expect(prismaMock.invoice.findMany).toHaveBeenCalledTimes(1)
+    expect(prismaMock.invoice.findMany.mock.calls[0][0]).toEqual({
+      where: { status: 'OPEN', companyId: { in: [COMPANY_A, COMPANY_B, COMPANY_C] } },
+      select: { companyId: true, dueDate: true },
+    })
+    expect(prismaMock.invoice.findFirst).not.toHaveBeenCalled()
+  })
 })
 
 describe('GET /admin/billing/clients/:companyId', () => {
@@ -681,6 +730,29 @@ describe('GET /admin/billing/clients/:companyId', () => {
     expect(JSON.stringify(prismaMock.company.findUnique.mock.calls[0][0])).not.toContain(
       'passProtheus'
     )
+  })
+
+  it('fatura em aberto vencida deixa a ficha em "vencido" (plano 018)', async () => {
+    prismaMock.company.findUnique.mockResolvedValue({
+      ...companyRow,
+      contract: contractRow({
+        status: 'ACTIVE',
+        firstBilledCompetence: new Date('2026-01-01T00:00:00Z'),
+      }),
+    })
+    prismaMock.invoice.findMany.mockResolvedValue([
+      { companyId: COMPANY_A, dueDate: new Date('2020-01-10T00:00:00Z') },
+    ])
+    const res = await app.inject({
+      method: 'GET',
+      url: `/admin/billing/clients/${COMPANY_A}`,
+      headers: auth('super'),
+    })
+    expect(res.json().status).toBe('OVERDUE')
+    expect(prismaMock.invoice.findMany.mock.calls[0][0].where).toEqual({
+      status: 'OPEN',
+      companyId: { in: [COMPANY_A] },
+    })
   })
 })
 
