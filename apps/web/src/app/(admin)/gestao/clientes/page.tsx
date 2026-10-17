@@ -17,7 +17,7 @@ import { CLIENT_STATUS_BADGE, LICENSE_TYPE_LABELS } from '@/lib/billing-ui'
 import { useClients } from '@/hooks/useBilling'
 import { ClientFormModal } from './ClientFormModal'
 
-// Clientes da Gestão Addere (plano 013) — home do SUPERADMIN. Substitui a
+// Clientes da Gestão Addere (plano 013). Substitui a
 // antiga lista de empresas. A linha inteira abre a ficha; o
 // "Desativar empresa" mora no cabeçalho da ficha. "Próximo vencimento" entra
 // com o plano 016.
