@@ -6,6 +6,7 @@ import { resolveTenant } from '../../middleware/resolve-tenant'
 import { documentIdParam } from './contract-documents.schema'
 import { acceptDocument, getMyBilling, getMyDocument, listMyDocuments } from './me.service'
 import { listMyInvoices } from './invoices.service'
+import { getOverdueStatus } from './overdue-block.service'
 import { getSeatUsage } from './seats.service'
 import { createLicenseRequestSchema } from './license-requests.schema'
 import { createLicenseRequest } from './license-requests.service'
@@ -107,5 +108,11 @@ export default async function billingMeRoutes(app: FastifyInstance) {
   // prefixo de propósito: o 017 libera /billing/me/* para empresa bloqueada.
   app.get('/invoices', companyAdmin, async (request: FastifyRequest, reply: FastifyReply) => {
     return reply.send(await listMyInvoices(companyOf(request), new Date()))
+  })
+
+  // Plano 017: a faixa de cobrança do ADMIN — fatura vencida, data prevista da
+  // suspensão e o acesso da empresa. Liberada com a empresa bloqueada (onRoute acima)
+  app.get('/overdue', companyAdmin, async (request: FastifyRequest, reply: FastifyReply) => {
+    return reply.send(await getOverdueStatus(companyOf(request), new Date()))
   })
 }

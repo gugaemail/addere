@@ -26,10 +26,14 @@ vi.mock('@addere/db', async () => (await import('../../../test-utils/prisma-mock
 import { prismaMock, resetPrismaMock } from '../../../test-utils/prisma-mock'
 import {
   billingRecipients,
+  buildAccessReleasedEmail,
+  buildSuspensionNoticeEmail,
+  buildSuspensionReminderEmail,
   documentPendingReminderEmail,
   dueReminderEmail,
   escapeHtml,
   sendBillingEmailOnce,
+  sendBillingEmailThenRecord,
 } from '../billing-mailer'
 
 const KEY = 'invoice:inv-1:due-reminder'
@@ -215,5 +219,143 @@ describe('modelos', () => {
     expect(a.subject).toBe(
       'Lembrete: Aditivo ao Contrato de Licença de Uso do Addere aguardando seu aceite'
     )
+  })
+})
+
+// ─── Plano 017: o aviso de suspensão só conta se foi entregue ───────────────
+
+describe('sendBillingEmailThenRecord', () => {
+  const NOTICE_KEY = 'invoice:inv-1:suspension-notice'
+  const thenRecord = (overrides: Partial<Parameters<typeof sendBillingEmailThenRecord>[0]> = {}) =>
+    sendBillingEmailThenRecord({
+      companyId: 'company-1',
+      dedupeKey: NOTICE_KEY,
+      idempotencyKey: `${NOTICE_KEY}:20261025`,
+      eventType: 'SUSPENSION_NOTICE_SENT',
+      payload: { invoiceId: 'inv-1', plannedBlockYmd: '20261025', recipients: 1 },
+      to: ['financeiro@cliente.test'],
+      subject: 'Aviso de suspensão do Addere — fatura nº 000012',
+      html: '<p>aviso</p>',
+      ...overrides,
+    })
+
+  it("sucesso: o send vem ANTES do billingEvent.create e o resultado é 'sent'", async () => {
+    const order: string[] = []
+    sendMock.mockImplementation(async () => {
+      order.push('send')
+      return { data: { id: 'email-1' }, error: null }
+    })
+    prismaMock.billingEvent.create.mockImplementation(async () => {
+      order.push('record')
+      return {}
+    })
+    await expect(thenRecord()).resolves.toBe('sent')
+    expect(order).toEqual(['send', 'record'])
+    expect(sendMock.mock.calls[0][1]).toEqual({ idempotencyKey: `${NOTICE_KEY}:20261025` })
+    expect(prismaMock.billingEvent.create.mock.calls[0][0].data).toEqual({
+      type: 'SUSPENSION_NOTICE_SENT',
+      companyId: 'company-1',
+      actorId: null,
+      payload: { invoiceId: 'inv-1', plannedBlockYmd: '20261025', recipients: 1 },
+      dedupeKey: NOTICE_KEY,
+    })
+  })
+
+  it("send devolve { error }: 'failed', nada gravado e o erro vai ao Sentry", async () => {
+    sendMock.mockResolvedValue({
+      data: null,
+      error: { name: 'validation_error', message: 'financeiro@cliente.test inválido' },
+    })
+    await expect(thenRecord()).resolves.toBe('failed')
+    expect(prismaMock.billingEvent.create).not.toHaveBeenCalled()
+    expect(captureMock).toHaveBeenCalledTimes(1)
+    expect(JSON.stringify(captureMock.mock.calls)).not.toContain('financeiro@cliente.test')
+  })
+
+  it("send lança: 'failed', nada gravado, Sentry", async () => {
+    sendMock.mockRejectedValue(new Error('ECONNRESET'))
+    await expect(thenRecord()).resolves.toBe('failed')
+    expect(prismaMock.billingEvent.create).not.toHaveBeenCalled()
+    expect(captureMock).toHaveBeenCalledTimes(1)
+  })
+
+  it("evento já existe com o dedupeKey: 'duplicate' e o send não é chamado", async () => {
+    prismaMock.billingEvent.findUnique.mockResolvedValue({ id: 'ev-1' })
+    await expect(thenRecord()).resolves.toBe('duplicate')
+    expect(prismaMock.billingEvent.findUnique.mock.calls[0][0].where).toEqual({
+      dedupeKey: NOTICE_KEY,
+    })
+    expect(sendMock).not.toHaveBeenCalled()
+    expect(prismaMock.billingEvent.create).not.toHaveBeenCalled()
+  })
+
+  it("P2002 no create depois do envio: 'duplicate', sem lançar", async () => {
+    sendMock.mockResolvedValue({ data: { id: 'email-1' }, error: null })
+    prismaMock.billingEvent.create.mockRejectedValue(p2002())
+    await expect(thenRecord()).resolves.toBe('duplicate')
+    expect(sendMock).toHaveBeenCalledTimes(1)
+  })
+
+  it("sem RESEND_API_KEY ou sem destinatário: 'skipped', nada enviado nem gravado", async () => {
+    envMock.RESEND_API_KEY = undefined
+    await expect(thenRecord()).resolves.toBe('skipped')
+    envMock.RESEND_API_KEY = 're_test'
+    await expect(thenRecord({ to: [' '] })).resolves.toBe('skipped')
+    expect(sendMock).not.toHaveBeenCalled()
+    expect(prismaMock.billingEvent.create).not.toHaveBeenCalled()
+  })
+
+  it('a liberação de reserva do 016 nunca é usada aqui', async () => {
+    sendMock.mockResolvedValue({ data: null, error: { name: 'rate_limit_exceeded' } })
+    await thenRecord()
+    expect(prismaMock.billingEvent.deleteMany).not.toHaveBeenCalled()
+  })
+})
+
+describe('modelos do plano 017', () => {
+  const invoice = {
+    number: 12,
+    competence: new Date('2026-09-01T00:00:00.000Z'),
+    dueDate: new Date('2026-10-10T00:00:00.000Z'),
+    total: '1990.00',
+  }
+
+  it('aviso de suspensão: assunto, fatura, competência, valor, vencimento, data prevista e link', () => {
+    const { subject, html } = buildSuspensionNoticeEmail(
+      'Distribuidora <Norte>',
+      invoice,
+      new Date('2026-10-25T00:00:00.000Z')
+    )
+    expect(subject).toBe('Aviso de suspensão do Addere — fatura nº 000012')
+    expect(html).toContain('fatura nº 000012, da competência 09/2026')
+    expect(html).toContain('R$ 1.990,00')
+    expect(html).toContain('venceu em 10/10/2026')
+    expect(html).toContain('será suspenso em <strong>25/10/2026</strong>')
+    expect(html).toContain('A suspensão não apaga nenhum dado.')
+    expect(html).toContain('https://painel.test/plano')
+    expect(html).toContain('Distribuidora &lt;Norte&gt;')
+  })
+
+  it('lembrete: assunto com a data prevista', () => {
+    const { subject, html } = buildSuspensionReminderEmail(
+      'Distribuidora Exemplo',
+      invoice,
+      new Date('2026-10-25T00:00:00.000Z')
+    )
+    expect(subject).toBe('Lembrete: o acesso ao Addere será suspenso em 25/10/2026')
+    expect(html).toContain('fatura nº 000012')
+    expect(html).toContain('https://painel.test/plano')
+  })
+
+  it('liberação: até quando e, com fatura vencida, o dia em que volta', () => {
+    const until = new Date('2026-11-05T00:00:00.000Z')
+    const withInvoice = buildAccessReleasedEmail('Distribuidora Exemplo', until, { number: 12 })
+    expect(withInvoice.subject).toBe('Acesso ao Addere liberado até 05/11/2026')
+    expect(withInvoice.html).toContain('está liberado até 05/11/2026')
+    expect(withInvoice.html).toContain(
+      'Se a fatura nº 000012 não for paga até lá, o acesso volta a ser suspenso em 06/11/2026.'
+    )
+    const without = buildAccessReleasedEmail('Distribuidora Exemplo', until, null)
+    expect(without.html).not.toContain('Se a fatura')
   })
 })

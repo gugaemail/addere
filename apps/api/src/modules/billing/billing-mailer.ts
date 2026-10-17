@@ -6,6 +6,7 @@ import {
   CONTRATADA,
   formatBillingDate,
   formatBrl,
+  formatCompetence,
   type BillingEventType,
   type ContractDocumentKind,
 } from '@addere/types'
@@ -199,6 +200,94 @@ export async function sendBillingEmailOnce(input: {
   return 'sent'
 }
 
+// ─── Envio que grava depois (plano 017) ─────────────────────────────────────
+// O aviso de suspensão NÃO usa o sendBillingEmailOnce, de propósito (decisão
+// de desenho 1 do plano 017). Lá a reserva é gravada antes do envio: se o
+// processo caísse entre a reserva e o envio, ficaria um aviso gravado sem
+// e-mail, e 10 dias depois a empresa seria bloqueada sem ter sido avisada.
+// Aqui o evento só é gravado DEPOIS de o Resend aceitar. O pior caso (cair
+// entre o envio e a gravação) é o cliente receber o aviso de novo no tick
+// seguinte: o erro possível vai sempre para o lado do cliente, nunca para
+// "bloqueou sem avisar". O lembrete de 3 dias não é condição de bloqueio e
+// continua no sendBillingEmailOnce.
+
+/**
+ * Envia e só então grava o BillingEvent com o `dedupeKey`. A ordem:
+ *
+ * 1. sem RESEND_API_KEY ou sem destinatário → 'skipped', nada gravado;
+ * 2. já existe evento com o `dedupeKey` → 'duplicate', sem enviar;
+ * 3. envia com `idempotencyKey` (para o aviso: o dedupeKey + a data prevista,
+ *    porque um reenvio com data recalculada é outro e-mail);
+ * 4. erro do Resend (retorno com `error` ou exceção) → Sentry e 'failed',
+ *    nada gravado;
+ * 5. sucesso → grava o evento; P2002 aqui é outro tick que gravou primeiro →
+ *    'duplicate'; senão 'sent'.
+ *
+ * Erro de banco na gravação (não P2002) é lançado: o e-mail saiu, mas sem
+ * evento não há bloqueio, e o próximo tick avisa de novo.
+ */
+export async function sendBillingEmailThenRecord(input: {
+  companyId: string
+  dedupeKey: string // ex.: 'invoice:<id>:suspension-notice'
+  idempotencyKey: string
+  eventType: BillingEventType
+  payload: Record<string, unknown> // só ids, datas e contagens
+  to: string[]
+  subject: string
+  html: string
+}): Promise<SendOutcome> {
+  const to = normalizeRecipients(input.to)
+  if (!env.RESEND_API_KEY || to.length === 0) return 'skipped'
+
+  const existing = await prisma.billingEvent.findUnique({
+    where: { dedupeKey: input.dedupeKey },
+    select: { id: true },
+  })
+  if (existing) return 'duplicate'
+
+  const replyTo = await replyToAddress()
+
+  let failure: unknown
+  try {
+    const resend = new Resend(env.RESEND_API_KEY)
+    const { error } = await resend.emails.send(
+      { from: FROM, to, replyTo, subject: input.subject, html: input.html },
+      { idempotencyKey: input.idempotencyKey }
+    )
+    failure = error
+  } catch (err) {
+    failure = err
+  }
+
+  if (failure) {
+    // Sem destinatário, assunto nem a mensagem do Resend (pode citar o endereço)
+    const name =
+      failure instanceof Error ? failure.name : String((failure as { name?: unknown }).name)
+    captureError(new Error(`Resend recusou o envio: ${name}`), {
+      module: 'billing',
+      op: 'send-email-then-record',
+      eventType: input.eventType,
+    })
+    return 'failed'
+  }
+
+  try {
+    await prisma.billingEvent.create({
+      data: {
+        type: input.eventType,
+        companyId: input.companyId,
+        actorId: null,
+        payload: input.payload as Prisma.InputJsonObject,
+        dedupeKey: input.dedupeKey,
+      },
+    })
+  } catch (err) {
+    if (isUniqueViolation(err)) return 'duplicate'
+    throw err
+  }
+  return 'sent'
+}
+
 // ─── Modelos dos lembretes (plano 016) ──────────────────────────────────────
 // Todo texto do banco (nome da empresa, descrição de item) passa por escapeHtml.
 
@@ -270,6 +359,85 @@ export function documentPendingReminderEmail(
       `<p>Olá, ${escapeHtml(recipientName)}.</p>`,
       `<p>O ${escapeHtml(label)} da sua empresa continua aguardando o seu aceite no painel do Addere. Você é o administrador indicado pela sua empresa para esse aceite.</p>`,
       `<p><a href="${escapeHtml(link)}">Ler e aceitar o ${escapeHtml(label)}</a></p>`,
+      '<p>Addere</p>',
+    ].join('\n'),
+  }
+}
+
+// ─── Modelos da inadimplência (plano 017) ───────────────────────────────────
+// Datas de dia civil (@db.Date) pelo formatBillingDate; competência MM/AAAA.
+
+export interface OverdueInvoiceForEmail {
+  number: number
+  competence: Date // @db.Date
+  dueDate: Date // @db.Date
+  total: string // '1990.00'
+}
+
+function overdueInvoiceSentence(invoice: OverdueInvoiceForEmail): string {
+  return `fatura nº ${invoiceNumberLabel(invoice.number)}, da competência ${formatCompetence(invoice.competence)}, no valor de ${escapeHtml(formatBrl(invoice.total))}, venceu em ${formatBillingDate(invoice.dueDate)} e ainda não tem pagamento registrado`
+}
+
+function planLink(): string {
+  const link = webUrl('/plano')
+  return `<p>Ver Plano e cobrança: <a href="${escapeHtml(link)}">${escapeHtml(link)}</a></p>`
+}
+
+/** Aviso de suspensão: a data prevista é a do aviso e não muda depois. */
+export function buildSuspensionNoticeEmail(
+  companyName: string,
+  invoice: OverdueInvoiceForEmail,
+  plannedBlockDate: Date // @db.Date
+): { subject: string; html: string } {
+  const planned = formatBillingDate(plannedBlockDate)
+  return {
+    subject: `Aviso de suspensão do Addere — fatura nº ${invoiceNumberLabel(invoice.number)}`,
+    html: [
+      `<p>A ${overdueInvoiceSentence(invoice)}.</p>`,
+      `<p>Se ela não for paga, o acesso da ${escapeHtml(companyName)} ao app e ao painel do Addere será suspenso em <strong>${planned}</strong>.</p>`,
+      '<p>A suspensão não apaga nenhum dado. O administrador continua vendo o Contrato e o Plano e cobrança, e o acesso volta assim que a Addere registrar o pagamento. Se o pagamento já foi feito, responda este e-mail com o comprovante.</p>',
+      planLink(),
+      '<p>Addere</p>',
+    ].join('\n'),
+  }
+}
+
+/** Lembrete de 1 a 3 dias antes da data prevista (não é condição de bloqueio). */
+export function buildSuspensionReminderEmail(
+  companyName: string,
+  invoice: OverdueInvoiceForEmail,
+  plannedBlockDate: Date // @db.Date
+): { subject: string; html: string } {
+  const planned = formatBillingDate(plannedBlockDate)
+  return {
+    subject: `Lembrete: o acesso ao Addere será suspenso em ${planned}`,
+    html: [
+      `<p>Lembrete: a ${overdueInvoiceSentence(invoice)}.</p>`,
+      `<p>Se ela não for paga, o acesso da ${escapeHtml(companyName)} ao app e ao painel do Addere será suspenso em <strong>${planned}</strong>. A suspensão não apaga nenhum dado, e o acesso volta assim que a Addere registrar o pagamento. Se o pagamento já foi feito, responda este e-mail com o comprovante.</p>`,
+      planLink(),
+      '<p>Addere</p>',
+    ].join('\n'),
+  }
+}
+
+/** "Liberar até…" com data: o cliente fica sabendo até quando e o que acontece depois. */
+export function buildAccessReleasedEmail(
+  companyName: string,
+  until: Date, // @db.Date
+  overdueInvoice: { number: number } | null
+): { subject: string; html: string } {
+  const untilLabel = formatBillingDate(until)
+  const nextDay = new Date(until.getTime() + 86_400_000)
+  return {
+    subject: `Acesso ao Addere liberado até ${untilLabel}`,
+    html: [
+      `<p>O acesso da ${escapeHtml(companyName)} ao Addere está liberado até ${untilLabel}.</p>`,
+      ...(overdueInvoice
+        ? [
+            `<p>Se a fatura nº ${invoiceNumberLabel(overdueInvoice.number)} não for paga até lá, o acesso volta a ser suspenso em ${formatBillingDate(nextDay)}.</p>`,
+          ]
+        : []),
+      planLink(),
       '<p>Addere</p>',
     ].join('\n'),
   }
