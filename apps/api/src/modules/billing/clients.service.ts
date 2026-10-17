@@ -19,6 +19,7 @@ import { clientBlockStateFrom } from './overdue-block.service'
 import type { ClientData, ClientProfileData } from './billing.schema'
 import { moneyToString } from './catalog.service'
 import { dateToIsoDay } from './competence'
+import { dateToYmdUtc, ymdSaoPaulo } from '../intelligence/engine/business-days'
 
 // Cadastro comercial do cliente (plano 013). LGPD: a lista não devolve
 // representante nem contatos; só a ficha devolve, e só ao SUPERADMIN.
@@ -161,13 +162,34 @@ function toProfileDto(p: ClientProfile): ClientProfileDto {
 }
 
 // Licenças em uso: vendedores e gerentes ativos (SALESPERSON). ADMIN é grátis.
-async function usedSeatsByCompany(): Promise<Map<string, number>> {
+// Uma consulta para todas as empresas; o painel do 018 usa a mesma.
+export async function usedSeatsByCompany(): Promise<Map<string, number>> {
   const rows = await prisma.user.groupBy({
     by: ['companyId'],
     where: { role: 'SALESPERSON', active: true, companyId: { not: null } },
     _count: { _all: true },
   })
   return new Map(rows.map((r) => [r.companyId as string, r._count._all]))
+}
+
+/**
+ * Vencimentos das faturas em aberto, 'YYYYMMDD', por empresa (plano 018): uma
+ * consulta só para a página inteira, agrupada em memória. A comparação com
+ * hoje fica em deriveClientStatus (isInvoiceOverdue).
+ */
+async function openInvoiceDueDatesByCompany(ids: string[]): Promise<Map<string, string[]>> {
+  const byCompany = new Map<string, string[]>()
+  if (ids.length === 0) return byCompany
+  const rows = await prisma.invoice.findMany({
+    where: { status: 'OPEN', companyId: { in: ids } },
+    select: { companyId: true, dueDate: true },
+  })
+  for (const r of rows) {
+    const list = byCompany.get(r.companyId) ?? []
+    list.push(dateToYmdUtc(r.dueDate))
+    byCompany.set(r.companyId, list)
+  }
+  return byCompany
 }
 
 function contractStatusInput(
@@ -223,6 +245,8 @@ export async function listClients(now: Date): Promise<ClientListItemDto[]> {
     }),
     usedSeatsByCompany(),
   ])
+  const openDueDates = await openInvoiceDueDatesByCompany(companies.map((c) => c.id))
+  const today = ymdSaoPaulo(now)
 
   return companies.map((c) => {
     const terms = c.contract?.terms ?? []
@@ -242,7 +266,8 @@ export async function listClients(now: Date): Promise<ClientListItemDto[]> {
       tradeName: c.clientProfile?.tradeName ?? null,
       status: deriveClientStatus({
         contract: contractStatusInput(c.contract),
-        now,
+        today,
+        openInvoiceDueDates: openDueDates.get(c.id) ?? [],
         accessBlockReason,
       }),
       contractStatus: c.contract?.status ?? null,
@@ -277,9 +302,12 @@ export async function getClient(companyId: string, now: Date): Promise<ClientDet
   })
   if (!company) throw notFound('Cliente não encontrado')
 
-  const usedSeats = await prisma.user.count({
-    where: { companyId, role: 'SALESPERSON', active: true },
-  })
+  const [usedSeats, openDueDates] = await Promise.all([
+    prisma.user.count({
+      where: { companyId, role: 'SALESPERSON', active: true },
+    }),
+    openInvoiceDueDatesByCompany([companyId]),
+  ])
   const current = resolveCurrentTerms(company.contract?.terms ?? [], now)
   // Plano 017: o cartão "Acesso", da mesma linha da empresa (sem reler)
   const block = await clientBlockStateFrom(
@@ -306,7 +334,8 @@ export async function getClient(companyId: string, now: Date): Promise<ClientDet
     contract: company.contract ? toContractDto(company.contract) : null,
     status: deriveClientStatus({
       contract: contractStatusInput(company.contract),
-      now,
+      today: ymdSaoPaulo(now),
+      openInvoiceDueDates: openDueDates.get(companyId) ?? [],
       accessBlockReason: resolveCompanyAccess(company).reason,
     }),
     usedSeats,

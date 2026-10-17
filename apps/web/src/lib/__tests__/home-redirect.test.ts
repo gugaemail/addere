@@ -25,8 +25,8 @@ describe('canAccessPanel', () => {
 })
 
 describe('resolveHome', () => {
-  it('SUPERADMIN cai nos Clientes da Gestão Addere; demais na Inteligência', () => {
-    expect(resolveHome({ role: 'SUPERADMIN' })).toBe('/gestao/clientes')
+  it('SUPERADMIN cai no Painel da Gestão; demais na Inteligência', () => {
+    expect(resolveHome({ role: 'SUPERADMIN' })).toBe('/gestao')
     expect(resolveHome({ role: 'ADMIN' })).toBe('/inteligencia')
     expect(resolveHome({ role: 'SALESPERSON', permissions: ['intel.manager'] })).toBe('/inteligencia')
   })

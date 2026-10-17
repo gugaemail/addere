@@ -545,3 +545,62 @@ e 429 como rejeição definitiva, e marcaria como falho cada pedido da fila de u
 vendedor de empresa bloqueada (os pedidos não somem, mas teriam de ser
 reenviados um a um, e cada um iria ao Sentry). A ordem contrária é inofensiva:
 o app novo contra a API velha nunca recebe `COMPANY_BLOCKED`.
+
+## Painel — definição dos indicadores
+
+Plano 018. O Painel (`/gestao`, Gestão Addere › Painel) é a home do SUPERADMIN e
+só lê: `GET /admin/billing/dashboard` faz cinco consultas
+(`dashboard.service.ts`) e a soma é pura (`dashboard.ts`). Dinheiro somado em
+`Prisma.Decimal` na API e enviado como string com duas casas; o web só formata.
+Hoje é o dia civil de São Paulo (`ymdSaoPaulo`); vencimento, competência e
+data da baixa são `@db.Date`, lidos em UTC (`dateToYmdUtc`). Fatura cancelada
+não entra em nenhum número.
+
+| Indicador | Definição |
+|---|---|
+| MRR contratado | Soma de `packagePrice + extraSeats × extraSeatPrice` dos **termos atuais** (`resolveCurrentTerms`) de todo contrato `ACTIVE`. Termos `PROPOSED` e `EFFECTIVE` com `effectiveFrom` no futuro não contam; contrato cancelado sai. |
+| MRR faturável | O mesmo, só dos contratos com `isBillableNow`: mês corrente ≥ mês da `firstBilledCompetence`. Fica de fora o mês do aceite (mesmo com carência 0) e a carência. O cartão diz quantos ativos estão fora da soma. |
+| Clientes por situação | `deriveClientStatus` de toda empresa, contado por situação; as sete sempre aparecem. É a mesma função da lista e da ficha. |
+| Licenças | Só contratos `ACTIVE`: usadas = vendedores e gerentes ativos (`SALESPERSON`); limite = `includedSeats + extraSeats` dos termos atuais (no Ilimitado, a quantidade digitada). |
+| Perto do limite | Contrato `ACTIVE` com `usadas × 100 ≥ limite × 90`, em conta inteira. Do mais ocupado ao menos; acima do limite fica no topo (decisão 5). |
+| A receber | Faturas `OPEN`: quantidade e soma do total. |
+| Vencido | Faturas `OPEN` com vencimento anterior a hoje (`isInvoiceOverdue`; vence hoje não é vencida). Lista do vencimento mais antigo para o mais novo. |
+| Vence em 15 dias | Faturas `OPEN` que vencem de hoje até daqui a 15 dias, inclusive. |
+| Recebido no mês | Faturas `PAID` com a baixa no mês corrente: soma do valor da baixa. |
+| Aguardando aceite | Documentos `SENT` (contrato **e** aditivo), do envio mais antigo. Não é a situação "Aguardando aceite", que só conta o primeiro contrato: cliente ativo com aditivo pendente continua "Em dia". |
+| Solicitações pendentes | Pedidos de licenças `PENDING`, do mais antigo. |
+| Receita 12 meses | Os 12 meses **fechados** antes do corrente (em out/2026, de out/2025 a set/2026). Faturado = total das faturas não canceladas daquela competência; recebido = valor da baixa das pagas naquele mês. A competência corrente ainda não foi faturada e entraria como zero. |
+
+As listas trazem no máximo cinco itens, e o título traz o total.
+
+**MRR e fatura não batem no mês da mudança, e isso está certo.** O MRR usa os
+termos atuais; a fatura usa os termos da competência. Um aditivo aceito no dia
+15 muda o MRR na hora e a fatura só na competência seguinte.
+
+**A baixa conta no dia informado.** O `paidAt` é o dia civil digitado na baixa
+(`@db.Date`). Lido pelo fuso de São Paulo, a baixa do dia 1 (meia-noite UTC)
+cairia no mês anterior; por isso o mês da baixa sai de `dateToYmdUtc`.
+
+### Situação do cliente: precedência
+
+Uma função só, `deriveClientStatus` (`packages/types/src/billing.ts`), com
+hoje em São Paulo, os vencimentos das faturas `OPEN` e o motivo de bloqueio do
+`resolveCompanyAccess` (o mesmo do `authenticate`). A lista de Clientes, a
+ficha e o Painel leem a mesma função; o teste em tabela de
+`billing-rules.test.ts` é o contrato.
+
+| Ordem | Situação | Quando |
+|---|---|---|
+| 1 | Bloqueado | motivo `OVERDUE` ou `MANUAL` |
+| 2 | Vencido | alguma fatura `OPEN` com vencimento anterior a hoje (inclusive de cliente cancelado ou em carência) |
+| 3 | Cancelado | contrato `CANCELLED`, mesmo com a empresa desativada |
+| 4 | Bloqueado | empresa desativada (`INACTIVE`) sem contrato cancelado |
+| 5 | Aguardando aceite | contrato `PENDING_ACCEPTANCE` |
+| 6 | Em carência | carência > 0 e mês corrente antes da `firstBilledCompetence` |
+| 7 | Em dia | contrato `ACTIVE` fora da carência |
+| 8 | Sem contrato | sem contrato, ou contrato `DRAFT` |
+
+A liberação manual do 017 (`blockExemptUntil`) não esconde a dívida: empresa
+liberada com fatura vencida é "Vencido". Fatura vencida de total zero também
+deixa o cliente "Vencido" (é a mesma regra da tela de Faturas), embora não gere
+aviso nem sustente bloqueio.

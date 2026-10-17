@@ -5,19 +5,25 @@
 import { describe, it, expect } from 'vitest'
 import {
   CLIENT_STATUS_LABELS,
+  CLIENT_STATUS_ORDER,
   competenceStartInstant,
   computeBillingCalendar,
   contractMonthlyTotal,
   deriveClientStatus,
   formatBillingDate,
   formatCompetence,
+  isBillableNow,
+  isInvoiceOverdue,
   isValidCpf,
   resolveCompetenceTerms,
   resolveCurrentTerms,
   startOfCompetence,
+  type ClientStatus,
   type ClientStatusInput,
   type ContractTermsStatus,
 } from '@addere/types'
+import { resolveCompanyAccess } from '../../../lib/company-access'
+import { dateToYmdUtc, ymdSaoPaulo } from '../../intelligence/engine/business-days'
 
 const utc = (iso: string) => new Date(iso)
 const ymd = (d: Date) => d.toISOString().slice(0, 10)
@@ -197,74 +203,198 @@ describe('contractMonthlyTotal', () => {
   })
 })
 
-describe('deriveClientStatus', () => {
-  const now = utc('2026-10-20T15:00:00Z')
+describe('deriveClientStatus (plano 018: faturas e bloqueio reais)', () => {
+  // Hoje: 20/10/2026 em São Paulo, salvo onde a linha diz outro dia
+  const TODAY = '20261020'
+  const c = (date: string) => new Date(`${date}T00:00:00Z`) // @db.Date
   const active = (graceMonths: number, firstBilledCompetence: string | null) => ({
     status: 'ACTIVE' as const,
     graceMonths,
-    firstBilledCompetence: firstBilledCompetence ? utc(firstBilledCompetence) : null,
+    firstBilledCompetence: firstBilledCompetence ? c(firstBilledCompetence) : null,
   })
-  const s = (input: Omit<ClientStatusInput, 'now'>) => deriveClientStatus({ now, ...input })
-
-  it('um caso por estado', () => {
-    expect(s({ contract: null })).toBe('NO_CONTRACT')
-    expect(
-      s({ contract: { status: 'PENDING_ACCEPTANCE', graceMonths: 0, firstBilledCompetence: null } })
-    ).toBe('AWAITING_ACCEPTANCE')
-    expect(s({ contract: active(2, '2027-01-01T00:00:00Z') })).toBe('IN_GRACE')
-    expect(s({ contract: active(0, '2026-11-01T00:00:00Z') })).toBe('CURRENT')
-    expect(s({ contract: active(0, '2026-09-01T00:00:00Z'), hasOverdueInvoice: true })).toBe(
-      'OVERDUE'
-    )
-    expect(s({ contract: active(0, '2026-09-01T00:00:00Z'), accessBlockReason: 'MANUAL' })).toBe(
-      'BLOCKED'
-    )
-    expect(
-      s({ contract: { status: 'CANCELLED', graceMonths: 0, firstBilledCompetence: null } })
-    ).toBe('CANCELLED')
-    expect(Object.keys(CLIENT_STATUS_LABELS)).toHaveLength(7)
+  const contractOf = (status: 'DRAFT' | 'PENDING_ACCEPTANCE' | 'CANCELLED') => ({
+    status,
+    graceMonths: 0,
+    firstBilledCompetence: null,
   })
+  // Liberação manual do 017 vigente, sem bloqueio gravado: o motivo sai do
+  // mesmo resolveCompanyAccess do authenticate, que não olha a liberação
+  const exemptCompany = {
+    active: true,
+    accessBlockedAt: null,
+    accessBlockReason: null,
+    blockExemptUntil: c('2026-10-30'),
+  }
 
-  it('precedência', () => {
-    const cancelled = { status: 'CANCELLED' as const, graceMonths: 0, firstBilledCompetence: null }
-    // bloqueio por atraso vence a fatura vencida
-    expect(
-      s({
-        contract: active(0, '2026-09-01T00:00:00Z'),
+  const cases: Array<{
+    caso: string
+    input: Partial<ClientStatusInput> & Pick<ClientStatusInput, 'contract'>
+    esperado: ClientStatus
+  }> = [
+    { caso: 'sem contrato', input: { contract: null }, esperado: 'NO_CONTRACT' },
+    { caso: 'contrato DRAFT', input: { contract: contractOf('DRAFT') }, esperado: 'NO_CONTRACT' },
+    {
+      caso: 'contrato PENDING_ACCEPTANCE',
+      input: { contract: contractOf('PENDING_ACCEPTANCE') },
+      esperado: 'AWAITING_ACCEPTANCE',
+    },
+    {
+      caso: 'ACTIVE, 1ª competência 11/2026 (aceite 15/10, carência 0), hoje 20/10/2026',
+      input: { contract: active(0, '2026-11-01') },
+      esperado: 'CURRENT',
+    },
+    {
+      caso: 'ACTIVE, 1ª competência 01/2027 (aceite 15/10, carência 2), hoje 31/12/2026',
+      input: { contract: active(2, '2027-01-01'), today: '20261231' },
+      esperado: 'IN_GRACE',
+    },
+    {
+      caso: 'o mesmo, hoje 01/01/2027',
+      input: { contract: active(2, '2027-01-01'), today: '20270101' },
+      esperado: 'CURRENT',
+    },
+    {
+      caso: 'ACTIVE fora da carência, sem fatura aberta',
+      input: { contract: active(0, '2026-09-01') },
+      esperado: 'CURRENT',
+    },
+    {
+      caso: 'ACTIVE, fatura que vence hoje',
+      input: { contract: active(0, '2026-09-01'), openInvoiceDueDates: ['20261020'] },
+      esperado: 'CURRENT',
+    },
+    {
+      caso: 'ACTIVE, fatura que venceu ontem',
+      input: { contract: active(0, '2026-09-01'), openInvoiceDueDates: ['20261019'] },
+      esperado: 'OVERDUE',
+    },
+    {
+      caso: 'ACTIVE em carência com fatura avulsa vencida (vencido > carência)',
+      input: { contract: active(2, '2027-01-01'), openInvoiceDueDates: ['20261019'] },
+      esperado: 'OVERDUE',
+    },
+    {
+      caso: 'CANCELLED sem fatura aberta',
+      input: { contract: contractOf('CANCELLED') },
+      esperado: 'CANCELLED',
+    },
+    {
+      caso: 'CANCELLED com fatura vencida (vencido > cancelado)',
+      input: { contract: contractOf('CANCELLED'), openInvoiceDueDates: ['20261005'] },
+      esperado: 'OVERDUE',
+    },
+    {
+      caso: 'ACTIVE vencido e bloqueado (bloqueado > vencido)',
+      input: {
+        contract: active(0, '2026-09-01'),
+        openInvoiceDueDates: ['20261005'],
         accessBlockReason: 'OVERDUE',
-        hasOverdueInvoice: true,
-      })
-    ).toBe('BLOCKED')
-    // dívida de contrato encerrado ainda precisa ser cobrada
-    expect(s({ contract: cancelled, hasOverdueInvoice: true })).toBe('OVERDUE')
-    // o cancelamento do 016 desativa a empresa: continua aparecendo como cancelado
-    expect(s({ contract: cancelled, accessBlockReason: 'INACTIVE' })).toBe('CANCELLED')
-    // desativada e não cancelada: ninguém entra
-    expect(s({ contract: active(0, '2026-09-01T00:00:00Z'), accessBlockReason: 'INACTIVE' })).toBe(
-      'BLOCKED'
-    )
-    expect(s({ contract: null, accessBlockReason: 'INACTIVE' })).toBe('BLOCKED')
-  })
+      },
+      esperado: 'BLOCKED',
+    },
+    {
+      caso: 'CANCELLED e motivo MANUAL (bloqueado > cancelado)',
+      input: { contract: contractOf('CANCELLED'), accessBlockReason: 'MANUAL' },
+      esperado: 'BLOCKED',
+    },
+    {
+      caso: 'CANCELLED e motivo INACTIVE (a desativação é a do próprio cancelamento)',
+      input: { contract: contractOf('CANCELLED'), accessBlockReason: 'INACTIVE' },
+      esperado: 'CANCELLED',
+    },
+    {
+      caso: 'ACTIVE e motivo INACTIVE (decisão 3)',
+      input: { contract: active(0, '2026-09-01'), accessBlockReason: 'INACTIVE' },
+      esperado: 'BLOCKED',
+    },
+    {
+      caso: 'PENDING_ACCEPTANCE e motivo MANUAL (bloqueado > aguardando aceite)',
+      input: { contract: contractOf('PENDING_ACCEPTANCE'), accessBlockReason: 'MANUAL' },
+      esperado: 'BLOCKED',
+    },
+    {
+      caso: 'sem contrato e motivo INACTIVE (decisão 3)',
+      input: { contract: null, accessBlockReason: 'INACTIVE' },
+      esperado: 'BLOCKED',
+    },
+    {
+      caso: 'ACTIVE vencido com liberação manual vigente e sem bloqueio ativo',
+      input: {
+        contract: active(0, '2026-09-01'),
+        openInvoiceDueDates: ['20261005'],
+        accessBlockReason: resolveCompanyAccess(exemptCompany).reason,
+      },
+      esperado: 'OVERDUE',
+    },
+  ]
 
-  it('DRAFT é sem contrato', () => {
-    expect(s({ contract: { status: 'DRAFT', graceMonths: 2, firstBilledCompetence: null } })).toBe(
-      'NO_CONTRACT'
-    )
-  })
-
-  it('carência 2 antes da 1ª competência → em carência', () => {
-    // aceite em 10/2026 com carência 2: 1ª competência 01/2027
-    expect(s({ contract: active(2, '2027-01-01T00:00:00Z') })).toBe('IN_GRACE')
+  it.each(cases)('$caso → $esperado', ({ input, esperado }) => {
     expect(
       deriveClientStatus({
-        contract: active(2, '2027-01-01T00:00:00Z'),
-        now: utc('2027-01-10T15:00:00Z'),
+        today: TODAY,
+        openInvoiceDueDates: [],
+        accessBlockReason: null,
+        ...input,
       })
-    ).toBe('CURRENT')
+    ).toBe(esperado)
   })
 
-  it('carência 0 no mês do aceite → em dia (nada cobrado nem devido)', () => {
-    expect(s({ contract: active(0, '2026-11-01T00:00:00Z') })).toBe('CURRENT')
+  it('virada do dia em São Paulo com o servidor em UTC', () => {
+    const at = (iso: string) =>
+      deriveClientStatus({
+        contract: active(0, '2026-09-01'),
+        today: ymdSaoPaulo(new Date(iso)),
+        openInvoiceDueDates: [dateToYmdUtc(c('2027-02-10'))],
+        accessBlockReason: null,
+      })
+    // 23:59 de 10/02 em São Paulo: já é dia 11 em UTC, mas a fatura vence hoje
+    expect(at('2027-02-11T02:59:00Z')).toBe('CURRENT')
+    // 00:00 de 11/02 em São Paulo
+    expect(at('2027-02-11T03:00:00Z')).toBe('OVERDUE')
+  })
+
+  it('as sete situações, na ordem do painel, com rótulo', () => {
+    expect(CLIENT_STATUS_ORDER).toEqual(Object.keys(CLIENT_STATUS_LABELS))
+    expect(CLIENT_STATUS_ORDER).toHaveLength(7)
+  })
+})
+
+describe('isInvoiceOverdue', () => {
+  it('vencida só depois do dia do vencimento, em dias civis', () => {
+    expect(isInvoiceOverdue('20261019', '20261020')).toBe(true)
+    expect(isInvoiceOverdue('20261020', '20261020')).toBe(false)
+    expect(isInvoiceOverdue('20261021', '20261020')).toBe(false)
+    // virada de ano
+    expect(isInvoiceOverdue('20261231', '20270101')).toBe(true)
+  })
+})
+
+describe('isBillableNow', () => {
+  const c = (date: string) => new Date(`${date}T00:00:00Z`)
+  const activeFrom = (first: string | null) => ({
+    status: 'ACTIVE' as const,
+    firstBilledCompetence: first ? c(first) : null,
+  })
+
+  it('o mês do aceite não é cobrado, nem com carência 0', () => {
+    // aceite em 15/10/2026, carência 0: 1ª competência 11/2026
+    expect(isBillableNow(activeFrom('2026-11-01'), '20261020')).toBe(false)
+    expect(isBillableNow(activeFrom('2026-11-01'), '20261101')).toBe(true)
+  })
+
+  it('a carência fica de fora até a 1ª competência cobrada', () => {
+    // aceite em 15/10/2026, carência 2: 1ª competência 01/2027
+    expect(isBillableNow(activeFrom('2027-01-01'), '20261231')).toBe(false)
+    expect(isBillableNow(activeFrom('2027-01-01'), '20270101')).toBe(true)
+  })
+
+  it('só ACTIVE com a 1ª competência gravada', () => {
+    const first = c('2026-09-01')
+    expect(isBillableNow(null, '20261020')).toBe(false)
+    expect(isBillableNow(activeFrom(null), '20261020')).toBe(false)
+    for (const status of ['DRAFT', 'PENDING_ACCEPTANCE', 'CANCELLED'] as const) {
+      expect(isBillableNow({ status, firstBilledCompetence: first }, '20261020')).toBe(false)
+    }
   })
 })
 

@@ -14,6 +14,7 @@ import {
   FileSignature,
   FileText,
   Inbox,
+  LayoutDashboard,
   LogOut,
   Menu,
   Moon,
@@ -73,9 +74,17 @@ const NAV_GROUPS: NavGroup[] = [
     // Gestão Addere (plano 013): cadastro comercial, contrato e pacotes — só
     // o SUPERADMIN. Modelos de contrato entrou no 014, antes de Pacotes e
     // regras; Solicitações (015) entrou antes dele, Faturas (016) entra ali
-    // também, e o Painel no 018.
+    // também, e o Painel (018) abre o grupo: é a home do SUPERADMIN.
     title: 'Gestão Addere',
     items: [
+      {
+        href: '/gestao',
+        label: 'Painel',
+        // Exato: senão o Painel fica destacado em Clientes, Faturas e nas outras subtelas
+        match: (p) => p === '/gestao',
+        icon: LayoutDashboard,
+        requires: 'superadmin',
+      },
       {
         href: '/gestao/clientes',
         label: 'Clientes',
