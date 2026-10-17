@@ -28,8 +28,9 @@ const envSchema = z.object({
   // inicial de uma base inteira numa noite so.
   INTEL_GEO_MAX_PER_RUN: z.coerce.number().int().positive().max(20_000).default(300),
   WEB_URL: z.string().url().optional(),
-  // Quantos proxies ficam na frente da API (o Render, 1). O Fastify confia só
-  // nesses saltos do X-Forwarded-For para achar o IP de quem chama; 0 desliga.
+  // Quantos proxies ficam na frente da API (no Render, a Cloudflare e o
+  // balanceador: 2, vindo do render.yaml). O Fastify confia só nesses saltos do
+  // X-Forwarded-For para achar o IP de quem chama; 0 desliga.
   TRUST_PROXY_HOPS: z.coerce.number().int().min(0).max(5).default(1),
   // Agendador do faturamento (plano 016): gera faturas, encerra contratos e
   // manda lembretes. Desligado por padrão. Em produção, só liga depois do

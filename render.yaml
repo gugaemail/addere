@@ -39,10 +39,12 @@ services:
       # o valor para 'false'.
       - key: BILLING_JOBS_ENABLED
         value: 'false'
-      # Proxies na frente da API (plano 014): confira no staging que o IP do
-      # cliente aparece nos logs (remoteAddress); se aparecer o do proxy, use 2
+      # Proxies na frente da API (plano 014): a Cloudflare e o balanceador do
+      # Render, 2. Com 1, o remoteAddress dos logs era um IP da Cloudflare
+      # (172.71.x, 104.23.x) em 17/10/2026. Mudou a infraestrutura? Confira
+      # de novo nos logs que o remoteAddress é o IP de quem chamou
       - key: TRUST_PROXY_HOPS
-        value: '1'
+        value: '2'
       # Links e envio dos e-mails (reset de senha e contrato para aceite).
       # WEB_URL é o painel deste ambiente; sem ela o link cai no fallback
       - key: WEB_URL
@@ -87,10 +89,12 @@ services:
       # o valor para 'false'.
       - key: BILLING_JOBS_ENABLED
         value: 'false'
-      # Proxies na frente da API (plano 014): confira no staging que o IP do
-      # cliente aparece nos logs (remoteAddress); se aparecer o do proxy, use 2
+      # Proxies na frente da API (plano 014): a Cloudflare e o balanceador do
+      # Render, 2. Com 1, o remoteAddress dos logs era um IP da Cloudflare
+      # (172.71.x, 104.23.x) em 17/10/2026. Mudou a infraestrutura? Confira
+      # de novo nos logs que o remoteAddress é o IP de quem chamou
       - key: TRUST_PROXY_HOPS
-        value: '1'
+        value: '2'
       # Links e envio dos e-mails (reset de senha e contrato para aceite).
       # WEB_URL é o painel deste ambiente; sem ela o link cai no fallback
       - key: WEB_URL
