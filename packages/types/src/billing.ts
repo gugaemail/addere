@@ -226,8 +226,14 @@ export function seatLimit(terms: { includedSeats: number; extraSeats: number }):
   return terms.includedSeats + terms.extraSeats
 }
 
-/** "Perto do limite" — o medidor fica em alerta; o 018 usa o mesmo corte. */
-export const SEAT_NEAR_LIMIT_RATIO = 0.9
+/**
+ * "Perto do limite", em percentual inteiro: o painel do 018 compara em conta
+ * inteira (used × 100 ≥ limit × 90), sem ponto flutuante.
+ */
+export const NEAR_SEAT_LIMIT_PCT = 90
+
+/** O mesmo corte como razão — o medidor de licenças do 015 fica em alerta. */
+export const SEAT_NEAR_LIMIT_RATIO = NEAR_SEAT_LIMIT_PCT / 100
 
 /**
  * A frase que o administrador indicado aceita ao pedir licenças adicionais.
@@ -855,4 +861,90 @@ export interface BillingOverdueStatus {
   // competence 'YYYY-MM' e dueDate 'YYYY-MM-DD', como nas faturas do 016
   invoice: { id: string; number: number; competence: string; dueDate: string } | null
   plannedBlockDate: string | null // 'YYYY-MM-DD'
+}
+
+// ─── Painel da Gestão Addere (plano 018) ─────────────────────────────────────
+// GET /admin/billing/dashboard. Dinheiro chega como string com 2 casas e ponto
+// decimal ("12167.50"): é a soma Decimal da API, sem passar por float. As
+// definições de cada número estão em docs/billing/README.md.
+
+export const DASHBOARD_LIST_LIMIT = 5
+export const UPCOMING_DUE_DAYS = 15
+
+export interface MoneyTotal {
+  count: number
+  amount: string
+}
+
+export interface DashboardList<T> {
+  total: number // tamanho real da lista; items traz no máximo DASHBOARD_LIST_LIMIT
+  items: T[]
+}
+
+export interface DashboardInvoiceItem {
+  invoiceId: string
+  companyId: string
+  companyName: string
+  number: number // Invoice.number (sequencial global)
+  competence: string // 'YYYY-MM'
+  dueDate: string // 'YYYY-MM-DD'
+  total: string
+  daysOverdue: number // 0 nas que ainda não venceram
+}
+
+export interface DashboardDocumentItem {
+  documentId: string
+  companyId: string
+  companyName: string
+  kind: 'CONTRACT' | 'AMENDMENT'
+  sentAt: string // ISO
+  daysWaiting: number // dias civis em São Paulo desde o envio
+}
+
+export interface DashboardLicenseRequestItem {
+  requestId: string
+  companyId: string
+  companyName: string
+  quantity: number
+  createdAt: string // ISO
+}
+
+export interface DashboardSeatItem {
+  companyId: string
+  companyName: string
+  used: number
+  limit: number
+}
+
+export interface RevenueMonth {
+  month: string // 'YYYY-MM'
+  billed: string // faturado por competência
+  received: string // recebido no mês da baixa
+}
+
+export interface BillingDashboardDto {
+  generatedAt: string // ISO
+  today: string // 'YYYY-MM-DD' em São Paulo
+  mrr: {
+    contracted: string
+    billable: string
+    activeContracts: number
+    // ACTIVE ainda fora do MRR faturável (isBillableNow falso): o mês do aceite
+    // ou a carência. Não é a contagem da situação IN_GRACE, que exige carência > 0
+    graceContracts: number
+  }
+  clientsByStatus: Record<ClientStatus, number> // as sete chaves, sempre
+  seats: { used: number; limit: number } // só contratos ACTIVE
+  receivable: {
+    open: MoneyTotal
+    overdue: MoneyTotal
+    dueNext15Days: MoneyTotal
+    receivedThisMonth: MoneyTotal
+  }
+  overdueInvoices: DashboardList<DashboardInvoiceItem>
+  upcomingInvoices: DashboardList<DashboardInvoiceItem>
+  pendingAcceptance: DashboardList<DashboardDocumentItem>
+  pendingLicenseRequests: DashboardList<DashboardLicenseRequestItem>
+  nearSeatLimit: DashboardList<DashboardSeatItem>
+  revenue12m: RevenueMonth[] // 12 meses fechados, do mais antigo ao mais recente
 }
