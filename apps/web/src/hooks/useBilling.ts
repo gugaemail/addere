@@ -1,7 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
+import { useAuth } from '@/contexts/AuthContext'
 import { companiesKeys } from './useCompanies'
 import type {
+  BillingDashboardDto,
   BillingEventDto,
   BillingSettingsDto,
   ClientBlockState,
@@ -35,6 +37,9 @@ export const billingKeys = {
   seatsOf: (companyId: string | undefined) => ['billing', 'seats', companyId ?? 'me'] as const,
   licenseRequests: (filters: LicenseRequestFilters) =>
     ['billing', 'license-requests', filters.status ?? 'ALL', filters.companyId ?? 'ALL'] as const,
+  // Plano 018: debaixo da raiz, para toda mutação que invalida billingKeys.all
+  // (contrato, aditivo, pedido de licenças, faturas) atualizar o painel
+  dashboard: ['billing', 'dashboard'] as const,
 }
 
 export interface LicenseRequestFilters {
@@ -68,6 +73,16 @@ export interface UnblockClientResult {
 }
 
 // ─── Queries ──────────────────────────────────────────────────────────────────
+
+/** Painel da Gestão Addere (plano 018). Sem refetchInterval: atualiza por invalidação. */
+export function useBillingDashboard() {
+  const { isSuperAdmin } = useAuth()
+  return useQuery({
+    queryKey: billingKeys.dashboard,
+    queryFn: () => api.get<BillingDashboardDto>('/admin/billing/dashboard').then((r) => r.data),
+    enabled: isSuperAdmin,
+  })
+}
 
 export function useClients() {
   return useQuery({

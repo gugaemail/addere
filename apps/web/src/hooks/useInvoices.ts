@@ -125,9 +125,15 @@ export function useBillingOverdue(enabled = true, accessKey = '') {
 
 // ─── Mutações ─────────────────────────────────────────────────────────────────
 
+// Plano 018: a fatura mexe na situação do cliente (vencido), no histórico da
+// ficha e no painel, que moram debaixo de billingKeys.all
 function useInvalidateInvoices() {
   const queryClient = useQueryClient()
-  return () => queryClient.invalidateQueries({ queryKey: invoicesKeys.all })
+  return () =>
+    Promise.all([
+      queryClient.invalidateQueries({ queryKey: invoicesKeys.all }),
+      queryClient.invalidateQueries({ queryKey: billingKeys.all }),
+    ])
 }
 
 function useInvalidateContract() {

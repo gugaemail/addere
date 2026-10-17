@@ -21,6 +21,7 @@ import {
 } from './catalog.service'
 import { getClient, listClientEvents, listClients, updateClient } from './clients.service'
 import { saveContractDraft } from './contract.service'
+import { getBillingDashboard } from './dashboard.service'
 import {
   decideLicenseRequestSchema,
   licenseRequestIdParam,
@@ -34,6 +35,13 @@ import { unblockClient } from './overdue-block.service'
 // no histórico, é request.user.sub.
 export default async function billingAdminRoutes(app: FastifyInstance) {
   const superadmin = { preHandler: requireSuperAdmin }
+
+  // ─── Painel (plano 018) ────────────────────────────────────────────────────
+  // Só leitura: MRR, situação dos clientes, licenças, faturas e pendências
+
+  app.get('/dashboard', superadmin, async (_request: FastifyRequest, reply: FastifyReply) => {
+    return reply.send(await getBillingDashboard(new Date()))
+  })
 
   // ─── Pacotes ───────────────────────────────────────────────────────────────
 
