@@ -170,9 +170,13 @@ criados.
 - Conferir no staging, depois de cada mudança de infraestrutura: fazer uma
   requisição, achar nos logs do Render o `remoteAddress` dela e comparar com o
   IP público de quem fez (`curl https://api.ipify.org`). Se aparecer o IP do
-  proxy, pôr `TRUST_PROXY_HOPS=2` no serviço e repetir. Se continuar errado,
-  não publicar o contrato em produção.
-- O valor também está no `render.yaml` (`'1'`): ao mudar no painel do Render,
+  proxy, subir `TRUST_PROXY_HOPS` em 1 no serviço e repetir. Se continuar
+  errado, não publicar o contrato em produção.
+- Em 17/10/2026, com o valor 1, o `remoteAddress` dos logs de produção era um
+  IP da Cloudflare (172.71.x, 104.23.x): na frente da API ficam a Cloudflare e
+  o balanceador do Render. O valor certo é **2**. As requisições de
+  `127.0.0.1` nos logs são o health check interno do Render.
+- O valor também está no `render.yaml` (`'2'`): ao mudar no painel do Render,
   mudar lá também, senão o próximo sync do blueprint volta o valor.
 
 ### Levar um cliente às condições gerais novas
