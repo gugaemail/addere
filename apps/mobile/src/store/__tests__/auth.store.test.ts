@@ -244,3 +244,113 @@ describe('permissões guardadas no aparelho', () => {
     expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith('addere_permissions')
   })
 })
+
+// Plano 017: empresa suspensa. O /auth/me traz company.access; um 403
+// COMPANY_BLOCKED de qualquer chamada liga o estado; nada disso é logout.
+describe('empresa suspensa (companyBlocked)', () => {
+  const keychain = (values: Record<string, string | null>) =>
+    (SecureStore.getItemAsync as jest.Mock).mockImplementation(
+      async (key: string) => values[key] ?? null
+    )
+  const blockedUser = {
+    ...USER,
+    company: { ...USER.company, access: { blocked: true, reason: 'OVERDUE' } },
+  }
+  const freeUser = {
+    ...USER,
+    company: { ...USER.company, access: { blocked: false, reason: null } },
+  }
+
+  beforeEach(() => {
+    useAuthStore.setState({ companyBlocked: false })
+  })
+
+  it('nasce desligado', () => {
+    expect(useAuthStore.getState().companyBlocked).toBe(false)
+  })
+
+  it('markCompanyBlocked liga, com sessão; sem sessão, ignora', () => {
+    useAuthStore.getState().markCompanyBlocked()
+    expect(useAuthStore.getState().companyBlocked).toBe(false)
+
+    useAuthStore.setState({ user: USER as never, accessToken: 'token' })
+    useAuthStore.getState().markCompanyBlocked()
+    expect(useAuthStore.getState().companyBlocked).toBe(true)
+    // Continua logado
+    expect(useAuthStore.getState().accessToken).toBe('token')
+  })
+
+  it('fetchMe com access.blocked true liga; com false desliga', async () => {
+    mockGet.mockResolvedValueOnce({ data: blockedUser })
+    await useAuthStore.getState().fetchMe('token')
+    expect(useAuthStore.getState().companyBlocked).toBe(true)
+
+    mockGet.mockResolvedValueOnce({ data: freeUser })
+    await useAuthStore.getState().fetchMe('token')
+    expect(useAuthStore.getState().companyBlocked).toBe(false)
+  })
+
+  it('/auth/me antigo, sem o campo access, não bloqueia', async () => {
+    mockGet.mockResolvedValueOnce({ data: USER })
+    await useAuthStore.getState().fetchMe('token')
+    expect(useAuthStore.getState().companyBlocked).toBe(false)
+  })
+
+  it('clearAuth desliga', async () => {
+    useAuthStore.setState({ user: USER as never, accessToken: 'token', companyBlocked: true })
+    await useAuthStore.getState().clearAuth()
+    expect(useAuthStore.getState().companyBlocked).toBe(false)
+  })
+
+  it('hydrate com o usuário salvo bloqueado liga, mesmo sem internet', async () => {
+    keychain({
+      addere_access_token: 'token-bom',
+      addere_user: JSON.stringify(blockedUser),
+      addere_permissions: JSON.stringify(['orders.change_carrier']),
+    })
+    const semRede = Object.assign(new Error('Network Error'), { code: 'ERR_NETWORK' })
+    mockPost.mockRejectedValue(semRede)
+    mockGet.mockRejectedValue(semRede)
+
+    await useAuthStore.getState().hydrate()
+
+    const state = useAuthStore.getState()
+    expect(state.companyBlocked).toBe(true)
+    expect(state.accessToken).toBe('token-bom')
+    // As permissões offline do #244 continuam valendo
+    expect(state.permissions).toEqual(['orders.change_carrier'])
+  })
+
+  it('recheckCompanyAccess: renova o token, relê o /auth/me e devolve o estado', async () => {
+    useAuthStore.setState({
+      user: blockedUser as never,
+      accessToken: 'velho',
+      companyBlocked: true,
+    })
+    keychain({ addere_refresh_token: 'refresh-x' })
+    mockPost.mockResolvedValue({ data: { accessToken: 'novo', refreshToken: 'novo-r' } })
+    mockGet.mockResolvedValueOnce({ data: freeUser })
+
+    await expect(useAuthStore.getState().recheckCompanyAccess()).resolves.toBe(false)
+    expect(useAuthStore.getState().companyBlocked).toBe(false)
+    expect(mockGet).toHaveBeenCalledWith('http://api.test/auth/me', {
+      headers: { Authorization: 'Bearer novo' },
+      timeout: 8000,
+    })
+  })
+
+  it('recheckCompanyAccess sem refresh segue com o token atual; ainda bloqueada → true', async () => {
+    useAuthStore.setState({
+      user: blockedUser as never,
+      accessToken: 'atual',
+      companyBlocked: true,
+    })
+    mockPost.mockRejectedValue(Object.assign(new Error('Network Error'), { code: 'ERR_NETWORK' }))
+    mockGet.mockResolvedValueOnce({ data: blockedUser })
+
+    await expect(useAuthStore.getState().recheckCompanyAccess()).resolves.toBe(true)
+    expect(mockGet.mock.calls[0][1]).toMatchObject({ headers: { Authorization: 'Bearer atual' } })
+    // Não desloga
+    expect(useAuthStore.getState().user).not.toBeNull()
+  })
+})

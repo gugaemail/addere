@@ -326,6 +326,8 @@ seguintes; queda de banco só vai ao log, o resto vai ao Sentry):
    e regras), ao contato de cobrança e aos ADMINs ativos.
 4. **Lembrete de documento pendente**: um só por contrato ou aditivo enviado há
    72 h ou mais, ao administrador indicado.
+5. **Aviso de suspensão**, 6. **lembrete de suspensão** e 7. **bloqueio e
+   liberação por atraso**: plano 017, ver "Inadimplência e bloqueio".
 
 ### Como ligar
 
@@ -387,8 +389,9 @@ recusa (o SDK devolve `error` sem lançar) ou a chamada falha, a reserva é
 apagada e o próximo tick tenta de novo; é a única exclusão de `BillingEvent`
 permitida. Sem `RESEND_API_KEY` ou sem destinatário, nada é gravado, e o
 lembrete ainda sai quando a chave entrar. O Resend recebe o mesmo
-`dedupeKey` como `idempotencyKey`. O 017 usa o mesmo padrão para o aviso de
-suspensão (`invoice:<id>:<etapa>`).
+`dedupeKey` como `idempotencyKey`. O lembrete de suspensão do 017 usa este
+mesmo envio; o **aviso** de suspensão, não: ele grava depois de enviar (ver
+"Inadimplência e bloqueio").
 
 ### Fim do contrato
 
@@ -412,3 +415,133 @@ Fatura é registro fiscal: nenhuma `Invoice` nem `InvoiceItem` de fatura paga é
 apagada, e o encerramento do contrato não apaga nada. O número da fatura é
 sequencial e global, interno (pode ter buraco quando duas criações disputam a
 mesma competência); o número fiscal é o da NF, lançado à mão.
+
+## Inadimplência e bloqueio (plano 017)
+
+O contrato (§6.5 e §6.6) promete duas coisas sobre atraso: o aviso de
+suspensão, com a data prevista, enviado com no mínimo 10 dias corridos de
+antecedência; e que a suspensão não apaga dados. O sistema garante as duas.
+
+### O aviso de suspensão
+
+- Sai no primeiro tick a partir do dia seguinte ao vencimento, para cada
+  fatura em aberto, vencida e com total maior que zero, de empresa ativa. Vai
+  ao contato de cobrança e aos ADMINs ativos (`billingRecipients`).
+- **Data prevista = max(vencimento + dias, envio + 10 dias corridos).** Os
+  dias são o `overdueBlockDays` do contrato da empresa ou, sem ele, o padrão de
+  Pacotes e regras (15). O piso de 10 dias é a constante `MIN_NOTICE_DAYS` em
+  `apps/api/src/modules/billing/overdue-block.ts`, não configuração: mudar
+  exige aditivo ao contrato, não um campo na tela.
+- A data é calculada no envio e gravada no evento. Mudar `overdueBlockDays`
+  depois vale só para avisos futuros; para adiar uma suspensão já avisada,
+  use "Liberar até…".
+- **O aviso só conta se foi entregue.** O evento (`SUSPENSION_NOTICE_SENT`,
+  `dedupeKey` `invoice:<id>:suspension-notice`) é gravado **depois** de o Resend
+  aceitar o envio (`sendBillingEmailThenRecord`). Falhou o envio, ou não há
+  destinatário: nada é gravado, e sem aviso gravado não há bloqueio. Sem
+  destinatário vai ao Sentry com o `companyId`: a empresa nunca será bloqueada
+  por essa fatura enquanto ninguém puder ser avisado. O pior caso (o processo
+  cair entre o envio e a gravação) é o cliente receber o aviso de novo.
+- O payload guarda a fatura, a data prevista e a quantidade de destinatários,
+  nunca os endereços.
+
+### O lembrete
+
+Um só por aviso (`SUSPENSION_REMINDER_SENT`, `dedupeKey`
+`invoice:<id>:suspension-reminder`), de 1 a 3 dias antes da data prevista, se
+a fatura continua em aberto e nenhuma liberação cobre a data. Não é condição
+de bloqueio e usa o envio com reserva do 016.
+
+### O bloqueio por atraso
+
+- Só acontece com o **bloqueio automático** ligado (`autoBlockEnabled`, switch
+  em Gestão Addere › Pacotes e regras; nasce desligado) e sem liberação
+  vigente, e só com uma fatura em aberto cujo aviso foi gravado há 10 dias
+  corridos ou mais **e** cuja data prevista chegou (`overdueBlockHolds`). Sem
+  aviso gravado, nunca, por mais atrasada que esteja a fatura.
+- É o agendador que bloqueia (`reconcileCompanyBlock`, o único lugar do
+  código que grava o motivo `OVERDUE`). Ele também libera, no tick seguinte, o
+  bloqueio que deixou de se sustentar.
+- O bloqueio é **por rota** e não apaga nada. A API responde 403
+  `COMPANY_BLOCKED` às rotas de negócio; login, refresh e logout nunca são
+  bloqueados, e `/auth/me`, `/auth/me/permissions` e `/billing/me/*` continuam
+  abertos (`config.allowBlockedCompany`). Não acrescente rota a essa lista sem
+  decisão: `/help` e `/pilot/events` ficam bloqueados de propósito.
+- O SUPERADMIN nunca é bloqueado. O ADMIN do cliente entra no painel e só vê
+  Contrato e Plano e cobrança, com a faixa em tom de perigo. Vendedor e gerente
+  veem "Acesso suspenso" no app e no painel; a fila de pedidos do app espera,
+  sem gastar tentativa, e sai quando o acesso volta.
+- **Desligar o bloqueio automático é o rollback**: no tick seguinte (até 1
+  hora) todo bloqueio por atraso é liberado, e nenhum novo acontece.
+- **Empresa desativada também perde o acesso** (decisão 3), com o motivo
+  `INACTIVE`, que tem precedência: pagar não devolve o acesso, reativar sim. Por
+  isso "Desativar empresa" pede confirmação. Atraso de pagamento não passa por
+  ali: segue o aviso e a suspensão automática.
+
+### Liberar e dar baixa
+
+- **A baixa libera na hora**, na mesma transação que marca a fatura como paga.
+  Com outra fatura ainda sustentando o bloqueio, ele continua. Cancelar a
+  fatura também libera.
+- **"Liberar até…"** (ficha do cliente, só o SUPERADMIN): limpa o bloqueio e,
+  com data (de hoje a hoje + 90, em São Paulo), impede que o bloqueio por
+  atraso volte até o fim daquele dia; manda ao cliente o e-mail de liberação.
+  Sem data, o bloqueio volta no tick seguinte se a fatura continuar vencida.
+  Falha no e-mail não desfaz a liberação.
+- O histórico da ficha registra quem fez cada ação (`ACCESS_BLOCKED` e
+  `ACCESS_UNBLOCKED`, com a causa: regra, baixa, cancelamento ou liberação).
+
+### Bloqueio manual: desabilitado (15/10/2026)
+
+O contrato só prevê suspensão por atraso, precedida do aviso de 10 dias. Não há
+rota, botão nem serviço que bloqueie à mão. O motivo `MANUAL` existe no enum,
+reservado: nenhum código o grava. **Ninguém grava `MANUAL` nem
+`accessBlockedAt` à mão no banco** (SQL Editor do Neon) para suspender um
+cliente. Um `MANUAL` encontrado foi gravado à mão: a regra não o limpa, e ele
+sai pelo "Liberar até…" da ficha. Um `accessBlockedAt` sem motivo vale como
+atraso e é liberado pela regra no tick seguinte, se o atraso não se sustentar.
+Quando o contrato previr a hipótese (violação, risco à segurança), o bloqueio
+manual volta em plano próprio, com a cláusula revisada pelo advogado.
+
+### Com `BILLING_JOBS_ENABLED` desligado
+
+Não sai aviso nem lembrete, e não há bloqueio nem liberação automáticos. A
+baixa e o "Liberar até…" continuam liberando na hora. O
+`POST /admin/billing/jobs/run` roda os passos do 017 junto com os do 016.
+
+### A Inteligência
+
+Empresa bloqueada não roda o `nightly` nem o `refresh` (sem custo de IA); o
+`PURGE` continua uma vez por dia. Liberada, o noturno retoma com catch-up
+(`docs/intelligence/README.md`).
+
+### Ordem de liberação em produção (obrigatória)
+
+1. **API no ar com o bloqueio automático desligado**, com a migration
+   `company_access_block` pelo `migrate deploy` do deploy. A partir daqui,
+   empresa desativada já tem o acesso cortado: ninguém desativa empresa de
+   cliente até o passo 3. Conferir no staging: `GET /auth/me` traz
+   `company.access`; uma empresa de teste desativada recebe 403
+   `COMPANY_BLOCKED` com `reason: 'INACTIVE'` no app e no painel, e o login e o
+   F5 continuam funcionando, sem loop; "Rodar faturamento" com uma fatura
+   avulsa vencida ontem manda o aviso com a data prevista a pelo menos 10 dias,
+   a faixa aparece para o ADMIN e a ficha mostra "Aviso enviado".
+2. **OTA no ar**, pelo `apps/mobile/docs/DEPLOY_CHECKLIST.md` (as três
+   variáveis, canal `production`, runtime igual ao da loja). Conferir num
+   aparelho real: fechar e reabrir o app (o OTA só troca o bundle no
+   restart); no staging, com a empresa de teste desativada, o app vai para
+   "Acesso suspenso", um pedido criado offline fica na fila sem falhar e é
+   enviado depois de "Ativar empresa" e "Tentar novamente". Dar alguns dias de
+   uso para os aparelhos em campo reiniciarem o app.
+3. **Ligar o bloqueio automático** em Pacotes e regras. No staging, antes:
+   deixar a fatura do passo 1 correndo até a data prevista e conferir que a
+   ficha mostra "Bloqueado por atraso", a faixa do ADMIN fica em tom de perigo e
+   o app vai para "Acesso suspenso"; "Liberar até…" com a data de hoje devolve o
+   acesso e manda o e-mail; a baixa devolve o acesso na hora; e na Saúde dos
+   dados o `nightly` e o `refresh` param e o `PURGE` aparece uma vez por dia.
+
+A ordem existe por causa do app antigo: ele trata qualquer 4xx fora de 401, 408
+e 429 como rejeição definitiva, e marcaria como falho cada pedido da fila de um
+vendedor de empresa bloqueada (os pedidos não somem, mas teriam de ser
+reenviados um a um, e cada um iria ao Sentry). A ordem contrária é inofensiva:
+o app novo contra a API velha nunca recebe `COMPANY_BLOCKED`.

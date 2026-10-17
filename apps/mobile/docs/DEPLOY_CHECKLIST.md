@@ -112,6 +112,8 @@ rode `npm run test:e2e:ios` antes de abrir o PR.
       nome vazio (regressão de sessão meio-restaurada)
 - [ ] Com a Inteligência ligada: Hoje → Plano do dia → "Cheguei" → registrar
       resultado, e conferir a visita na Equipe em campo do painel
+- [ ] Empresa bloqueada (staging): o app mostra 'Acesso suspenso', um pedido
+      criado offline fica na fila sem falhar e é enviado depois da liberação.
 
 ## Publicação OTA (`eas update`)
 

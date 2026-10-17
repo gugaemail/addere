@@ -15,6 +15,7 @@ import {
   resetPassword,
 } from './auth.service'
 import { AppError } from '../../lib/errors'
+import { resolveCompanyAccess } from '../../lib/company-access'
 import { authenticate } from '../../middleware/authenticate'
 import { getEffectivePermissions } from '../permissions/permissions.service'
 import { findPendingDocument } from '../billing/me.service'
@@ -149,10 +150,11 @@ export default async function authRoutes(app: FastifyInstance) {
     }
   )
 
-  // GET /auth/me — retorna o usuário autenticado
+  // GET /auth/me — retorna o usuário autenticado. Liberada para empresa
+  // bloqueada (plano 017): é por ela que o app e o painel sabem do bloqueio
   app.get(
     '/me',
-    { preHandler: authenticate },
+    { preHandler: authenticate, config: { allowBlockedCompany: true } },
     async (request: FastifyRequest, reply: FastifyReply) => {
       const user = await prisma.user.findUnique({
         where: { id: request.user.sub },
@@ -167,7 +169,17 @@ export default async function authRoutes(app: FastifyInstance) {
           companyId: true,
           servedCities: true,
           managerId: true,
-          company: { select: { name: true, intelligenceEnabled: true, intelligenceConfig: true } },
+          company: {
+            select: {
+              name: true,
+              intelligenceEnabled: true,
+              intelligenceConfig: true,
+              // Plano 017: o mesmo acesso que o authenticate calcula
+              active: true,
+              accessBlockedAt: true,
+              accessBlockReason: true,
+            },
+          },
         },
       })
       if (!user) return reply.status(404).send({ message: 'Usuário não encontrado' })
@@ -205,16 +217,18 @@ export default async function authRoutes(app: FastifyInstance) {
               intelligenceEnabled: user.company.intelligenceEnabled,
               defaultTone: intelligenceConfig?.defaultTone ?? 'informal',
               pendingDocument,
+              access: resolveCompanyAccess(user.company),
             }
           : null,
       })
     }
   )
 
-  // GET /auth/me/permissions — permissões efetivas do usuário autenticado
+  // GET /auth/me/permissions — permissões efetivas do usuário autenticado.
+  // Liberada para empresa bloqueada (plano 017), como o /auth/me
   app.get(
     '/me/permissions',
-    { preHandler: authenticate },
+    { preHandler: authenticate, config: { allowBlockedCompany: true } },
     async (request: FastifyRequest, reply: FastifyReply) => {
       const permissions = await getEffectivePermissions(request.user.sub, request.user.role)
       return reply.send({ keys: Array.from(permissions) })

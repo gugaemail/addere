@@ -1,5 +1,6 @@
-// Rotas da Gestão Addere (plano 013): só o SUPERADMIN entra, o histórico
-// guarda nomes de campo (nunca valores) e autoBlockEnabled nunca é escrito.
+// Rotas da Gestão Addere (plano 013): só o SUPERADMIN entra e o histórico
+// guarda nomes de campo (nunca valores). O autoBlockEnabled só é escrito
+// quando vem no corpo (plano 017: o switch de Pacotes e regras).
 import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest'
 import type { FastifyInstance } from 'fastify'
 import { Prisma } from '@prisma/client'
@@ -270,7 +271,9 @@ describe('regras de cobrança', () => {
     })
   })
 
-  it('PUT ignora autoBlockEnabled do corpo: o update nunca o recebe', async () => {
+  // Até o plano 017 o PUT ignorava o autoBlockEnabled; o 017 põe o switch em
+  // Pacotes e regras, e ligar ou desligar fica no histórico com o autor
+  it('PUT com autoBlockEnabled grava o valor e o nome do campo no histórico (plano 017)', async () => {
     prismaMock.billingSettings.findUnique.mockResolvedValue(settingsRow)
     prismaMock.billingSettings.update.mockImplementation(async ({ data }: { data: object }) => ({
       ...settingsRow,
@@ -281,18 +284,45 @@ describe('regras de cobrança', () => {
       url: '/admin/billing/settings',
       headers: auth('super'),
       payload: {
-        overdueBlockDays: 20,
+        overdueBlockDays: 15,
         dueReminderDays: 3,
         notifyEmail: '',
         autoBlockEnabled: true,
       },
     })
     expect(res.statusCode).toBe(200)
-    expect(res.json().autoBlockEnabled).toBe(false)
-    expect(prismaMock.billingSettings.update).toHaveBeenCalledTimes(1)
-    expect(prismaMock.billingSettings.update.mock.calls[0][0].data).not.toHaveProperty(
-      'autoBlockEnabled'
-    )
+    expect(res.json().autoBlockEnabled).toBe(true)
+    expect(prismaMock.billingSettings.update.mock.calls[0][0].data.autoBlockEnabled).toBe(true)
+    expect(prismaMock.billingEvent.create).toHaveBeenCalledWith({
+      data: {
+        type: 'SETTINGS_UPDATED',
+        companyId: null,
+        actorId: 'super-1',
+        payload: { fields: ['autoBlockEnabled'] },
+      },
+    })
+  })
+
+  it('PUT sem a chave autoBlockEnabled mantém o valor gravado (plano 017)', async () => {
+    prismaMock.billingSettings.findUnique.mockResolvedValue({
+      ...settingsRow,
+      autoBlockEnabled: true,
+    })
+    prismaMock.billingSettings.update.mockImplementation(async ({ data }: { data: object }) => ({
+      ...settingsRow,
+      ...data,
+    }))
+    const res = await app.inject({
+      method: 'PUT',
+      url: '/admin/billing/settings',
+      headers: auth('super'),
+      payload: { overdueBlockDays: 20, dueReminderDays: 3, notifyEmail: null },
+    })
+    expect(res.statusCode).toBe(200)
+    expect(prismaMock.billingSettings.update.mock.calls[0][0].data.autoBlockEnabled).toBe(true)
+    expect(prismaMock.billingEvent.create.mock.calls[0][0].data.payload).toEqual({
+      fields: ['overdueBlockDays'],
+    })
   })
 
   it('PUT grava SETTINGS_UPDATED com os nomes dos campos', async () => {
@@ -552,9 +582,10 @@ describe('GET /admin/billing/clients', () => {
       proposed: { packageName: 'Pacote 20', licenseType: 'STANDARD' },
       usedSeats: 14,
     })
+    // Plano 017: empresa desativada tem o acesso cortado e aparece como bloqueada
     expect(b).toMatchObject({
       id: COMPANY_B,
-      status: 'NO_CONTRACT',
+      status: 'BLOCKED',
       contractStatus: null,
       current: null,
       proposed: null,

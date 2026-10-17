@@ -12,6 +12,7 @@ import { AppError, conflict, notFound, unprocessable } from '../../lib/errors'
 import { captureError } from '../../lib/sentry'
 import { dateToYmdUtc } from '../intelligence/engine/business-days'
 import { changedFields, recordBillingEvent } from './billing-events'
+import { reconcileCompanyBlock } from './overdue-block.service'
 import {
   competenceAt,
   competenceEnd,
@@ -642,9 +643,11 @@ export async function payInvoice(
       fields: ['status', 'paidAt', 'paidAmount', 'paymentMethod', 'paymentNote'],
       ref: { invoiceId: id, invoiceNumber: inv.number },
     })
+    // Plano 017: a baixa libera na hora, na MESMA transação que marca PAID —
+    // não existe instante com a fatura paga e a empresa ainda bloqueada. Com
+    // outra fatura sustentando o bloqueio, ele continua
+    await reconcileCompanyBlock(tx, inv.companyId, now, { userId: actor.id, cause: 'PAYMENT' })
   })
-
-  // Plano 017: o desbloqueio da empresa na baixa entra aqui, depois da transação.
 
   return getInvoice(id, now)
 }
@@ -676,6 +679,11 @@ export async function cancelInvoice(
       actorId: actor.id,
       fields: ['status', 'cancelReason'],
       ref: { invoiceId: id, invoiceNumber: inv.number },
+    })
+    // Plano 017: fatura cancelada não sustenta bloqueio; libera na mesma transação
+    await reconcileCompanyBlock(tx, inv.companyId, now, {
+      userId: actor.id,
+      cause: 'INVOICE_CANCELLED',
     })
   })
   return getInvoice(id, now)

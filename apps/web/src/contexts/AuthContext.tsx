@@ -1,9 +1,20 @@
 'use client'
 
-import { createContext, useContext, useEffect, useState, useCallback } from 'react'
+import { createContext, useContext, useEffect, useRef, useState, useCallback } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { api, clearAccessToken, refreshAccessToken, setAccessToken } from '@/lib/api'
-import type { UserPublic } from '@addere/types'
+import {
+  api,
+  clearAccessToken,
+  COMPANY_BLOCKED_EVENT,
+  refreshAccessToken,
+  setAccessToken,
+} from '@/lib/api'
+import type { CompanyAccess, UserPublic } from '@addere/types'
+
+// Releitura do /auth/me disparada por 403 COMPANY_BLOCKED (plano 017): no
+// máximo uma a cada 10 s, porque uma página com cinco queries dispara cinco
+// eventos. O "Verificar de novo" e o aceite do contrato (014) não esperam.
+const BLOCKED_REFRESH_MIN_MS = 10_000
 
 interface AuthContextValue {
   user: UserPublic | null
@@ -17,8 +28,14 @@ interface AuthContextValue {
   intelligenceEnabled: boolean
   login: (email: string, password: string) => Promise<UserPublic>
   logout: () => Promise<void>
-  /** Relê o GET /auth/me (ex.: depois do aceite do contrato, a faixa some). O 017 reaproveita. */
+  /**
+   * Relê o GET /auth/me (ex.: depois do aceite do contrato, a faixa some; no 017,
+   * o "Verificar de novo" da tela de acesso suspenso). Uma chamada por vez; erro
+   * não desloga (quem chama decide se mostra).
+   */
   refreshUser: () => Promise<void>
+  /** Plano 017: o acesso da empresa do usuário (null = SUPERADMIN ou sem empresa) */
+  companyAccess: CompanyAccess | null
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null)
@@ -80,11 +97,57 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [queryClient])
 
-  // Plano 014: o aceite muda o documento pendente (e a Inteligência) do /auth/me
-  const refreshUser = useCallback(async () => {
-    const { data } = await api.get<UserPublic>('/auth/me')
-    setUser(data)
-  }, [])
+  // Plano 014: o aceite muda o documento pendente (e a Inteligência) do /auth/me.
+  // Plano 017: também é por aqui que o bloqueio da empresa entra e sai da tela.
+  const refreshInFlight = useRef<Promise<void> | null>(null)
+  const lastBlockedRefreshAt = useRef(0)
+  const wasBlocked = useRef(false)
+  useEffect(() => {
+    wasBlocked.current = user?.company?.access?.blocked === true
+  }, [user])
+
+  const refreshUser = useCallback((): Promise<void> => {
+    if (!refreshInFlight.current) {
+      refreshInFlight.current = api
+        .get<UserPublic>('/auth/me')
+        .then(({ data }) => {
+          // Saiu do bloqueio: as queries que levaram 403 voltam a buscar
+          const unblocked = wasBlocked.current && data.company?.access?.blocked !== true
+          setUser(data)
+          if (unblocked) void queryClient.invalidateQueries()
+        })
+        .finally(() => {
+          refreshInFlight.current = null
+        })
+    }
+    return refreshInFlight.current
+  }, [queryClient])
+
+  // 403 COMPANY_BLOCKED do interceptor (lib/api.ts): relê o /auth/me, no máximo
+  // uma vez a cada 10 s. Erro aqui não desloga — a sessão continua válida
+  const refreshAfterBlocked = useCallback(() => {
+    const now = Date.now()
+    if (now - lastBlockedRefreshAt.current < BLOCKED_REFRESH_MIN_MS) return
+    lastBlockedRefreshAt.current = now
+    refreshUser().catch(() => undefined)
+  }, [refreshUser])
+
+  useEffect(() => {
+    window.addEventListener(COMPANY_BLOCKED_EVENT, refreshAfterBlocked)
+    return () => window.removeEventListener(COMPANY_BLOCKED_EVENT, refreshAfterBlocked)
+  }, [refreshAfterBlocked])
+
+  // Enquanto bloqueada, a aba que volta ao foco relê o acesso (o pagamento pode
+  // ter sido baixado enquanto ela estava em segundo plano)
+  const blocked = user?.company?.access?.blocked === true
+  useEffect(() => {
+    if (!blocked) return
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') refreshAfterBlocked()
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => document.removeEventListener('visibilitychange', onVisible)
+  }, [blocked, refreshAfterBlocked])
 
   const permissions = user?.permissions ?? []
   const hasPermission = useCallback(
@@ -106,6 +169,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         login,
         logout,
         refreshUser,
+        companyAccess: user?.company?.access ?? null,
       }}
     >
       {children}

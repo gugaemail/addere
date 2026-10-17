@@ -13,6 +13,7 @@ import { queryClient } from '../src/lib/query-client'
 import { useAuthStore } from '../src/store/auth.store'
 import { useCompanyStore } from '../src/store/company.store'
 import { startSyncListener } from '../src/services/syncEngine'
+import { resolveAuthRedirect } from '../src/utils/authRedirect'
 import { pilotTracker } from '../src/services/pilotTracking'
 import { AppErrorBoundary } from '../src/components/ErrorBoundary'
 import { SplashScreen } from '../src/screens/SplashScreen'
@@ -36,7 +37,7 @@ Sentry.init({
 function AuthGuard({ children }: { children: React.ReactNode }) {
   const router = useRouter()
   const segments = useSegments()
-  const { accessToken, user, hydrated, hydrate } = useAuthStore()
+  const { accessToken, user, hydrated, hydrate, companyBlocked } = useAuthStore()
   const hydrateFieldConfig = useCompanyStore((s) => s.hydrateFieldConfig)
   const hydrateSyncSchedule = useCompanyStore((s) => s.hydrateSyncSchedule)
   const refreshCompanyConfig = useCompanyStore((s) => s.refreshFromServer)
@@ -126,7 +127,6 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!hydrated || !biometricReady) return
 
-    const inAuthGroup = segments[0] === '(auth)'
     // dev-preview dispensa login apenas fora de produção (a própria rota redireciona em prod)
     const inDevPreview = segments[0] === 'dev-preview' && env.appEnv !== 'production'
 
@@ -138,12 +138,11 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
     // "Olá," vazio em vez de continuar no login.
     const authenticated = Boolean(accessToken && user)
 
-    if (!authenticated && !inAuthGroup) {
-      router.replace('/(auth)/login')
-    } else if (authenticated && inAuthGroup) {
-      router.replace('/(app)')
-    }
-  }, [accessToken, user, hydrated, segments, biometricReady])
+    // Plano 017: empresa suspensa vai para /bloqueado, sem deslogar; liberada,
+    // volta para o app (regra pura em src/utils/authRedirect.ts)
+    const target = resolveAuthRedirect({ authenticated, companyBlocked, firstSegment: segments[0] })
+    if (target) router.replace(target)
+  }, [accessToken, user, hydrated, segments, biometricReady, companyBlocked])
 
   // Antes da hidratação (e da biometria) o navegador não monta: a rota
   // inicial `(app)/index` subia na frente, disparava as queries do dashboard

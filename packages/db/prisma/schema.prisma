@@ -60,6 +60,11 @@ model Company {
   idProtheus String? // código da empresa no ERP Protheus
   active     Boolean @default(true)
 
+  // ─── Bloqueio de acesso (plano 017) — null = liberado ───
+  accessBlockedAt   DateTime?
+  accessBlockReason AccessBlockReason?
+  blockExemptUntil  DateTime?          @db.Date // liberado pelo superadmin até este dia (São Paulo), inclusive
+
   // URLs das APIs Protheus configuradas por empresa
   apiToken     String? // POST autenticação — retorna Bearer token
   apiPord      String? // GET produtos
@@ -1203,6 +1208,17 @@ enum ContractTermsOrigin {
   CONTRACT // termos do contrato original
   AMENDMENT // aditivo aceito pelo ADMIN (plano 014)
   LICENSE_REQUEST // pedido de licenças aprovado (plano 015)
+}
+
+/// Motivo do bloqueio de acesso da empresa (plano 017). Empresa desativada
+/// (active=false) também fica bloqueada, mas pelo próprio `active`.
+enum AccessBlockReason {
+  OVERDUE // fatura vencida, depois do aviso de 10 dias — o sistema limpa sozinho
+  // RESERVADO E DESABILITADO (decisão de 15/10/2026): nenhum código grava MANUAL.
+  // O contrato só prevê suspensão por atraso; o bloqueio manual volta só em plano
+  // próprio, com cláusula revisada. Se aparecer no banco, foi gravado à mão: a
+  // regra não o limpa, e o "Liberar" da ficha limpa.
+  MANUAL
 }
 
 // Catálogo de pacotes. O preço de tabela só pré-preenche o contrato; o valor

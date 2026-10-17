@@ -26,6 +26,34 @@ export interface AuthTokens {
   accessToken: string
 }
 
+// ─── Acesso da empresa (plano 017) ─────────────────────────────────────────
+/**
+ * OVERDUE e MANUAL vêm de Company.accessBlockReason; INACTIVE é active = false.
+ * MANUAL é reservado e desabilitado: nenhum código o grava (plano 017).
+ */
+export type CompanyAccessReason = 'OVERDUE' | 'MANUAL' | 'INACTIVE'
+
+export interface CompanyAccess {
+  blocked: boolean
+  reason: CompanyAccessReason | null
+}
+
+export const COMPANY_BLOCKED_CODE = 'COMPANY_BLOCKED'
+
+/** Corpo do 403 que o authenticate devolve para empresa bloqueada. */
+export interface CompanyBlockedResponse {
+  message: string
+  code: typeof COMPANY_BLOCKED_CODE
+  reason: CompanyAccessReason
+}
+
+/** Erro do axios (web ou app) que é o 403 de empresa bloqueada. */
+export function isCompanyBlockedError(err: unknown): boolean {
+  const response = (err as { response?: { status?: unknown; data?: { code?: unknown } } } | null)
+    ?.response
+  return response?.status === 403 && response.data?.code === COMPANY_BLOCKED_CODE
+}
+
 export interface UserPublic {
   id: string
   name: string
@@ -42,6 +70,8 @@ export interface UserPublic {
     defaultTone: string
     // Plano 014: documento enviado para aceite (só para ADMIN; o app ignora)
     pendingDocument?: PendingDocumentRef | null
+    // Plano 017: opcional porque o app guarda o /auth/me antigo no SecureStore
+    access?: CompanyAccess
   } | null
   // ─── E10: perfil de vendedor da Inteligência (detalhe da empresa) ───
   visitsPerDay?: number | null

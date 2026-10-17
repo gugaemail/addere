@@ -92,29 +92,51 @@ describe('tickBillingScheduler', () => {
     expect(captureMock).not.toHaveBeenCalled()
   })
 
-  it('os quatro passos rodam na ordem de STEPS', async () => {
+  // Plano 017: o aviso de suspensão, o lembrete e o bloqueio entram depois dos quatro do 016
+  it('os sete passos rodam na ordem de STEPS', async () => {
     expect(BILLING_STEP_NAMES).toEqual([
       'invoices',
       'contractsEnded',
       'dueReminders',
       'documentReminders',
+      'suspensionNotices',
+      'suspensionReminders',
+      'overdueBlocks',
     ])
     const order: string[] = []
     prismaMock.companyContract.findMany.mockImplementation(async (args: { where: object }) => {
       order.push('firstBilledCompetence' in args.where ? 'invoices' : 'contractsEnded')
       return []
     })
-    prismaMock.invoice.findMany.mockImplementation(async () => {
-      order.push('dueReminders')
-      return []
-    })
+    prismaMock.invoice.findMany.mockImplementation(
+      async (args: { where: { dueDate: object }; select: { company: { select: object } } }) => {
+        // O lembrete de vencimento olha a janela até o vencimento; o 017, as vencidas
+        if ('gte' in args.where.dueDate) order.push('dueReminders')
+        else if ('contract' in args.select.company.select) order.push('suspensionNotices')
+        else order.push('suspensionReminders')
+        return []
+      }
+    )
     prismaMock.contractDocument.findMany.mockImplementation(async () => {
       order.push('documentReminders')
       return []
     })
+    prismaMock.company.findMany.mockImplementation(async () => {
+      order.push('overdueBlocks')
+      return []
+    })
     const summary = await tickBillingScheduler(NOW)
-    expect(order).toEqual(['invoices', 'contractsEnded', 'dueReminders', 'documentReminders'])
+    expect(order).toEqual([
+      'invoices',
+      'contractsEnded',
+      'dueReminders',
+      'documentReminders',
+      'suspensionNotices',
+      'suspensionReminders',
+      'overdueBlocks',
+    ])
     expect(summary.errors).toEqual([])
     expect(summary.invoices).toMatchObject({ competence: '2026-10', created: 0 })
+    expect(summary.overdueBlocks).toEqual({ blocked: 0, unblocked: 0, unchanged: 0, failed: 0 })
   })
 })
