@@ -16,7 +16,12 @@ const PACKAGE_PRICE_KEYS = [
   'listExtraSeatPriceIntelligence',
 ] as const
 const PACKAGE_KEYS = ['name', 'seats', ...PACKAGE_PRICE_KEYS, 'sortOrder'] as const
-const SETTINGS_KEYS = ['overdueBlockDays', 'dueReminderDays', 'notifyEmail'] as const
+const SETTINGS_KEYS = [
+  'overdueBlockDays',
+  'dueReminderDays',
+  'notifyEmail',
+  'autoBlockEnabled', // plano 017
+] as const
 
 const SETTINGS_ID = 'global'
 
@@ -156,15 +161,18 @@ export async function updateSettings(
 ): Promise<BillingSettingsDto> {
   return prisma.$transaction(async (tx) => {
     const before = await readSettingsRow(tx)
-    const fields = changedFields(before, input, SETTINGS_KEYS)
+    // Plano 017: sem a chave no corpo, o bloqueio automático fica como está
+    const next = { ...input, autoBlockEnabled: input.autoBlockEnabled ?? before.autoBlockEnabled }
+    const fields = changedFields(before, next, SETTINGS_KEYS)
     if (fields.length === 0) return toSettingsDto(before)
-    // Campos explícitos: autoBlockEnabled nunca é escrito aqui (decisão padrão 4)
+    // Campos explícitos; o histórico guarda quem ligou ou desligou o bloqueio
     const after = await tx.billingSettings.update({
       where: { id: SETTINGS_ID },
       data: {
-        overdueBlockDays: input.overdueBlockDays,
-        dueReminderDays: input.dueReminderDays,
-        notifyEmail: input.notifyEmail,
+        overdueBlockDays: next.overdueBlockDays,
+        dueReminderDays: next.dueReminderDays,
+        notifyEmail: next.notifyEmail,
+        autoBlockEnabled: next.autoBlockEnabled,
       },
     })
     await recordBillingEvent(tx, { type: 'SETTINGS_UPDATED', companyId: null, actorId, fields })

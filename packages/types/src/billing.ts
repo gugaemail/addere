@@ -582,6 +582,7 @@ export interface ClientDetailDto {
   status: ClientStatus
   usedSeats: number
   seatLimit: number | null // null = sem limite
+  block: ClientBlockState // plano 017: o cartão "Acesso"
 }
 
 export interface BillingEventDto {
@@ -787,7 +788,7 @@ export interface ClientBlockState {
   companyActive: boolean
   blockedAt: string | null // ISO
   reason: 'OVERDUE' | 'MANUAL' | null // MANUAL: reservado, nenhum código grava
-  exemptUntil: string | null
+  exemptUntil: string | null // só a liberação vigente (até hoje, inclusive)
   pendingNotice: {
     invoiceId: string
     invoiceNumber: number

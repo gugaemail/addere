@@ -1,14 +1,22 @@
 import { prisma } from '@addere/db'
 import type { Prisma } from '@prisma/client'
-import type { BillingOverdueStatus } from '@addere/types'
+import { formatBillingDate, type BillingOverdueStatus, type ClientBlockState } from '@addere/types'
 import { resolveCompanyAccess } from '../../lib/company-access'
+import { badRequest, conflict, notFound } from '../../lib/errors'
 import { captureError } from '../../lib/sentry'
-import { dateToYmdUtc, ymdSaoPaulo, ymdToDate } from '../intelligence/engine/business-days'
+import {
+  addDaysYmd,
+  dateToYmdUtc,
+  ymdSaoPaulo,
+  ymdToDate,
+} from '../intelligence/engine/business-days'
 import { isTransientDbError } from '../intelligence/jobs/scheduler'
 import {
   billingRecipients,
+  buildAccessReleasedEmail,
   buildSuspensionNoticeEmail,
   buildSuspensionReminderEmail,
+  sendBillingEmail,
   sendBillingEmailOnce,
   sendBillingEmailThenRecord,
   type SendOutcome,
@@ -17,6 +25,7 @@ import { dateToCompetence, dateToIsoDay, todaySaoPaulo, ymToIso } from './compet
 import { money } from './invoice-rules'
 import type { ReminderSummary } from './jobs/reminders'
 import {
+  MAX_EXEMPTION_DAYS,
   computePlannedBlockDate,
   invoiceSustainsBlock,
   noticeDue,
@@ -474,5 +483,158 @@ export async function getOverdueStatus(
         }
       : null,
     plannedBlockDate: notice ? ymdToIsoDay(notice.plannedBlockYmd) : null,
+  }
+}
+
+// ─── Ficha do cliente: o cartão "Acesso" e o "Liberar até…" ──────────────────
+
+export interface CompanyBlockFields {
+  active: boolean
+  accessBlockedAt: Date | null
+  accessBlockReason: 'OVERDUE' | 'MANUAL' | null
+  blockExemptUntil: Date | null
+}
+
+/** O estado do bloqueio a partir da empresa já lida (a ficha não relê a empresa). */
+export async function clientBlockStateFrom(
+  companyId: string,
+  company: CompanyBlockFields,
+  now: Date
+): Promise<ClientBlockState> {
+  const todayYmd = ymdSaoPaulo(now)
+  const exemptYmd = company.blockExemptUntil ? dateToYmdUtc(company.blockExemptUntil) : null
+  const { invoice, notice, noticeSentAt } = await oldestOverdueWithNotice(companyId, now)
+  return {
+    companyActive: company.active,
+    blockedAt: company.accessBlockedAt ? company.accessBlockedAt.toISOString() : null,
+    // Bloqueio sem motivo vale OVERDUE, como no authenticate
+    reason: company.accessBlockedAt ? (company.accessBlockReason ?? 'OVERDUE') : null,
+    // Só a liberação vigente (até hoje, inclusive)
+    exemptUntil: exemptYmd && exemptYmd >= todayYmd ? ymdToIsoDay(exemptYmd) : null,
+    pendingNotice:
+      invoice && notice && noticeSentAt
+        ? {
+            invoiceId: invoice.id,
+            invoiceNumber: invoice.number,
+            sentAt: noticeSentAt.toISOString(),
+            plannedBlockDate: ymdToIsoDay(notice.plannedBlockYmd),
+          }
+        : null,
+  }
+}
+
+const COMPANY_BLOCK_SELECT = {
+  active: true,
+  accessBlockedAt: true,
+  accessBlockReason: true,
+  blockExemptUntil: true,
+} satisfies Prisma.CompanySelect
+
+export async function getClientBlockState(companyId: string, now: Date): Promise<ClientBlockState> {
+  const company = await prisma.company.findUnique({
+    where: { id: companyId },
+    select: COMPANY_BLOCK_SELECT,
+  })
+  if (!company) throw notFound('Cliente não encontrado')
+  return clientBlockStateFrom(companyId, company, now)
+}
+
+export interface UnblockResult {
+  block: ClientBlockState
+  /** null = sem data, nenhum e-mail a enviar; false = o e-mail de liberação não saiu */
+  emailSent: boolean | null
+}
+
+/**
+ * "Liberar até…" (POST /admin/billing/clients/:companyId/unblock), só o
+ * SUPERADMIN. Numa transação: limpa o bloqueio (qualquer motivo, inclusive um
+ * MANUAL gravado à mão — é o único caminho para tirá-lo), grava a liberação
+ * até `until` (ou a apaga) e o evento ACCESS_UNBLOCKED com o autor.
+ *
+ * - `until` entre hoje e hoje + MAX_EXEMPTION_DAYS (São Paulo); fora disso, 400;
+ * - empresa liberada e sem `until` → 409 "Nada a liberar". Com `until`, funciona
+ *   mesmo sem bloqueio: é a liberação antecipada de quem prometeu pagar;
+ * - com `until`, depois da transação, o e-mail de liberação; falha no envio não
+ *   desfaz nada (emailSent: false).
+ *
+ * Não existe o caminho inverso: o bloqueio manual está desabilitado.
+ */
+export async function unblockClient(
+  companyId: string,
+  input: { until?: string | null },
+  actorId: string,
+  now: Date
+): Promise<UnblockResult> {
+  const todayYmd = ymdSaoPaulo(now)
+  const untilYmd = input.until ? input.until.replace(/-/g, '') : null
+  if (untilYmd) {
+    const maxYmd = addDaysYmd(todayYmd, MAX_EXEMPTION_DAYS)
+    if (untilYmd < todayYmd || untilYmd > maxYmd) {
+      throw badRequest(
+        `Escolha uma data entre ${formatBillingDate(ymdToDate(todayYmd))} e ${formatBillingDate(ymdToDate(maxYmd))}.`,
+        'UNBLOCK_UNTIL_OUT_OF_RANGE'
+      )
+    }
+  }
+
+  const companyName = await prisma.$transaction(async (tx) => {
+    const company = await tx.company.findUnique({
+      where: { id: companyId },
+      select: { name: true, accessBlockedAt: true, accessBlockReason: true },
+    })
+    if (!company) throw notFound('Cliente não encontrado')
+    if (!company.accessBlockedAt && !untilYmd) {
+      throw conflict('Nada a liberar: o acesso já está liberado.', 'NOTHING_TO_UNBLOCK')
+    }
+    await tx.company.update({
+      where: { id: companyId },
+      data: {
+        accessBlockedAt: null,
+        accessBlockReason: null,
+        blockExemptUntil: untilYmd ? ymdToDate(untilYmd) : null,
+      },
+    })
+    await tx.billingEvent.create({
+      data: {
+        type: 'ACCESS_UNBLOCKED',
+        companyId,
+        actorId,
+        payload: {
+          previousReason: company.accessBlockedAt ? (company.accessBlockReason ?? 'OVERDUE') : null,
+          until: untilYmd ? ymdToIsoDay(untilYmd) : null,
+        },
+      },
+    })
+    return company.name
+  })
+
+  let emailSent: boolean | null = null
+  if (untilYmd) {
+    emailSent = await sendAccessReleasedEmail(companyId, companyName, ymdToDate(untilYmd), now)
+  }
+  return { block: await getClientBlockState(companyId, now), emailSent }
+}
+
+/** Um e-mail por destinatário (o padrão do sendBillingEmail do 014). Nunca lança. */
+async function sendAccessReleasedEmail(
+  companyId: string,
+  companyName: string,
+  until: Date,
+  now: Date
+): Promise<boolean> {
+  try {
+    const [to, { invoice }] = await Promise.all([
+      billingRecipients(companyId),
+      oldestOverdueWithNotice(companyId, now),
+    ])
+    if (to.length === 0) return false
+    const email = buildAccessReleasedEmail(companyName, until, invoice)
+    const results = await Promise.all(
+      to.map((address) => sendBillingEmail({ to: address, ...email }))
+    )
+    return results.every(Boolean)
+  } catch (err) {
+    captureError(err, { module: 'billing', op: 'access-released-email', companyId })
+    return false
   }
 }

@@ -9,6 +9,7 @@ import {
   packageIdParam,
   packageUpdateSchema,
   settingsSchema,
+  unblockClientSchema,
 } from './billing.schema'
 import {
   createPackage,
@@ -26,6 +27,7 @@ import {
   listLicenseRequestsQuerySchema,
 } from './license-requests.schema'
 import { decideLicenseRequest, listLicenseRequests } from './license-requests.service'
+import { unblockClient } from './overdue-block.service'
 
 // Gestão Addere (plano 013) — registrado com o prefixo /admin/billing. Só o
 // SUPERADMIN opera o módulo (decisão padrão 8); o autor de cada ação, gravado
@@ -113,6 +115,21 @@ export default async function billingAdminRoutes(app: FastifyInstance) {
       const { companyId } = companyIdParam.parse(request.params)
       const input = contractDraftSchema.parse(request.body)
       return reply.send(await saveContractDraft(companyId, input, request.user.sub))
+    }
+  )
+
+  // ─── Acesso (plano 017) ────────────────────────────────────────────────────
+  // Só "Liberar até…". Não existe a rota de bloqueio: o bloqueio manual está
+  // desabilitado desde 15/10/2026 (o contrato só prevê suspensão por atraso,
+  // depois do aviso de 10 dias), e o bloqueio por atraso é do agendador.
+
+  app.post(
+    '/clients/:companyId/unblock',
+    superadmin,
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const { companyId } = companyIdParam.parse(request.params)
+      const { until } = unblockClientSchema.parse(request.body ?? {})
+      return reply.send(await unblockClient(companyId, { until }, request.user.sub, new Date()))
     }
   )
 
