@@ -1,6 +1,7 @@
 import { AppState, AppStateStatus } from 'react-native'
 import NetInfo from '@react-native-community/netinfo'
 import * as Sentry from '@sentry/react-native'
+import { isCompanyBlockedError } from '@addere/types'
 import { getApiErrorMessage } from '../lib/errors'
 import { queryClient } from '../lib/query-client'
 import { selectOwnQueue, useSyncStore } from '../store/syncStore'
@@ -19,12 +20,19 @@ export function getSyncDelay(attempts: number): number {
 const TRANSIENT_4XX = new Set([401, 408, 429])
 
 export function isPermanentRejection(err: unknown): boolean {
+  // 403 COMPANY_BLOCKED (plano 017): a empresa está suspensa, o item não tem
+  // nada de errado — ele espera na fila até o acesso voltar
+  if (isCompanyBlockedError(err)) return false
   const status = (err as { response?: { status?: unknown } } | null)?.response?.status
   return typeof status === 'number' && status >= 400 && status < 500 && !TRANSIENT_4XX.has(status)
 }
 
-async function processItem(item: SyncQueueItem): Promise<void> {
-  const { markSyncing, markSynced, markError, markFailedPermanently } = useSyncStore.getState()
+/** O item voltou para a fila porque a empresa está suspensa: os próximos dariam o mesmo 403 */
+type ItemOutcome = 'company-blocked' | undefined
+
+async function processItem(item: SyncQueueItem): Promise<ItemOutcome> {
+  const { markSyncing, markSynced, markError, markFailedPermanently, requeue } =
+    useSyncStore.getState()
 
   const handler = syncHandlers[item.type]
   markSyncing(item.id)
@@ -53,6 +61,14 @@ async function processItem(item: SyncQueueItem): Promise<void> {
     }
   } catch (err: unknown) {
     const msg = getApiErrorMessage(err)
+
+    // Empresa suspensa (plano 017): volta para a fila sem gastar tentativa e
+    // sem Sentry — não é falha do item. O interceptor (lib/api.ts) já levou o
+    // app para a tela de acesso suspenso
+    if (isCompanyBlockedError(err)) {
+      requeue(item.id, msg)
+      return 'company-blocked'
+    }
 
     // 4xx é rejeição do servidor (posse, validação, item de plano que não
     // existe mais): retentar 5× com backoff só atrasa o aviso e deixa a fila
@@ -128,7 +144,8 @@ export async function processSyncQueue(): Promise<void> {
     for (const item of items) {
       const delay = getSyncDelay(item.attempts)
       if (delay > 0) await sleep(delay)
-      await processItem(item)
+      // Empresa suspensa: os outros itens dariam o mesmo 403 — para aqui
+      if ((await processItem(item)) === 'company-blocked') break
     }
   } finally {
     useSyncStore.getState().setIsSyncing(false)

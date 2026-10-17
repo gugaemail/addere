@@ -36,6 +36,11 @@ interface SyncStoreState {
   markSynced: (id: string) => void
   markError: (id: string, error: string) => void
   markFailedPermanently: (id: string, error: string) => void
+  /**
+   * Volta o item para a fila sem gastar tentativa (plano 017): a empresa está
+   * suspensa, não é falha do item — ele sai quando o acesso voltar
+   */
+  requeue: (id: string, error: string) => void
   setNetworkAvailable: (available: boolean) => void
   clearSynced: () => void
   /** Tira um item da fila de vez — a tela só oferece para o que não é pedido */
@@ -122,6 +127,13 @@ export const useSyncStore = create<SyncStoreState>()(
                   lastError: error,
                 }
               : item
+          ),
+        })),
+
+      requeue: (id, error) =>
+        set((s) => ({
+          queue: s.queue.map((item) =>
+            item.id === id ? { ...item, status: 'pending' as SyncStatus, lastError: error } : item
           ),
         })),
 
