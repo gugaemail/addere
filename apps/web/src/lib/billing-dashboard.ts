@@ -5,7 +5,14 @@
 // Dinheiro chega da API como string com duas casas ("12167.50"), já somado em
 // Decimal. Aqui nada é somado de novo: Number() só no mapeamento para o
 // gráfico, porque o recharts precisa de número. O texto usa formatBrl.
-import { civilDaySaoPaulo, type BillingDashboardDto, type RevenueMonth } from '@addere/types'
+import {
+  civilDaySaoPaulo,
+  formatBillingDate,
+  type BillingDashboardDto,
+  type DashboardDocumentItem,
+  type DashboardList,
+  type RevenueMonth,
+} from '@addere/types'
 
 const MONTHS_SHORT = [
   'jan',
@@ -54,6 +61,11 @@ export function monthLabel(month: string): string {
 export function monthLongLabel(month: string): string {
   const { year, index } = parseMonth(month)
   return `${MONTHS_LONG[index]} de ${year}`
+}
+
+/** '2026-10' → 'outubro' */
+export function monthName(month: string): string {
+  return MONTHS_LONG[parseMonth(month).index]
 }
 
 let compactFormatter: Intl.NumberFormat | null = null
@@ -138,4 +150,44 @@ export function dueInLabel(dueDate: string, today: string): string {
 /** 1 → '1 dia'; 10 → '10 dias' */
 export function daysLabel(days: number): string {
   return days === 1 ? '1 dia' : `${days} dias`
+}
+
+/** 1 → '1 fatura'; 6 → '6 faturas' */
+export function countLabel(n: number, singular: string, plural: string): string {
+  return `${n} ${n === 1 ? singular : plural}`
+}
+
+/**
+ * "1 contrato · 1 aditivo" a partir da lista de aguardando aceite. A lista
+ * vem cortada em DASHBOARD_LIST_LIMIT: cortada, não dá para separar por tipo,
+ * e o texto diz só o total.
+ */
+export function documentKindsLabel(list: DashboardList<DashboardDocumentItem>): string {
+  if (list.total === 0) return 'nenhum documento enviado'
+  if (list.total > list.items.length) return countLabel(list.total, 'documento', 'documentos')
+  const contracts = list.items.filter((d) => d.kind === 'CONTRACT').length
+  const amendments = list.items.length - contracts
+  return [
+    contracts > 0 ? countLabel(contracts, 'contrato', 'contratos') : null,
+    amendments > 0 ? countLabel(amendments, 'aditivo', 'aditivos') : null,
+  ]
+    .filter(Boolean)
+    .join(' · ')
+}
+
+/** 'YYYY-MM-DD' (dia civil da API) → 'DD/MM/AAAA', pelo formatBillingDate do 013 */
+export function billingDay(isoDay: string): string {
+  return formatBillingDate(new Date(`${isoDay}T00:00:00.000Z`))
+}
+
+let timeFormatter: Intl.DateTimeFormat | null = null
+
+/** Instante ISO → 'HH:MM' no horário de Brasília ("Atualizado às …") */
+export function timeInSaoPaulo(iso: string): string {
+  timeFormatter ??= new Intl.DateTimeFormat('pt-BR', {
+    timeZone: 'America/Sao_Paulo',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+  return timeFormatter.format(new Date(iso))
 }

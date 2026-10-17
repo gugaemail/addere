@@ -2,16 +2,21 @@ import { describe, expect, it } from 'vitest'
 import type { BillingDashboardDto, RevenueMonth } from '@addere/types'
 import {
   agoLabel,
+  billingDay,
   brlCompact,
+  countLabel,
   daysLabel,
   daysSince,
   dueInLabel,
   hasRevenue,
+  documentKindsLabel,
   isEmptyDashboard,
   monthLabel,
   monthLongLabel,
+  monthName,
   revenueChartData,
   seatsPct,
+  timeInSaoPaulo,
 } from '../billing-dashboard'
 
 // O Intl põe espaço inseparável depois do R$
@@ -162,5 +167,45 @@ describe('dias e rótulos', () => {
     expect(dueInLabel('2026-11-04', '2026-10-20')).toBe('em 15 dias')
     expect(daysLabel(1)).toBe('1 dia')
     expect(daysLabel(10)).toBe('10 dias')
+  })
+})
+
+describe('textos da tela', () => {
+  const doc = (kind: 'CONTRACT' | 'AMENDMENT', i: number) => ({
+    documentId: `doc-${i}`,
+    companyId: `company-${i}`,
+    companyName: 'Empório Vale Claro',
+    kind,
+    sentAt: '2026-10-16T12:00:00.000Z',
+    daysWaiting: 4,
+  })
+
+  it('monthName e countLabel', () => {
+    expect(monthName('2026-10')).toBe('outubro')
+    expect(countLabel(1, 'fatura', 'faturas')).toBe('1 fatura')
+    expect(countLabel(6, 'fatura', 'faturas')).toBe('6 faturas')
+    expect(countLabel(0, 'baixa', 'baixas')).toBe('0 baixas')
+  })
+
+  it('documentKindsLabel separa por tipo só com a lista inteira', () => {
+    expect(documentKindsLabel({ total: 0, items: [] })).toBe('nenhum documento enviado')
+    expect(documentKindsLabel({ total: 2, items: [doc('CONTRACT', 1), doc('AMENDMENT', 2)] })).toBe(
+      '1 contrato · 1 aditivo'
+    )
+    expect(documentKindsLabel({ total: 2, items: [doc('CONTRACT', 1), doc('CONTRACT', 2)] })).toBe(
+      '2 contratos'
+    )
+    const five = [1, 2, 3, 4, 5].map((i) => doc('AMENDMENT', i))
+    expect(documentKindsLabel({ total: 7, items: five })).toBe('7 documentos')
+  })
+
+  it('billingDay lê o dia civil sem cair no dia anterior', () => {
+    expect(billingDay('2026-11-10')).toBe('10/11/2026')
+    expect(billingDay('2027-01-01')).toBe('01/01/2027')
+  })
+
+  it('timeInSaoPaulo dá a hora de Brasília, qualquer que seja o fuso', () => {
+    expect(timeInSaoPaulo('2026-10-20T17:32:00.000Z')).toBe('14:32')
+    expect(timeInSaoPaulo('2026-10-21T02:05:00.000Z')).toBe('23:05')
   })
 })
