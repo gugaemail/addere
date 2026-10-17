@@ -7,6 +7,7 @@ import type {
   InvoiceItemKind,
   InvoiceListResponse,
   InvoicePaymentMethod,
+  BillingOverdueStatus,
   MyInvoiceDto,
 } from '@addere/types'
 
@@ -19,6 +20,8 @@ export const invoicesKeys = {
   list: (filters: InvoiceFilters) => ['invoices', 'list', filters] as const,
   detail: (id: string) => ['invoices', 'detail', id] as const,
   mine: ['invoices', 'me'] as const,
+  // Plano 017: a faixa de cobrança do ADMIN (some/troca com a baixa)
+  overdue: ['invoices', 'me', 'overdue'] as const,
 }
 
 export type InvoiceStatusFilter = '' | 'OPEN' | 'OVERDUE' | 'PAID' | 'CANCELLED'
@@ -64,6 +67,10 @@ export interface BillingTickSummary {
   contractsEnded: number | null
   dueReminders: { sent: number; duplicate: number; skipped: number; failed: number } | null
   documentReminders: { sent: number; duplicate: number; skipped: number; failed: number } | null
+  // Plano 017: aviso de suspensão, lembrete e bloqueio por atraso
+  suspensionNotices?: { sent: number; duplicate: number; skipped: number; failed: number } | null
+  suspensionReminders?: { sent: number; duplicate: number; skipped: number; failed: number } | null
+  overdueBlocks?: { blocked: number; unblocked: number; unchanged: number; failed: number } | null
   errors: string[]
 }
 
@@ -98,6 +105,20 @@ export function useMyInvoices(enabled = true) {
   return useQuery({
     queryKey: invoicesKeys.mine,
     queryFn: () => api.get<MyInvoiceDto[]>('/billing/me/invoices').then((r) => r.data),
+    enabled,
+  })
+}
+
+/**
+ * Plano 017: GET /billing/me/overdue, a faixa de cobrança. Só o ADMIN da
+ * empresa. `accessKey` muda quando o acesso muda (bloqueou, liberou): a faixa
+ * relê na hora, sem esperar os 5 minutos.
+ */
+export function useBillingOverdue(enabled = true, accessKey = '') {
+  return useQuery({
+    queryKey: [...invoicesKeys.overdue, accessKey],
+    queryFn: () => api.get<BillingOverdueStatus>('/billing/me/overdue').then((r) => r.data),
+    staleTime: 5 * 60 * 1000,
     enabled,
   })
 }

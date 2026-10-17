@@ -39,7 +39,10 @@ import { useCompanies } from '@/hooks/useCompanies'
 import { canAccessPanel } from '@/lib/home-redirect'
 import { profileLabel } from '@/lib/user-profile'
 import { filterNavGroups, INTEL_ADMIN_ONLY, type NavRequirement } from '@/lib/nav-gating'
+import { blockedNavGroups, isAllowedWhileBlocked } from '@/lib/company-block'
 import { Logo } from '@/components/Logo'
+import { BillingBanner } from '@/components/billing/BillingBanner'
+import { CompanyBlockedScreen } from '@/components/billing/CompanyBlockedScreen'
 import { PendingContractBanner } from '@/components/contracts/PendingContractBanner'
 import { Spinner } from '@/components/ui/Spinner'
 import type { UserPublic } from '@addere/types'
@@ -327,10 +330,15 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const router = useRouter()
   const pathname = usePathname()
   const { theme, toggle } = useTheme()
-  const { user, isLoading, isAdmin, isSuperAdmin, hasPermission, logout } = useAuth()
+  const { user, isLoading, isAdmin, isSuperAdmin, hasPermission, logout, companyAccess } = useAuth()
   const { companyId } = useCompanyContext()
 
-  const navGroups = filterNavGroups(NAV_GROUPS, { isSuperAdmin, isAdmin, hasPermission })
+  // Plano 017: empresa bloqueada (atraso ou desativada). O SUPERADMIN nunca é
+  // bloqueado; o ADMIN fica com Contrato e Plano e cobrança, e o gerente, com o
+  // menu vazio. A API devolve 403 COMPANY_BLOCKED no resto de qualquer forma.
+  const blocked = !isSuperAdmin && companyAccess?.blocked === true
+  const allowedGroups = filterNavGroups(NAV_GROUPS, { isSuperAdmin, isAdmin, hasPermission })
+  const navGroups = blocked ? blockedNavGroups(allowedGroups) : allowedGroups
 
   // Abaixo de lg a sidebar vira gaveta e começa fechada: no celular ela
   // ocupava 224 px fixos e sobrava menos da metade da tela para o conteúdo.
@@ -504,11 +512,17 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             </div>
           ) : (
             <>
+              {/* Plano 017: fatura vencida, suspensão prevista ou acesso suspenso */}
+              {isAdmin && <BillingBanner />}
               {/* Plano 014: contrato ou aditivo aguardando aceite (some em /contrato) */}
               {isAdmin && user?.company?.pendingDocument && !pathname.startsWith('/contrato') && (
                 <PendingContractBanner pending={user.company.pendingDocument} userId={user.id} />
               )}
-              {children}
+              {blocked && !isAllowedWhileBlocked(pathname, { isAdmin }) ? (
+                <CompanyBlockedScreen reason={companyAccess?.reason ?? null} isAdmin={isAdmin} />
+              ) : (
+                children
+              )}
             </>
           )}
         </main>
