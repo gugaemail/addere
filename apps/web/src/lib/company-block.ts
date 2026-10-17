@@ -5,7 +5,12 @@
 // Datas: a API manda dia civil como 'YYYY-MM-DD' e competência como 'YYYY-MM';
 // aqui só se reordena o texto, sem Date no fuso do navegador. "Hoje" é o dia
 // civil de São Paulo (civilDaySaoPaulo, de @addere/types).
-import { civilDaySaoPaulo, formatBillingDate, type BillingOverdueStatus } from '@addere/types'
+import {
+  civilDaySaoPaulo,
+  formatBillingDate,
+  type BillingOverdueStatus,
+  type ClientBlockState,
+} from '@addere/types'
 
 /** As telas que o ADMIN de empresa bloqueada ainda abre: o contrato e a cobrança (§6.6). */
 export const BLOCKED_ALLOWED_PREFIXES = ['/plano', '/contrato'] as const
@@ -116,3 +121,113 @@ export function billingBannerContent(
     text: `${head} vencida em ${isoDayLabel(invoice.dueDate)}. Se não for paga, o acesso ao app e ao painel será suspenso em ${isoDayLabel(plannedBlockDate)} (${inDays}).`,
   }
 }
+
+// ─── Ficha do cliente (SUPERADMIN): o cartão "Acesso" ────────────────────────
+
+/** Instante ISO → 'DD/MM/AAAA' no dia civil de São Paulo */
+export function instantDayLabel(iso: string): string {
+  return formatBillingDate(civilDaySaoPaulo(new Date(iso)))
+}
+
+export interface ClientAccessCardContent {
+  tone: 'success' | 'warning' | 'danger' | 'neutral'
+  title: string
+  detail: string | null
+  /** "Liberar até…": com bloqueio, aviso pendente ou liberação vigente */
+  canRelease: boolean
+}
+
+/**
+ * Os estados do cartão "Acesso" da ficha, na precedência do plano 017:
+ * desativada → bloqueada (MANUAL reservado, ou por atraso) → liberada até →
+ * aviso enviado → liberada. Não há "Bloquear": o bloqueio manual está
+ * desabilitado.
+ */
+export function clientAccessCardContent(block: ClientBlockState): ClientAccessCardContent {
+  const notice = block.pendingNotice
+  const noticeDetail = notice
+    ? `Aviso de suspensão enviado em ${instantDayLabel(notice.sentAt)} (fatura nº ${invoiceLabel(notice.invoiceNumber)}), com data prevista ${isoDayLabel(notice.plannedBlockDate)}.`
+    : null
+  const canRelease = block.blockedAt !== null || notice !== null || block.exemptUntil !== null
+
+  if (!block.companyActive) {
+    return {
+      tone: 'neutral',
+      title: 'Empresa desativada — o acesso está cortado (ficha técnica, Ativar empresa)',
+      detail: noticeDetail,
+      canRelease,
+    }
+  }
+  if (block.blockedAt && block.reason === 'MANUAL') {
+    // Reservado: nenhum código grava MANUAL; só aparece se gravado à mão
+    return {
+      tone: 'danger',
+      title: `Bloqueado desde ${instantDayLabel(block.blockedAt)}, fora do previsto — use Liberar até…`,
+      detail: null,
+      canRelease,
+    }
+  }
+  if (block.blockedAt) {
+    return {
+      tone: 'danger',
+      title: `Bloqueado por atraso desde ${instantDayLabel(block.blockedAt)}`,
+      detail: noticeDetail,
+      canRelease,
+    }
+  }
+  if (block.exemptUntil) {
+    return {
+      tone: 'success',
+      title: `Liberado até ${isoDayLabel(block.exemptUntil)}`,
+      detail: noticeDetail,
+      canRelease,
+    }
+  }
+  if (notice) {
+    return {
+      tone: 'warning',
+      title: `Aviso enviado em ${instantDayLabel(notice.sentAt)} — suspensão prevista em ${isoDayLabel(notice.plannedBlockDate)} (fatura nº ${invoiceLabel(notice.invoiceNumber)})`,
+      detail: null,
+      canRelease,
+    }
+  }
+  return { tone: 'success', title: 'Acesso liberado', detail: null, canRelease }
+}
+
+// ─── "Liberar até…" ──────────────────────────────────────────────────────────
+
+/** Teto da liberação com data, o mesmo MAX_EXEMPTION_DAYS da API */
+export const MAX_EXEMPTION_DAYS = 90
+
+function ymdToIso(ymd: string): string {
+  return `${ymd.slice(0, 4)}-${ymd.slice(4, 6)}-${ymd.slice(6, 8)}`
+}
+
+function addDays(ymd: string, days: number): string {
+  const d = new Date(
+    Date.UTC(Number(ymd.slice(0, 4)), Number(ymd.slice(4, 6)) - 1, Number(ymd.slice(6, 8)) + days)
+  )
+  return `${d.getUTCFullYear()}${String(d.getUTCMonth() + 1).padStart(2, '0')}${String(d.getUTCDate()).padStart(2, '0')}`
+}
+
+/** A faixa do campo de data: de hoje a hoje + 90, em 'YYYY-MM-DD' */
+export function unblockDateRange(todayYmd: string): { min: string; max: string } {
+  return { min: ymdToIso(todayYmd), max: ymdToIso(addDays(todayYmd, MAX_EXEMPTION_DAYS)) }
+}
+
+/** Erro do campo "Liberar até" ('' = sem data, vale), ou null se válido */
+export function unblockUntilError(value: string, todayYmd: string): string | null {
+  if (!value) return null
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return 'Data inválida'
+  const { min, max } = unblockDateRange(todayYmd)
+  if (value < min || value > max) {
+    return `Escolha uma data entre ${isoDayLabel(min)} e ${isoDayLabel(max)}.`
+  }
+  return null
+}
+
+// ─── "Desativar empresa" ─────────────────────────────────────────────────────
+
+/** O aviso da confirmação: desde o plano 017, desativar corta o acesso de todos */
+export const DEACTIVATE_COMPANY_WARNING =
+  'Desativar corta o acesso de todos os usuários da empresa ao app e ao painel — o administrador só vê Contrato e Plano e cobrança — e para o sync automático do Protheus. Nenhum dado é apagado. Atraso de pagamento não passa por aqui: segue o aviso de 10 dias e a suspensão automática.'

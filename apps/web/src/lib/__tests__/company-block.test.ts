@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import type { BillingOverdueStatus } from '@addere/types'
+import type { BillingOverdueStatus, ClientBlockState } from '@addere/types'
 
 // lib/api.ts cria o axios client no import e lê env — isola só o reexport puro
 vi.mock('../../config/env', () => ({ env: { apiUrl: 'http://localhost:3333' } }))
@@ -8,9 +8,13 @@ import { COMPANY_BLOCKED_EVENT, isCompanyBlockedError } from '../api'
 import {
   billingBannerContent,
   blockedNavGroups,
+  clientAccessCardContent,
+  DEACTIVATE_COMPANY_WARNING,
   isAllowedWhileBlocked,
   isoDayLabel,
   todayYmdSaoPaulo,
+  unblockDateRange,
+  unblockUntilError,
 } from '../company-block'
 
 // Acesso suspenso da empresa (plano 017): o que o painel decide sem API.
@@ -163,5 +167,104 @@ describe('datas', () => {
 
   it("isoDayLabel: 'YYYY-MM-DD' → 'DD/MM/AAAA'", () => {
     expect(isoDayLabel('2026-01-04')).toBe('04/01/2026')
+  })
+})
+
+describe('clientAccessCardContent (ficha do SUPERADMIN)', () => {
+  const notice = {
+    invoiceId: 'inv-1',
+    invoiceNumber: 12,
+    sentAt: '2026-10-11T12:00:00.000Z',
+    plannedBlockDate: '2026-10-25',
+  }
+  const block = (o: Partial<ClientBlockState> = {}): ClientBlockState => ({
+    companyActive: true,
+    blockedAt: null,
+    reason: null,
+    exemptUntil: null,
+    pendingNotice: null,
+    ...o,
+  })
+
+  it('liberado e sem aviso: sem botão', () => {
+    expect(clientAccessCardContent(block())).toEqual({
+      tone: 'success',
+      title: 'Acesso liberado',
+      detail: null,
+      canRelease: false,
+    })
+  })
+
+  it('aviso enviado: data prevista e fatura, com "Liberar até…"', () => {
+    expect(clientAccessCardContent(block({ pendingNotice: notice }))).toEqual({
+      tone: 'warning',
+      title: 'Aviso enviado em 11/10/2026 — suspensão prevista em 25/10/2026 (fatura nº 000012)',
+      detail: null,
+      canRelease: true,
+    })
+  })
+
+  it('bloqueado por atraso: desde quando e o aviso que o sustenta', () => {
+    expect(
+      clientAccessCardContent(
+        block({ blockedAt: '2026-10-25T12:00:00.000Z', reason: 'OVERDUE', pendingNotice: notice })
+      )
+    ).toEqual({
+      tone: 'danger',
+      title: 'Bloqueado por atraso desde 25/10/2026',
+      detail:
+        'Aviso de suspensão enviado em 11/10/2026 (fatura nº 000012), com data prevista 25/10/2026.',
+      canRelease: true,
+    })
+  })
+
+  it('liberado até uma data', () => {
+    const c = clientAccessCardContent(block({ exemptUntil: '2026-11-05', pendingNotice: notice }))
+    expect(c.title).toBe('Liberado até 05/11/2026')
+    expect(c.canRelease).toBe(true)
+  })
+
+  it('MANUAL (reservado, gravado à mão): "fora do previsto"', () => {
+    const c = clientAccessCardContent(
+      block({ blockedAt: '2026-10-01T12:00:00.000Z', reason: 'MANUAL' })
+    )
+    expect(c.title).toBe('Bloqueado desde 01/10/2026, fora do previsto — use Liberar até…')
+    expect(c.canRelease).toBe(true)
+  })
+
+  it('desativada tem precedência', () => {
+    const c = clientAccessCardContent(
+      block({ companyActive: false, blockedAt: '2026-10-25T12:00:00.000Z', reason: 'OVERDUE' })
+    )
+    expect(c.title).toBe(
+      'Empresa desativada — o acesso está cortado (ficha técnica, Ativar empresa)'
+    )
+  })
+})
+
+describe('"Liberar até…"', () => {
+  it('faixa de hoje a hoje + 90', () => {
+    expect(unblockDateRange('20261017')).toEqual({ min: '2026-10-17', max: '2027-01-15' })
+  })
+
+  it('vazio vale (sem data); hoje e hoje + 90 valem', () => {
+    expect(unblockUntilError('', '20261017')).toBeNull()
+    expect(unblockUntilError('2026-10-17', '20261017')).toBeNull()
+    expect(unblockUntilError('2027-01-15', '20261017')).toBeNull()
+  })
+
+  it('ontem ou depois de 90 dias: erro com a faixa', () => {
+    const msg = 'Escolha uma data entre 17/10/2026 e 15/01/2027.'
+    expect(unblockUntilError('2026-10-16', '20261017')).toBe(msg)
+    expect(unblockUntilError('2027-01-16', '20261017')).toBe(msg)
+    expect(unblockUntilError('17/10/2026', '20261017')).toBe('Data inválida')
+  })
+})
+
+describe('"Desativar empresa"', () => {
+  it('o aviso diz que corta o acesso e que atraso não passa por aqui', () => {
+    expect(DEACTIVATE_COMPANY_WARNING).toContain('corta o acesso de todos os usuários')
+    expect(DEACTIVATE_COMPANY_WARNING).toContain('Nenhum dado é apagado')
+    expect(DEACTIVATE_COMPANY_WARNING).toContain('aviso de 10 dias')
   })
 })

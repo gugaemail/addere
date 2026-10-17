@@ -13,6 +13,7 @@ import { Card } from '@/components/ui/Card'
 import { FormField } from '@/components/ui/FormField'
 import { Spinner } from '@/components/ui/Spinner'
 import { StatusBadge } from '@/components/ui/StatusBadge'
+import { Switch } from '@/components/ui/Switch'
 import { Table, type Column } from '@/components/ui/Table'
 import { getApiErrorMessage } from '@/lib/api'
 import { formatCurrency } from '@/lib/utils'
@@ -23,6 +24,7 @@ import {
   useSetPackageActive,
   useUpdateBillingSettings,
 } from '@/hooks/useBilling'
+import { ConfirmModal } from '@/app/(admin)/empresas/[id]/ConfirmModal'
 import { PackageFormModal } from './PackageFormModal'
 
 const SECTION_TITLE = 'text-sm font-semibold text-[var(--text-primary)]'
@@ -167,6 +169,61 @@ export default function PacotesPage() {
 
 // ─── Regras de cobrança ──────────────────────────────────────────────────────
 
+const AUTO_BLOCK_TEXT =
+  'Bloqueia o app e o painel de quem tem fatura vencida, sempre depois do aviso de 10 dias. Desligar libera os bloqueios por atraso no ciclo seguinte. Só ligue depois que a versão do app com a tela de acesso suspenso estiver no ar.'
+
+// Plano 017: o switch do bloqueio automático. Nasce desligado (decisão 4) e é
+// ligado só depois do OTA do app; desligar é o rollback. Salva sozinho, com os
+// valores já gravados das outras regras (não os do formulário em edição), e
+// sempre pede confirmação.
+function AutoBlockSwitch({ settings }: { settings: BillingSettingsDto }) {
+  const update = useUpdateBillingSettings()
+  const [pending, setPending] = useState<boolean | null>(null)
+
+  async function apply(autoBlockEnabled: boolean) {
+    try {
+      await update.mutateAsync({
+        overdueBlockDays: settings.overdueBlockDays,
+        dueReminderDays: settings.dueReminderDays,
+        notifyEmail: settings.notifyEmail,
+        autoBlockEnabled,
+      })
+      toast.success(
+        autoBlockEnabled ? 'Bloqueio automático ligado.' : 'Bloqueio automático desligado.'
+      )
+    } catch (err: unknown) {
+      toast.error(getApiErrorMessage(err, 'Erro ao alterar o bloqueio automático.'))
+    }
+  }
+
+  return (
+    <div className="sm:col-span-2">
+      <p className="mb-1.5 text-sm font-medium text-[var(--text-secondary)]">Bloqueio automático</p>
+      <Switch
+        checked={settings.autoBlockEnabled}
+        disabled={update.isPending}
+        onChange={(next) => setPending(next)}
+        label={settings.autoBlockEnabled ? 'Ligado' : 'Desligado'}
+      />
+      <p className="mt-1.5 text-xs text-[var(--text-muted)]">{AUTO_BLOCK_TEXT}</p>
+      {pending !== null && (
+        <ConfirmModal
+          title={pending ? 'Ligar o bloqueio automático' : 'Desligar o bloqueio automático'}
+          description={
+            pending
+              ? 'A partir do próximo ciclo (até 1 hora), quem tiver fatura vencida com o aviso de suspensão enviado há 10 dias ou mais e a data prevista alcançada fica com o app e o painel bloqueados. Confirme que a versão do app com a tela de acesso suspenso já está no ar.'
+              : 'No próximo ciclo (até 1 hora), todos os bloqueios por atraso são liberados, e nenhum bloqueio novo acontece até ligar de novo.'
+          }
+          confirmLabel={pending ? 'Ligar' : 'Desligar'}
+          destructive={pending}
+          onConfirm={() => void apply(pending)}
+          onClose={() => setPending(null)}
+        />
+      )}
+    </div>
+  )
+}
+
 function BillingRulesSection() {
   const { data: settings, isLoading, error, refetch } = useBillingSettings()
 
@@ -213,8 +270,8 @@ function BillingRulesForm({ settings }: { settings: BillingSettingsDto }) {
 
   async function onSubmit(data: BillingSettingsFormData) {
     try {
-      // Só os três campos editáveis: o bloqueio automático não é enviado
-      // (decisão padrão 4 — só o plano 017 o liga)
+      // Só os três campos do formulário: o bloqueio automático tem o switch
+      // próprio (plano 017) e, sem a chave, a API mantém o valor gravado
       const saved = await update.mutateAsync({
         overdueBlockDays: Number(data.overdueBlockDays),
         dueReminderDays: Number(data.dueReminderDays),
@@ -256,17 +313,7 @@ function BillingRulesForm({ settings }: { settings: BillingSettingsDto }) {
           error={errors.notifyEmail?.message}
           {...register('notifyEmail')}
         />
-        <div>
-          <p className="mb-1.5 text-sm font-medium text-[var(--text-secondary)]">
-            Bloqueio automático
-          </p>
-          {/* Só leitura: nada de liga-desliga aqui (decisão padrão 4) */}
-          <p className="text-sm text-[var(--text-primary)]">
-            {settings.autoBlockEnabled
-              ? 'Ligado.'
-              : 'Desligado. Liga depois que a versão nova do app estiver no ar.'}
-          </p>
-        </div>
+        <AutoBlockSwitch settings={settings} />
       </div>
       <div className="flex justify-end">
         <Button type="submit" loading={isSubmitting}>

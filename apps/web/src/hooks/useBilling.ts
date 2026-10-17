@@ -4,6 +4,7 @@ import { companiesKeys } from './useCompanies'
 import type {
   BillingEventDto,
   BillingSettingsDto,
+  ClientBlockState,
   ClientDetailDto,
   ClientInput,
   ClientListItemDto,
@@ -55,6 +56,15 @@ export interface BillingSettingsInput {
   overdueBlockDays: number
   dueReminderDays: number
   notifyEmail: string | null
+  /** Plano 017: o switch do bloqueio automático; sem a chave, a API mantém o valor */
+  autoBlockEnabled?: boolean
+}
+
+/** Resposta do "Liberar até…" (plano 017) */
+export interface UnblockClientResult {
+  block: ClientBlockState
+  /** null = sem data, nenhum e-mail; false = liberado, mas o e-mail não saiu */
+  emailSent: boolean | null
 }
 
 // ─── Queries ──────────────────────────────────────────────────────────────────
@@ -167,6 +177,18 @@ export function useSetPackageActive() {
     mutationFn: ({ id, active }: { id: string; active: boolean }) =>
       api
         .patch<LicensePackageDto>(`/admin/billing/packages/${id}/active`, { active })
+        .then((r) => r.data),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: billingKeys.all }),
+  })
+}
+
+// Plano 017: "Liberar até…" da ficha. Invalida a ficha, o histórico e a lista
+export function useUnblockClient(companyId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (input: { until?: string }) =>
+      api
+        .post<UnblockClientResult>(`/admin/billing/clients/${companyId}/unblock`, input)
         .then((r) => r.data),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: billingKeys.all }),
   })
