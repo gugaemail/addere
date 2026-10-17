@@ -108,6 +108,13 @@ Render acordado — sem ele o noturno só roda no próximo acesso.
 Disparo manual: **Saúde dos dados → "Sync agora"**, ou
 `POST /intel/admin/jobs/run` (`intel.admin`, respeita o lock, responde 202).
 
+Empresa bloqueada (plano 017: `accessBlockedAt` gravado, hoje só por atraso,
+depois do aviso de 10 dias) não roda `nightly` nem `refresh` — sem custo de IA.
+O agendador roda só o `PURGE`, uma vez por dia, no horário do noturno. Ao
+desbloquear, o `nightly` está vencido desde o último dia em que rodou e o
+catch-up sai sozinho no tick seguinte. Empresa desativada já fica de fora pelo
+`active` (`listEnabledCompanies`).
+
 ## Rodar sem tocar no Protheus
 
 Dois adapters sintéticos cobrem o pipeline inteiro:
@@ -182,7 +189,9 @@ tudo pulado não testou nada.
 | Coordenadas de GPS das visitas | 90 dias, depois zeradas      | `Visit.lat/lng`   |
 
 Quem aplica é o job `PURGE`, dentro do `nightly`. O prazo de retenção é editável
-por empresa na aba Inteligência.
+por empresa na aba Inteligência. Para empresa bloqueada por atraso (plano 017),
+o `nightly` para, mas o `PURGE` continua, uma vez por dia: o expurgo das
+coordenadas de GPS em 90 dias não depende de a empresa estar em dia.
 
 Pseudonimização: o `agent/pseudonymizer.ts` troca nome e código do cliente por um
 apelido estável **antes** de montar o prompt, e o texto é reidratado com o nome

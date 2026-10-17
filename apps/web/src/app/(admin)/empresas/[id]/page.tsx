@@ -8,6 +8,8 @@ import { StatCard } from '@/components/ui/StatCard'
 import { useAuth } from '@/contexts/AuthContext'
 import { useCompany, useToggleCompany } from '@/hooks/useCompany'
 import { getApiErrorMessage } from '@/lib/api'
+import { DEACTIVATE_COMPANY_WARNING } from '@/lib/company-block'
+import { ConfirmModal } from './ConfirmModal'
 import { BranchesTab } from './tabs/BranchesTab'
 import { CustomersTab } from './tabs/CustomersTab'
 import { ProductsTab } from './tabs/ProductsTab'
@@ -45,6 +47,7 @@ export default function EmpresaPage() {
   const router = useRouter()
   const { isSuperAdmin } = useAuth()
   const [tab, setTab] = useState<Tab>('filiais')
+  const [confirmDeactivate, setConfirmDeactivate] = useState(false)
 
   const { data: company, isLoading, error, refetch } = useCompany(id)
   const toggleCompany = useToggleCompany(id)
@@ -111,14 +114,27 @@ export default function EmpresaPage() {
         </div>
         {/* Liga-desliga da empresa é do SUPERADMIN: o ADMIN se trancaria para
             fora da própria conta e só o SUPERADMIN reverteria (E23) */}
+        {/* Plano 017: desativar corta o acesso de todos os usuários, então pede
+            confirmação; ativar continua direto */}
         {isSuperAdmin && (
           <Button
             variant={company.active ? 'danger-outline' : 'success-outline'}
-            onClick={() => toggleCompany.mutate(!company.active)}
+            onClick={() =>
+              company.active ? setConfirmDeactivate(true) : toggleCompany.mutate(true)
+            }
             loading={toggleCompany.isPending}
           >
             {company.active ? 'Desativar empresa' : 'Ativar empresa'}
           </Button>
+        )}
+        {confirmDeactivate && (
+          <ConfirmModal
+            title="Desativar empresa"
+            description={DEACTIVATE_COMPANY_WARNING}
+            confirmLabel="Desativar"
+            onConfirm={() => toggleCompany.mutate(false)}
+            onClose={() => setConfirmDeactivate(false)}
+          />
         )}
       </div>
 

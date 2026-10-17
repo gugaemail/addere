@@ -1,4 +1,9 @@
-import { getSyncDelay, processSyncQueue, startSyncListener } from '../syncEngine'
+import {
+  getSyncDelay,
+  isPermanentRejection,
+  processSyncQueue,
+  startSyncListener,
+} from '../syncEngine'
 import { useSyncStore } from '../../store/syncStore'
 
 jest.mock('@react-native-async-storage/async-storage', () =>
@@ -293,5 +298,64 @@ describe('startSyncListener', () => {
 
     expect(mockNetInfoUnsub).toHaveBeenCalled()
     expect(mockAppStateRemove).toHaveBeenCalled()
+  })
+})
+
+// Plano 017: empresa suspensa (403 COMPANY_BLOCKED) não é rejeição do item —
+// ele espera na fila sem gastar tentativa, e a fila para no primeiro
+describe('empresa suspensa (COMPANY_BLOCKED)', () => {
+  const blocked = {
+    response: {
+      status: 403,
+      data: {
+        code: 'COMPANY_BLOCKED',
+        reason: 'OVERDUE',
+        message: 'Acesso da empresa suspenso. Fale com o administrador.',
+      },
+    },
+  }
+
+  it('isPermanentRejection: 403 COMPANY_BLOCKED → false; 403 sem código e 422 → true; 401 → false', () => {
+    expect(isPermanentRejection(blocked)).toBe(false)
+    expect(
+      isPermanentRejection({
+        response: { status: 403, data: { message: 'Permissão insuficiente' } },
+      })
+    ).toBe(true)
+    expect(isPermanentRejection({ response: { status: 422, data: {} } })).toBe(true)
+    expect(isPermanentRejection({ response: { status: 401, data: {} } })).toBe(false)
+  })
+
+  it('o primeiro volta a pending sem gastar tentativa e o segundo nem é enviado', async () => {
+    mockPost.mockRejectedValue(blocked)
+    const first = useSyncStore.getState().enqueue('order', { ...validPayload, customerId: 'first' })
+    const second = useSyncStore
+      .getState()
+      .enqueue('order', { ...validPayload, customerId: 'second' })
+
+    await processSyncQueue()
+
+    expect(mockPost).toHaveBeenCalledTimes(1)
+    const queue = useSyncStore.getState().queue
+    const a = queue.find((i) => i.id === first)
+    const b = queue.find((i) => i.id === second)
+    expect(a).toMatchObject({ status: 'pending', attempts: 0 })
+    expect(a?.lastError).toContain('suspenso')
+    expect(b).toMatchObject({ status: 'pending', attempts: 0, lastError: null })
+    expect(useSyncStore.getState().isSyncing).toBe(false)
+  })
+
+  it('várias rodadas bloqueadas não esgotam o item: ele sai quando o acesso voltar', async () => {
+    mockPost.mockRejectedValue(blocked)
+    const id = useSyncStore.getState().enqueue('order', validPayload)
+    for (let i = 0; i < 8; i++) await processSyncQueue()
+    expect(useSyncStore.getState().queue.find((q) => q.id === id)).toMatchObject({
+      status: 'pending',
+      attempts: 0,
+    })
+
+    mockPost.mockResolvedValueOnce({ data: { id: 'order-1' } })
+    await processSyncQueue()
+    expect(useSyncStore.getState().queue.find((q) => q.id === id)?.status).toBe('synced')
   })
 })

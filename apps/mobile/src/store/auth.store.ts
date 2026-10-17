@@ -22,6 +22,10 @@ export const REFRESH_TOKEN_KEY = 'addere_refresh_token'
 // dependem de permissão (transportadora, condição de pagamento) travados.
 const PERMISSIONS_KEY = 'addere_permissions'
 
+/** Plano 017: o /auth/me diz se a empresa está suspensa (o /auth/me antigo não tem o campo) */
+const companyBlockedOf = (user: UserPublic | null | undefined) =>
+  user?.company?.access?.blocked === true
+
 function parsePermissions(json: string | null): string[] {
   if (!json) return []
   try {
@@ -37,12 +41,21 @@ interface AuthState {
   accessToken: string | null
   permissions: string[]
   hydrated: boolean
+  /**
+   * Empresa suspensa (plano 017): o AuthGuard leva para /bloqueado. Vem do
+   * /auth/me (também o salvo, que vale offline no boot) ou de um 403
+   * COMPANY_BLOCKED de qualquer chamada. Não é logout: a sessão continua.
+   */
+  companyBlocked: boolean
   setAuth: (user: UserPublic, token: string) => Promise<void>
   clearAuth: () => Promise<void>
   hydrate: () => Promise<void>
   fetchPermissions: (token: string) => Promise<void>
   fetchMe: (token: string) => Promise<void>
   refreshSession: () => Promise<string>
+  markCompanyBlocked: () => void
+  /** Relê o /auth/me (renovando o token antes, se der) e devolve se continua suspensa */
+  recheckCompanyAccess: () => Promise<boolean>
 }
 
 export const useAuthStore = create<AuthState>((set) => ({
@@ -50,13 +63,14 @@ export const useAuthStore = create<AuthState>((set) => ({
   accessToken: null,
   permissions: [],
   hydrated: false,
+  companyBlocked: false,
 
   setAuth: async (user, token) => {
     await Promise.all([
       SecureStore.setItemAsync(TOKEN_KEY, token),
       SecureStore.setItemAsync(USER_KEY, JSON.stringify(user)),
     ])
-    set({ user, accessToken: token })
+    set({ user, accessToken: token, companyBlocked: companyBlockedOf(user) })
     // Extrai companyId do payload JWT para contexto Sentry
     try {
       const payload = JSON.parse(atob(token.split('.')[1])) as { companyId?: string }
@@ -78,7 +92,7 @@ export const useAuthStore = create<AuthState>((set) => ({
       SecureStore.deleteItemAsync(PERMISSIONS_KEY),
       // REFRESH_TOKEN_KEY é mantido para permitir re-autenticação biométrica após logout
     ])
-    set({ user: null, accessToken: null, permissions: [] })
+    set({ user: null, accessToken: null, permissions: [], companyBlocked: false })
     clearSentryUser()
   },
 
@@ -110,7 +124,7 @@ export const useAuthStore = create<AuthState>((set) => ({
       })
       if (!epochIsCurrent(epoch)) return
       await SecureStore.setItemAsync(USER_KEY, JSON.stringify(data))
-      set({ user: data })
+      set({ user: data, companyBlocked: companyBlockedOf(data) })
     } catch {
       // Offline: mantém o usuário persistido (flag da última sessão)
     }
@@ -168,9 +182,19 @@ export const useAuthStore = create<AuthState>((set) => ({
     // O guard de biometria roda em paralelo e pode limpar a sessão no meio da
     // hidratação: `hydrated` sempre avança (senão o app trava no splash), mas
     // usuário e token só voltam se a época ainda for a mesma.
+    // Com o usuário salvo vem o bloqueio da empresa (plano 017): vale offline no boot
     const applySession = (
       partial: Partial<Pick<AuthState, 'user' | 'accessToken' | 'permissions'>>
-    ) => set(epochIsCurrent(epoch) ? { ...partial, hydrated: true } : { hydrated: true })
+    ) =>
+      set(
+        epochIsCurrent(epoch)
+          ? {
+              ...partial,
+              ...('user' in partial ? { companyBlocked: companyBlockedOf(partial.user) } : {}),
+              hydrated: true,
+            }
+          : { hydrated: true }
+      )
 
     const dropSession = async () => {
       await Promise.all([
@@ -222,6 +246,22 @@ export const useAuthStore = create<AuthState>((set) => ({
     } else {
       applySession({ accessToken: null, user })
     }
+  },
+
+  // 403 COMPANY_BLOCKED de qualquer chamada (lib/api.ts). Sem sessão, ignora:
+  // é a resposta atrasada de quem já saiu
+  markCompanyBlocked: () => set((s) => (s.user ? { companyBlocked: true } : {})),
+
+  recheckCompanyAccess: async (): Promise<boolean> => {
+    let token = useAuthStore.getState().accessToken
+    try {
+      // O access token pode ter vencido enquanto o app estava na tela de bloqueio
+      token = await useAuthStore.getState().refreshSession()
+    } catch {
+      // Sem rede ou refresh recusado: segue com o token atual
+    }
+    if (token) await useAuthStore.getState().fetchMe(token)
+    return useAuthStore.getState().companyBlocked
   },
 }))
 

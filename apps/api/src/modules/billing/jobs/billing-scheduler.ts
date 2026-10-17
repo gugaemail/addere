@@ -3,6 +3,12 @@ import { captureError } from '../../../lib/sentry'
 import { isTransientDbError } from '../../intelligence/jobs/scheduler'
 import { closeEndedContracts } from '../contract-cancel.service'
 import { generateInvoices, type GenerateSummary } from '../invoices.service'
+import {
+  reconcileOverdueBlocks,
+  sendSuspensionNotices,
+  sendSuspensionReminders,
+  type ReconcileSummary,
+} from '../overdue-block.service'
 import { sendDueReminders, sendPendingDocumentReminders, type ReminderSummary } from './reminders'
 
 // Agendador do faturamento (plano 016), no molde do da Inteligência
@@ -20,6 +26,10 @@ export interface BillingTickSummary {
   contractsEnded: number | null
   dueReminders: ReminderSummary | null
   documentReminders: ReminderSummary | null
+  // Plano 017
+  suspensionNotices: ReminderSummary | null
+  suspensionReminders: ReminderSummary | null
+  overdueBlocks: ReconcileSummary | null
   errors: string[] // nomes dos passos que falharam
 }
 
@@ -27,12 +37,16 @@ type StepName = Exclude<keyof BillingTickSummary, 'errors'>
 
 // Ordem: gerar antes de encerrar. O gerador aceita o contrato ACTIVE com endsAt no mês e o já
 // CANCELLED com endsAt no mês, então a ordem não muda o resultado — mas fica fixa e testada.
-// Plano 017: o aviso de suspensão, o bloqueio e o desbloqueio entram depois destes passos.
+// Plano 017: o aviso de suspensão, o lembrete e o bloqueio/desbloqueio vêm depois dos do 016,
+// nessa ordem — o aviso gravado neste tick só sustenta bloqueio 10 dias depois.
 const STEPS = [
   ['invoices', generateInvoices],
   ['contractsEnded', closeEndedContracts],
   ['dueReminders', sendDueReminders],
   ['documentReminders', sendPendingDocumentReminders],
+  ['suspensionNotices', sendSuspensionNotices],
+  ['suspensionReminders', sendSuspensionReminders],
+  ['overdueBlocks', reconcileOverdueBlocks],
 ] as const satisfies ReadonlyArray<readonly [StepName, (now: Date) => Promise<unknown>]>
 
 export const BILLING_STEP_NAMES: readonly StepName[] = STEPS.map(([name]) => name)
@@ -44,6 +58,9 @@ export async function tickBillingScheduler(now: Date = new Date()): Promise<Bill
     contractsEnded: null,
     dueReminders: null,
     documentReminders: null,
+    suspensionNotices: null,
+    suspensionReminders: null,
+    overdueBlocks: null,
     errors: [],
   }
   for (const [name, run] of STEPS) {

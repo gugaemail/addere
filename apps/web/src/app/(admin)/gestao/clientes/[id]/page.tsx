@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/Button'
 import { StatCard } from '@/components/ui/StatCard'
 import { Tabs } from '@/components/ui/Tabs'
 import { getApiErrorMessage } from '@/lib/api'
+import { DEACTIVATE_COMPANY_WARNING } from '@/lib/company-block'
 import { formatCurrency } from '@/lib/utils'
 import {
   CLIENT_STATUS_BADGE,
@@ -23,6 +24,8 @@ import { useToggleCompanyActive } from '@/hooks/useCompanies'
 import type { InvoiceFilters } from '@/hooks/useInvoices'
 import { InvoicesTable } from '@/components/billing/InvoicesTable'
 import { ManualInvoiceModal } from '@/components/billing/InvoiceModals'
+import { ConfirmModal } from '@/app/(admin)/empresas/[id]/ConfirmModal'
+import { ClientAccessCard } from './ClientAccessCard'
 import { CadastroTab } from './tabs/CadastroTab'
 import { ContratoTab } from './tabs/ContratoTab'
 import { HistoricoTab } from './tabs/HistoricoTab'
@@ -98,6 +101,7 @@ export default function ClientePage() {
   const router = useRouter()
   const queryClient = useQueryClient()
   const [tab, setTab] = useState<Tab>('cadastro')
+  const [confirmDeactivate, setConfirmDeactivate] = useState(false)
 
   const { data: client, isLoading, error, refetch } = useClient(id)
   const toggleActive = useToggleCompanyActive()
@@ -179,15 +183,20 @@ export default function ClientePage() {
           >
             Integração
           </Button>
+          {/* Plano 017: desativar corta o acesso de todos, então pede
+              confirmação; ativar continua direto */}
           <Button
             variant={company.active ? 'danger-outline' : 'success-outline'}
-            onClick={handleToggleActive}
+            onClick={company.active ? () => setConfirmDeactivate(true) : handleToggleActive}
             loading={toggleActive.isPending}
           >
             {company.active ? 'Desativar empresa' : 'Ativar empresa'}
           </Button>
         </div>
       </div>
+
+      {/* Plano 017: o acesso da empresa e o "Liberar até…", em todas as abas */}
+      <ClientAccessCard companyId={company.id} block={client.block} />
 
       {/* Stats */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
@@ -213,6 +222,16 @@ export default function ClientePage() {
       {tab === 'faturas' && <FaturasTab companyId={company.id} />}
       {tab === 'licencas' && <LicencasTab companyId={company.id} />}
       {tab === 'historico' && <HistoricoTab companyId={company.id} />}
+
+      {confirmDeactivate && (
+        <ConfirmModal
+          title="Desativar empresa"
+          description={DEACTIVATE_COMPANY_WARNING}
+          confirmLabel="Desativar"
+          onConfirm={handleToggleActive}
+          onClose={() => setConfirmDeactivate(false)}
+        />
+      )}
     </div>
   )
 }

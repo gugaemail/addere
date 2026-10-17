@@ -1,5 +1,12 @@
 import axios from 'axios'
+import { isCompanyBlockedError } from '@addere/types'
 import { env } from '../config/env'
+
+// ─── Empresa bloqueada (plano 017) ───────────────────────────────────────────
+// O 403 COMPANY_BLOCKED não é sessão inválida: o interceptor avisa o
+// AuthContext por este evento, e ele relê o /auth/me e troca a tela.
+export const COMPANY_BLOCKED_EVENT = 'addere:company-blocked'
+export { isCompanyBlockedError }
 
 export const api = axios.create({
   baseURL: env.apiUrl,
@@ -78,6 +85,13 @@ api.interceptors.response.use(
   (response) => response,
   async (error) => {
     const original = error.config
+
+    // 403 COMPANY_BLOCKED (plano 017): não é sessão inválida — nada de refresh nem
+    // logout. Avisa o AuthContext, que recarrega o /auth/me e troca a tela.
+    if (isCompanyBlockedError(error) && typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent(COMPANY_BLOCKED_EVENT))
+      return Promise.reject(error)
+    }
 
     if (error.response?.status !== 401 || original._retry) {
       return Promise.reject(error)

@@ -664,3 +664,99 @@ describe('POST /admin/billing/jobs/run', () => {
     expect(tickMock).toHaveBeenCalledTimes(1)
   })
 })
+
+// ─── Plano 017: a baixa e o cancelamento liberam na mesma transação ─────────
+
+describe('baixa e cancelamento liberam o bloqueio por atraso (plano 017)', () => {
+  const INV_2 = 'e5e5e5e5-e5e5-4e5e-8e5e-e5e5e5e5e5e5'
+  const pay = () =>
+    call({
+      method: 'POST',
+      url: `/admin/billing/invoices/${INV}/pay`,
+      payload: { paidAt: shiftDay(0), amount: '1990.00', method: 'PIX' },
+    })
+  const blockedCompany = (reason: 'OVERDUE' | 'MANUAL' | null = 'OVERDUE') => ({
+    accessBlockedAt: new Date('2026-10-25T12:00:00Z'),
+    accessBlockReason: reason,
+    blockExemptUntil: null,
+  })
+
+  // Conta o que aconteceu DENTRO da chamada de $transaction da baixa
+  let insideTx: { paid: number; companyWrites: number } | null
+  beforeEach(() => {
+    insideTx = null
+    prismaMock.invoice.findUnique.mockResolvedValue(invoiceRow())
+    prismaMock.billingSettings.findUnique.mockResolvedValue({ autoBlockEnabled: true })
+    prismaMock.company.updateMany.mockResolvedValue({ count: 1 })
+    prismaMock.$transaction.mockImplementationOnce(async (fn: (tx: unknown) => unknown) => {
+      const result = await fn(prismaMock)
+      insideTx = {
+        paid: prismaMock.invoice.update.mock.calls.length,
+        companyWrites: prismaMock.company.updateMany.mock.calls.length,
+      }
+      return result
+    })
+  })
+
+  it('baixa de empresa OVERDUE: libera dentro da mesma $transaction que marca PAID', async () => {
+    prismaMock.company.findUnique.mockResolvedValue(blockedCompany())
+    // Depois do PAID, a transação não acha mais fatura em aberto vencida
+    prismaMock.invoice.findMany.mockResolvedValue([])
+    const res = await pay()
+    expect(res.statusCode).toBe(200)
+    expect(prismaMock.$transaction).toHaveBeenCalledTimes(1)
+    expect(insideTx).toEqual({ paid: 1, companyWrites: 1 })
+    expect(prismaMock.company.updateMany.mock.calls[0][0]).toEqual({
+      where: {
+        id: COMPANY_A,
+        accessBlockedAt: { not: null },
+        OR: [{ accessBlockReason: 'OVERDUE' }, { accessBlockReason: null }],
+      },
+      data: { accessBlockedAt: null, accessBlockReason: null },
+    })
+    const unblocked = prismaMock.billingEvent.create.mock.calls
+      .map((c: Array<{ data: { type: string } }>) => c[0].data)
+      .find((d: { type: string }) => d.type === 'ACCESS_UNBLOCKED')
+    expect(unblocked).toEqual({
+      type: 'ACCESS_UNBLOCKED',
+      companyId: COMPANY_A,
+      actorId: 'super-1',
+      payload: { cause: 'PAYMENT', previousReason: 'OVERDUE' },
+    })
+  })
+
+  it('com outra fatura ainda qualificando, continua bloqueada', async () => {
+    prismaMock.company.findUnique.mockResolvedValue(blockedCompany())
+    prismaMock.invoice.findMany.mockResolvedValue([{ id: INV_2, status: 'OPEN' }])
+    // Aviso da outra fatura enviado há 20 dias, com a data prevista há 5
+    prismaMock.billingEvent.findMany.mockResolvedValue([
+      {
+        dedupeKey: `invoice:${INV_2}:suspension-notice`,
+        createdAt: new Date(Date.now() - 20 * 86_400_000),
+        payload: { plannedBlockYmd: addDaysYmd(dateToYmdUtc(today()), -5) },
+      },
+    ])
+    const res = await pay()
+    expect(res.statusCode).toBe(200)
+    expect(insideTx).toEqual({ paid: 1, companyWrites: 0 })
+    expect(prismaMock.company.updateMany).not.toHaveBeenCalled()
+  })
+
+  it('MANUAL gravado no mock (reservado) → continua bloqueada', async () => {
+    prismaMock.company.findUnique.mockResolvedValue(blockedCompany('MANUAL'))
+    const res = await pay()
+    expect(res.statusCode).toBe(200)
+    expect(prismaMock.company.updateMany).not.toHaveBeenCalled()
+  })
+
+  it('cancelar a fatura de empresa OVERDUE libera, com a causa INVOICE_CANCELLED', async () => {
+    prismaMock.company.findUnique.mockResolvedValue(blockedCompany())
+    const res = await call(MUTATIONS[2])
+    expect(res.statusCode).toBe(200)
+    expect(insideTx).toEqual({ paid: 1, companyWrites: 1 })
+    const unblocked = prismaMock.billingEvent.create.mock.calls
+      .map((c: Array<{ data: { type: string; payload: unknown } }>) => c[0].data)
+      .find((d: { type: string }) => d.type === 'ACCESS_UNBLOCKED')
+    expect(unblocked.payload).toEqual({ cause: 'INVOICE_CANCELLED', previousReason: 'OVERDUE' })
+  })
+})

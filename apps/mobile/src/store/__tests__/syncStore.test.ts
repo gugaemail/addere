@@ -153,3 +153,27 @@ describe('discardItem', () => {
     expect(ids).toEqual([keep])
   })
 })
+
+// Plano 017: empresa suspensa não é falha do item
+describe('requeue', () => {
+  it('volta o item a pending com o erro, sem somar tentativa', () => {
+    const id = getStore().enqueue('order', { customerId: 'c1' })
+    getStore().markSyncing(id)
+    getStore().requeue(id, 'Acesso da empresa suspenso. Fale com o administrador.')
+
+    const item = useSyncStore.getState().queue.find((i) => i.id === id)
+    expect(item).toMatchObject({
+      status: 'pending',
+      attempts: 0,
+      lastError: 'Acesso da empresa suspenso. Fale com o administrador.',
+    })
+    expect(selectPendingCount(getStore())).toBe(1)
+  })
+
+  it('não mexe nas tentativas já gastas por outro erro', () => {
+    const id = getStore().enqueue('order', {})
+    getStore().markError(id, 'network error')
+    getStore().requeue(id, 'suspenso')
+    expect(useSyncStore.getState().queue.find((i) => i.id === id)?.attempts).toBe(1)
+  })
+})

@@ -68,6 +68,11 @@ export const BILLING_EVENT_LABELS: Record<BillingEventType, string> = {
   LICENSE_REQUEST_CREATED: 'Licenças adicionais pedidas',
   LICENSE_REQUEST_APPROVED: 'Pedido de licenças aprovado',
   LICENSE_REQUEST_REJECTED: 'Pedido de licenças recusado',
+  // Plano 017
+  SUSPENSION_NOTICE_SENT: 'Aviso de suspensão enviado',
+  SUSPENSION_REMINDER_SENT: 'Lembrete de suspensão enviado',
+  ACCESS_BLOCKED: 'Acesso bloqueado',
+  ACCESS_UNBLOCKED: 'Acesso liberado',
 }
 
 // Rótulo de cada campo que aparece no histórico. Campo sem rótulo aparece cru.

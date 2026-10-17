@@ -6,6 +6,7 @@ import { resolveTenant } from '../../middleware/resolve-tenant'
 import { documentIdParam } from './contract-documents.schema'
 import { acceptDocument, getMyBilling, getMyDocument, listMyDocuments } from './me.service'
 import { listMyInvoices } from './invoices.service'
+import { getOverdueStatus } from './overdue-block.service'
 import { getSeatUsage } from './seats.service'
 import { createLicenseRequestSchema } from './license-requests.schema'
 import { createLicenseRequest } from './license-requests.service'
@@ -21,6 +22,13 @@ const acceptSchema = z.object({
 })
 
 export default async function billingMeRoutes(app: FastifyInstance) {
+  // Tudo em /billing/me continua acessível com a empresa bloqueada (plano 017):
+  // é por aqui que o ADMIN vê a fatura, o contrato e o pedido de licenças. O
+  // onRoute é encapsulado: vale só para as rotas deste plugin.
+  app.addHook('onRoute', (routeOptions) => {
+    routeOptions.config = { ...routeOptions.config, allowBlockedCompany: true }
+  })
+
   const companyAdmin = { preHandler: requireCompanyAdmin() }
   // A guarda garante o companyId do ADMIN
   const companyOf = (request: FastifyRequest) => request.user.companyId as string
@@ -100,5 +108,11 @@ export default async function billingMeRoutes(app: FastifyInstance) {
   // prefixo de propósito: o 017 libera /billing/me/* para empresa bloqueada.
   app.get('/invoices', companyAdmin, async (request: FastifyRequest, reply: FastifyReply) => {
     return reply.send(await listMyInvoices(companyOf(request), new Date()))
+  })
+
+  // Plano 017: a faixa de cobrança do ADMIN — fatura vencida, data prevista da
+  // suspensão e o acesso da empresa. Liberada com a empresa bloqueada (onRoute acima)
+  app.get('/overdue', companyAdmin, async (request: FastifyRequest, reply: FastifyReply) => {
+    return reply.send(await getOverdueStatus(companyOf(request), new Date()))
   })
 }

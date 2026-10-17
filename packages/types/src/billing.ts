@@ -10,6 +10,9 @@
 // formatador é criado na primeira chamada, não no carregamento do módulo,
 // porque o barrel também é carregado pelo app mobile, que não usa nada daqui.
 
+// Só tipo: some na compilação, então não cria ciclo de módulo com o barrel
+import type { CompanyAccess } from './index'
+
 // ─── Enums (os mesmos valores dos enums do Prisma) ──────────────────────────
 
 export const LICENSE_TYPES = ['STANDARD', 'INTELLIGENCE'] as const
@@ -406,6 +409,11 @@ export const BILLING_EVENT_TYPES = [
   'LICENSE_REQUEST_CREATED',
   'LICENSE_REQUEST_APPROVED',
   'LICENSE_REQUEST_REJECTED',
+  // Plano 017: aviso de suspensão, lembrete, bloqueio e liberação
+  'SUSPENSION_NOTICE_SENT',
+  'SUSPENSION_REMINDER_SENT',
+  'ACCESS_BLOCKED',
+  'ACCESS_UNBLOCKED',
 ] as const
 export type BillingEventType = (typeof BILLING_EVENT_TYPES)[number]
 
@@ -574,6 +582,7 @@ export interface ClientDetailDto {
   status: ClientStatus
   usedSeats: number
   seatLimit: number | null // null = sem limite
+  block: ClientBlockState // plano 017: o cartão "Acesso"
 }
 
 export interface BillingEventDto {
@@ -771,3 +780,28 @@ export type MyInvoiceDto = Pick<
   | 'nfNumber'
   | 'items'
 >
+
+// ─── Inadimplência e bloqueio (plano 017) ────────────────────────────────────
+
+/** Estado do bloqueio na ficha do cliente (superadmin). Datas 'YYYY-MM-DD'. */
+export interface ClientBlockState {
+  companyActive: boolean
+  blockedAt: string | null // ISO
+  reason: 'OVERDUE' | 'MANUAL' | null // MANUAL: reservado, nenhum código grava
+  exemptUntil: string | null // só a liberação vigente (até hoje, inclusive)
+  pendingNotice: {
+    invoiceId: string
+    invoiceNumber: number
+    sentAt: string // ISO
+    plannedBlockDate: string
+  } | null
+}
+
+/** GET /billing/me/overdue — a faixa do ADMIN. */
+export interface BillingOverdueStatus {
+  access: CompanyAccess
+  blockedAt: string | null // ISO
+  // competence 'YYYY-MM' e dueDate 'YYYY-MM-DD', como nas faturas do 016
+  invoice: { id: string; number: number; competence: string; dueDate: string } | null
+  plannedBlockDate: string | null // 'YYYY-MM-DD'
+}

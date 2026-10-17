@@ -7,6 +7,7 @@ import {
   LICENSE_TYPES,
   isValidCpf,
 } from '@addere/types'
+import { isoDay } from './invoices.schema'
 
 // Gestão Addere (plano 013). Todo texto passa por trim, e string vazia vira
 // null: o painel manda o formulário inteiro, e campo apagado é campo vazio.
@@ -60,13 +61,15 @@ export const packageActiveSchema = z.object({ active: z.boolean() })
 export type PackageCreateData = z.infer<typeof packageCreateSchema>
 export type PackageUpdateData = z.infer<typeof packageUpdateSchema>
 
-// O bloqueio automático NÃO é declarado aqui (decisão padrão 4): o zod remove a
-// chave do corpo, e o valor gravado continua false. Só o plano 017 o liga,
-// depois do OTA do app.
+// O bloqueio automático (plano 017) é opcional no corpo: sem a chave, o valor
+// gravado fica como está. Nasce false (decisão padrão 4) e só é ligado pelo
+// superadmin, em Pacotes e regras, depois que o OTA do app estiver no ar.
+// Desligar é o rollback: libera os bloqueios por atraso no tick seguinte.
 export const settingsSchema = z.object({
   overdueBlockDays: z.number().int().min(1).max(90),
   dueReminderDays: z.number().int().min(0).max(15),
   notifyEmail: optionalEmail,
+  autoBlockEnabled: z.boolean().optional(),
 })
 
 export type SettingsData = z.infer<typeof settingsSchema>
@@ -171,3 +174,7 @@ export type ContractDraftData = z.infer<typeof contractDraftSchema>
 
 export const companyIdParam = z.object({ companyId: z.string().uuid() })
 export const packageIdParam = z.object({ id: z.string().uuid() })
+
+// "Liberar até…" (plano 017): data opcional 'YYYY-MM-DD'. A faixa (de hoje a
+// hoje + 90, em São Paulo) é conferida no serviço, que sabe que dia é hoje.
+export const unblockClientSchema = z.object({ until: isoDay.nullish() })

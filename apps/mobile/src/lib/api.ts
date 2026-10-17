@@ -1,4 +1,5 @@
 import axios from 'axios'
+import { isCompanyBlockedError } from '@addere/types'
 import { env } from '../config/env'
 import { useAuthStore } from '../store/auth.store'
 
@@ -38,6 +39,13 @@ let refreshQueue: QueueItem[] = []
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
+    // 403 COMPANY_BLOCKED (plano 017): a empresa está suspensa. Não é sessão
+    // inválida — nada de refresh nem logout; o AuthGuard leva para /bloqueado.
+    if (isCompanyBlockedError(error)) {
+      useAuthStore.getState().markCompanyBlocked()
+      return Promise.reject(error)
+    }
+
     const originalRequest = error.config
 
     const url: string = originalRequest.url ?? ''

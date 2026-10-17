@@ -12,8 +12,10 @@ import {
   type CompanyContractDto,
   type ContractTermsDto,
 } from '@addere/types'
+import { resolveCompanyAccess } from '../../lib/company-access'
 import { conflict, notFound } from '../../lib/errors'
 import { changedFields, isUniqueViolation, recordBillingEvent } from './billing-events'
+import { clientBlockStateFrom } from './overdue-block.service'
 import type { ClientData, ClientProfileData } from './billing.schema'
 import { moneyToString } from './catalog.service'
 import { dateToIsoDay } from './competence'
@@ -30,6 +32,13 @@ const COMPANY_SELECT = {
   idProtheus: true,
   active: true,
   createdAt: true,
+} satisfies Prisma.CompanySelect
+
+// Plano 017: os campos do acesso, para a situação do cliente sair com o mesmo
+// motivo do authenticate. Não vão na resposta como estão.
+const ACCESS_SELECT = {
+  accessBlockedAt: true,
+  accessBlockReason: true,
 } satisfies Prisma.CompanySelect
 
 export const COMPANY_KEYS = ['name', 'cnpj', 'idProtheus'] as const
@@ -184,6 +193,7 @@ export async function listClients(now: Date): Promise<ClientListItemDto[]> {
     prisma.company.findMany({
       select: {
         ...COMPANY_SELECT,
+        ...ACCESS_SELECT,
         // Do cadastro, só os nomes: nenhum dado pessoal sai na lista
         clientProfile: { select: { legalName: true, tradeName: true } },
         contract: {
@@ -216,6 +226,8 @@ export async function listClients(now: Date): Promise<ClientListItemDto[]> {
 
   return companies.map((c) => {
     const terms = c.contract?.terms ?? []
+    // Plano 017: o mesmo motivo de acesso que o authenticate usa
+    const accessBlockReason = resolveCompanyAccess(c).reason
     const current = resolveCurrentTerms(terms, now)
     const proposed =
       terms.filter((t) => t.status === 'PROPOSED').sort((a, b) => b.version - a.version)[0] ?? null
@@ -228,7 +240,11 @@ export async function listClients(now: Date): Promise<ClientListItemDto[]> {
       createdAt: c.createdAt.toISOString(),
       legalName: c.clientProfile?.legalName ?? null,
       tradeName: c.clientProfile?.tradeName ?? null,
-      status: deriveClientStatus({ contract: contractStatusInput(c.contract), now }),
+      status: deriveClientStatus({
+        contract: contractStatusInput(c.contract),
+        now,
+        accessBlockReason,
+      }),
       contractStatus: c.contract?.status ?? null,
       current: current
         ? {
@@ -253,6 +269,8 @@ export async function getClient(companyId: string, now: Date): Promise<ClientDet
     where: { id: companyId },
     select: {
       ...COMPANY_SELECT,
+      ...ACCESS_SELECT,
+      blockExemptUntil: true,
       clientProfile: true,
       contract: { include: CONTRACT_WITH_TERMS },
     },
@@ -263,6 +281,17 @@ export async function getClient(companyId: string, now: Date): Promise<ClientDet
     where: { companyId, role: 'SALESPERSON', active: true },
   })
   const current = resolveCurrentTerms(company.contract?.terms ?? [], now)
+  // Plano 017: o cartão "Acesso", da mesma linha da empresa (sem reler)
+  const block = await clientBlockStateFrom(
+    companyId,
+    {
+      active: company.active,
+      accessBlockedAt: company.accessBlockedAt ?? null,
+      accessBlockReason: company.accessBlockReason ?? null,
+      blockExemptUntil: company.blockExemptUntil ?? null,
+    },
+    now
+  )
 
   return {
     company: {
@@ -275,9 +304,14 @@ export async function getClient(companyId: string, now: Date): Promise<ClientDet
     },
     profile: company.clientProfile ? toProfileDto(company.clientProfile) : null,
     contract: company.contract ? toContractDto(company.contract) : null,
-    status: deriveClientStatus({ contract: contractStatusInput(company.contract), now }),
+    status: deriveClientStatus({
+      contract: contractStatusInput(company.contract),
+      now,
+      accessBlockReason: resolveCompanyAccess(company).reason,
+    }),
     usedSeats,
     seatLimit: current ? current.includedSeats + current.extraSeats : null,
+    block,
   }
 }
 

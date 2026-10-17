@@ -53,6 +53,24 @@ export function computeDueJobs(input: DueInput): IntelJob[] {
   return due
 }
 
+/**
+ * Empresa bloqueada (plano 017, decisão 7): sem NIGHTLY nem REFRESH — sem custo
+ * de IA. O PURGE continua uma vez por dia, porque o expurgo LGPD (GPS em 90
+ * dias) mora dentro do NIGHTLY. Ao desbloquear, o NIGHTLY está vencido desde o
+ * último dia em que rodou: o catch-up sai sozinho.
+ */
+export function selectJobsForTick(due: IntelJob[], blocked: boolean): IntelJob[] {
+  if (!blocked) return due
+  return due.includes('NIGHTLY') ? ['PURGE'] : []
+}
+
+/** O mais recente dos dois instantes (null = nunca rodou). */
+function latest(a: Date | null, b: Date | null): Date | null {
+  if (!a) return b
+  if (!b) return a
+  return a > b ? a : b
+}
+
 // ─── Ticker ───
 
 async function lastRunStartedAt(companyId: string, job: IntelJob): Promise<Date | null> {
@@ -90,7 +108,8 @@ export function resetDbFailureStreak(): void {
 function listEnabledCompanies() {
   return prisma.company.findMany({
     where: { active: true, intelligenceEnabled: true },
-    select: { id: true, intelligenceConfig: true },
+    // accessBlockedAt (plano 017): empresa bloqueada só roda o PURGE
+    select: { id: true, intelligenceConfig: true, accessBlockedAt: true },
   })
 }
 
@@ -118,10 +137,15 @@ export async function tickIntelScheduler(now: Date = new Date()): Promise<void> 
   for (const company of companies) {
     try {
       const config = mergeIntelligenceConfig(company.intelligenceConfig)
-      const [lastNightlyAt, lastRefreshAt] = await Promise.all([
+      const blocked = Boolean(company.accessBlockedAt)
+      const [lastNightlyRunAt, lastRefreshAt, lastPurgeAt] = await Promise.all([
         lastRunStartedAt(company.id, 'NIGHTLY'),
         lastRunStartedAt(company.id, 'REFRESH'),
+        blocked ? lastRunStartedAt(company.id, 'PURGE') : Promise.resolve(null),
       ])
+      // Bloqueada: o PURGE de hoje conta como o noturno do dia, senão o NIGHTLY
+      // ficaria "vencido" o dia inteiro e o PURGE sairia a cada minuto
+      const lastNightlyAt = blocked ? latest(lastNightlyRunAt, lastPurgeAt) : lastNightlyRunAt
       const due = computeDueJobs({
         now,
         syncHour: config.syncHour,
@@ -130,7 +154,7 @@ export async function tickIntelScheduler(now: Date = new Date()): Promise<void> 
         lastRefreshAt,
       })
       // Noturno tem prioridade; o lock em IntelJobRun impede duplicidade
-      for (const job of due) {
+      for (const job of selectJobsForTick(due, blocked)) {
         await startJobRun(company.id, job)
       }
     } catch (err) {
