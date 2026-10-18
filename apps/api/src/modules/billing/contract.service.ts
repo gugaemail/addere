@@ -5,6 +5,7 @@ import { changedFields, recordBillingEvent } from './billing-events'
 import type { ContractDraftData } from './billing.schema'
 import { CONTRACT_WITH_TERMS, toContractDto } from './clients.service'
 import { CANCEL_REASON_DRAFT_CHANGED, cancelSentDocuments } from './contract-documents.service'
+import { lockContractRow } from './contract-lock'
 
 // Contrato em rascunho (plano 013). Antes do aceite nada começa: sem limite,
 // sem cobrança e sem mudança na Inteligência. Este arquivo NUNCA lê nem escreve
@@ -22,12 +23,20 @@ const TERMS_KEYS = [
   'reason',
 ] as const
 
+const NOT_DRAFT_MESSAGE = 'Este contrato já saiu do rascunho'
+
 /**
  * Cria ou altera o rascunho do contrato da empresa. DRAFT é editável; em
  * PENDING_ACCEPTANCE, salvar cancela o documento enviado e volta o contrato a
  * DRAFT, para o texto aceito ser sempre o dos termos gravados (plano 014,
  * decisão 11). ACTIVE e CANCELLED continuam recusados: depois do aceite,
  * mudança é por aditivo.
+ *
+ * Começa pela trava da linha do contrato (contract-lock.ts), a mesma do
+ * aceite: um aceite que confirma no meio da edição já aparece na releitura
+ * (ACTIVE → 409 CONTRACT_NOT_DRAFT), e uma edição que confirma primeiro deixa o
+ * documento CANCELLED para o aceite (409 DOCUMENT_NOT_PENDING). Os termos só
+ * mudam com status PROPOSED no where: nunca os que já valem.
  *
  * Dois SUPERADMIN criando o mesmo contrato ao mesmo tempo esbarram no
  * companyId @unique (P2002 → 409 pelo handler global): quem perdeu recarrega.
@@ -38,6 +47,9 @@ export async function saveContractDraft(
   actorId: string
 ): Promise<CompanyContractDto> {
   return prisma.$transaction(async (tx) => {
+    // 1. Trava: a primeira escrita. Sem contrato ainda, não há linha a prender
+    await lockContractRow(tx, companyId)
+
     const company = await tx.company.findUnique({ where: { id: companyId }, select: { id: true } })
     if (!company) throw notFound('Cliente não encontrado')
 
@@ -72,6 +84,7 @@ export async function saveContractDraft(
       reason: input.reason,
     }
 
+    // 2. Estado relido depois da trava: é por ele que se decide
     const existing = await tx.companyContract.findUnique({
       where: { companyId },
       include: { terms: { where: { status: 'PROPOSED' }, orderBy: { version: 'desc' } } },
@@ -110,13 +123,19 @@ export async function saveContractDraft(
           data: { status: 'DRAFT' },
         })
       } else if (existing.status !== 'DRAFT') {
-        throw conflict('Este contrato já saiu do rascunho', 'CONTRACT_NOT_DRAFT')
+        throw conflict(NOT_DRAFT_MESSAGE, 'CONTRACT_NOT_DRAFT')
       }
       created = false
 
+      // 3. Escritas defensivas: o status vai no where e o count é conferido.
+      // Com a trava não deveria dar 0; se der, é 409, nunca 200
       const contractFields = changedFields(existing, contractData, CONTRACT_KEYS)
       if (contractFields.length > 0) {
-        await tx.companyContract.update({ where: { id: existing.id }, data: contractData })
+        const { count } = await tx.companyContract.updateMany({
+          where: { id: existing.id, status: 'DRAFT' },
+          data: contractData,
+        })
+        if (count === 0) throw conflict(NOT_DRAFT_MESSAGE, 'CONTRACT_NOT_DRAFT')
       }
 
       // O PROPOSED do rascunho é editado no lugar, sem versão nova
@@ -126,7 +145,12 @@ export async function saveContractDraft(
         termsVersion = proposed.version
         termsFields = changedFields(proposed, termsData, TERMS_KEYS, TERMS_MONEY_KEYS)
         if (termsFields.length > 0) {
-          await tx.contractTerms.update({ where: { id: proposed.id }, data: termsData })
+          // Termos que já valem (EFFECTIVE) nunca são reescritos
+          const { count } = await tx.contractTerms.updateMany({
+            where: { id: proposed.id, status: 'PROPOSED' },
+            data: termsData,
+          })
+          if (count === 0) throw conflict(NOT_DRAFT_MESSAGE, 'CONTRACT_NOT_DRAFT')
         }
       } else {
         // Rascunho sem PROPOSED (as propostas foram descartadas): próxima versão.

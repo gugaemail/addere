@@ -14,10 +14,17 @@ vi.mock('../billing-mailer', async (importOriginal) => {
   return { ...actual, sendBillingEmail: vi.fn(async () => true) }
 })
 
-import { prismaMock, resetPrismaMock } from '../../../test-utils/prisma-mock'
+import { prismaCallLog, prismaMock, resetPrismaMock } from '../../../test-utils/prisma-mock'
 import { buildApp } from '../../../app'
 import { sendBillingEmail } from '../billing-mailer'
 import { todayYmdSaoPaulo } from '../amendment-rules'
+import {
+  cancelDocument,
+  resendDocumentEmail,
+  saveAmendment,
+  setDesignatedAdmin,
+  withdrawAmendment,
+} from '../contract-documents.service'
 
 const COMPANY_A = '11111111-1111-4111-8111-111111111111'
 const COMPANY_B = '22222222-2222-4222-8222-222222222222'
@@ -220,9 +227,21 @@ function mockSendState(opts: {
   prismaMock.companyContract.updateMany.mockResolvedValue({ count: 1 })
 }
 
+/** A trava da linha do contrato (contract-lock.ts) */
+const LOCK = {
+  call: 'companyContract.updateMany',
+  args: [{ where: { companyId: COMPANY_A }, data: { seatGuardVersion: { increment: 1 } } }],
+}
+
+/** As escritas no status do contrato, sem a trava */
+const contractStatusWrites = () =>
+  prismaMock.companyContract.updateMany.mock.calls
+    .map((c: [{ data: Record<string, unknown> }]) => c[0])
+    .filter((a: { data: Record<string, unknown> }) => a.data.seatGuardVersion === undefined)
+
 function expectNoDocumentWrite() {
-  expect(prismaMock.contractDocument.create).not.toHaveBeenCalled()
-  expect(prismaMock.companyContract.updateMany).not.toHaveBeenCalled()
+  // Só a trava: nenhum documento criado e o contrato como estava
+  expect(prismaCallLog({ writesOnly: true })).toEqual([LOCK])
   expect(mailer).not.toHaveBeenCalled()
 }
 
@@ -335,10 +354,7 @@ describe('envio', () => {
     expect(prismaMock.$transaction).toHaveBeenCalledTimes(1)
 
     // A trava da linha do contrato vem antes de tudo
-    expect(prismaMock.companyContract.update).toHaveBeenCalledWith({
-      where: { id: 'contract-1' },
-      data: { seatGuardVersion: { increment: 1 } },
-    })
+    expect(prismaCallLog({ writesOnly: true })[0]).toEqual(LOCK)
     const data = prismaMock.contractDocument.create.mock.calls[0][0].data
     expect(data).toMatchObject({
       kind: 'CONTRACT',
@@ -439,6 +455,7 @@ describe('administrador indicado', () => {
     })
     prismaMock.contractDocument.findMany.mockResolvedValue(sent)
     prismaMock.contractDocument.updateMany.mockResolvedValue({ count: sent.length })
+    prismaMock.companyContract.updateMany.mockResolvedValue({ count: 1 })
   }
 
   it('com o CONTRACT enviado: cancela o documento e o contrato volta a DRAFT', async () => {
@@ -479,7 +496,7 @@ describe('administrador indicado', () => {
     const res = await put(JOAO)
     expect(res.statusCode).toBe(200)
     expect(prismaMock.contractDocument.updateMany).toHaveBeenCalledTimes(1)
-    expect(prismaMock.companyContract.updateMany).not.toHaveBeenCalled()
+    expect(contractStatusWrites()).toEqual([])
   })
 
   it('o mesmo indicado não cancela nada nem grava evento', async () => {
@@ -502,8 +519,11 @@ describe('administrador indicado', () => {
   })
 
   it('sem contrato → 404; contrato cancelado → 409', async () => {
+    // Sem contrato a trava não acha linha (count 0) e nada é lido
     prismaMock.companyContract.findUnique.mockResolvedValue(null)
     expect((await put(JOAO)).statusCode).toBe(404)
+    expect(prismaMock.companyContract.findUnique).not.toHaveBeenCalled()
+    prismaMock.companyContract.updateMany.mockResolvedValue({ count: 1 })
     prismaMock.companyContract.findUnique.mockResolvedValue({
       id: 'contract-1',
       status: 'CANCELLED',
@@ -610,6 +630,7 @@ describe('reenvio e cancelamento', () => {
     prismaMock.contractDocument.findUnique.mockResolvedValue({
       status: 'SENT',
       contractId: 'contract-1',
+      companyId: COMPANY_A,
     })
     prismaMock.contractDocument.findMany.mockResolvedValue([
       { id: DOC, kind: 'CONTRACT', companyId: COMPANY_A },
@@ -751,13 +772,18 @@ describe('aditivo', () => {
       { id: DOC, kind: 'AMENDMENT', companyId: COMPANY_A },
     ])
     prismaMock.contractDocument.updateMany.mockResolvedValue({ count: 1 })
+    prismaMock.contractTerms.updateMany.mockResolvedValue({ count: 1 })
     const res = await put(body({ extraSeats: 2 }))
     expect(res.statusCode).toBe(200)
-    expect(prismaMock.contractTerms.update.mock.calls[0][0].where).toEqual({ id: 'terms-2' })
+    // Só termos ainda PROPOSED: os aceitos nunca são reescritos
+    expect(prismaMock.contractTerms.updateMany.mock.calls[0][0].where).toEqual({
+      id: 'terms-2',
+      status: 'PROPOSED',
+    })
     expect(prismaMock.contractDocument.updateMany.mock.calls[0][0].data.cancelReason).toBe(
       'Aditivo alterado depois do envio'
     )
-    expect(prismaMock.companyContract.updateMany).not.toHaveBeenCalled()
+    expect(contractStatusWrites()).toEqual([])
     expect(
       prismaMock.billingEvent.create.mock.calls.map(
         (c: [{ data: { type: string } }]) => c[0].data.type
@@ -779,7 +805,7 @@ describe('aditivo', () => {
     const res = await put(body())
     expect(res.statusCode).toBe(200)
     expect(res.json()).toEqual({ termsVersion: 2, changed: false })
-    expect(prismaMock.contractTerms.update).not.toHaveBeenCalled()
+    expect(prismaMock.contractTerms.updateMany).not.toHaveBeenCalled()
     expect(prismaMock.contractDocument.updateMany).not.toHaveBeenCalled()
   })
 
@@ -808,6 +834,91 @@ describe('aditivo', () => {
     const res = await put(body())
     expect(res.statusCode).toBe(409)
     expect(res.json().code).toBe('AMENDMENT_NOT_YET_EFFECTIVE')
+  })
+
+  it('a trava é a primeira escrita e o contrato é lido depois dela', async () => {
+    mockActive([effective])
+    const res = await put(body({ licenseType: 'STANDARD', extraSeats: 1 }))
+    expect(res.statusCode).toBe(200)
+    expect(prismaCallLog({ writesOnly: true })[0]).toEqual(LOCK)
+    const calls = prismaCallLog()
+    const lockAt = calls.findIndex((c) => c.call === 'companyContract.updateMany')
+    const readAt = calls.findIndex((c) => c.call === 'companyContract.findUnique')
+    expect(lockAt).toBeGreaterThanOrEqual(0)
+    expect(readAt).toBeGreaterThan(lockAt)
+  })
+
+  it('termos que viraram EFFECTIVE entre a leitura e a escrita → 409 TERMS_NOT_EDITABLE', async () => {
+    // A leitura ainda viu a v2 PROPOSED; o UPDATE com PROPOSED no where não acha
+    // a linha (o aceite a fez EFFECTIVE): count 0
+    const proposed = termsRow({
+      id: 'terms-2',
+      version: 2,
+      origin: 'AMENDMENT',
+      packageId: PKG_P10,
+      licenseType: 'INTELLIGENCE',
+      reason: 'Troca para Com Inteligência',
+    })
+    mockActive([effective, proposed])
+    prismaMock.contractTerms.updateMany.mockResolvedValue({ count: 0 })
+    const res = await put(body({ extraSeats: 5 }))
+    expect(res.statusCode).toBe(409)
+    expect(res.json().code).toBe('TERMS_NOT_EDITABLE')
+    const types = prismaMock.billingEvent.create.mock.calls.map(
+      (c: [{ data: { type: string } }]) => c[0].data.type
+    )
+    expect(types).not.toContain('AMENDMENT_PROPOSED')
+  })
+
+  it('a tela editava a v2, mas o cliente aceitou: 409 TERMS_NOT_EDITABLE, sem criar a v3', async () => {
+    mockActive([
+      effective,
+      termsRow({
+        id: 'terms-2',
+        version: 2,
+        status: 'EFFECTIVE',
+        origin: 'AMENDMENT',
+        effectiveFrom: new Date(Date.now() - 1000),
+        packageId: PKG_P10,
+      }),
+    ])
+    const res = await put(body({ extraSeats: 5, termsVersion: 2 }))
+    expect(res.statusCode).toBe(409)
+    expect(res.json().code).toBe('TERMS_NOT_EDITABLE')
+    expect(prismaMock.contractTerms.create).not.toHaveBeenCalled()
+    expect(prismaMock.contractTerms.updateMany).not.toHaveBeenCalled()
+    expect(prismaMock.contractDocument.updateMany).not.toHaveBeenCalled()
+  })
+
+  it('a tela abriu um aditivo novo, mas já há proposta no banco → 409 TERMS_NOT_EDITABLE', async () => {
+    const proposed = termsRow({
+      id: 'terms-2',
+      version: 2,
+      origin: 'AMENDMENT',
+      packageId: PKG_P10,
+    })
+    mockActive([effective, proposed])
+    const res = await put(body({ termsVersion: null }))
+    expect(res.statusCode).toBe(409)
+    expect(res.json().code).toBe('TERMS_NOT_EDITABLE')
+    expect(prismaMock.contractTerms.updateMany).not.toHaveBeenCalled()
+  })
+
+  it('a versão da tela é a do banco: edita a v2', async () => {
+    const proposed = termsRow({
+      id: 'terms-2',
+      version: 2,
+      origin: 'AMENDMENT',
+      packageId: PKG_P10,
+      licenseType: 'INTELLIGENCE',
+      reason: 'Troca para Com Inteligência',
+    })
+    mockActive([effective, proposed])
+    prismaMock.contractTerms.updateMany.mockResolvedValue({ count: 1 })
+    const res = await put(body({ extraSeats: 3, termsVersion: 2 }))
+    expect(res.statusCode).toBe(200)
+    expect(res.json()).toEqual({ termsVersion: 2, changed: true })
+    expect(prismaMock.contractTerms.updateMany.mock.calls[0][0].data.extraSeats).toBe(3)
   })
 
   it('motivo é obrigatório → 400', async () => {
@@ -894,6 +1005,141 @@ describe('aditivo', () => {
     expect(data.renderedBody).toContain('Contrato aceito em 01/09/2026. Motivo: Mais licenças')
     expect(data.renderedBody).toContain('- **Depois:** R$ 1.690,00')
     // Aditivo não muda o status do contrato
-    expect(prismaMock.companyContract.updateMany).not.toHaveBeenCalled()
+    expect(contractStatusWrites()).toEqual([])
+  })
+})
+
+// ─── A trava da linha do contrato vem primeiro (corridas com o aceite) ─────────
+
+describe('ordem das travas: a linha do contrato antes de documento e termos', () => {
+  it('descartar o aditivo: a trava é a primeira escrita, antes de ler', async () => {
+    prismaMock.companyContract.findUnique.mockResolvedValue({
+      id: 'contract-1',
+      terms: [{ id: 'terms-2', version: 2 }],
+    })
+    await withdrawAmendment(COMPANY_A, 'super-1')
+    expect(prismaCallLog()[0]).toEqual(LOCK)
+    expect(prismaCallLog({ writesOnly: true }).map((c) => c.call)).toEqual([
+      'companyContract.updateMany',
+      'contractTerms.updateMany',
+      'billingEvent.create',
+    ])
+  })
+
+  it('trocar o indicado: a trava vem antes da leitura do contrato', async () => {
+    prismaMock.companyContract.updateMany.mockResolvedValue({ count: 1 })
+    prismaMock.companyContract.findUnique.mockResolvedValue({
+      id: 'contract-1',
+      status: 'DRAFT',
+      designatedAdminId: MARIA,
+    })
+    await setDesignatedAdmin(COMPANY_A, JOAO, 'super-1')
+    const calls = prismaCallLog()
+    expect(calls[0]).toEqual(LOCK)
+    expect(calls[1].call).toBe('companyContract.findUnique')
+  })
+
+  it('cancelar o envio: trava antes de reler o status e de cancelar', async () => {
+    prismaMock.contractDocument.findUnique.mockResolvedValue({
+      status: 'SENT',
+      contractId: 'contract-1',
+      companyId: COMPANY_A,
+    })
+    prismaMock.contractDocument.findMany.mockResolvedValue([
+      { id: DOC, kind: 'CONTRACT', companyId: COMPANY_A },
+    ])
+    prismaMock.contractDocument.updateMany.mockResolvedValue({ count: 1 })
+    await cancelDocument(DOC, null, 'super-1')
+    // 1. de que empresa é o documento; 2. trava; 3. releitura do status
+    expect(
+      prismaCallLog()
+        .slice(0, 3)
+        .map((c) => c.call)
+    ).toEqual([
+      'contractDocument.findUnique',
+      'companyContract.updateMany',
+      'contractDocument.findUnique',
+    ])
+    expect(prismaCallLog({ writesOnly: true })[0]).toEqual(LOCK)
+  })
+
+  it('cancelar o envio que o cliente aceitou enquanto esperava a trava → 409', async () => {
+    prismaMock.contractDocument.findUnique
+      .mockResolvedValueOnce({ status: 'SENT', contractId: 'contract-1', companyId: COMPANY_A })
+      .mockResolvedValueOnce({ status: 'ACCEPTED', contractId: 'contract-1', companyId: COMPANY_A })
+    await expect(cancelDocument(DOC, null, 'super-1')).rejects.toMatchObject({
+      statusCode: 409,
+      code: 'DOCUMENT_NOT_PENDING',
+    })
+    expect(prismaCallLog({ writesOnly: true })).toEqual([LOCK])
+  })
+
+  it('reenviar: a gravação do lastEmailAt começa pela trava', async () => {
+    prismaMock.contractDocument.findUnique.mockResolvedValue({
+      id: DOC,
+      kind: 'CONTRACT',
+      status: 'SENT',
+      companyId: COMPANY_A,
+      contract: { designatedAdminId: MARIA },
+    })
+    await resendDocumentEmail(DOC, 'super-1')
+    expect(prismaCallLog({ writesOnly: true })).toEqual([
+      LOCK,
+      expect.objectContaining({ call: 'contractDocument.update' }),
+      expect.objectContaining({ call: 'billingEvent.create' }),
+    ])
+  })
+
+  it('aditivo por chamada direta: trava, releitura, documento e só então os termos', async () => {
+    prismaMock.companyContract.findUnique.mockResolvedValue({
+      id: 'contract-1',
+      status: 'ACTIVE',
+      terms: [
+        termsRow({
+          status: 'EFFECTIVE',
+          effectiveFrom: new Date('2026-09-01T12:00:00Z'),
+          packageId: PKG_P10,
+        }),
+        termsRow({ id: 'terms-2', version: 2, origin: 'AMENDMENT', packageId: PKG_P10 }),
+      ],
+    })
+    prismaMock.licensePackage.findUnique.mockResolvedValue({
+      id: PKG_P10,
+      code: 'P10',
+      name: 'Pacote 10',
+      seats: 10,
+      active: true,
+    })
+    prismaMock.contractDocument.findMany.mockResolvedValue([
+      { id: DOC, kind: 'AMENDMENT', companyId: COMPANY_A },
+    ])
+    prismaMock.contractDocument.updateMany.mockResolvedValue({ count: 1 })
+    prismaMock.contractTerms.updateMany.mockResolvedValue({ count: 1 })
+    await saveAmendment(
+      COMPANY_A,
+      {
+        packageId: PKG_P10,
+        licenseType: 'STANDARD',
+        includedSeats: undefined,
+        extraSeats: 4,
+        packagePrice: '1500.00',
+        extraSeatPrice: '95.00',
+        proposedEffectiveFrom: null,
+        reason: 'Mais licenças',
+        requestedByClient: false,
+        carryConditions: false,
+        termsVersion: 2,
+      },
+      'super-1',
+      new Date()
+    )
+    expect(prismaCallLog()[0]).toEqual(LOCK)
+    expect(prismaCallLog({ writesOnly: true }).map((c) => c.call)).toEqual([
+      'companyContract.updateMany',
+      'contractDocument.updateMany',
+      'billingEvent.create', // DOCUMENT_CANCELLED
+      'contractTerms.updateMany',
+      'billingEvent.create', // AMENDMENT_PROPOSED
+    ])
   })
 })

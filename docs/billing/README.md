@@ -155,6 +155,44 @@ Enquanto o 015, o 016 e o 017 não estiverem em produção:
   fiscais e financeiros ficam identificados e bloqueados pelo prazo legal
   (§8.5).
 
+### Edição × aceite: a ordem das travas
+
+Achado do teste de ponta a ponta de 18/10/2026: o aceite e a edição do
+rascunho (ou do aditivo) disparados juntos respondiam 200 os dois, e os termos
+que acabavam de virar EFFECTIVE ficavam com o valor da edição, não com o do
+texto aceito. A fatura sairia por um preço que o cliente não aceitou. Na
+corrida do aditivo, a ordem invertida das travas ainda dava deadlock (500).
+
+A regra, desde então: **toda transação que escreve no contrato, nos termos ou
+nos documentos de uma empresa começa por `lockContractRow`**
+(`apps/api/src/modules/billing/contract-lock.ts`), o `UPDATE` do contador
+`seatGuardVersion` na linha do contrato, e só depois lê o estado e decide.
+
+| Função | Arquivo | Depois da trava |
+|---|---|---|
+| `saveContractDraft` | `contract.service.ts` | relê o status; ACTIVE → 409 `CONTRACT_NOT_DRAFT` |
+| `acceptDocument` | `me.service.ts` | lê o documento; CANCELLED → 409 `DOCUMENT_NOT_PENDING` |
+| `saveAmendment`, `withdrawAmendment` | `contract-documents.service.ts` | relê a proposta; a versão da tela diferente da do banco → 409 `TERMS_NOT_EDITABLE` |
+| `sendDocument`, `setDesignatedAdmin`, `cancelDocument`, `resendDocumentEmail` | `contract-documents.service.ts` | relê contrato e documento |
+| `withSeat` | `seat-guard.ts` | conta as licenças |
+| `createLicenseRequest`, `decideLicenseRequest` | `license-requests.service.ts` | relê contrato e pedido |
+
+O cancelamento do contrato (`contract-cancel.service.ts`) começa por um
+`updateMany` na própria linha do contrato, com o estado no `where`, e conta
+como a mesma trava.
+
+Além da trava, os termos editáveis só mudam com `status: 'PROPOSED'` no
+`where`, e o `count` é conferido: 0 vira 409, nunca 200. O painel manda no
+aditivo a versão que está editando (`termsVersion`); se o cliente aceitou no
+meio, a API recusa em vez de criar outra proposta sem ninguém perceber.
+
+Com a trava, cada corrida termina num de dois jeitos: o aceite passa e a edição
+recebe 409, ou a edição passa, o documento é cancelado e o aceite recebe 409.
+Nenhum teste com mock simula concorrência: mudar o nível de isolamento, ler ou
+escrever antes da trava ou esquecê-la numa mutação nova desfaz a garantia sem
+deixar teste vermelho. A prova é contra Postgres real (os scripts `race1` e
+`race2` do relatório do teste).
+
 ### Retenção
 
 Contrato, documentos enviados e registros de aceite ficam durante a vigência e
@@ -237,7 +275,8 @@ Só entra na trava a escrita que **passa a ocupar** uma licença
 
 **Por que duas escritas ao mesmo tempo não furam o limite.** A trava começa
 com um `UPDATE` do contador `seatGuardVersion` na linha do contrato da
-empresa. Todo `UPDATE` no Postgres prende a linha até o fim da transação: a
+empresa (`lockContractRow`, a mesma do aceite: ver "Edição × aceite: a ordem
+das travas"). Todo `UPDATE` no Postgres prende a linha até o fim da transação: a
 segunda escrita da mesma empresa espera a primeira terminar. No READ COMMITTED
 (o padrão do Postgres e do Neon), a contagem que ela roda depois de liberada é
 um comando novo e já vê o vendedor que a primeira gravou. Com 19 de 20, a

@@ -16,6 +16,7 @@ import { captureError } from '../../lib/sentry'
 import { recordBillingEvent } from './billing-events'
 import { DOCUMENT_INCLUDE, toDocumentDto, toDocumentSummary } from './contract-documents.service'
 import { sendDocumentAcceptedEmail } from './contract-email'
+import { lockContractRow } from './contract-lock'
 import {
   DESIGNATED_ADMIN_SELECT,
   assertDesignatedAdmin,
@@ -194,7 +195,10 @@ export interface AcceptRequest {
 const NOT_PENDING_MESSAGE = 'Este documento já foi aceito ou cancelado.'
 
 /**
- * Aceite pelo administrador indicado, numa transação só. O updateMany filtra
+ * Aceite pelo administrador indicado, numa transação só. Começa pela trava da
+ * linha do contrato (contract-lock.ts), a mesma da edição do rascunho e do
+ * aditivo: o que for lido depois dela é o estado confirmado, e uma edição que
+ * chegou antes já deixou o documento CANCELLED (409). O updateMany filtra
  * SENT: com dois aceites ao mesmo tempo (o indicado em duas abas), o segundo
  * recebe 409, e um documento cancelado no meio do caminho (troca de indicado)
  * não é aceito.
@@ -205,6 +209,12 @@ export async function acceptDocument(
   now: Date
 ): Promise<ContractDocumentDto> {
   const { accepted, designee } = await prisma.$transaction(async (tx) => {
+    // 0. Trava da empresa de quem chama, antes de ler o documento. Sem
+    // contrato não há documento
+    if (!(await lockContractRow(tx, req.companyId))) {
+      throw notFound('Documento não encontrado')
+    }
+
     // 1. Só da empresa de quem chama
     const doc = await tx.contractDocument.findFirst({
       where: { id: documentId, companyId: req.companyId },
