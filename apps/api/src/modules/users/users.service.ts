@@ -1,6 +1,8 @@
 import { prisma } from '@addere/db'
+import { Prisma } from '@prisma/client'
 import bcrypt from 'bcryptjs'
 import type { JwtPayload } from '@addere/types'
+import { conflict, forbidden, notFound } from '../../lib/errors'
 import type { CreateUserInput, UpdateUserInput } from './users.schema'
 import {
   applyDefaultPermissions,
@@ -42,6 +44,18 @@ type OrderPermissionFlags = { [K in keyof typeof ORDER_PERMISSIONS]?: boolean }
 const ORDER_FLAGS = Object.keys(ORDER_PERMISSIONS) as (keyof typeof ORDER_PERMISSIONS)[]
 const ORDER_KEYS: string[] = Object.values(ORDER_PERMISSIONS)
 
+// Todo erro de regra daqui é AppError, com o status de sempre: as rotas não
+// repassam mais a mensagem de erro que não seja AppError (era assim que a
+// mensagem crua do Prisma, com o caminho do arquivo, chegava ao painel).
+const EMAIL_TAKEN_MESSAGE = 'Email já cadastrado'
+
+/** P2002 no e-mail: duas criações com o mesmo e-mail ao mesmo tempo */
+function isEmailTaken(err: unknown): boolean {
+  if (!(err instanceof Prisma.PrismaClientKnownRequestError) || err.code !== 'P2002') return false
+  const target = err.meta?.target
+  return Array.isArray(target) ? target.includes('email') : String(target ?? '').includes('email')
+}
+
 // true concede, false revoga, ausente não mexe
 async function applyOrderPermissions(userId: string, flags: OrderPermissionFlags) {
   const grant = ORDER_FLAGS.filter((f) => flags[f] === true).map((f) => ORDER_PERMISSIONS[f])
@@ -50,7 +64,7 @@ async function applyOrderPermissions(userId: string, flags: OrderPermissionFlags
   // Sem a linha no catálogo a concessão não grava nada, e o vendedor seguiria
   // travado com a caixa marcada na tela
   if ((await grantPermissions(userId, grant)) < grant.length) {
-    throw new Error('Permissão de pedido não cadastrada no sistema. Fale com o suporte da Addere.')
+    throw conflict('Permissão de pedido não cadastrada no sistema. Fale com o suporte da Addere.')
   }
   await revokePermissions(userId, revoke)
 }
@@ -108,7 +122,7 @@ export async function listUsers(requester: JwtPayload) {
 
 export async function createUser(input: CreateUserInput, requester: JwtPayload) {
   const existing = await prisma.user.findUnique({ where: { email: input.email } })
-  if (existing) throw new Error('Email já cadastrado')
+  if (existing) throw conflict(EMAIL_TAKEN_MESSAGE)
 
   const hashedPassword = await bcrypt.hash(input.password, 10)
 
@@ -117,7 +131,9 @@ export async function createUser(input: CreateUserInput, requester: JwtPayload) 
   const companyId =
     requester.role === 'SUPERADMIN' ? (input.companyId ?? null) : requester.companyId
 
-  // Vendedor e gerente ocupam licença: a criação passa pela trava (plano 015)
+  // Vendedor e gerente ocupam licença: a criação passa pela trava (plano 015).
+  // A checagem do e-mail acima fica fora da transação: duas criações ao mesmo
+  // tempo passam por ela, e a segunda esbarra no @unique (P2002)
   const user = await writeWithSeatGuard(null, { role: input.role, active: true, companyId }, (db) =>
     db.user.create({
       data: {
@@ -129,7 +145,10 @@ export async function createUser(input: CreateUserInput, requester: JwtPayload) 
       },
       select: userSelect,
     })
-  )
+  ).catch((err: unknown) => {
+    if (isEmailTaken(err)) throw conflict(EMAIL_TAKEN_MESSAGE)
+    throw err
+  })
 
   // Com origem informada, copia as permissões dela; senão aplica os defaults do role
   // (mesmo catálogo do seed — ADMIN nasce com intel.admin, decisão D3c)
@@ -154,7 +173,7 @@ export async function createUser(input: CreateUserInput, requester: JwtPayload) 
 export async function toggleUserActive(id: string, requester: JwtPayload) {
   const where = requester.role === 'SUPERADMIN' ? { id } : { id, companyId: requester.companyId }
   const user = await prisma.user.findFirst({ where })
-  if (!user) throw new Error('Usuário não encontrado')
+  if (!user) throw notFound('Usuário não encontrado')
 
   // Ao desativar, invalida todas as sessões ativas
   if (user.active) {
@@ -182,11 +201,11 @@ export async function updateUserById(id: string, input: UpdateUserInput, request
     where: { id },
     select: { companyId: true, role: true, active: true },
   })
-  if (!target) throw new Error('Usuário não encontrado')
+  if (!target) throw notFound('Usuário não encontrado')
 
   // Usuário sem empresa só o SUPERADMIN alcança (é o caso do próprio SUPERADMIN)
   if (requester.role !== 'SUPERADMIN' && target.companyId !== requester.companyId) {
-    throw new ForbiddenError('Não é permitido editar usuários de outra empresa')
+    throw forbidden('Não é permitido editar usuários de outra empresa')
   }
   const { intelManager, companyId, canChangeCarrier, canChangePaymentTerms, ...profile } = input
 
@@ -195,14 +214,15 @@ export async function updateUserById(id: string, input: UpdateUserInput, request
   // vendedor, que são todos por empresa. Por isso só preenche o vazio.
   let scopeId = target.companyId
   if (companyId !== undefined && companyId !== target.companyId) {
-    if (target.companyId) throw new Error('Não é possível mover o usuário para outra empresa')
+    // 404, o status de sempre desta recusa
+    if (target.companyId) throw notFound('Não é possível mover o usuário para outra empresa')
     // Quem não é SUPERADMIN já parou na checagem de empresa acima: um órfão
     // (companyId null) nunca casa com a empresa de um ADMIN.
     const company = await prisma.company.findUnique({
       where: { id: companyId },
       select: { id: true },
     })
-    if (!company) throw new Error('Empresa não encontrada')
+    if (!company) throw notFound('Empresa não encontrada')
     // Vincular vendedor ou gerente ativo ocupa licença na empresa. Vale o papel
     // final: o órfão que vira ADMIN nesta mesma requisição não precisa de uma
     await writeWithSeatGuard(
@@ -213,12 +233,14 @@ export async function updateUserById(id: string, input: UpdateUserInput, request
     scopeId = companyId
   }
   if (!scopeId) {
-    throw new Error(
-      'Usuário sem empresa: selecione a empresa ativa para vinculá-lo antes de editar'
-    )
+    throw notFound('Usuário sem empresa: selecione a empresa ativa para vinculá-lo antes de editar')
   }
 
-  const user = await updateCompanyUser(scopeId, id, profile)
+  // E-mail trocado para um que já existe: P2002, a mesma mensagem da criação
+  const user = await updateCompanyUser(scopeId, id, profile).catch((err: unknown) => {
+    if (isEmailTaken(err)) throw conflict(EMAIL_TAKEN_MESSAGE)
+    throw err
+  })
 
   // O perfil Gerente é a permissão intel.manager: trocar de perfil na tela tem
   // de conceder ou revogar, senão o rótulo e o acesso ficam discordando.
@@ -244,5 +266,3 @@ async function hasIntelManager(userId: string): Promise<boolean> {
   })
   return row !== null
 }
-
-export class ForbiddenError extends Error {}

@@ -471,6 +471,8 @@ export const BILLING_EVENT_TYPES = [
   'SUSPENSION_REMINDER_SENT',
   'ACCESS_BLOCKED',
   'ACCESS_UNBLOCKED',
+  // Aviso que não saiu por falta de destinatário, gravado uma vez por fatura
+  'SUSPENSION_NOTICE_NO_RECIPIENT',
 ] as const
 export type BillingEventType = (typeof BILLING_EVENT_TYPES)[number]
 
@@ -497,6 +499,7 @@ export type BillingErrorCode =
   | 'AMENDMENT_NOTICE_TOO_SHORT'
   | 'AMENDMENT_REASON_REQUIRED'
   | 'AMENDMENT_NOT_YET_EFFECTIVE'
+  | 'TERMS_NOT_EDITABLE'
   | 'CONTRACT_NOT_ACTIVE'
   | 'INTEL_MANAGED_BY_CONTRACT'
   // Plano 016
@@ -511,6 +514,7 @@ export type BillingErrorCode =
   | 'COMPETENCE_NOT_BILLABLE'
   | 'DUE_DATE_IN_PAST'
   | 'PAID_AT_IN_FUTURE'
+  | 'AMOUNT_TOO_LARGE'
   // Plano 015
   | 'SEAT_LIMIT_REACHED'
   | 'CONTRACT_CANCELLED'

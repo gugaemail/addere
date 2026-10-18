@@ -11,6 +11,7 @@ import {
   ymdToDate,
 } from '../intelligence/engine/business-days'
 import { isTransientDbError } from '../intelligence/jobs/scheduler'
+import { isUniqueViolation } from './billing-events'
 import {
   billingRecipients,
   buildAccessReleasedEmail,
@@ -47,6 +48,43 @@ export const DEFAULT_OVERDUE_BLOCK_DAYS = 15
 
 export const noticeKey = (invoiceId: string) => `invoice:${invoiceId}:suspension-notice`
 export const reminderKey = (invoiceId: string) => `invoice:${invoiceId}:suspension-reminder`
+export const noRecipientKey = (invoiceId: string) =>
+  `invoice:${invoiceId}:suspension-notice-no-recipient`
+
+/**
+ * Aviso de suspensão que não pôde sair por falta de destinatário (sem contato
+ * de cobrança e sem ADMIN ativo): grava SUSPENSION_NOTICE_NO_RECIPIENT, que
+ * aparece no histórico da ficha, e manda ao Sentry só na primeira vez. O
+ * dedupeKey segura os ticks seguintes: antes, o mesmo erro ia ao Sentry a
+ * cada hora, para sempre. Sem payload pessoal: só a fatura.
+ */
+export async function reportNoticeWithoutRecipient(
+  invoice: { id: string; number: number; companyId: string },
+  context: Record<string, unknown>
+): Promise<void> {
+  const dedupeKey = noRecipientKey(invoice.id)
+  const already = await prisma.billingEvent.findUnique({
+    where: { dedupeKey },
+    select: { id: true },
+  })
+  if (already) return
+  try {
+    await prisma.billingEvent.create({
+      data: {
+        type: 'SUSPENSION_NOTICE_NO_RECIPIENT',
+        companyId: invoice.companyId,
+        actorId: null,
+        payload: { fields: [], invoiceId: invoice.id, invoiceNumber: invoice.number },
+        dedupeKey,
+      },
+    })
+  } catch (err) {
+    // Outro tick gravou primeiro: o aviso já foi dado
+    if (isUniqueViolation(err)) return
+    throw err
+  }
+  captureError(new Error('Aviso de suspensão sem destinatário'), context)
+}
 
 /**
  * Fatura que conta para a inadimplência: em aberto, vencida (vencimento antes
@@ -161,8 +199,8 @@ export async function sendSuspensionNotices(now: Date = new Date()): Promise<Rem
       const to = await billingRecipients(invoice.companyId)
       if (to.length === 0) {
         // Sem ninguém para avisar, a empresa nunca será bloqueada por esta
-        // fatura — e alguém precisa saber
-        captureError(new Error('Aviso de suspensão sem destinatário'), context)
+        // fatura — e alguém precisa saber, uma vez por fatura (não a cada hora)
+        await reportNoticeWithoutRecipient(invoice, context)
       }
       const email = buildSuspensionNoticeEmail(
         invoice.company.name,

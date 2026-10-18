@@ -260,6 +260,25 @@ describe('a fatura criada', () => {
     expect(items[1].amount.toFixed(2)).toBe('149.70')
   })
 
+  it('termos acima do Decimal(14,2): failed, Sentry com AMOUNT_TOO_LARGE e nenhum INSERT', async () => {
+    prismaMock.companyContract.findMany.mockResolvedValue([
+      contract({
+        terms: [
+          terms({
+            effectiveFrom: '2026-08-03T15:00:00Z',
+            extraSeats: 10000,
+            extraSeatPrice: '999999999999.99',
+          }),
+        ],
+      }),
+    ])
+    const summary = await generateInvoices(new Date('2026-11-01T03:30:00Z'))
+    expect(summary).toMatchObject({ created: 0, failed: 1 })
+    // Sem INSERT: o número da sequência não é gasto
+    expect(prismaMock.invoice.create).not.toHaveBeenCalled()
+    expect(captureMock.mock.calls[0][0]).toMatchObject({ code: 'AMOUNT_TOO_LARGE' })
+  })
+
   it('erro em um contrato não para os outros', async () => {
     prismaMock.companyContract.findMany.mockResolvedValue([
       contract({ companyId: 'company-1' }),

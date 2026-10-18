@@ -28,6 +28,7 @@ import {
   type Ym,
 } from './competence'
 import {
+  assertInvoiceFits,
   buildContractItems,
   isCompetenceBillable,
   isP2002,
@@ -213,6 +214,9 @@ export async function generateInvoices(now: Date = new Date()): Promise<Generate
         captureError(new Error('Faturamento: contrato sem termos na competência'), context)
         continue
       }
+      // Termos acima do teto do Decimal(14,2): erro legível no Sentry, sem
+      // gastar número da sequência num INSERT que o Postgres recusaria
+      assertInvoiceFits(draft.items, draft.total)
 
       await prisma.$transaction(async (tx) => {
         const invoice = await tx.invoice.create({
@@ -513,6 +517,7 @@ export async function createManualInvoice(
   const manualItems = input.items.map((i) => manualItemData(i, actor.id))
   const total = sumAmounts([...autoItems.map((i) => i.amount), ...manualItems.map((i) => i.amount)])
   assertNotNegative(total)
+  assertInvoiceFits([...autoItems, ...manualItems], total)
 
   let id: string
   try {
@@ -583,6 +588,7 @@ export async function recalculateInvoice(
     })
     const total = sumAmounts([...autoItems.map((i) => i.amount), ...manual.map((i) => i.amount)])
     assertNotNegative(total)
+    assertInvoiceFits(autoItems, total)
 
     // O filtro manual: false nunca alcança item lançado à mão
     await tx.invoiceItem.deleteMany({ where: { invoiceId: id, manual: false } })
@@ -706,6 +712,7 @@ export async function addInvoiceItem(
     })
     const total = sumAmounts([...current.map((i) => i.amount), data.amount])
     assertNotNegative(total)
+    assertInvoiceFits([data], total)
 
     const created = await tx.invoiceItem.create({
       data: { ...data, invoiceId: id },
@@ -747,6 +754,8 @@ export async function removeInvoiceItem(
     }
     const total = sumAmounts(items.filter((i) => i.id !== itemId).map((i) => i.amount))
     assertNotNegative(total)
+    // Tirar um desconto aumenta o total
+    assertInvoiceFits([], total)
 
     await tx.invoiceItem.deleteMany({ where: { id: itemId, invoiceId: id, manual: true } })
     await tx.invoice.update({ where: { id }, data: { total } })

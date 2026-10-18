@@ -1,14 +1,14 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify'
 import { requirePermission } from '../../middleware/authenticate'
-import { AppError } from '../../lib/errors'
 import { createUserSchema, updateUserSchema } from './users.schema'
-import {
-  listUsers,
-  createUser,
-  toggleUserActive,
-  updateUserById,
-  ForbiddenError,
-} from './users.service'
+import { listUsers, createUser, toggleUserActive, updateUserById } from './users.service'
+
+// Erros: o serviço lança AppError (status, mensagem e código) e o handler
+// global (lib/error-handler.ts) responde. Sem try/catch aqui: o catch antigo
+// repassava o `message` de qualquer erro, e a mensagem crua do Prisma (com o
+// caminho do arquivo e o trecho do código) chegava ao painel. Erro que não é
+// AppError vira a mensagem genérica do handler (500, ou 409 "Registro
+// duplicado" num P2002 que o serviço não traduziu).
 
 // Usuários fora de uma empresa (companyId null) só existem para SUPERADMIN;
 // qualquer outro role sem empresa não tem o que listar/gerenciar aqui
@@ -57,16 +57,8 @@ export default async function usersRoutes(app: FastifyInstance) {
         }
       }
 
-      try {
-        const user = await createUser(result.data, request.user)
-        return reply.status(201).send(user)
-      } catch (err) {
-        // AppError (SEAT_LIMIT_REACHED, CONTRACT_CANCELLED, 404 e 422 dos services)
-        // segue para o handler global com status, code e details. Só o Error
-        // genérico mantém o mapeamento antigo.
-        if (err instanceof AppError) throw err
-        return reply.status(409).send({ message: (err as Error).message })
-      }
+      const user = await createUser(result.data, request.user)
+      return reply.status(201).send(user)
     }
   )
 
@@ -91,16 +83,7 @@ export default async function usersRoutes(app: FastifyInstance) {
           .send({ message: 'Apenas o super administrador pode criar administradores' })
       }
 
-      try {
-        return reply.send(await updateUserById(id, result.data, request.user))
-      } catch (err) {
-        // AppError segue para o handler global, como no POST /users
-        if (err instanceof AppError) throw err
-        if (err instanceof ForbiddenError) {
-          return reply.status(403).send({ message: err.message })
-        }
-        return reply.status(404).send({ message: (err as Error).message })
-      }
+      return reply.send(await updateUserById(id, result.data, request.user))
     }
   )
 
@@ -111,14 +94,8 @@ export default async function usersRoutes(app: FastifyInstance) {
     async (request: FastifyRequest, reply: FastifyReply) => {
       if (!assertScope(request, reply)) return
       const { id } = request.params as { id: string }
-      try {
-        const user = await toggleUserActive(id, request.user)
-        return reply.send(user)
-      } catch (err) {
-        // AppError segue para o handler global, como no POST /users
-        if (err instanceof AppError) throw err
-        return reply.status(404).send({ message: (err as Error).message })
-      }
+      const user = await toggleUserActive(id, request.user)
+      return reply.send(user)
     }
   )
 }
