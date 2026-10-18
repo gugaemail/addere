@@ -471,6 +471,8 @@ export const BILLING_EVENT_TYPES = [
   'SUSPENSION_REMINDER_SENT',
   'ACCESS_BLOCKED',
   'ACCESS_UNBLOCKED',
+  // Aviso que não saiu por falta de destinatário, gravado uma vez por fatura
+  'SUSPENSION_NOTICE_NO_RECIPIENT',
 ] as const
 export type BillingEventType = (typeof BILLING_EVENT_TYPES)[number]
 

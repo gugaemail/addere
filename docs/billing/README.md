@@ -489,9 +489,13 @@ antecedência; e que a suspensão não apaga dados. O sistema garante as duas.
   `dedupeKey` `invoice:<id>:suspension-notice`) é gravado **depois** de o Resend
   aceitar o envio (`sendBillingEmailThenRecord`). Falhou o envio, ou não há
   destinatário: nada é gravado, e sem aviso gravado não há bloqueio. Sem
-  destinatário vai ao Sentry com o `companyId`: a empresa nunca será bloqueada
-  por essa fatura enquanto ninguém puder ser avisado. O pior caso (o processo
-  cair entre o envio e a gravação) é o cliente receber o aviso de novo.
+  destinatário, a empresa nunca será bloqueada por essa fatura enquanto
+  ninguém puder ser avisado, e isso é avisado uma vez por fatura: o evento
+  `SUSPENSION_NOTICE_NO_RECIPIENT` ("Aviso de suspensão sem destinatário" no
+  histórico da ficha, `dedupeKey` `invoice:<id>:suspension-notice-no-recipient`)
+  e um erro no Sentry com o `companyId`. Até 18/10/2026 o Sentry recebia o
+  mesmo erro a cada hora, para sempre. O pior caso (o processo cair entre o
+  envio e a gravação) é o cliente receber o aviso de novo.
 - O payload guarda a fatura, a data prevista e a quantidade de destinatários,
   nunca os endereços.
 
