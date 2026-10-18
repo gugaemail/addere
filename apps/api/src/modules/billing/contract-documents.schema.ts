@@ -56,6 +56,10 @@ export const amendmentSchema = contractDraftSchema
     requestedByClient: z.boolean().default(false),
     // Só para conferir a antecedência cedo; o envio recebe de novo
     carryConditions: z.boolean().default(false),
+    // A versão proposta que a tela está editando (null = aditivo novo). Se a
+    // do banco for outra (o cliente aceitou, alguém descartou), 409
+    // TERMS_NOT_EDITABLE. Ausente: salva como antes, sem conferir
+    termsVersion: z.number().int().positive().nullable().optional(),
   })
 
 export type AmendmentData = z.infer<typeof amendmentSchema>

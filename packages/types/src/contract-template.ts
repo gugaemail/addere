@@ -660,6 +660,7 @@ export interface AmendmentInput {
   reason: string
   requestedByClient: boolean
   carryConditions?: boolean // só para conferir a antecedência; o envio recebe de novo
+  termsVersion?: number | null // a versão proposta em edição (null = aditivo novo)
 }
 
 export interface MyTermsDto {

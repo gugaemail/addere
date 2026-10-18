@@ -23,6 +23,8 @@ import {
 import { changedFields, recordBillingEvent } from './billing-events'
 import type { AmendmentData } from './contract-documents.schema'
 import { sendDocumentPendingEmail } from './contract-email'
+import { lockContractRow } from './contract-lock'
+import { assertMonthlyTotalFits } from './invoice-rules'
 import {
   buildContractFieldValues,
   latestEffectiveTerms,
@@ -236,10 +238,15 @@ export async function setDesignatedAdmin(
   actorId: string
 ): Promise<{ changed: boolean; cancelledDocuments: number }> {
   return prisma.$transaction(async (tx) => {
-    const contract = await tx.companyContract.findUnique({
-      where: { companyId },
-      select: { id: true, status: true, designatedAdminId: true },
-    })
+    // Trava da linha do contrato antes de ler (contract-lock.ts): o aceite em
+    // curso termina antes, ou espera a troca e relê o indicado novo
+    const hasContract = await lockContractRow(tx, companyId)
+    const contract = hasContract
+      ? await tx.companyContract.findUnique({
+          where: { companyId },
+          select: { id: true, status: true, designatedAdminId: true },
+        })
+      : null
     if (!contract) {
       throw notFound('Salve o rascunho do contrato antes de indicar o administrador.')
     }
@@ -252,7 +259,6 @@ export async function setDesignatedAdmin(
     await assertValidDesignee(tx, companyId, userId)
     if (contract.designatedAdminId === userId) return { changed: false, cancelledDocuments: 0 }
 
-    // O UPDATE prende a linha do contrato, como a trava do envio e a do 015
     await tx.companyContract.update({
       where: { id: contract.id },
       data: { designatedAdminId: userId },
@@ -470,21 +476,14 @@ export async function sendDocument(
   now: Date
 ): Promise<DocumentSendResultDto> {
   const { document, designee } = await prisma.$transaction(async (tx) => {
-    const contract = await tx.companyContract.findUnique({
-      where: { companyId },
-      select: { id: true },
-    })
-    if (!contract) {
+    // Trava a linha do contrato (contract-lock.ts): dois envios da mesma
+    // empresa, ou um envio e uma edição do rascunho, não correm juntos
+    if (!(await lockContractRow(tx, companyId))) {
       throw conflict(
         'Nada a enviar: só o contrato em rascunho ou um aditivo proposto vão para aceite',
         'NOTHING_TO_SEND'
       )
     }
-    // Trava a linha do contrato: dois envios da mesma empresa não correm juntos
-    await tx.companyContract.update({
-      where: { id: contract.id },
-      data: { seatGuardVersion: { increment: 1 } },
-    })
 
     const p = await prepareDocument(tx, companyId, carryConditions, now, true)
 
@@ -590,6 +589,8 @@ export async function resendDocumentEmail(
   const emailSent = await sendDocumentPendingEmail(doc, designee)
   if (emailSent) {
     await prisma.$transaction(async (tx) => {
+      // A mesma ordem de travas de tudo que escreve no documento
+      await lockContractRow(tx, doc.companyId)
       await tx.contractDocument.update({ where: { id }, data: { lastEmailAt: new Date() } })
       await recordBillingEvent(tx, {
         type: 'DOCUMENT_RESENT',
@@ -609,6 +610,14 @@ export async function cancelDocument(
   actorId: string
 ): Promise<{ cancelled: number }> {
   return prisma.$transaction(async (tx) => {
+    // A empresa do documento diz qual linha travar; o status é relido depois
+    const head = await tx.contractDocument.findUnique({
+      where: { id },
+      select: { companyId: true },
+    })
+    if (!head) throw notFound('Documento não encontrado')
+    await lockContractRow(tx, head.companyId)
+
     const doc = await tx.contractDocument.findUnique({
       where: { id },
       select: { status: true, contractId: true },
@@ -641,7 +650,18 @@ const AMENDMENT_KEYS = [
   'requestedByClient',
 ] as const
 
-/** Cria ou atualiza o aditivo proposto (um só por vez) */
+const TERMS_NOT_EDITABLE_MESSAGE =
+  'O aditivo mudou enquanto você editava: foi aceito, descartado ou substituído. Recarregue a ficha e confira.'
+
+/**
+ * Cria ou atualiza o aditivo proposto (um só por vez). Começa pela trava da
+ * linha do contrato (contract-lock.ts), a mesma do aceite: um aceite que
+ * confirma antes já aparece na releitura, e o UPDATE dos termos leva PROPOSED
+ * no where, então termos aceitos nunca são reescritos. Com `termsVersion` no
+ * corpo (o painel manda a versão que está editando, ou null para um aditivo
+ * novo), a proposta tem de ser a mesma da tela: senão 409 TERMS_NOT_EDITABLE,
+ * em vez de criar uma proposta nova sem ninguém perceber.
+ */
 export async function saveAmendment(
   companyId: string,
   input: AmendmentData,
@@ -649,6 +669,9 @@ export async function saveAmendment(
   now: Date
 ): Promise<{ termsVersion: number; changed: boolean }> {
   return prisma.$transaction(async (tx) => {
+    // 1. Trava: a primeira escrita. O que vem depois é o estado confirmado
+    await lockContractRow(tx, companyId)
+
     const contract = await tx.companyContract.findUnique({
       where: { companyId },
       select: {
@@ -680,6 +703,16 @@ export async function saveAmendment(
         'CONTRACT_NOT_ACTIVE'
       )
     }
+
+    const proposed =
+      contract.terms
+        .filter((t) => t.status === 'PROPOSED' && t.origin === 'AMENDMENT')
+        .sort((a, b) => b.version - a.version)[0] ?? null
+    // A proposta da tela tem de ser a do banco, relida depois da trava
+    if (input.termsVersion !== undefined && input.termsVersion !== (proposed?.version ?? null)) {
+      throw conflict(TERMS_NOT_EDITABLE_MESSAGE, 'TERMS_NOT_EDITABLE')
+    }
+
     if (
       contract.terms.some(
         (t) => t.status === 'EFFECTIVE' && t.effectiveFrom && t.effectiveFrom > now
@@ -740,11 +773,8 @@ export async function saveAmendment(
       reason: input.reason,
       requestedByClient: input.requestedByClient,
     }
-
-    const proposed =
-      contract.terms
-        .filter((t) => t.status === 'PROPOSED' && t.origin === 'AMENDMENT')
-        .sort((a, b) => b.version - a.version)[0] ?? null
+    // O gerador grava esse total na fatura todo mês: tem de caber no Decimal(14,2)
+    assertMonthlyTotalFits(termsData)
 
     let termsVersion: number
     let fields: string[]
@@ -752,9 +782,16 @@ export async function saveAmendment(
       termsVersion = proposed.version
       fields = changedFields(proposed, termsData, AMENDMENT_KEYS, AMENDMENT_MONEY_KEYS)
       if (fields.length === 0) return { termsVersion, changed: false }
-      await tx.contractTerms.update({ where: { id: proposed.id }, data: termsData })
-      // O texto enviado não é mais o dos termos gravados (decisão 11)
+      // O texto enviado não é mais o dos termos gravados (decisão 11). Documento
+      // antes dos termos, na mesma ordem do aceite
       await cancelSentDocuments(tx, contract.id, actorId, CANCEL_REASON_AMENDMENT_CHANGED)
+      // Escrita defensiva: só termos ainda PROPOSED. Com a trava não deveria
+      // dar 0; se der, é 409, nunca 200
+      const { count } = await tx.contractTerms.updateMany({
+        where: { id: proposed.id, status: 'PROPOSED' },
+        data: termsData,
+      })
+      if (count === 0) throw conflict(TERMS_NOT_EDITABLE_MESSAGE, 'TERMS_NOT_EDITABLE')
     } else {
       termsVersion = Math.max(0, ...contract.terms.map((t) => t.version)) + 1
       await tx.contractTerms.create({
@@ -787,6 +824,9 @@ export async function withdrawAmendment(
   actorId: string
 ): Promise<{ termsVersion: number }> {
   return prisma.$transaction(async (tx) => {
+    // Trava antes de ler: um aceite em curso termina antes, e aí não há o que descartar
+    await lockContractRow(tx, companyId)
+
     const contract = await tx.companyContract.findUnique({
       where: { companyId },
       select: {

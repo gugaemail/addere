@@ -73,6 +73,7 @@ export const BILLING_EVENT_LABELS: Record<BillingEventType, string> = {
   SUSPENSION_REMINDER_SENT: 'Lembrete de suspensão enviado',
   ACCESS_BLOCKED: 'Acesso bloqueado',
   ACCESS_UNBLOCKED: 'Acesso liberado',
+  SUSPENSION_NOTICE_NO_RECIPIENT: 'Aviso de suspensão sem destinatário',
 }
 
 // Rótulo de cada campo que aparece no histórico. Campo sem rótulo aparece cru.

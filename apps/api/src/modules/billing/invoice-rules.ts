@@ -1,5 +1,6 @@
 import { Prisma } from '@prisma/client'
 import { LICENSE_TYPE_CONTRACT_TEXT, type InvoiceItemKind, type LicenseType } from '@addere/types'
+import { type AppError, unprocessable } from '../../lib/errors'
 import { isUniqueViolation } from './billing-events'
 import { competenceStart, type Ym } from './competence'
 
@@ -100,6 +101,56 @@ export function sumAmounts(amounts: Array<Prisma.Decimal | string>): Prisma.Deci
 /** Dinheiro como viaja na API: string com duas casas */
 export function money(value: Prisma.Decimal | string): string {
   return new Prisma.Decimal(value).toFixed(2)
+}
+
+// ─── Teto do Decimal(14,2) ───────────────────────────────────────────────────
+// Toda coluna de dinheiro é Decimal(14,2): 12 dígitos inteiros. O schema já
+// barra cada valor digitado acima disso, mas a soma (itens da fatura) e o
+// produto (licenças adicionais × preço) passam do teto e o Postgres recusa com
+// "numeric field overflow", que virava 500. O limite por valor no schema não
+// resolve por construção: extraSeats vai até 10 000 e a fatura aceita itens à
+// mão um a um. Por isso o total calculado é conferido antes de gravar.
+
+/** O maior valor que cabe numa coluna Decimal(14,2) */
+export const MONEY_COLUMN_MAX = new Prisma.Decimal('999999999999.99')
+
+/** Cabe numa coluna Decimal(14,2)? Em módulo: desconto é gravado negativo */
+export function fitsMoneyColumn(value: Prisma.Decimal | string): boolean {
+  return new Prisma.Decimal(value).abs().lte(MONEY_COLUMN_MAX)
+}
+
+function amountTooLarge(what: string): AppError {
+  return unprocessable(
+    `${what} passa do máximo aceito (R$ 999.999.999.999,99). Confira os valores.`,
+    { max: MONEY_COLUMN_MAX.toFixed(2) },
+    'AMOUNT_TOO_LARGE'
+  )
+}
+
+/**
+ * Total mensal dos termos (pacote + adicionais × preço do adicional), o mesmo
+ * de contractMonthlyTotal, conferido contra o teto: o gerador grava esse valor
+ * em itens e no total da fatura todo mês. 422 AMOUNT_TOO_LARGE se não couber.
+ */
+export function assertMonthlyTotalFits(terms: {
+  packagePrice: Prisma.Decimal | string
+  extraSeats: number
+  extraSeatPrice: Prisma.Decimal | string
+}): void {
+  const total = new Prisma.Decimal(terms.packagePrice).plus(
+    new Prisma.Decimal(terms.extraSeatPrice).times(terms.extraSeats)
+  )
+  if (!fitsMoneyColumn(total)) throw amountTooLarge('O total mensal do contrato')
+}
+
+/** Itens e total da fatura antes de gravar: 422 AMOUNT_TOO_LARGE se algum não couber */
+export function assertInvoiceFits(
+  items: Array<{ amount: Prisma.Decimal | string }>,
+  total: Prisma.Decimal | string
+): void {
+  if (!items.every((i) => fitsMoneyColumn(i.amount)) || !fitsMoneyColumn(total)) {
+    throw amountTooLarge('O total da fatura')
+  }
 }
 
 /** Violação de chave única do Prisma (a mesma regra do histórico do 013) */

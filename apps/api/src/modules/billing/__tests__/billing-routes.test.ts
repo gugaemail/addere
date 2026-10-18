@@ -7,7 +7,7 @@ import { Prisma } from '@prisma/client'
 
 vi.mock('@addere/db', async () => (await import('../../../test-utils/prisma-mock')).mockDb())
 
-import { prismaMock, resetPrismaMock } from '../../../test-utils/prisma-mock'
+import { prismaCallLog, prismaMock, resetPrismaMock } from '../../../test-utils/prisma-mock'
 import { buildApp } from '../../../app'
 
 const COMPANY_A = '11111111-1111-4111-8111-111111111111'
@@ -514,8 +514,25 @@ function expectNoContractWrite() {
   expect(prismaMock.companyContract.update).not.toHaveBeenCalled()
   expect(prismaMock.contractTerms.create).not.toHaveBeenCalled()
   expect(prismaMock.contractTerms.update).not.toHaveBeenCalled()
+  expect(prismaMock.contractTerms.updateMany).not.toHaveBeenCalled()
   expect(prismaMock.billingEvent.create).not.toHaveBeenCalled()
+  // No contrato, só a trava da linha (contract-lock.ts), se houve
+  for (const [args] of prismaMock.companyContract.updateMany.mock.calls) {
+    expect(args.data).toEqual({ seatGuardVersion: { increment: 1 } })
+  }
 }
+
+/** A trava da linha do contrato (contract-lock.ts) */
+const DRAFT_LOCK = {
+  call: 'companyContract.updateMany',
+  args: [{ where: { companyId: COMPANY_A }, data: { seatGuardVersion: { increment: 1 } } }],
+}
+
+/** As escritas no contrato que não são a trava */
+const contractWrites = () =>
+  prismaMock.companyContract.updateMany.mock.calls
+    .map((c: [{ where: unknown; data: Record<string, unknown> }]) => c[0])
+    .filter((a: { data: Record<string, unknown> }) => a.data.seatGuardVersion === undefined)
 
 describe('clientes — só o SUPERADMIN', () => {
   const routes = [
@@ -982,6 +999,23 @@ describe('PUT /admin/billing/clients/:companyId/contract', () => {
     expect(prismaMock.contractTerms.create.mock.calls[0][0].data.includedSeats).toBe(100)
   })
 
+  it('total mensal acima do Decimal(14,2) → 422 AMOUNT_TOO_LARGE, sem escrita', async () => {
+    const res = await app.inject({
+      method: 'PUT',
+      url,
+      headers: auth('super'),
+      payload: {
+        ...draftBody,
+        extraSeats: 10000,
+        packagePrice: '999999999999.99',
+        extraSeatPrice: '999999999999.99',
+      },
+    })
+    expect(res.statusCode).toBe(422)
+    expect(res.json().code).toBe('AMOUNT_TOO_LARGE')
+    expectNoContractWrite()
+  })
+
   it('pacote desativado → 422 PACKAGE_INACTIVE', async () => {
     prismaMock.licensePackage.findUnique.mockResolvedValue({ ...p10, active: false })
     const res = await app.inject({ method: 'PUT', url, headers: auth('super'), payload: draftBody })
@@ -1011,6 +1045,7 @@ describe('PUT /admin/billing/clients/:companyId/contract', () => {
       { id: 'doc-1', kind: 'CONTRACT', companyId: COMPANY_A },
     ])
     prismaMock.contractDocument.updateMany.mockResolvedValue({ count: 1 })
+    prismaMock.companyContract.updateMany.mockResolvedValue({ count: 1 })
     const res = await app.inject({
       method: 'PUT',
       url,
@@ -1018,6 +1053,7 @@ describe('PUT /admin/billing/clients/:companyId/contract', () => {
       payload: { ...draftBody, dueDay: 5 },
     })
     expect(res.statusCode).toBe(200)
+    expect(prismaCallLog({ writesOnly: true })[0]).toEqual(DRAFT_LOCK)
     expect(prismaMock.contractDocument.updateMany.mock.calls[0][0]).toMatchObject({
       where: { contractId: 'contract-1', status: 'SENT' },
       data: { status: 'CANCELLED', cancelReason: 'Rascunho alterado depois do envio' },
@@ -1026,8 +1062,12 @@ describe('PUT /admin/billing/clients/:companyId/contract', () => {
       where: { id: 'contract-1', status: 'PENDING_ACCEPTANCE' },
       data: { status: 'DRAFT' },
     })
-    // Segue o fluxo do rascunho: grava a mudança, com o cancelamento antes
-    expect(prismaMock.companyContract.update.mock.calls[0][0].data).toMatchObject({ dueDay: 5 })
+    // Segue o fluxo do rascunho: grava a mudança, com o cancelamento antes, e
+    // só com o contrato em DRAFT no where
+    expect(contractWrites().at(-1)).toMatchObject({
+      where: { id: 'contract-1', status: 'DRAFT' },
+      data: { dueDay: 5 },
+    })
     expect(
       prismaMock.billingEvent.create.mock.calls.map(
         (c: [{ data: { type: string } }]) => c[0].data.type
@@ -1056,6 +1096,8 @@ describe('PUT /admin/billing/clients/:companyId/contract', () => {
     prismaMock.companyContract.findUnique
       .mockResolvedValueOnce(contractRow())
       .mockResolvedValueOnce(contractRow())
+    prismaMock.companyContract.updateMany.mockResolvedValue({ count: 1 })
+    prismaMock.contractTerms.updateMany.mockResolvedValue({ count: 1 })
     const res = await app.inject({
       method: 'PUT',
       url,
@@ -1065,8 +1107,15 @@ describe('PUT /admin/billing/clients/:companyId/contract', () => {
     })
     expect(res.statusCode).toBe(200)
     expect(prismaMock.contractTerms.create).not.toHaveBeenCalled()
-    expect(prismaMock.contractTerms.update.mock.calls[0][0].where).toEqual({ id: 'terms-1' })
-    expect(prismaMock.companyContract.update.mock.calls[0][0].data).toMatchObject({ dueDay: 5 })
+    // Só termos ainda PROPOSED: os que já valem nunca são reescritos
+    expect(prismaMock.contractTerms.updateMany.mock.calls[0][0].where).toEqual({
+      id: 'terms-1',
+      status: 'PROPOSED',
+    })
+    expect(contractWrites()[0]).toMatchObject({
+      where: { id: 'contract-1', status: 'DRAFT' },
+      data: { dueDay: 5 },
+    })
     expect(prismaMock.billingEvent.create).toHaveBeenCalledWith({
       data: {
         type: 'CONTRACT_DRAFT_UPDATED',
@@ -1083,8 +1132,65 @@ describe('PUT /admin/billing/clients/:companyId/contract', () => {
       .mockResolvedValueOnce(contractRow())
     const res = await app.inject({ method: 'PUT', url, headers: auth('super'), payload: draftBody })
     expect(res.statusCode).toBe(200)
-    expect(prismaMock.contractTerms.update).not.toHaveBeenCalled()
-    expect(prismaMock.companyContract.update).not.toHaveBeenCalled()
+    expect(prismaMock.contractTerms.updateMany).not.toHaveBeenCalled()
+    expect(contractWrites()).toEqual([])
+    expect(prismaMock.billingEvent.create).not.toHaveBeenCalled()
+  })
+
+  it('a trava é a primeira escrita, e o contrato é lido depois dela', async () => {
+    prismaMock.companyContract.findUnique
+      .mockResolvedValueOnce(contractRow())
+      .mockResolvedValueOnce(contractRow())
+    prismaMock.companyContract.updateMany.mockResolvedValue({ count: 1 })
+    prismaMock.contractTerms.updateMany.mockResolvedValue({ count: 1 })
+    const res = await app.inject({
+      method: 'PUT',
+      url,
+      headers: auth('super'),
+      payload: { ...draftBody, packagePrice: '950.00' },
+    })
+    expect(res.statusCode).toBe(200)
+    expect(prismaCallLog({ writesOnly: true })[0]).toEqual(DRAFT_LOCK)
+    const calls = prismaCallLog()
+    const lockAt = calls.findIndex((c) => c.call === 'companyContract.updateMany')
+    const readAt = calls.findIndex((c) => c.call === 'companyContract.findUnique')
+    expect(readAt).toBeGreaterThan(lockAt)
+  })
+
+  it('o aceite confirmou enquanto a edição esperava a trava: ACTIVE na releitura → 409', async () => {
+    prismaMock.companyContract.updateMany.mockResolvedValue({ count: 1 })
+    prismaMock.companyContract.findUnique.mockResolvedValue(
+      contractRow({ status: 'ACTIVE', terms: [] })
+    )
+    const res = await app.inject({
+      method: 'PUT',
+      url,
+      headers: auth('super'),
+      payload: { ...draftBody, packagePrice: '9999.00' },
+    })
+    expect(res.statusCode).toBe(409)
+    expect(res.json().code).toBe('CONTRACT_NOT_DRAFT')
+    expect(prismaCallLog({ writesOnly: true })).toEqual([DRAFT_LOCK])
+  })
+
+  it('termos que viraram EFFECTIVE entre a leitura e a escrita → 409 CONTRACT_NOT_DRAFT', async () => {
+    // A leitura ainda viu o PROPOSED; o UPDATE com PROPOSED no where não acha a
+    // linha: count 0. Nunca 200 com os termos aceitos reescritos
+    prismaMock.companyContract.findUnique.mockResolvedValue(contractRow())
+    prismaMock.companyContract.updateMany.mockResolvedValue({ count: 1 })
+    prismaMock.contractTerms.updateMany.mockResolvedValue({ count: 0 })
+    const res = await app.inject({
+      method: 'PUT',
+      url,
+      headers: auth('super'),
+      payload: { ...draftBody, packagePrice: '9999.00' },
+    })
+    expect(res.statusCode).toBe(409)
+    expect(res.json().code).toBe('CONTRACT_NOT_DRAFT')
+    expect(prismaMock.contractTerms.updateMany.mock.calls[0][0].where).toEqual({
+      id: 'terms-1',
+      status: 'PROPOSED',
+    })
     expect(prismaMock.billingEvent.create).not.toHaveBeenCalled()
   })
 

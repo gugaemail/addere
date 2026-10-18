@@ -25,6 +25,16 @@ registra quem aceitou, a data e a hora, o IP, o navegador e o hash.
   3. o monitor de disponibilidade da API e do painel no ar, com histórico
      mensal, medindo há algumas semanas (ver "Disponibilidade e crédito");
   4. este documento escrito (é ele).
+- **A v1 é editada no lugar e publicada.** A migration grava a v1 de cada tipo
+  em rascunho (DRAFT), com o texto da minuta e as marcas `[[REVISAR]]`, e a
+  API recusa versão nova enquanto houver rascunho aberto (409
+  `TEMPLATE_DRAFT_EXISTS`; o painel esconde "Nova versão"). O caminho é:
+  "Editar" a v1, tirar as marcas, salvar e publicar. "Nova versão" só existe
+  depois de uma publicada. Editar a v1 sobrescreve no banco o texto que a
+  migration gravou; a fonte da minuta continua em
+  `contrato-licenca-de-uso-v1.md` e `aditivo-contratual-v1.md`. O roteiro do
+  ponta a ponta do plano 014 ("crie a v2 de cada tipo a partir da v1") não é
+  executável por isso; vale este item.
 - Contrato e aditivo são publicados juntos: o aditivo v1 cita o §6.4, o §6.7,
   o §13 e o §14 do contrato v1. Renumerar o contrato exige versão nova do
   aditivo.
@@ -155,6 +165,44 @@ Enquanto o 015, o 016 e o 017 não estiverem em produção:
   fiscais e financeiros ficam identificados e bloqueados pelo prazo legal
   (§8.5).
 
+### Edição × aceite: a ordem das travas
+
+Achado do teste de ponta a ponta de 18/10/2026: o aceite e a edição do
+rascunho (ou do aditivo) disparados juntos respondiam 200 os dois, e os termos
+que acabavam de virar EFFECTIVE ficavam com o valor da edição, não com o do
+texto aceito. A fatura sairia por um preço que o cliente não aceitou. Na
+corrida do aditivo, a ordem invertida das travas ainda dava deadlock (500).
+
+A regra, desde então: **toda transação que escreve no contrato, nos termos ou
+nos documentos de uma empresa começa por `lockContractRow`**
+(`apps/api/src/modules/billing/contract-lock.ts`), o `UPDATE` do contador
+`seatGuardVersion` na linha do contrato, e só depois lê o estado e decide.
+
+| Função | Arquivo | Depois da trava |
+|---|---|---|
+| `saveContractDraft` | `contract.service.ts` | relê o status; ACTIVE → 409 `CONTRACT_NOT_DRAFT` |
+| `acceptDocument` | `me.service.ts` | lê o documento; CANCELLED → 409 `DOCUMENT_NOT_PENDING` |
+| `saveAmendment`, `withdrawAmendment` | `contract-documents.service.ts` | relê a proposta; a versão da tela diferente da do banco → 409 `TERMS_NOT_EDITABLE` |
+| `sendDocument`, `setDesignatedAdmin`, `cancelDocument`, `resendDocumentEmail` | `contract-documents.service.ts` | relê contrato e documento |
+| `withSeat` | `seat-guard.ts` | conta as licenças |
+| `createLicenseRequest`, `decideLicenseRequest` | `license-requests.service.ts` | relê contrato e pedido |
+
+O cancelamento do contrato (`contract-cancel.service.ts`) começa por um
+`updateMany` na própria linha do contrato, com o estado no `where`, e conta
+como a mesma trava.
+
+Além da trava, os termos editáveis só mudam com `status: 'PROPOSED'` no
+`where`, e o `count` é conferido: 0 vira 409, nunca 200. O painel manda no
+aditivo a versão que está editando (`termsVersion`); se o cliente aceitou no
+meio, a API recusa em vez de criar outra proposta sem ninguém perceber.
+
+Com a trava, cada corrida termina num de dois jeitos: o aceite passa e a edição
+recebe 409, ou a edição passa, o documento é cancelado e o aceite recebe 409.
+Nenhum teste com mock simula concorrência: mudar o nível de isolamento, ler ou
+escrever antes da trava ou esquecê-la numa mutação nova desfaz a garantia sem
+deixar teste vermelho. A prova é contra Postgres real (os scripts `race1` e
+`race2` do relatório do teste).
+
 ### Retenção
 
 Contrato, documentos enviados e registros de aceite ficam durante a vigência e
@@ -178,6 +226,15 @@ criados.
   `127.0.0.1` nos logs são o health check interno do Render.
 - O valor também está no `render.yaml` (`'2'`): ao mudar no painel do Render,
   mudar lá também, senão o próximo sync do blueprint volta o valor.
+- **O IP também aparece no log de acesso.** O logger padrão do Fastify grava o
+  `remoteAddress` (o `request.ip` resolvido pelo `trustProxy`) de toda
+  requisição, inclusive a do aceite (`POST /billing/me/documents/:id/accept`)
+  e a do pedido de licenças. É log operacional padrão, e é ele que permite a
+  conferência do `TRUST_PROXY_HOPS` acima: fica. Esse IP fica nos logs do
+  Render pelo prazo de retenção deles e não é o registro de prova: a prova do
+  aceite é a do documento (`acceptedIp`, com data, navegador e hash), e a do
+  pedido, a do `billing_license_requests`. O histórico da ficha
+  (`BillingEvent`) e o Sentry nunca levam IP.
 
 ### Levar um cliente às condições gerais novas
 
@@ -237,7 +294,8 @@ Só entra na trava a escrita que **passa a ocupar** uma licença
 
 **Por que duas escritas ao mesmo tempo não furam o limite.** A trava começa
 com um `UPDATE` do contador `seatGuardVersion` na linha do contrato da
-empresa. Todo `UPDATE` no Postgres prende a linha até o fim da transação: a
+empresa (`lockContractRow`, a mesma do aceite: ver "Edição × aceite: a ordem
+das travas"). Todo `UPDATE` no Postgres prende a linha até o fim da transação: a
 segunda escrita da mesma empresa espera a primeira terminar. No READ COMMITTED
 (o padrão do Postgres e do Neon), a contagem que ela roda depois de liberada é
 um comando novo e já vê o vendedor que a primeira gravou. Com 19 de 20, a
@@ -379,6 +437,13 @@ duas vezes, nem com um tick automático rodando junto.
   plano 017.
 - **Crédito por indisponibilidade**: item `DISCOUNT` à mão, na fatura da
   competência seguinte (ver "Disponibilidade e crédito").
+- **Teto de R$ 999.999.999.999,99** (as colunas são `Decimal(14,2)`): o total
+  mensal do rascunho, do aditivo e da aprovação de licenças (pacote +
+  adicionais × preço) e cada item e o total da fatura (avulsa, recálculo,
+  item lançado ou removido) são conferidos antes de gravar; acima, 422
+  `AMOUNT_TOO_LARGE`. No gerador, o contrato acima do teto vai ao Sentry sem
+  tentar o INSERT (não gasta número). Antes de 18/10/2026 a soma estourava no
+  Postgres e virava 500.
 
 ### E-mails: reserva e liberação
 
@@ -443,9 +508,13 @@ antecedência; e que a suspensão não apaga dados. O sistema garante as duas.
   `dedupeKey` `invoice:<id>:suspension-notice`) é gravado **depois** de o Resend
   aceitar o envio (`sendBillingEmailThenRecord`). Falhou o envio, ou não há
   destinatário: nada é gravado, e sem aviso gravado não há bloqueio. Sem
-  destinatário vai ao Sentry com o `companyId`: a empresa nunca será bloqueada
-  por essa fatura enquanto ninguém puder ser avisado. O pior caso (o processo
-  cair entre o envio e a gravação) é o cliente receber o aviso de novo.
+  destinatário, a empresa nunca será bloqueada por essa fatura enquanto
+  ninguém puder ser avisado, e isso é avisado uma vez por fatura: o evento
+  `SUSPENSION_NOTICE_NO_RECIPIENT` ("Aviso de suspensão sem destinatário" no
+  histórico da ficha, `dedupeKey` `invoice:<id>:suspension-notice-no-recipient`)
+  e um erro no Sentry com o `companyId`. Até 18/10/2026 o Sentry recebia o
+  mesmo erro a cada hora, para sempre. O pior caso (o processo cair entre o
+  envio e a gravação) é o cliente receber o aviso de novo.
 - O payload guarda a fatura, a data prevista e a quantidade de destinatários,
   nunca os endereços.
 

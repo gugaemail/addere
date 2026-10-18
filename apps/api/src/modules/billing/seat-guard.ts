@@ -2,29 +2,17 @@ import { prisma } from '@addere/db'
 import type { Prisma } from '@prisma/client'
 import { consumesSeat, resolveCurrentTerms, seatLimit, type SeatSubject } from '@addere/types'
 import { AppError } from '../../lib/errors'
+import { lockContractRow } from './contract-lock'
 
 // Trava de licenças (plano 015). Toda escrita que passa a ocupar uma licença
 // (criar, ativar, vincular ou mudar alguém para SALESPERSON) roda aqui dentro.
 //
-// Por que o updateMany serializa as escritas da mesma empresa:
-// - ele vira `UPDATE … SET "seatGuardVersion" = "seatGuardVersion" + 1 WHERE
-//   "companyId" = $1`, e todo UPDATE no Postgres prende a linha que altera até
-//   o fim da transação;
-// - uma segunda transação da mesma empresa chega no mesmo UPDATE e ESPERA a
-//   primeira terminar (commit ou rollback);
-// - no READ COMMITTED (o padrão do Postgres e do Neon, e o do Prisma quando a
-//   transação não define nível de isolamento), cada comando enxerga o que já
-//   estava confirmado quando começa: liberada, a segunda conta de novo e vê o
-//   vendedor que a primeira gravou. Com 19 de 20, a primeira conta 19 e grava;
-//   a segunda conta 20 e recusa;
-// - SERIALIZABLE ou REPEATABLE READ seriam piores: a segunda falharia com erro
-//   de serialização e precisaria de retry. A garantia vem da fila na linha do
-//   contrato, não do snapshot;
-// - o jeito clássico (um SELECT que trava a linha) exigiria SQL cru; o UPDATE
-//   de um contador faz o mesmo com a API normal. seatGuardVersion existe só
-//   para isso.
+// A trava é a da linha do contrato (lockContractRow, contract-lock.ts, onde
+// está o porquê): a segunda escrita da mesma empresa espera a primeira e, no
+// READ COMMITTED, conta de novo e vê o vendedor que a primeira gravou. Com 19
+// de 20, a primeira conta 19 e grava; a segunda conta 20 e recusa.
 //
-// A ordem é obrigatória: (1) updateMany, (2) contrato e termos, (3) contagem,
+// A ordem é obrigatória: (1) trava, (2) contrato e termos, (3) contagem,
 // (4) escrita, tudo com o mesmo tx. Contar antes da trava, ou escrever com
 // `prisma` em vez de `tx`, desfaz a garantia. Empresas diferentes não esperam
 // umas pelas outras; sem contrato não há linha para prender, nem limite.
@@ -40,12 +28,9 @@ export function countSeatHolders(db: Db, companyId: string): Promise<number> {
 export async function withSeat<T>(companyId: string, write: (tx: Db) => Promise<T>): Promise<T> {
   return prisma.$transaction(async (tx) => {
     // 1. Trava: o UPDATE prende a linha do contrato até o fim da transação
-    const locked = await tx.companyContract.updateMany({
-      where: { companyId },
-      data: { seatGuardVersion: { increment: 1 } },
-    })
+    const hasContract = await lockContractRow(tx, companyId)
     // Sem contrato: implantação, teste ou piloto — sem limite (decisão padrão 1)
-    if (locked.count === 0) return write(tx)
+    if (!hasContract) return write(tx)
 
     // 2. Contrato e termos, lidos depois da trava
     const contract = await tx.companyContract.findUnique({

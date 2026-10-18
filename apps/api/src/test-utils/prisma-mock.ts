@@ -69,6 +69,35 @@ const transactionFn = vi.fn(async (arg: unknown) =>
 )
 const queryRawFn = vi.fn(async () => [])
 
+const WRITE_METHODS = new Set([
+  'create',
+  'createMany',
+  'update',
+  'updateMany',
+  'upsert',
+  'delete',
+  'deleteMany',
+])
+
+/**
+ * As chamadas a prisma.<model>.<método> na ordem em que aconteceram, como
+ * 'model.método' com os argumentos. Com `writesOnly`, só as escritas: serve
+ * para provar que a trava é a primeira escrita da transação.
+ */
+export function prismaCallLog(opts: { writesOnly?: boolean } = {}): Array<{
+  call: string
+  args: unknown[]
+}> {
+  const log: Array<{ call: string; args: unknown[]; order: number }> = []
+  for (const [key, fn] of fns) {
+    if (opts.writesOnly && !WRITE_METHODS.has(key.split('.')[1])) continue
+    fn.mock.calls.forEach((args, i) => {
+      log.push({ call: key, args, order: fn.mock.invocationCallOrder[i] })
+    })
+  }
+  return log.sort((a, b) => a.order - b.order).map(({ call, args }) => ({ call, args }))
+}
+
 export function resetPrismaMock(): void {
   for (const [key, fn] of fns) {
     fn.mockReset()

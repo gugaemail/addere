@@ -13,7 +13,7 @@ vi.mock('../billing-mailer', async (importOriginal) => {
   return { ...actual, sendBillingEmail: vi.fn(async () => true) }
 })
 
-import { prismaMock, resetPrismaMock } from '../../../test-utils/prisma-mock'
+import { prismaCallLog, prismaMock, resetPrismaMock } from '../../../test-utils/prisma-mock'
 import { buildApp } from '../../../app'
 import { sendBillingEmail } from '../billing-mailer'
 import { acceptDocument } from '../me.service'
@@ -195,12 +195,21 @@ const accept = (who: keyof typeof tokens, sha256 = HASH, headers: Record<string,
     payload: { sha256 },
   })
 
+/** A trava da linha do contrato (contract-lock.ts), pela empresa de quem chama */
+const LOCK = {
+  call: 'companyContract.updateMany',
+  args: [{ where: { companyId: COMPANY_A }, data: { seatGuardVersion: { increment: 1 } } }],
+}
+
+/** As escritas no status do contrato, sem a trava */
+const contractStatusWrites = () =>
+  prismaMock.companyContract.updateMany.mock.calls
+    .map((c: [{ data: Record<string, unknown> }]) => c[0])
+    .filter((a: { data: Record<string, unknown> }) => a.data.seatGuardVersion === undefined)
+
 function expectNoAcceptWrite() {
-  expect(prismaMock.contractDocument.updateMany).not.toHaveBeenCalled()
-  expect(prismaMock.contractTerms.updateMany).not.toHaveBeenCalled()
-  expect(prismaMock.companyContract.updateMany).not.toHaveBeenCalled()
-  expect(prismaMock.company.update).not.toHaveBeenCalled()
-  expect(prismaMock.billingEvent.create).not.toHaveBeenCalled()
+  // Só a trava: nenhuma escrita do aceite
+  expect(prismaCallLog({ writesOnly: true })).toEqual([LOCK])
   expect(mailer).not.toHaveBeenCalled()
 }
 
@@ -277,8 +286,10 @@ describe('aceite — recusas', () => {
     const res = await accept('maria')
     expect(res.statusCode).toBe(409)
     expect(res.json().code).toBe('DOCUMENT_NOT_PENDING')
-    expect(prismaMock.contractTerms.updateMany).not.toHaveBeenCalled()
-    expect(prismaMock.companyContract.updateMany).not.toHaveBeenCalled()
+    expect(prismaCallLog({ writesOnly: true }).map((c) => c.call)).toEqual([
+      'companyContract.updateMany', // a trava
+      'contractDocument.updateMany', // o aceite que deu count 0
+    ])
     expect(prismaMock.company.update).not.toHaveBeenCalled()
     expect(prismaMock.billingEvent.create).not.toHaveBeenCalled()
     expect(mailer).not.toHaveBeenCalled()
@@ -325,7 +336,7 @@ describe('aceite feliz do contrato', () => {
       where: { id: 'terms-1', status: 'PROPOSED' },
       data: { status: 'EFFECTIVE', effectiveFrom: acceptedAt },
     })
-    const contractCall = prismaMock.companyContract.updateMany.mock.calls[0][0]
+    const [contractCall] = contractStatusWrites()
     expect(contractCall.where).toEqual({ id: 'contract-1', status: 'PENDING_ACCEPTANCE' })
     expect(contractCall.data.status).toBe('ACTIVE')
     expect(contractCall.data.startDate).toBeInstanceOf(Date)
@@ -388,6 +399,55 @@ describe('aceite feliz do contrato', () => {
   })
 })
 
+describe('aceite — a trava da linha do contrato vem primeiro', () => {
+  const request = {
+    userId: MARIA,
+    companyId: COMPANY_A,
+    sha256: HASH,
+    ip: '203.0.113.9',
+    userAgent: 'Navegador de teste',
+  }
+
+  it('é a primeira chamada ao banco: o documento só é lido depois dela', async () => {
+    mockAccept({})
+    await acceptDocument(DOC, request, new Date())
+    const calls = prismaCallLog()
+    expect(calls[0]).toEqual(LOCK)
+    expect(calls[1].call).toBe('contractDocument.findFirst')
+    // E a primeira escrita: documento, termos e contrato vêm depois, nessa ordem
+    expect(
+      prismaCallLog({ writesOnly: true })
+        .slice(0, 4)
+        .map((c) => c.call)
+    ).toEqual([
+      'companyContract.updateMany',
+      'contractDocument.updateMany',
+      'contractTerms.updateMany',
+      'companyContract.updateMany',
+    ])
+  })
+
+  it('empresa sem contrato → 404, sem ler nem escrever o documento', async () => {
+    mockAccept({})
+    prismaMock.companyContract.updateMany.mockResolvedValue({ count: 0 })
+    await expect(acceptDocument(DOC, request, new Date())).rejects.toMatchObject({
+      statusCode: 404,
+    })
+    expect(prismaMock.contractDocument.findFirst).not.toHaveBeenCalled()
+    expect(prismaCallLog({ writesOnly: true })).toEqual([LOCK])
+  })
+
+  it('a edição confirmou antes: na releitura o documento está CANCELLED → 409', async () => {
+    // O rascunho editado cancelou o documento enquanto o aceite esperava a trava
+    mockAccept({ doc: docRow({ status: 'CANCELLED' }) })
+    await expect(acceptDocument(DOC, request, new Date())).rejects.toMatchObject({
+      statusCode: 409,
+      code: 'DOCUMENT_NOT_PENDING',
+    })
+    expectNoAcceptWrite()
+  })
+})
+
 describe('aceite do aditivo', () => {
   const now = new Date('2026-10-20T15:00:00Z')
   const request = {
@@ -425,7 +485,7 @@ describe('aceite do aditivo', () => {
     expect(termsCall.data).toEqual({ status: 'EFFECTIVE', effectiveFrom: valeAPartirDe })
     expect(termsCall.data.effectiveFrom.toISOString()).toBe('2026-12-01T03:01:00.000Z')
     // Aditivo não mexe no status do contrato
-    expect(prismaMock.companyContract.updateMany).not.toHaveBeenCalled()
+    expect(contractStatusWrites()).toEqual([])
     expect(prismaMock.company.update).not.toHaveBeenCalled()
 
     // Fronteira do dia 1 (contrato §6.4): dezembro pelos termos anteriores, janeiro pelos novos

@@ -9,7 +9,9 @@ import {
 import { AppError, conflict, notFound } from '../../lib/errors'
 import { captureError } from '../../lib/sentry'
 import { recordBillingEvent } from './billing-events'
+import { lockContractRow } from './contract-lock'
 import { assertDesignatedAdmin } from './designated-admin'
+import { assertMonthlyTotalFits } from './invoice-rules'
 import { syncIntelligenceWithTerms } from './jobs/apply-due-terms'
 import { sendLicenseRequestEmail } from './license-request-email'
 import type {
@@ -24,23 +26,16 @@ import type {
 // LICENSE_REQUEST) ou recusa com motivo. O limite sobe na hora; a cobrança, na
 // competência seguinte (o 016 cobra pelos termos vigentes no início do mês).
 //
-// Criar e decidir começam pela mesma trava da linha do contrato que a trava de
-// licenças usa (seat-guard.ts): serializa dois pedidos ao mesmo tempo, a troca
-// do indicado (que escreve na mesma linha) e duas decisões do mesmo pedido.
+// Criar e decidir começam pela trava da linha do contrato (lockContractRow,
+// contract-lock.ts), a mesma da trava de licenças e do aceite: serializa dois
+// pedidos ao mesmo tempo, a troca do indicado, um aditivo em andamento e duas
+// decisões do mesmo pedido.
 
 const USER_AGENT_MAX = 512
 const MY_REQUESTS_TAKE = 20
 const ADMIN_REQUESTS_TAKE = 200
 
 type Db = Prisma.TransactionClient
-
-/** A mesma trava de seat-guard.ts: o UPDATE prende a linha do contrato até o fim da transação */
-function lockContract(tx: Db, companyId: string) {
-  return tx.companyContract.updateMany({
-    where: { companyId },
-    data: { seatGuardVersion: { increment: 1 } },
-  })
-}
 
 const VALUE_TERMS_SELECT = {
   id: true,
@@ -105,7 +100,7 @@ export async function createLicenseRequest(
 
   const created = await prisma.$transaction(async (tx) => {
     // 1. Trava: dois pedidos da mesma empresa (ou a troca do indicado) esperam
-    await lockContract(tx, companyId)
+    await lockContractRow(tx, companyId)
 
     // 2. Só com contrato ACTIVE há limite para ampliar
     const contract = await tx.companyContract.findUnique({
@@ -260,7 +255,7 @@ export async function decideLicenseRequest(
     const { companyId } = head
 
     // 2. Trava da empresa: serializa com a trava de licenças e com outra decisão
-    await lockContract(tx, companyId)
+    await lockContractRow(tx, companyId)
 
     // Relido depois da trava: uma decisão que acabou de terminar já aparece
     const request = await tx.licenseRequest.findUnique({
@@ -358,6 +353,13 @@ async function approve(
       'LICENSE_PRICE_CHANGED'
     )
   }
+
+  // O total mensal com as licenças somadas tem de caber no Decimal(14,2)
+  assertMonthlyTotalFits({
+    packagePrice: current.packagePrice,
+    extraSeats: current.extraSeats + request.quantity,
+    extraSeatPrice: current.extraSeatPrice,
+  })
 
   // Próxima versão: da linha mais alta, em qualquer status (como o 013 e o 014)
   const last = await tx.contractTerms.findFirst({

@@ -456,6 +456,16 @@ describe('itens manuais', () => {
     expect(prismaMock.invoice.update).not.toHaveBeenCalled()
   })
 
+  it('item que faz o total passar do Decimal(14,2): 422 AMOUNT_TOO_LARGE e nada gravado', async () => {
+    prismaMock.invoice.findUnique.mockResolvedValue(invoiceRow())
+    prismaMock.invoiceItem.findMany.mockResolvedValue([{ amount: dec('999999999999.99') }])
+    const res = await addItem({ kind: 'ADJUSTMENT', description: 'Um real a mais', amount: '1.00' })
+    expect(res.statusCode).toBe(422)
+    expect(res.json().code).toBe('AMOUNT_TOO_LARGE')
+    expect(prismaMock.invoiceItem.create).not.toHaveBeenCalled()
+    expect(prismaMock.invoice.update).not.toHaveBeenCalled()
+  })
+
   it('desconto com sinal ou valor zero: 400', async () => {
     expect(
       (await addItem({ kind: 'DISCOUNT', description: 'Desconto', amount: '-10' })).statusCode
@@ -485,6 +495,23 @@ describe('itens manuais', () => {
     expect(res.statusCode).toBe(409)
     expect(res.json().code).toBe('INVOICE_ITEM_NOT_MANUAL')
     expect(prismaMock.invoiceItem.deleteMany).not.toHaveBeenCalled()
+  })
+
+  it('remover o desconto faz o total passar do Decimal(14,2): 422 AMOUNT_TOO_LARGE', async () => {
+    prismaMock.invoice.findUnique.mockResolvedValue(invoiceRow())
+    prismaMock.invoiceItem.findMany.mockResolvedValue([
+      { id: 'item-a', amount: dec('999999999999.99'), manual: true },
+      { id: 'item-b', amount: dec('999999999999.99'), manual: true },
+      { id: ITEM_MANUAL, amount: dec('-999999999999.99'), manual: true },
+    ])
+    const res = await call({
+      method: 'DELETE',
+      url: `/admin/billing/invoices/${INV}/items/${ITEM_MANUAL}`,
+    })
+    expect(res.statusCode).toBe(422)
+    expect(res.json().code).toBe('AMOUNT_TOO_LARGE')
+    expect(prismaMock.invoiceItem.deleteMany).not.toHaveBeenCalled()
+    expect(prismaMock.invoice.update).not.toHaveBeenCalled()
   })
 
   it('remover item manual (D9): só ele, e o total refeito', async () => {
@@ -533,6 +560,20 @@ describe('fatura avulsa (D3)', () => {
   beforeEach(() => {
     prismaMock.company.findUnique.mockResolvedValue({ id: COMPANY_A })
     prismaMock.invoice.create.mockResolvedValue({ id: INV, number: 125 })
+  })
+
+  it('dois itens do máximo: a soma passa do Decimal(14,2) → 422 AMOUNT_TOO_LARGE, sem create', async () => {
+    const max = '999999999999.99'
+    const res = await create({
+      ...base(),
+      items: [
+        { kind: 'ADJUSTMENT', description: 'Valor gigante 1', amount: max },
+        { kind: 'ADJUSTMENT', description: 'Valor gigante 2', amount: max },
+      ],
+    })
+    expect(res.statusCode).toBe(422)
+    expect(res.json()).toMatchObject({ code: 'AMOUNT_TOO_LARGE', details: { max } })
+    expect(prismaMock.invoice.create).not.toHaveBeenCalled()
   })
 
   it('competência do mês corrente: 422 COMPETENCE_NOT_PAST', async () => {

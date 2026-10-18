@@ -283,7 +283,7 @@ describe('aviso de suspensão', () => {
     expect(eventsOf('ACCESS_BLOCKED')).toHaveLength(0)
   })
 
-  it('sem destinatário → nenhum evento, captureError com o companyId', async () => {
+  it('sem destinatário → nenhum aviso, captureError com o companyId', async () => {
     recipientsMock.mockResolvedValue([])
     const { notices } = await tick('2026-10-11')
     expect(notices.skipped).toBe(1)
@@ -292,6 +292,52 @@ describe('aviso de suspensão', () => {
       expect.objectContaining({ message: 'Aviso de suspensão sem destinatário' }),
       expect.objectContaining({ companyId: COMPANY, invoiceId: INV })
     )
+  })
+
+  it('sem destinatário: Sentry e histórico uma vez por fatura, não a cada tick', async () => {
+    recipientsMock.mockResolvedValue([])
+    // 60 dias de ticks, como o agendador de hora em hora faria
+    for (let d = 1; d <= 60; d++) await tick(addDays('2026-10-10', d))
+    const noRecipient = eventsOf('SUSPENSION_NOTICE_NO_RECIPIENT')
+    expect(noRecipient).toHaveLength(1)
+    expect(noRecipient[0]).toMatchObject({
+      companyId: COMPANY,
+      actorId: null,
+      dedupeKey: `invoice:${INV}:suspension-notice-no-recipient`,
+      payload: { fields: [], invoiceId: INV, invoiceNumber: 12 },
+    })
+    const warned = captureMock.mock.calls.filter(
+      ([err]) => (err as Error).message === 'Aviso de suspensão sem destinatário'
+    )
+    expect(warned).toHaveLength(1)
+    // Continua sem aviso gravado e, sem aviso, sem bloqueio
+    expect(eventsOf('SUSPENSION_NOTICE_SENT')).toHaveLength(0)
+    expect(company.accessBlockedAt).toBeNull()
+  })
+
+  it('sem destinatário com dois ticks ao mesmo tempo: o P2002 do segundo não vai ao Sentry', async () => {
+    recipientsMock.mockResolvedValue([])
+    prismaMock.billingEvent.create.mockRejectedValueOnce(
+      new Prisma.PrismaClientKnownRequestError('Unique constraint failed', {
+        code: 'P2002',
+        clientVersion: '5.22.0',
+      })
+    )
+    const { notices } = await tick('2026-10-11')
+    expect(notices.failed).toBe(0)
+    expect(captureMock).not.toHaveBeenCalled()
+  })
+
+  it('sem destinatário em duas faturas: um aviso de cada', async () => {
+    recipientsMock.mockResolvedValue([])
+    invoices = [invoice(), invoice({ id: INV_2, number: 13 })]
+    await tick('2026-10-11')
+    await tick('2026-10-12')
+    expect(eventsOf('SUSPENSION_NOTICE_NO_RECIPIENT').map((e) => e.payload.invoiceId)).toEqual([
+      INV,
+      INV_2,
+    ])
+    expect(captureMock).toHaveBeenCalledTimes(2)
   })
 
   it("sendBillingEmailThenRecord devolvendo 'duplicate' → o tick segue sem erro", async () => {

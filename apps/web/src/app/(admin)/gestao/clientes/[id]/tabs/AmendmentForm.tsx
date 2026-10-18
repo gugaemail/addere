@@ -161,6 +161,9 @@ export function AmendmentForm({
       reason: data.reason.trim(),
       requestedByClient: data.requestedByClient,
       carryConditions: data.carryConditions,
+      // A versão que a tela mostra: se o cliente aceitou no meio, a API recusa
+      // (409 TERMS_NOT_EDITABLE) em vez de criar outra proposta
+      termsVersion: docs.amendment?.version ?? null,
     }
     try {
       const result = await save.mutateAsync(input)
