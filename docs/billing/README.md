@@ -25,6 +25,16 @@ registra quem aceitou, a data e a hora, o IP, o navegador e o hash.
   3. o monitor de disponibilidade da API e do painel no ar, com histórico
      mensal, medindo há algumas semanas (ver "Disponibilidade e crédito");
   4. este documento escrito (é ele).
+- **A v1 é editada no lugar e publicada.** A migration grava a v1 de cada tipo
+  em rascunho (DRAFT), com o texto da minuta e as marcas `[[REVISAR]]`, e a
+  API recusa versão nova enquanto houver rascunho aberto (409
+  `TEMPLATE_DRAFT_EXISTS`; o painel esconde "Nova versão"). O caminho é:
+  "Editar" a v1, tirar as marcas, salvar e publicar. "Nova versão" só existe
+  depois de uma publicada. Editar a v1 sobrescreve no banco o texto que a
+  migration gravou; a fonte da minuta continua em
+  `contrato-licenca-de-uso-v1.md` e `aditivo-contratual-v1.md`. O roteiro do
+  ponta a ponta do plano 014 ("crie a v2 de cada tipo a partir da v1") não é
+  executável por isso; vale este item.
 - Contrato e aditivo são publicados juntos: o aditivo v1 cita o §6.4, o §6.7,
   o §13 e o §14 do contrato v1. Renumerar o contrato exige versão nova do
   aditivo.
