@@ -24,6 +24,7 @@ import { changedFields, recordBillingEvent } from './billing-events'
 import type { AmendmentData } from './contract-documents.schema'
 import { sendDocumentPendingEmail } from './contract-email'
 import { lockContractRow } from './contract-lock'
+import { assertMonthlyTotalFits } from './invoice-rules'
 import {
   buildContractFieldValues,
   latestEffectiveTerms,
@@ -772,6 +773,8 @@ export async function saveAmendment(
       reason: input.reason,
       requestedByClient: input.requestedByClient,
     }
+    // O gerador grava esse total na fatura todo mês: tem de caber no Decimal(14,2)
+    assertMonthlyTotalFits(termsData)
 
     let termsVersion: number
     let fields: string[]

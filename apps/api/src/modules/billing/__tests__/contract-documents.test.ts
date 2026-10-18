@@ -921,6 +921,16 @@ describe('aditivo', () => {
     expect(prismaMock.contractTerms.updateMany.mock.calls[0][0].data.extraSeats).toBe(3)
   })
 
+  it('total mensal acima do Decimal(14,2) → 422 AMOUNT_TOO_LARGE, sem criar termos', async () => {
+    mockActive([effective])
+    const res = await put(
+      body({ extraSeats: 10000, extraSeatPrice: '999999999999.99', requestedByClient: true })
+    )
+    expect(res.statusCode).toBe(422)
+    expect(res.json().code).toBe('AMOUNT_TOO_LARGE')
+    expect(prismaMock.contractTerms.create).not.toHaveBeenCalled()
+  })
+
   it('motivo é obrigatório → 400', async () => {
     mockActive([effective])
     const res = await put(body({ reason: '' }))

@@ -6,6 +6,7 @@ import type { ContractDraftData } from './billing.schema'
 import { CONTRACT_WITH_TERMS, toContractDto } from './clients.service'
 import { CANCEL_REASON_DRAFT_CHANGED, cancelSentDocuments } from './contract-documents.service'
 import { lockContractRow } from './contract-lock'
+import { assertMonthlyTotalFits } from './invoice-rules'
 
 // Contrato em rascunho (plano 013). Antes do aceite nada começa: sem limite,
 // sem cobrança e sem mudança na Inteligência. Este arquivo NUNCA lê nem escreve
@@ -83,6 +84,8 @@ export async function saveContractDraft(
       extraSeatPrice: input.extraSeatPrice,
       reason: input.reason,
     }
+    // O gerador grava esse total na fatura todo mês: tem de caber no Decimal(14,2)
+    assertMonthlyTotalFits(termsData)
 
     // 2. Estado relido depois da trava: é por ele que se decide
     const existing = await tx.companyContract.findUnique({

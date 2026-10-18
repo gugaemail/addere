@@ -418,6 +418,13 @@ duas vezes, nem com um tick automático rodando junto.
   plano 017.
 - **Crédito por indisponibilidade**: item `DISCOUNT` à mão, na fatura da
   competência seguinte (ver "Disponibilidade e crédito").
+- **Teto de R$ 999.999.999.999,99** (as colunas são `Decimal(14,2)`): o total
+  mensal do rascunho, do aditivo e da aprovação de licenças (pacote +
+  adicionais × preço) e cada item e o total da fatura (avulsa, recálculo,
+  item lançado ou removido) são conferidos antes de gravar; acima, 422
+  `AMOUNT_TOO_LARGE`. No gerador, o contrato acima do teto vai ao Sentry sem
+  tentar o INSERT (não gasta número). Antes de 18/10/2026 a soma estourava no
+  Postgres e virava 500.
 
 ### E-mails: reserva e liberação
 

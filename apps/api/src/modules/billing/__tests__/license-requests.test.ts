@@ -452,6 +452,15 @@ describe('POST /admin/billing/license-requests/:id/decide', () => {
     expect(prismaMock.contractTerms.create).not.toHaveBeenCalled()
   })
 
+  it('total mensal com as licenças somadas acima do Decimal(14,2): 422 AMOUNT_TOO_LARGE', async () => {
+    contract({ terms: [termsRow({ packagePrice: new Prisma.Decimal('999999999999.99') })] })
+    const res = await decide('super', { decision: 'APPROVE' })
+    expect(res.statusCode).toBe(422)
+    expect(res.json().code).toBe('AMOUNT_TOO_LARGE')
+    expect(prismaMock.contractTerms.create).not.toHaveBeenCalled()
+    expect(row.status).toBe('PENDING')
+  })
+
   it('aditivo em andamento (termo PROPOSED): 409 AMENDMENT_PENDING', async () => {
     contract({ terms: [termsRow(), termsRow({ id: 'terms-2', version: 2, status: 'PROPOSED' })] })
     const res = await decide('super', { decision: 'APPROVE' })

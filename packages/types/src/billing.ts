@@ -512,6 +512,7 @@ export type BillingErrorCode =
   | 'COMPETENCE_NOT_BILLABLE'
   | 'DUE_DATE_IN_PAST'
   | 'PAID_AT_IN_FUTURE'
+  | 'AMOUNT_TOO_LARGE'
   // Plano 015
   | 'SEAT_LIMIT_REACHED'
   | 'CONTRACT_CANCELLED'

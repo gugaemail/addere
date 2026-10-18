@@ -6,9 +6,13 @@ import { Prisma } from '@prisma/client'
 import { computeBillingCalendar, invoiceDisplayStatus, resolveCompetenceTerms } from '@addere/types'
 import { competenceStart, dateToCompetence } from '../competence'
 import {
+  assertInvoiceFits,
+  assertMonthlyTotalFits,
   buildContractItems,
+  fitsMoneyColumn,
   isCompetenceBillable,
   isP2002,
+  MONEY_COLUMN_MAX,
   sumAmounts,
   type BillableContract,
 } from '../invoice-rules'
@@ -202,5 +206,53 @@ describe('isP2002', () => {
     expect(isP2002(unique)).toBe(true)
     expect(isP2002(other)).toBe(false)
     expect(isP2002(new Error('P2002'))).toBe(false)
+  })
+})
+
+describe('teto do Decimal(14,2) (A4 do e2e de 18/10/2026)', () => {
+  it('cabe até 999999999999.99, em módulo', () => {
+    expect(MONEY_COLUMN_MAX.toFixed(2)).toBe('999999999999.99')
+    expect(fitsMoneyColumn('999999999999.99')).toBe(true)
+    expect(fitsMoneyColumn('-999999999999.99')).toBe(true)
+    expect(fitsMoneyColumn('1000000000000.00')).toBe(false)
+    expect(fitsMoneyColumn(new Prisma.Decimal('-1000000000000'))).toBe(false)
+  })
+
+  it('total mensal: pacote + adicionais × preço, no limite passa e um centavo acima é 422', () => {
+    expect(() =>
+      assertMonthlyTotalFits({
+        packagePrice: '999999999998.99',
+        extraSeats: 1,
+        extraSeatPrice: '1.00',
+      })
+    ).not.toThrow()
+    expect(() =>
+      assertMonthlyTotalFits({
+        packagePrice: '999999999999.99',
+        extraSeats: 1,
+        extraSeatPrice: '0.01',
+      })
+    ).toThrow(expect.objectContaining({ statusCode: 422, code: 'AMOUNT_TOO_LARGE' }))
+    // O caso do e2e: cada valor cabe, o produto não
+    expect(() =>
+      assertMonthlyTotalFits({
+        packagePrice: '999999999999.99',
+        extraSeats: 10000,
+        extraSeatPrice: '999999999999.99',
+      })
+    ).toThrow(expect.objectContaining({ code: 'AMOUNT_TOO_LARGE' }))
+  })
+
+  it('fatura: cada item e o total', () => {
+    const max = { amount: '999999999999.99' }
+    expect(() => assertInvoiceFits([max], '999999999999.99')).not.toThrow()
+    // Dois itens que cabem, soma que não cabe
+    expect(() => assertInvoiceFits([max, max], sumAmounts([max.amount, max.amount]))).toThrow(
+      expect.objectContaining({ statusCode: 422, code: 'AMOUNT_TOO_LARGE' })
+    )
+    // Item automático acima (licenças adicionais de termos antigos), total compensado
+    expect(() =>
+      assertInvoiceFits([{ amount: new Prisma.Decimal('1000000000000') }], '1.00')
+    ).toThrow(expect.objectContaining({ code: 'AMOUNT_TOO_LARGE' }))
   })
 })

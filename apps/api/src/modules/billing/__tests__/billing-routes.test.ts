@@ -999,6 +999,23 @@ describe('PUT /admin/billing/clients/:companyId/contract', () => {
     expect(prismaMock.contractTerms.create.mock.calls[0][0].data.includedSeats).toBe(100)
   })
 
+  it('total mensal acima do Decimal(14,2) → 422 AMOUNT_TOO_LARGE, sem escrita', async () => {
+    const res = await app.inject({
+      method: 'PUT',
+      url,
+      headers: auth('super'),
+      payload: {
+        ...draftBody,
+        extraSeats: 10000,
+        packagePrice: '999999999999.99',
+        extraSeatPrice: '999999999999.99',
+      },
+    })
+    expect(res.statusCode).toBe(422)
+    expect(res.json().code).toBe('AMOUNT_TOO_LARGE')
+    expectNoContractWrite()
+  })
+
   it('pacote desativado → 422 PACKAGE_INACTIVE', async () => {
     prismaMock.licensePackage.findUnique.mockResolvedValue({ ...p10, active: false })
     const res = await app.inject({ method: 'PUT', url, headers: auth('super'), payload: draftBody })

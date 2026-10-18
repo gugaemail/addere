@@ -11,6 +11,7 @@ import { captureError } from '../../lib/sentry'
 import { recordBillingEvent } from './billing-events'
 import { lockContractRow } from './contract-lock'
 import { assertDesignatedAdmin } from './designated-admin'
+import { assertMonthlyTotalFits } from './invoice-rules'
 import { syncIntelligenceWithTerms } from './jobs/apply-due-terms'
 import { sendLicenseRequestEmail } from './license-request-email'
 import type {
@@ -352,6 +353,13 @@ async function approve(
       'LICENSE_PRICE_CHANGED'
     )
   }
+
+  // O total mensal com as licenças somadas tem de caber no Decimal(14,2)
+  assertMonthlyTotalFits({
+    packagePrice: current.packagePrice,
+    extraSeats: current.extraSeats + request.quantity,
+    extraSeatPrice: current.extraSeatPrice,
+  })
 
   // Próxima versão: da linha mais alta, em qualquer status (como o 013 e o 014)
   const last = await tx.contractTerms.findFirst({
