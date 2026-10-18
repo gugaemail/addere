@@ -5,6 +5,7 @@ import type { FastifyInstance } from 'fastify'
 
 vi.mock('@addere/db', async () => (await import('../../../test-utils/prisma-mock')).mockDb())
 
+import { Prisma } from '@prisma/client'
 import { prismaMock, resetPrismaMock } from '../../../test-utils/prisma-mock'
 import { buildApp } from '../../../app'
 
@@ -646,5 +647,98 @@ describe('trava de licenças', () => {
       payload: { managerId: '44444444-4444-4444-8444-444444444444' },
     })
     expect(res.statusCode).toBe(422)
+  })
+})
+
+// A5 do e2e de 18/10/2026: a mensagem crua do Prisma (com o caminho do arquivo
+// e o trecho do código) não pode chegar na resposta.
+describe('erros sem mensagem crua do Prisma', () => {
+  const CRU =
+    'Invalid `db.user.create()` invocation in C:\\api\\src\\modules\\users\\users.service.ts:122:13'
+  const p2002 = (target: unknown) =>
+    new Prisma.PrismaClientKnownRequestError(
+      `${CRU}\n\nUnique constraint failed on the fields: (\`email\`)`,
+      {
+        code: 'P2002',
+        clientVersion: '5.22.0',
+        meta: { target },
+      }
+    )
+
+  function emailFree() {
+    prismaMock.user.findUnique.mockImplementation(async (args: { where: { email?: string } }) =>
+      args.where.email ? null : { active: true }
+    )
+  }
+  const body = {
+    name: 'Dup',
+    email: 'dup@example.com',
+    password: 'senha12345',
+    role: 'ADMIN',
+    companyId: COMPANY_A,
+  }
+  const post = () =>
+    app.inject({ method: 'POST', url: '/users', headers: auth('super-1'), payload: body })
+
+  it('duas criações ao mesmo tempo: a segunda esbarra no @unique → 409 "Email já cadastrado"', async () => {
+    emailFree()
+    prismaMock.user.create.mockRejectedValue(p2002(['email']))
+    const res = await post()
+    expect(res.statusCode).toBe(409)
+    expect(res.json()).toEqual({ message: 'Email já cadastrado' })
+  })
+
+  it('a checagem de antes da criação também responde 409 "Email já cadastrado"', async () => {
+    prismaMock.user.findUnique.mockImplementation(async (args: { where: { email?: string } }) =>
+      args.where.email ? { id: 'outro' } : { active: true }
+    )
+    const res = await post()
+    expect(res.statusCode).toBe(409)
+    expect(res.json()).toEqual({ message: 'Email já cadastrado' })
+    expect(prismaMock.user.create).not.toHaveBeenCalled()
+  })
+
+  it('outro erro que não é AppError: 500 com a mensagem genérica, sem o texto do Prisma', async () => {
+    emailFree()
+    prismaMock.user.create.mockRejectedValue(
+      new Prisma.PrismaClientUnknownRequestError(CRU, { clientVersion: '5.22.0' })
+    )
+    const res = await post()
+    expect(res.statusCode).toBe(500)
+    expect(res.json()).toEqual({ message: 'Erro interno do servidor' })
+    expect(res.body).not.toMatch(/invocation|users\.service|prisma/i)
+  })
+
+  it('P2002 em outro campo não vira "Email já cadastrado": 409 genérico do handler', async () => {
+    emailFree()
+    prismaMock.user.create.mockRejectedValue(p2002(['companyId', 'idVendProt']))
+    const res = await post()
+    expect(res.statusCode).toBe(409)
+    expect(res.json()).toEqual({ message: 'Registro duplicado' })
+  })
+
+  it('PATCH trocando para um e-mail que já existe: 409 "Email já cadastrado", não 404 cru', async () => {
+    targetInCompany(COMPANY_A)
+    prismaMock.user.findFirst.mockResolvedValue({ id: TARGET, companyId: COMPANY_A })
+    prismaMock.user.update.mockRejectedValue(p2002(['email']))
+    const res = await app.inject({
+      method: 'PATCH',
+      url: `/users/${TARGET}`,
+      headers: auth('super-1'),
+      payload: { email: 'existe@example.com' },
+    })
+    expect(res.statusCode).toBe(409)
+    expect(res.json()).toEqual({ message: 'Email já cadastrado' })
+  })
+
+  it('PATCH /users/:id/active de usuário que não existe: 404 com a mensagem de sempre', async () => {
+    prismaMock.user.findFirst.mockResolvedValue(null)
+    const res = await app.inject({
+      method: 'PATCH',
+      url: `/users/${TARGET}/active`,
+      headers: auth('admin-a'),
+    })
+    expect(res.statusCode).toBe(404)
+    expect(res.json()).toEqual({ message: 'Usuário não encontrado' })
   })
 })
