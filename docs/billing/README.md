@@ -226,6 +226,15 @@ criados.
   `127.0.0.1` nos logs são o health check interno do Render.
 - O valor também está no `render.yaml` (`'2'`): ao mudar no painel do Render,
   mudar lá também, senão o próximo sync do blueprint volta o valor.
+- **O IP também aparece no log de acesso.** O logger padrão do Fastify grava o
+  `remoteAddress` (o `request.ip` resolvido pelo `trustProxy`) de toda
+  requisição, inclusive a do aceite (`POST /billing/me/documents/:id/accept`)
+  e a do pedido de licenças. É log operacional padrão, e é ele que permite a
+  conferência do `TRUST_PROXY_HOPS` acima: fica. Esse IP fica nos logs do
+  Render pelo prazo de retenção deles e não é o registro de prova: a prova do
+  aceite é a do documento (`acceptedIp`, com data, navegador e hash), e a do
+  pedido, a do `billing_license_requests`. O histórico da ficha
+  (`BillingEvent`) e o Sentry nunca levam IP.
 
 ### Levar um cliente às condições gerais novas
 
