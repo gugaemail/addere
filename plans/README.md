@@ -401,10 +401,45 @@ indicado pela Empresa, o único que aceita.
 
 O próprio sistema recusa publicar um modelo com marca.
 
+**Em produção — estado em 19/10/2026:**
+
+- **API:** o 013 ao 018 estão na `main` desde 17/10/2026 (PRs #256 e #258). Em 18/10/2026, o
+  teste de ponta a ponta contra Postgres real achou a corrida entre o aceite e a edição do
+  contrato ou do aditivo (A1 a A3), e o conserto entrou com os achados menores (#261 na
+  `staging`, #262 na `main`). Os scripts e o relatório estão em `apps/api/e2e-billing/`.
+- **Render:** `TRUST_PROXY_HOPS` é 2 em produção e 3 no staging, que hiberna. As variáveis
+  foram criadas à mão, porque o painel não lê o `render.yaml`. Nos dois, a 11ª senha errada dá
+  429. Ver "IP do aceite" em `docs/billing/README.md`.
+- **Desligado de propósito:**
+  - `BILLING_JOBS_ENABLED=false`, que só liga depois do aceite do primeiro contrato;
+  - `autoBlockEnabled=false`, que só liga depois que os aparelhos tiverem o OTA do 017.
+- **App:** o OTA do 017 saiu em 17/10/2026 com runtime 1.1.1, que só o iOS tinha. O Android
+  estava no build 22 (1.1.0) e não recebia OTA desde 05/10. Em 19/10/2026, ele recebeu o mesmo
+  JS num OTA 1.1.0 só para Android. No mesmo dia, o build 23 (1.1.1, o primeiro com R8) foi
+  para o teste interno da Play. Ver "Versões no ar" em `apps/mobile/docs/DEPLOY_CHECKLIST.md`.
+  Para o Android, os dias de uso antes de ligar o bloqueio contam a partir de 19/10.
+- **Site:** a landing do tipo de licença, os Termos, a Privacidade e o FAQ "Acesso suspenso"
+  da Ajuda estão no ar desde 17/10/2026.
+
+**Falta, nesta ordem:**
+
+1. `WEB_URL` de produção no Render: hoje é `https://addere-web.vercel.app`, e o link do e-mail
+   do contrato deve abrir em `https://admin.addere.com.br` (sem barra no fim).
+2. O roteiro do R8 num aparelho Android com o build 23, antes de liberar o build para mais
+   gente (`DEPLOY_CHECKLIST.md`, "Android: R8").
+3. As três condições acima para publicar o modelo: advogado, itens que bloqueiam a publicação
+   e monitor de disponibilidade.
+4. Publicar o modelo e enviar o primeiro contrato. Depois do aceite,
+   `BILLING_JOBS_ENABLED=true` no Render (`docs/billing/README.md`, "Como ligar").
+5. Ligar `autoBlockEnabled` em Pacotes e regras, pela ordem de liberação.
+
+Ficou de fora e está registrado: o "Próximo vencimento" na lista de Clientes (do 016). O
+`build:web` do CI às vezes falha ao baixar a fonte do `next/font` do Google; rodar o job de
+novo resolve, e fonte local acabaria com isso.
+
 **Landing junto com o 014:** a `index.html` do site dizia que o ADMIN liga a Inteligência em
-Configurações, o que fica falso com o 014. A correção está na branch
-`landing/inteligencia-pelo-contrato` do repo do site e é publicada junto com o 014, nem antes nem
-depois. A razão social "GH ENGENHARIA LTDA - ME" e o nome completo do encarregado já entraram na
+Configurações, o que fica falso com o 014. A correção foi publicada com o 014 em produção, em
+17/10/2026. A razão social "GH ENGENHARIA LTDA - ME" e o nome completo do encarregado já entraram na
 `master` do site em 15/10/2026.
 
 **Convenções que valem para os seis planos** (alinhadas na revisão de 15/10/2026):
