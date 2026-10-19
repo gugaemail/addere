@@ -7,7 +7,14 @@ import { MoreVertical } from 'lucide-react'
 import { toast } from 'sonner'
 import type { Branch, Customer, Product } from '@addere/types'
 import { api, getApiErrorMessage } from '@/lib/api'
-import { maskCEP, maskDocument, formatCEPDisplay, formatDocumentDisplay } from '@/lib/utils'
+import {
+  maskCEP,
+  maskDocument,
+  maskPhone,
+  formatCEPDisplay,
+  formatDocumentDisplay,
+  formatPhoneDisplay,
+} from '@/lib/utils'
 import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
 import { FormField, FormSelect } from '@/components/ui/FormField'
@@ -270,7 +277,8 @@ export function CustomerModal({ companyId, mode, customer, onClose, onSaved }: C
       loja: mode === 'copy' ? '' : (customer?.loja ?? ''),
       document: customer?.document ?? '',
       email: customer?.email ?? '',
-      phone: customer?.phone ?? '',
+      // Telefone já gravado abre formatado (o do Protheus vem só com dígitos)
+      phone: customer?.phone ? formatPhoneDisplay(customer.phone) : '',
       address: customer?.address ?? '',
       municipio: customer?.municipio ?? '',
       bairro: customer?.bairro ?? '',
@@ -350,7 +358,7 @@ export function CustomerModal({ companyId, mode, customer, onClose, onSaved }: C
 
           <p className={`${SECTION_TITLE} mt-4 mb-2`}>Contato</p>
           <ViewRow label="E-mail" value={customer.email} />
-          <ViewRow label="Telefone" value={customer.phone} />
+          <ViewRow label="Telefone" value={formatPhoneDisplay(customer.phone)} />
 
           <p className={`${SECTION_TITLE} mt-4 mb-2`}>Endereço</p>
           <ViewRow label="Endereço" value={customer.address} />
@@ -403,7 +411,13 @@ export function CustomerModal({ companyId, mode, customer, onClose, onSaved }: C
 
         <p className={`${SECTION_TITLE} pt-1`}>Contato</p>
         <FormField label="E-mail" placeholder="Opcional" {...register('email')} />
-        <FormField label="Telefone" placeholder="Opcional" {...register('phone')} />
+        <FormField
+          label="Telefone"
+          type="tel"
+          placeholder="(00) 00000-0000"
+          inputMode="numeric"
+          {...register('phone', { onChange: (e) => setValue('phone', maskPhone(e.target.value)) })}
+        />
 
         <p className={`${SECTION_TITLE} pt-1`}>Endereço</p>
         <FormField label="Endereço" placeholder="Opcional" {...register('address')} />

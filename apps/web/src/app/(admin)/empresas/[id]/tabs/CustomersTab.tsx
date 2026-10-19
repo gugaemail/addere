@@ -9,6 +9,7 @@ import { StatusPill } from '@/components/ui/StatusPill'
 import { companiesKeys } from '@/hooks/useCompanies'
 import { useCompanyCustomers, useToggleCompanyEntity } from '@/hooks/useCompany'
 import { CustomerModal, ActionMenu } from '../EntityModals'
+import { formatPhoneDisplay } from '@/lib/utils'
 import {
   TabSection,
   SearchInput,
@@ -70,7 +71,7 @@ export function CustomersTab({ companyId }: { companyId: string }) {
     {
       key: 'phone',
       header: 'Telefone',
-      render: (c) => <span className="text-[var(--text-muted)]">{c.phone ?? '—'}</span>,
+      render: (c) => <span className="text-[var(--text-muted)]">{formatPhoneDisplay(c.phone)}</span>,
     },
     {
       key: 'code',

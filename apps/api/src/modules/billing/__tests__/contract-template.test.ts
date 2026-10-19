@@ -13,7 +13,9 @@ import {
   fillContractTemplate,
   formatCnpj,
   formatCpf,
+  isReviewNote,
   normalizeTemplateBody,
+  removeReviewNotes,
   renderContractMarkdown,
 } from '@addere/types'
 
@@ -247,6 +249,14 @@ describe.each([
 ] as const)('texto real %s', (file, kind) => {
   const body = publishableBody(file)
 
+  it('tirando as notas [[REVISAR]], nada impede publicar e o texto fica igual', () => {
+    const cleaned = removeReviewNotes(body)
+    expect(checkTemplateForPublish(kind, cleaned)).toEqual([])
+    // Só saíram as notas: o texto sem elas é o mesmo, palavra por palavra
+    const words = (t: string) => t.replace(/\[\[REVISAR[^\]]*\]\]/g, ' ').split(/\s+/).filter(Boolean)
+    expect(words(cleaned)).toEqual(words(body))
+  })
+
   it('só as marcas [[REVISAR]] impedem publicar', () => {
     const issues = checkTemplateForPublish(kind, body)
     expect(issues.length).toBeGreaterThan(0)
@@ -262,5 +272,55 @@ describe.each([
     expect(normalized).not.toContain('TEXTO PUBLICÁVEL')
     expect(normalized).not.toContain('Histórico de versões')
     expect(normalized).not.toContain('MINUTA')
+  })
+})
+
+describe('removeReviewNotes', () => {
+  const body = [
+    '# Contrato',
+    '',
+    '[[REVISAR: preâmbulo novo]]',
+    '',
+    'Primeira cláusula. [[REVISAR: cláusula nova]]',
+    '',
+    '[[REVISAR: começo]] Segunda cláusula com [[REVISAR: meio]] nota no meio.',
+    '',
+    'Terceira [[A DEFINIR]] e **negrito**. [[REVISAR: fim]]',
+  ].join('\n')
+
+  it('isReviewNote: só [[REVISAR…]]', () => {
+    expect(isReviewNote('[[REVISAR: x]]')).toBe(true)
+    expect(isReviewNote('[[REVISAR]]')).toBe(true)
+    expect(isReviewNote('[[A DEFINIR]]')).toBe(false)
+    expect(isReviewNote('texto [[REVISAR: x]]')).toBe(false)
+  })
+
+  it('todas: o texto fica, linha que era só nota sai sem deixar branco duplo, [[A DEFINIR]] fica', () => {
+    expect(removeReviewNotes(body)).toBe(
+      [
+        '# Contrato',
+        '',
+        'Primeira cláusula.',
+        '',
+        'Segunda cláusula com nota no meio.',
+        '',
+        'Terceira [[A DEFINIR]] e **negrito**.',
+      ].join('\n')
+    )
+  })
+
+  it('uma: tira só a nota apontada (linha + texto), as outras ficam', () => {
+    const issues = checkTemplateForPublish('CONTRACT', body).filter((i) => isReviewNote(i.text))
+    const meio = issues.find((i) => i.text === '[[REVISAR: meio]]')!
+    const out = removeReviewNotes(body, meio)
+    expect(out).toContain('[[REVISAR: começo]] Segunda cláusula com nota no meio.')
+    expect(checkTemplateForPublish('CONTRACT', out).filter((i) => isReviewNote(i.text))).toHaveLength(
+      issues.length - 1
+    )
+  })
+
+  it('alvo que não existe mais (já tirado) devolve o corpo como veio', () => {
+    expect(removeReviewNotes(body, { line: 5, text: '[[REVISAR: outra]]' })).toBe(body)
+    expect(removeReviewNotes('Sem nota nenhuma.')).toBe('Sem nota nenhuma.')
   })
 })

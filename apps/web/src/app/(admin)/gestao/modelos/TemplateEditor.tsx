@@ -9,7 +9,9 @@ import {
   checkTemplateForPublish,
   contractFieldLabel,
   fillContractTemplate,
+  isReviewNote,
   normalizeTemplateBody,
+  removeReviewNotes,
   type ContractFieldGroup,
   type ContractTemplateDto,
   type TemplateIssue,
@@ -52,6 +54,7 @@ export function TemplateEditor({ template }: { template: ContractTemplateDto }) 
   const [companyPreview, setCompanyPreview] = useState<TemplatePreviewDto | null>(null)
   const [serverIssues, setServerIssues] = useState<TemplateIssue[] | null>(null)
   const [confirmPublish, setConfirmPublish] = useState(false)
+  const [confirmReviewAll, setConfirmReviewAll] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   const update = useUpdateTemplate()
@@ -77,6 +80,12 @@ export function TemplateEditor({ template }: { template: ContractTemplateDto }) 
     return [...byGroup.entries()]
   }, [template.kind])
 
+  // Toda edição invalida a lista que a API devolveu na última tentativa de publicar
+  function changeBody(next: string) {
+    setBody(next)
+    setServerIssues(null)
+  }
+
   function insertField(key: string) {
     if (!editable) return
     const marker = `{{${key}}}`
@@ -84,7 +93,7 @@ export function TemplateEditor({ template }: { template: ContractTemplateDto }) 
     const start = el?.selectionStart ?? body.length
     const end = el?.selectionEnd ?? body.length
     const next = body.slice(0, start) + marker + body.slice(end)
-    setBody(next)
+    changeBody(next)
     // Devolve o cursor para logo depois do campo inserido
     requestAnimationFrame(() => {
       el?.focus()
@@ -126,6 +135,25 @@ export function TemplateEditor({ template }: { template: ContractTemplateDto }) 
   }
 
   const shownIssues = serverIssues ?? issues
+  // Notas [[REVISAR]] têm fluxo próprio (Revisado / todas); o resto se resolve editando
+  const reviewNotes = shownIssues.filter((i) => i.type === 'REVIEW_MARKER' && isReviewNote(i.text))
+  const otherIssues = shownIssues.filter((i) => !reviewNotes.includes(i))
+
+  // Leva o editor até a nota e a deixa selecionada. Nota repetida: a n-ésima
+  // ocorrência do mesmo texto corresponde à n-ésima da lista.
+  function showInText(issue: TemplateIssue) {
+    const el = textareaRef.current
+    if (!el) return
+    const nth = reviewNotes.filter((n) => n.text === issue.text).indexOf(issue)
+    let pos = -1
+    for (let i = 0; i <= nth; i++) pos = body.indexOf(issue.text, pos + 1)
+    if (pos < 0) return
+    el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    el.focus()
+    el.setSelectionRange(pos, pos + issue.text.length)
+    // Rolagem interna aproximada: proporcional à posição no texto
+    el.scrollTop = Math.max(0, (pos / Math.max(body.length, 1)) * el.scrollHeight - el.clientHeight / 3)
+  }
 
   return (
     <div className="space-y-4">
@@ -148,7 +176,7 @@ export function TemplateEditor({ template }: { template: ContractTemplateDto }) 
           ref={textareaRef}
           mono
           value={body}
-          onChange={(e) => setBody(e.target.value)}
+          onChange={(e) => changeBody(e.target.value)}
           readOnly={!editable}
           aria-label="Texto do modelo"
           className="min-h-[32rem]"
@@ -202,7 +230,14 @@ export function TemplateEditor({ template }: { template: ContractTemplateDto }) 
       )}
 
       <Card>
-        <h3 className={SECTION_TITLE}>Campos {editable && '— clique para inserir no cursor'}</h3>
+        <h3 className={SECTION_TITLE}>Campos</h3>
+        {editable && (
+          <p className="mt-1 text-xs text-[var(--text-muted)]">
+            Clique no texto, no ponto onde o dado deve aparecer, e depois no campo: entra o marcador
+            (ex.: {'{{empresa.razaoSocial}}'}), que no documento de cada empresa vira o dado dela —
+            confira na prévia.
+          </p>
+        )}
         <div className="mt-3 space-y-3">
           {groups.map(([group, fields]) => (
             <div key={group}>
@@ -233,19 +268,69 @@ export function TemplateEditor({ template }: { template: ContractTemplateDto }) 
         {shownIssues.length === 0 ? (
           <p className="mt-2 text-sm text-success">Nada: o modelo pode ser publicado.</p>
         ) : (
-          <ul className="mt-2 space-y-1 text-sm">
-            {shownIssues.map((issue, i) => (
-              <li key={`${issue.line}-${i}`} className="flex gap-2 text-[var(--text-secondary)]">
-                <span className="shrink-0 font-medium text-danger">linha {issue.line}</span>
-                <span className="shrink-0 text-[var(--text-muted)]">
-                  {TEMPLATE_ISSUE_LABELS[issue.type]}
-                </span>
-                <span className="min-w-0 break-words font-mono text-xs leading-5">
-                  {issue.text}
-                </span>
-              </li>
-            ))}
-          </ul>
+          <div className="mt-2 space-y-4">
+            {otherIssues.length > 0 && (
+              <ul className="space-y-1 text-sm">
+                {otherIssues.map((issue, i) => (
+                  <li key={`${issue.line}-${i}`} className="flex gap-2 text-[var(--text-secondary)]">
+                    <span className="shrink-0 font-medium text-danger">linha {issue.line}</span>
+                    <span className="shrink-0 text-[var(--text-muted)]">
+                      {TEMPLATE_ISSUE_LABELS[issue.type]}
+                    </span>
+                    <span className="min-w-0 break-words font-mono text-xs leading-5">
+                      {issue.text}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            {reviewNotes.length > 0 && (
+              <div>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-sm text-[var(--text-secondary)]">
+                    <span className="font-medium text-danger">{reviewNotes.length}</span>{' '}
+                    {reviewNotes.length === 1 ? 'nota de revisão' : 'notas de revisão'} do advogado.
+                    Validado o trecho, marque como revisado: a nota sai e o texto fica.
+                  </p>
+                  {editable && (
+                    <Button variant="outline" size="sm" onClick={() => setConfirmReviewAll(true)}>
+                      Marcar todas como revisadas
+                    </Button>
+                  )}
+                </div>
+                <ul className="mt-2 max-h-96 space-y-1 overflow-y-auto pr-1 text-sm">
+                  {reviewNotes.map((issue, i) => (
+                    <li
+                      key={`${issue.line}-${i}`}
+                      className="flex items-start gap-2 text-[var(--text-secondary)]"
+                    >
+                      <button
+                        type="button"
+                        onClick={() => showInText(issue)}
+                        title="Mostrar no texto"
+                        className="shrink-0 font-medium text-danger underline-offset-2 hover:underline"
+                      >
+                        linha {issue.line}
+                      </button>
+                      <span className="min-w-0 flex-1 break-words font-mono text-xs leading-5">
+                        {issue.text}
+                      </span>
+                      {editable && (
+                        <button
+                          type="button"
+                          onClick={() => changeBody(removeReviewNotes(body, issue))}
+                          className="shrink-0 rounded-md border border-[var(--border)] px-2 py-0.5 text-xs text-[var(--text-secondary)] transition-colors hover:border-brand hover:text-brand"
+                        >
+                          Revisado
+                        </button>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
         )}
       </Card>
 
@@ -272,6 +357,31 @@ export function TemplateEditor({ template }: { template: ContractTemplateDto }) 
           </div>
         </div>
       )}
+
+      <Modal
+        isOpen={confirmReviewAll}
+        onClose={() => setConfirmReviewAll(false)}
+        title={`Marcar as ${reviewNotes.length} notas como revisadas?`}
+        className="max-w-md"
+      >
+        <p className="text-sm text-[var(--text-secondary)]">
+          Use depois que o advogado validar todos os trechos marcados. As notas saem do texto; o
+          texto do contrato não muda. Em seguida, salve o rascunho e publique.
+        </p>
+        <div className="flex justify-end gap-2 pt-4">
+          <Button variant="outline" onClick={() => setConfirmReviewAll(false)}>
+            Voltar
+          </Button>
+          <Button
+            onClick={() => {
+              setConfirmReviewAll(false)
+              changeBody(removeReviewNotes(body))
+            }}
+          >
+            Marcar todas
+          </Button>
+        </div>
+      </Modal>
 
       <Modal
         isOpen={confirmPublish}
