@@ -5,7 +5,7 @@ import { Pencil } from 'lucide-react'
 import type { ClientDetailDto } from '@addere/types'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
-import { formatCEPDisplay, formatDocumentDisplay } from '@/lib/utils'
+import { formatCEPDisplay, formatDocumentDisplay, formatPhoneDisplay } from '@/lib/utils'
 import { ClientFormModal } from '../../ClientFormModal'
 
 const SECTION_TITLE = 'text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wide'
@@ -71,13 +71,13 @@ export function CadastroTab({ client }: { client: ClientDetailDto }) {
           <Section title="Contato principal">
             <Field label="Nome" value={p.contactName} />
             <Field label="E-mail" value={p.contactEmail} />
-            <Field label="Telefone" value={p.contactPhone} />
+            <Field label="Telefone" value={formatPhoneDisplay(p.contactPhone)} />
           </Section>
 
           <Section title="Cobrança (recebe as faturas)">
             <Field label="Nome" value={p.billingContactName} />
             <Field label="E-mail" value={p.billingEmail} />
-            <Field label="Telefone" value={p.billingPhone} />
+            <Field label="Telefone" value={formatPhoneDisplay(p.billingPhone)} />
           </Section>
 
           <section className="space-y-2">
