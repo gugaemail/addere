@@ -164,14 +164,46 @@ async function postJson(
   })
 }
 
+// Campos onde o Protheus (FWRest, SetRestFault, OAuth2) põe a mensagem do erro
+const ERROR_TEXT_FIELDS = [
+  'errorMessage',
+  'message',
+  'error_description',
+  'detailedMessage',
+  'error',
+]
+const MAX_ERROR_DETAIL = 200
+
+/**
+ * O texto curto do erro que o Protheus devolveu ("usuário sem permissão",
+ * "método não encontrado"...), sem o corpo inteiro: só os campos de mensagem
+ * conhecidos ou, se o corpo for texto, o começo dele, sem HTML.
+ */
+export function protheusErrorDetail(data: unknown): string | null {
+  let text: string | null = null
+  if (typeof data === 'string') {
+    text = data.replace(/<[^>]*>/g, ' ')
+  } else if (data && typeof data === 'object') {
+    const record = data as Record<string, unknown>
+    const field = ERROR_TEXT_FIELDS.find((key) => typeof record[key] === 'string' && record[key])
+    if (field) text = record[field] as string
+  }
+  const clean = text?.replace(/\s+/g, ' ').trim()
+  if (!clean) return null
+  return clean.length > MAX_ERROR_DETAIL ? `${clean.slice(0, MAX_ERROR_DETAIL)}…` : clean
+}
+
 function enrichError(err: unknown, url: string): never {
   const e = err as { response?: { status: number; data: unknown }; message: string }
   if (e.response) {
-    // O corpo da resposta do ERP não entra na mensagem — mensagens de erro
-    // acabam em respostas HTTP ao cliente; o detalhe segue em response.data para log
-    throw Object.assign(new Error(`Protheus ${e.response.status} em ${url}`), {
-      response: e.response,
-    })
+    // Só a mensagem curta do ERP entra no texto (protheusErrorDetail), nunca o
+    // corpo inteiro: o texto aparece no log de chamadas e na tela de teste, e
+    // sem ele um 403 não dizia se era permissão, caminho ou outra coisa
+    const detail = protheusErrorDetail(e.response.data)
+    throw Object.assign(
+      new Error(`Protheus ${e.response.status} em ${url}${detail ? ` — ${detail}` : ''}`),
+      { response: e.response }
+    )
   }
   throw err as Error
 }

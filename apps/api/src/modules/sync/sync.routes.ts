@@ -125,13 +125,22 @@ export default async function syncRoutes(app: FastifyInstance) {
         durationMs: ms,
       })
 
-      // Não devolve o corpo — ele contém o access_token do Protheus.
-      // Os nomes dos campos bastam para diagnosticar o tokenField configurado.
+      // Não devolve o corpo — ele contém o access_token do Protheus. Os nomes
+      // dos campos bastam para diagnosticar o tokenField; dos valores, só os
+      // que não são segredo. hasMFA = true: o usuário tem segundo fator, e o
+      // token sai, mas os serviços REST respondem 403 até o MFA ser validado
+      const data = (tokenRes.data ?? {}) as Record<string, unknown>
+      const info = Object.fromEntries(
+        ['hasMFA', 'token_type', 'expires_in', 'scope']
+          .filter((key) => key in data && typeof data[key] !== 'object')
+          .map((key) => [key, data[key]])
+      )
       return reply.send({
         ok: true,
         status: tokenRes.status,
         ms,
-        fields: Object.keys((tokenRes.data ?? {}) as object),
+        fields: Object.keys(data),
+        ...info,
       })
     } catch (err: unknown) {
       const e = err as { response?: { status: number }; message: string }
