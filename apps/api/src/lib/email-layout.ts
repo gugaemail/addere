@@ -7,6 +7,9 @@ import { CONTRATADA } from '@addere/types'
 // MIME_HTML_ONLY e parentes); o rodapé com quem envia, o endereço e o motivo do
 // envio pesa a favor.
 //
+// O resumo escondido (preheader) usa só display:none, sem cor transparente nem
+// opacity: cor igual ao fundo acerta o HTML_FONT_LOW_CONTRAST do SpamAssassin.
+//
 // Sem imagem de propósito: muitos clientes bloqueiam imagem por padrão, e o
 // logo vira um quadrado vazio. A marca vai em texto.
 
@@ -141,7 +144,7 @@ function renderHtml(c: EmailContent): string {
 <title>${escapeHtml(c.heading)}</title>
 </head>
 <body style="margin:0;padding:0;background:${COLORS.surface};">
-<div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;">${escapeHtml(c.preheader)}</div>
+<div style="display:none;max-height:0;max-width:0;overflow:hidden;mso-hide:all;">${escapeHtml(c.preheader)}</div>
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${COLORS.surface}" style="background:${COLORS.surface};">
 <tr><td align="center" style="padding:32px 16px;">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:560px;">
