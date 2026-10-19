@@ -249,18 +249,8 @@ describe.each([
 ] as const)('texto real %s', (file, kind) => {
   const body = publishableBody(file)
 
-  it('tirando as notas [[REVISAR]], nada impede publicar e o texto fica igual', () => {
-    const cleaned = removeReviewNotes(body)
-    expect(checkTemplateForPublish(kind, cleaned)).toEqual([])
-    // Só saíram as notas: o texto sem elas é o mesmo, palavra por palavra
-    const words = (t: string) => t.replace(/\[\[REVISAR[^\]]*\]\]/g, ' ').split(/\s+/).filter(Boolean)
-    expect(words(cleaned)).toEqual(words(body))
-  })
-
-  it('só as marcas [[REVISAR]] impedem publicar', () => {
-    const issues = checkTemplateForPublish(kind, body)
-    expect(issues.length).toBeGreaterThan(0)
-    expect(issues.filter((i) => i.type !== 'REVIEW_MARKER')).toEqual([])
+  it('nada impede publicar: sem nota [[REVISAR]] nem campo desconhecido (revisão de 19/10/2026)', () => {
+    expect(checkTemplateForPublish(kind, body)).toEqual([])
   })
 
   it('os dados de exemplo preenchem todos os campos', () => {

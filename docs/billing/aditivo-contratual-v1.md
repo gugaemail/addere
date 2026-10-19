@@ -1,7 +1,7 @@
 # Termo Aditivo ao Contrato de Licença de Uso do Addere — modelo v1
 
-**Versão:** 1.1-minuta
-**Data:** 15/10/2026
+**Versão:** 1.2
+**Data:** 19/10/2026
 **Origem:** redação nova. O modelo revisado do BaiaCerta (minuta 1.6) não tem aditivo; este texto
 segue o §13 (alterações) e o §14 (aceite eletrônico) de `docs/billing/contrato-licenca-de-uso-v1.md`.
 **Partes:** GH ENGENHARIA LTDA - ME (Addere) e a Empresa Contratante.
@@ -12,7 +12,16 @@ só o trecho entre os dois comentários de marcação (início e fim do texto pu
 
 ---
 
-> ## ⚠️ MINUTA — AINDA NÃO PUBLICAR
+> ## Revisão de 19/10/2026 — notas REVISAR resolvidas
+>
+> As 9 marcas REVISAR do corpo foram conferidas contra o contrato v1 (1.2) e contra o sistema
+> (plano 014: condições novas valem na data indicada ou no aceite, o que for posterior; cobrança
+> na competência seguinte; cancelamento sem ônus antes de aumento) e retiradas, por decisão do
+> dono do produto e **sem validação de advogado**. O texto não mudou. Publicar junto com o
+> contrato, que ainda tem pendências fora do texto (ver o contrato). O item 2 abaixo (aditivo
+> para levar a uma versão nova das condições gerais) continua sem mecanismo.
+>
+> ## ⚠️ Aviso da minuta (15/10/2026)
 >
 > Este aviso, as notas e o histórico de versões **não fazem parte do texto publicado**. Nada do
 > corpo vem do modelo revisado, então cada cláusula leva uma marca REVISAR, e o sistema não publica
@@ -81,13 +90,11 @@ só o trecho entre os dois comentários de marcação (início e fim do texto pu
 - **Contratada:** {{contratada.razaoSocial}}, CNPJ {{contratada.cnpj}}, com sede em {{contratada.endereco}}, doravante Addere.
 - **Empresa Contratante:** {{cliente.razaoSocial}} ({{cliente.nomeFantasia}}), CNPJ {{cliente.cnpj}}, com sede em {{cliente.endereco}}, representada por {{cliente.representanteNome}}, CPF {{cliente.representanteCpf}}, {{cliente.representanteCargo}}. Administrador indicado, que aceita este termo aditivo: {{cliente.administradorNome}}, {{cliente.administradorEmail}}.
 
-[[REVISAR: qualificação das partes pelos campos do cadastro]]
-
 ## 1. Contrato alterado
 
-**1.1** Este termo aditivo altera o Contrato de Licença de Uso do Addere aceito eletronicamente pela Empresa Contratante em {{aditivo.contratoAceitoEm}} (o Contrato), na forma do §13 do Contrato. [[REVISAR: identificação do Contrato pela data do aceite original]]
+**1.1** Este termo aditivo altera o Contrato de Licença de Uso do Addere aceito eletronicamente pela Empresa Contratante em {{aditivo.contratoAceitoEm}} (o Contrato), na forma do §13 do Contrato.
 
-**1.2** Motivo da alteração: {{aditivo.motivo}} [[REVISAR: motivo em texto livre do superadmin]]
+**1.2** Motivo da alteração: {{aditivo.motivo}}
 
 ## 2. O que muda
 
@@ -113,21 +120,19 @@ só o trecho entre os dois comentários de marcação (início e fim do texto pu
 - **Valor mensal de cada licença adicional:** {{valores.adicional}} ({{valores.adicionalExtenso}})
 - **Total mensal:** {{valores.mensal}} ({{valores.mensalExtenso}})
 
-[[REVISAR: quadro antes e depois]]
-
 ## 3. Quando vale e como é cobrado
 
-**3.1** As condições novas valem a partir de {{aditivo.valeAPartirDe}} ou da data do aceite deste termo aditivo, o que for posterior. Até lá, valem as condições anteriores. [[REVISAR: data em que as condições novas passam a valer]]
+**3.1** As condições novas valem a partir de {{aditivo.valeAPartirDe}} ou da data do aceite deste termo aditivo, o que for posterior. Até lá, valem as condições anteriores.
 
-**3.2** A partir dessa data, as condições novas valem para o limite de licenças e para a Camada de Inteligência, e entram na cobrança a partir da competência seguinte, na forma do §6.4 do Contrato. [[REVISAR: cobrança a partir da competência seguinte]]
+**3.2** A partir dessa data, as condições novas valem para o limite de licenças e para a Camada de Inteligência, e entram na cobrança a partir da competência seguinte, na forma do §6.4 do Contrato.
 
-**3.3** Se este termo aditivo aumentar o valor do pacote ou o valor de cada licença adicional, a Empresa Contratante pode cancelar o Contrato sem ônus antes de as condições novas passarem a valer, na forma do §6.7 e do §13 do Contrato. [[REVISAR: cancelamento sem ônus antes do aumento]]
+**3.3** Se este termo aditivo aumentar o valor do pacote ou o valor de cada licença adicional, a Empresa Contratante pode cancelar o Contrato sem ônus antes de as condições novas passarem a valer, na forma do §6.7 e do §13 do Contrato.
 
 ## 4. Disposições finais
 
-**4.1** As demais cláusulas do Contrato permanecem inalteradas. [[REVISAR: manutenção das demais cláusulas]]
+**4.1** As demais cláusulas do Contrato permanecem inalteradas.
 
-**4.2** Este termo aditivo é aceito eletronicamente no painel do Addere, nos mesmos termos do §14 do Contrato, com o mesmo registro do Usuário que aceitou, da data e da hora, do endereço IP, do navegador e do resumo criptográfico (hash SHA-256) do texto aceito. [[REVISAR: aceite eletrônico do aditivo]]
+**4.2** Este termo aditivo é aceito eletronicamente no painel do Addere, nos mesmos termos do §14 do Contrato, com o mesmo registro do Usuário que aceitou, da data e da hora, do endereço IP, do navegador e do resumo criptográfico (hash SHA-256) do texto aceito.
 
 - **Emitido em:** {{documento.dataEmissao}}
 - **Versão do modelo de aditivo:** {{documento.versaoModelo}}
@@ -140,5 +145,6 @@ só o trecho entre os dois comentários de marcação (início e fim do texto pu
 
 | Versão | Data | Mudança |
 |---|---|---|
+| 1.2 | 19/10/2026 | As 9 marcas REVISAR saem, conferidas contra o contrato v1 e o sistema, por decisão do dono do produto e sem validação de advogado. Nenhuma palavra do corpo muda. |
 | 1.1-minuta | 15/10/2026 | As partes passam a identificar o administrador indicado pela Empresa, o único que aceita o aditivo (decisão de 15/10/2026, §14.1 do contrato 1.1-minuta). |
 | 1.0-minuta | 15/10/2026 | Redação inicial, para acompanhar o contrato v1 (adaptado da minuta 1.6 dos Termos do BaiaCerta, revisão jurídica de 04/10/2026). O modelo revisado não tem aditivo, então **nada aqui ficou palavra por palavra** e todo o corpo leva marca REVISAR. Traz as partes, o Contrato alterado com a data do aceite original e o motivo, o quadro "antes" e "depois", a data em que as condições novas valem (a indicada ou o aceite, o que for posterior), a cobrança a partir da competência seguinte, o cancelamento sem ônus antes de um aumento (como o 8.3 e o 15 do modelo), a manutenção das demais cláusulas e o aceite eletrônico nos termos do §14 do Contrato. **Pendente de revisão jurídica.** |
