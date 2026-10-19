@@ -126,7 +126,7 @@ Cada empresa (`Company`) armazena suas próprias URLs e credenciais:
 - `apiToken` — endpoint de autenticação (POST → retorna Bearer token)
 - `apiPord`, `apiCliente`, `apiPedido`, `apiConsPed`, `apiCondPag`, `apiTransp`, `apiMetaVend` — endpoints por entidade
 - `usrProtheus`, `passProtheus` — credenciais
-- `syncConfig` (JSONB) — hoje suporta apenas `tokenField` (nome do campo do token na resposta de autenticação). Mapeamento de campos por empresa/entidade é backlog — os campos Protheus são mapeados de forma fixa nos módulos `*.sync.ts`.
+- `syncConfig` (JSONB) — hoje suporta `tokenField` (nome do campo do token na resposta de autenticação) e `tenantId` (header "empresa,filial" das chamadas aos serviços; sem ele, sai do código Protheus da empresa e da primeira filial ativa, e `""` desliga). Mapeamento de campos por empresa/entidade é backlog — os campos Protheus são mapeados de forma fixa nos módulos `*.sync.ts`.
 
 O token é obtido antes de cada chamada via `protheus.client.ts` e cacheado em memória por 55 minutos por empresa (invalidado automaticamente em 401).
 
