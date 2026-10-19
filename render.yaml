@@ -46,7 +46,9 @@ services:
       - key: TRUST_PROXY_HOPS
         value: '2'
       # Links e envio dos e-mails (reset de senha e contrato para aceite).
-      # WEB_URL é o painel deste ambiente; sem ela o link cai no fallback
+      # WEB_URL é o painel deste ambiente; sem ela o link cai no fallback.
+      # Produção: https://admin.addere.com.br — link no domínio do remetente,
+      # não no *.vercel.app, que pesa contra nos filtros de spam
       - key: WEB_URL
         sync: false
       - key: RESEND_API_KEY

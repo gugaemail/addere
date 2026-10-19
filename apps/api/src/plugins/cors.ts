@@ -6,6 +6,7 @@ import { env } from '../lib/env'
 const PRODUCTION_ORIGINS = [
   'https://addere.com.br',
   'https://www.addere.com.br',
+  'https://admin.addere.com.br', // o painel, e o link dos e-mails
   'https://addere-web.vercel.app',
 ]
 

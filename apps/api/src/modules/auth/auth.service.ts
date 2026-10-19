@@ -3,6 +3,7 @@ import { prisma } from '@addere/db'
 import bcrypt from 'bcryptjs'
 import { randomUUID } from 'crypto'
 import { Resend } from 'resend'
+import { escapeHtml, renderEmail } from '../../lib/email-layout'
 import { badGateway } from '../../lib/errors'
 import { captureError } from '../../lib/sentry'
 import { RESET_EMAIL_FAILED_MESSAGE, type LoginInput } from './auth.schema'
@@ -71,7 +72,8 @@ export async function revokeRefreshToken(token: string): Promise<void> {
   await prisma.refreshToken.deleteMany({ where: { token } })
 }
 
-const WEB_URL = env.WEB_URL ?? 'https://addere-web.vercel.app'
+// O painel no domínio da Addere (o mesmo fallback do billing-mailer.ts)
+const WEB_URL = env.WEB_URL ?? 'https://admin.addere.com.br'
 const RESET_TOKEN_EXPIRES_HOURS = 1
 
 // Falha no envio vira erro com a mensagem de suporte. O e-mail que não existe
@@ -116,12 +118,20 @@ export async function forgotPassword(email: string): Promise<void> {
       from: 'Addere <noreply@addere.com.br>',
       to: [user.email],
       subject: 'Redefinição de senha — Addere',
-      html: `
-        <p>Olá, ${user.name}.</p>
-        <p>Recebemos uma solicitação para redefinir sua senha no Addere.</p>
-        <p><a href="${resetLink}" style="background:#1B4FA8;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;display:inline-block;">Redefinir senha</a></p>
-        <p>O link expira em ${RESET_TOKEN_EXPIRES_HOURS} hora. Se não foi você, ignore este e-mail.</p>
-      `,
+      ...renderEmail({
+        preheader: `Link para redefinir a sua senha do Addere, válido por ${RESET_TOKEN_EXPIRES_HOURS} hora.`,
+        heading: 'Redefinição de senha',
+        paragraphs: [
+          `Olá, ${escapeHtml(user.name)}.`,
+          'Recebemos um pedido para redefinir a sua senha no Addere. Para escolher uma senha nova, use o botão abaixo.',
+        ],
+        action: { label: 'Redefinir senha', url: resetLink },
+        closing: [
+          `O link expira em ${RESET_TOKEN_EXPIRES_HOURS} hora. Se você não pediu, ignore este e-mail: a sua senha continua a mesma.`,
+        ],
+        reason:
+          'Você recebeu este e-mail porque alguém pediu a redefinição de senha da sua conta no Addere.',
+      }),
     })
     failure = error
   } catch (err) {

@@ -10,6 +10,7 @@ import {
   type BillingEventType,
   type ContractDocumentKind,
 } from '@addere/types'
+import { escapeHtml, renderEmail, type RenderedEmail } from '../../lib/email-layout'
 import { env } from '../../lib/env'
 import { captureError } from '../../lib/sentry'
 import { isUniqueViolation } from './billing-events'
@@ -22,8 +23,22 @@ import { isUniqueViolation } from './billing-events'
 // depois); e todo texto vindo do banco passa por escapeHtml antes de entrar no
 // HTML. Nada de dado pessoal no log nem no Sentry: nem o destinatário, nem o
 // assunto, nem a mensagem de erro do Resend (que pode citar o endereço).
+//
+// Todo e-mail sai no layout do Addere (lib/email-layout.ts), em HTML e em
+// texto puro: os modelos devolvem { subject, html, text }.
 
-const FALLBACK_WEB_URL = 'https://addere-web.vercel.app' // o mesmo do auth.service.ts
+export { escapeHtml }
+
+const FROM = 'Addere <noreply@addere.com.br>' // o mesmo do reset de senha
+
+/** O que os modelos devolvem e os envios recebem */
+export interface BillingEmail extends RenderedEmail {
+  subject: string
+}
+
+// O painel no domínio da Addere: link com o mesmo domínio do remetente pesa a
+// favor nos filtros de spam, e o *.vercel.app pesa contra
+const FALLBACK_WEB_URL = 'https://admin.addere.com.br' // o mesmo do auth.service.ts
 
 /** URL do painel com o caminho: WEB_URL do ambiente, com o mesmo fallback do reset de senha */
 export function webUrl(path: string): string {
@@ -31,26 +46,12 @@ export function webUrl(path: string): string {
   return `${base}${path.startsWith('/') ? path : `/${path}`}`
 }
 
-/** Texto do banco → seguro dentro do HTML do e-mail */
-export function escapeHtml(text: string): string {
-  return text
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;')
-}
-
 /**
  * Um destinatário por chamada (ninguém vê o endereço de ninguém). Devolve se o
  * e-mail saiu. O SDK do Resend 4.x DEVOLVE `{ data, error }` em vez de lançar
  * quando a API recusa: o `error` é conferido.
  */
-export async function sendBillingEmail(input: {
-  to: string
-  subject: string
-  html: string
-}): Promise<boolean> {
+export async function sendBillingEmail(input: BillingEmail & { to: string }): Promise<boolean> {
   if (!env.RESEND_API_KEY) {
     console.warn('[billing] RESEND_API_KEY não configurada — e-mail não enviado')
     return false
@@ -58,11 +59,12 @@ export async function sendBillingEmail(input: {
   try {
     const resend = new Resend(env.RESEND_API_KEY)
     const { error } = await resend.emails.send({
-      from: 'Addere <noreply@addere.com.br>',
+      from: FROM,
       to: [input.to],
       replyTo: CONTRATADA.emailContato,
       subject: input.subject,
       html: input.html,
+      text: input.text,
     })
     if (error) {
       captureError(new Error(`Resend recusou o envio: ${error.name}`), {
@@ -85,8 +87,6 @@ export async function sendBillingEmail(input: {
 // reserva vem ANTES do envio, e só um envio que não aconteceu a libera.
 
 export type SendOutcome = 'sent' | 'duplicate' | 'skipped' | 'failed'
-
-const FROM = 'Addere <noreply@addere.com.br>' // o mesmo do reset de senha
 
 /** Minúsculas, sem espaço, sem vazio e sem repetição, na ordem de chegada */
 export function normalizeRecipients(emails: ReadonlyArray<string | null | undefined>): string[] {
@@ -144,15 +144,15 @@ async function releaseReservation(dedupeKey: string): Promise<void> {
  * Erro de banco na reserva (não P2002) é lançado: nada foi reservado nem
  * enviado, e quem chama decide se é transitório.
  */
-export async function sendBillingEmailOnce(input: {
-  companyId: string
-  dedupeKey: string // ex.: 'invoice:<id>:due-reminder'
-  eventType: BillingEventType
-  payload: Record<string, unknown> // só ids e nomes de campo
-  to: string[]
-  subject: string
-  html: string
-}): Promise<SendOutcome> {
+export async function sendBillingEmailOnce(
+  input: {
+    companyId: string
+    dedupeKey: string // ex.: 'invoice:<id>:due-reminder'
+    eventType: BillingEventType
+    payload: Record<string, unknown> // só ids e nomes de campo
+    to: string[]
+  } & BillingEmail
+): Promise<SendOutcome> {
   const to = normalizeRecipients(input.to)
   if (!env.RESEND_API_KEY || to.length === 0) return 'skipped'
 
@@ -177,7 +177,7 @@ export async function sendBillingEmailOnce(input: {
   try {
     const resend = new Resend(env.RESEND_API_KEY)
     const { error } = await resend.emails.send(
-      { from: FROM, to, replyTo, subject: input.subject, html: input.html },
+      { from: FROM, to, replyTo, subject: input.subject, html: input.html, text: input.text },
       { idempotencyKey: input.dedupeKey }
     )
     failure = error
@@ -226,16 +226,16 @@ export async function sendBillingEmailOnce(input: {
  * Erro de banco na gravação (não P2002) é lançado: o e-mail saiu, mas sem
  * evento não há bloqueio, e o próximo tick avisa de novo.
  */
-export async function sendBillingEmailThenRecord(input: {
-  companyId: string
-  dedupeKey: string // ex.: 'invoice:<id>:suspension-notice'
-  idempotencyKey: string
-  eventType: BillingEventType
-  payload: Record<string, unknown> // só ids, datas e contagens
-  to: string[]
-  subject: string
-  html: string
-}): Promise<SendOutcome> {
+export async function sendBillingEmailThenRecord(
+  input: {
+    companyId: string
+    dedupeKey: string // ex.: 'invoice:<id>:suspension-notice'
+    idempotencyKey: string
+    eventType: BillingEventType
+    payload: Record<string, unknown> // só ids, datas e contagens
+    to: string[]
+  } & BillingEmail
+): Promise<SendOutcome> {
   const to = normalizeRecipients(input.to)
   if (!env.RESEND_API_KEY || to.length === 0) return 'skipped'
 
@@ -251,7 +251,7 @@ export async function sendBillingEmailThenRecord(input: {
   try {
     const resend = new Resend(env.RESEND_API_KEY)
     const { error } = await resend.emails.send(
-      { from: FROM, to, replyTo, subject: input.subject, html: input.html },
+      { from: FROM, to, replyTo, subject: input.subject, html: input.html, text: input.text },
       { idempotencyKey: input.idempotencyKey }
     )
     failure = error
@@ -324,43 +324,58 @@ export interface DueReminderInvoice {
   items: Array<{ description: string; amount: string }>
 }
 
-export function dueReminderEmail(
-  companyName: string,
-  invoice: DueReminderInvoice
-): { subject: string; html: string } {
+/** O motivo do rodapé dos e-mails que vão ao contato de cobrança e aos ADMINs */
+function billingReason(companyName: string): string {
+  return `Você recebeu este e-mail porque é administrador ou contato de cobrança de ${companyName} no Addere.`
+}
+
+export function dueReminderEmail(companyName: string, invoice: DueReminderInvoice): BillingEmail {
   const due = formatBillingDate(invoice.dueDate)
-  const rows = invoice.items
-    .map((i) => `<li>${escapeHtml(i.description)}: ${escapeHtml(formatBrl(i.amount))}</li>`)
-    .join('\n')
-  const link = webUrl('/plano')
+  const number = invoiceNumberLabel(invoice.number)
+  const competence = competenceInWords(invoice.competence)
+  const total = formatBrl(invoice.total)
   return {
     subject: `Fatura do Addere vence em ${due}`,
-    html: [
-      `<p>Olá. Este é um lembrete da fatura do Addere de ${escapeHtml(companyName)}.</p>`,
-      `<p>Fatura ${invoiceNumberLabel(invoice.number)}, referente a ${competenceInWords(invoice.competence)}, no valor de ${escapeHtml(formatBrl(invoice.total))}, com vencimento em ${due}.</p>`,
-      `<ul>\n${rows}\n</ul>`,
-      '<p>As faturas ficam no painel do Addere, em Plano e cobrança. Se o pagamento já foi feito, desconsidere este lembrete.</p>',
-      `<p><a href="${escapeHtml(link)}">Ver as faturas no painel</a></p>`,
-      '<p>Addere</p>',
-    ].join('\n'),
+    ...renderEmail({
+      preheader: `Fatura ${number}, de ${competence}, no valor de ${total}, com vencimento em ${due}.`,
+      heading: `Sua fatura do Addere vence em ${due}`,
+      paragraphs: [
+        `Olá. Este é um lembrete da fatura do Addere de ${escapeHtml(companyName)}.`,
+        `Fatura ${number}, referente a ${competence}, no valor de ${escapeHtml(total)}, com vencimento em ${due}.`,
+      ],
+      details: [
+        ...invoice.items.map((i): [string, string] => [i.description, formatBrl(i.amount)]),
+        ['Total', total],
+      ],
+      action: { label: 'Ver as faturas no painel', url: webUrl('/plano') },
+      closing: [
+        'As faturas ficam no painel do Addere, em Plano e cobrança. Se o pagamento já foi feito, desconsidere este lembrete.',
+      ],
+      reason: billingReason(companyName),
+    }),
   }
 }
 
 export function documentPendingReminderEmail(
   doc: { id: string; kind: ContractDocumentKind },
   recipientName: string
-): { subject: string; html: string } {
+): BillingEmail {
   const label = CONTRACT_DOCUMENT_KIND_LABELS[doc.kind]
-  // O mesmo link do e-mail de envio do 014 (contract-email.ts)
-  const link = webUrl(`/contrato/${doc.id}`)
   return {
     subject: `Lembrete: ${label} do Addere aguardando seu aceite`,
-    html: [
-      `<p>Olá, ${escapeHtml(recipientName)}.</p>`,
-      `<p>O ${escapeHtml(label)} da sua empresa continua aguardando o seu aceite no painel do Addere. Você é o administrador indicado pela sua empresa para esse aceite.</p>`,
-      `<p><a href="${escapeHtml(link)}">Ler e aceitar o ${escapeHtml(label)}</a></p>`,
-      '<p>Addere</p>',
-    ].join('\n'),
+    ...renderEmail({
+      preheader: `O ${label} da sua empresa continua aguardando o seu aceite no painel do Addere.`,
+      heading: `${label} aguardando seu aceite`,
+      paragraphs: [
+        recipientName ? `Olá, ${escapeHtml(recipientName)}.` : 'Olá.',
+        `O ${escapeHtml(label)} da sua empresa continua aguardando o seu aceite no painel do Addere. Você é o administrador indicado pela sua empresa para esse aceite.`,
+      ],
+      // O mesmo link do e-mail de envio do 014 (contract-email.ts)
+      action: { label: 'Ler e aceitar no painel', url: webUrl(`/contrato/${doc.id}`) },
+      closing: ['Para entrar, use o seu e-mail e a sua senha do painel do Addere.'],
+      reason:
+        'Você recebeu este e-mail porque é o administrador indicado pela sua empresa para aceitar o contrato do Addere.',
+    }),
   }
 }
 
@@ -378,9 +393,8 @@ function overdueInvoiceSentence(invoice: OverdueInvoiceForEmail): string {
   return `fatura nº ${invoiceNumberLabel(invoice.number)}, da competência ${formatCompetence(invoice.competence)}, no valor de ${escapeHtml(formatBrl(invoice.total))}, venceu em ${formatBillingDate(invoice.dueDate)} e ainda não tem pagamento registrado`
 }
 
-function planLink(): string {
-  const link = webUrl('/plano')
-  return `<p>Ver Plano e cobrança: <a href="${escapeHtml(link)}">${escapeHtml(link)}</a></p>`
+function planAction(): { label: string; url: string } {
+  return { label: 'Abrir Plano e cobrança', url: webUrl('/plano') }
 }
 
 /** Aviso de suspensão: a data prevista é a do aviso e não muda depois. */
@@ -388,17 +402,22 @@ export function buildSuspensionNoticeEmail(
   companyName: string,
   invoice: OverdueInvoiceForEmail,
   plannedBlockDate: Date // @db.Date
-): { subject: string; html: string } {
+): BillingEmail {
   const planned = formatBillingDate(plannedBlockDate)
+  const number = invoiceNumberLabel(invoice.number)
   return {
-    subject: `Aviso de suspensão do Addere — fatura nº ${invoiceNumberLabel(invoice.number)}`,
-    html: [
-      `<p>A ${overdueInvoiceSentence(invoice)}.</p>`,
-      `<p>Se ela não for paga, o acesso da ${escapeHtml(companyName)} ao app e ao painel do Addere será suspenso em <strong>${planned}</strong>.</p>`,
-      '<p>A suspensão não apaga nenhum dado. O administrador continua vendo o Contrato e o Plano e cobrança, e o acesso volta assim que a Addere registrar o pagamento. Se o pagamento já foi feito, responda este e-mail com o comprovante.</p>',
-      planLink(),
-      '<p>Addere</p>',
-    ].join('\n'),
+    subject: `Aviso de suspensão do Addere — fatura nº ${number}`,
+    ...renderEmail({
+      preheader: `Se a fatura nº ${number} não for paga, o acesso ao Addere será suspenso em ${planned}.`,
+      heading: `Aviso de suspensão do acesso em ${planned}`,
+      paragraphs: [
+        `A ${overdueInvoiceSentence(invoice)}.`,
+        `Se ela não for paga, o acesso da ${escapeHtml(companyName)} ao app e ao painel do Addere será suspenso em <strong>${planned}</strong>.`,
+        'A suspensão não apaga nenhum dado. O administrador continua vendo o Contrato e o Plano e cobrança, e o acesso volta assim que a Addere registrar o pagamento. Se o pagamento já foi feito, responda este e-mail com o comprovante.',
+      ],
+      action: planAction(),
+      reason: billingReason(companyName),
+    }),
   }
 }
 
@@ -407,16 +426,20 @@ export function buildSuspensionReminderEmail(
   companyName: string,
   invoice: OverdueInvoiceForEmail,
   plannedBlockDate: Date // @db.Date
-): { subject: string; html: string } {
+): BillingEmail {
   const planned = formatBillingDate(plannedBlockDate)
   return {
     subject: `Lembrete: o acesso ao Addere será suspenso em ${planned}`,
-    html: [
-      `<p>Lembrete: a ${overdueInvoiceSentence(invoice)}.</p>`,
-      `<p>Se ela não for paga, o acesso da ${escapeHtml(companyName)} ao app e ao painel do Addere será suspenso em <strong>${planned}</strong>. A suspensão não apaga nenhum dado, e o acesso volta assim que a Addere registrar o pagamento. Se o pagamento já foi feito, responda este e-mail com o comprovante.</p>`,
-      planLink(),
-      '<p>Addere</p>',
-    ].join('\n'),
+    ...renderEmail({
+      preheader: `A fatura nº ${invoiceNumberLabel(invoice.number)} continua em aberto. Suspensão prevista para ${planned}.`,
+      heading: `O acesso ao Addere será suspenso em ${planned}`,
+      paragraphs: [
+        `Lembrete: a ${overdueInvoiceSentence(invoice)}.`,
+        `Se ela não for paga, o acesso da ${escapeHtml(companyName)} ao app e ao painel do Addere será suspenso em <strong>${planned}</strong>. A suspensão não apaga nenhum dado, e o acesso volta assim que a Addere registrar o pagamento. Se o pagamento já foi feito, responda este e-mail com o comprovante.`,
+      ],
+      action: planAction(),
+      reason: billingReason(companyName),
+    }),
   }
 }
 
@@ -425,20 +448,24 @@ export function buildAccessReleasedEmail(
   companyName: string,
   until: Date, // @db.Date
   overdueInvoice: { number: number } | null
-): { subject: string; html: string } {
+): BillingEmail {
   const untilLabel = formatBillingDate(until)
   const nextDay = new Date(until.getTime() + 86_400_000)
   return {
     subject: `Acesso ao Addere liberado até ${untilLabel}`,
-    html: [
-      `<p>O acesso da ${escapeHtml(companyName)} ao Addere está liberado até ${untilLabel}.</p>`,
-      ...(overdueInvoice
-        ? [
-            `<p>Se a fatura nº ${invoiceNumberLabel(overdueInvoice.number)} não for paga até lá, o acesso volta a ser suspenso em ${formatBillingDate(nextDay)}.</p>`,
-          ]
-        : []),
-      planLink(),
-      '<p>Addere</p>',
-    ].join('\n'),
+    ...renderEmail({
+      preheader: `O acesso da ${companyName} ao Addere está liberado até ${untilLabel}.`,
+      heading: `Acesso liberado até ${untilLabel}`,
+      paragraphs: [
+        `O acesso da ${escapeHtml(companyName)} ao Addere está liberado até ${untilLabel}.`,
+        ...(overdueInvoice
+          ? [
+              `Se a fatura nº ${invoiceNumberLabel(overdueInvoice.number)} não for paga até lá, o acesso volta a ser suspenso em ${formatBillingDate(nextDay)}.`,
+            ]
+          : []),
+      ],
+      action: planAction(),
+      reason: billingReason(companyName),
+    }),
   }
 }
