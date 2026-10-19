@@ -224,8 +224,19 @@ criados.
   IP da Cloudflare (172.71.x, 104.23.x): na frente da API ficam a Cloudflare e
   o balanceador do Render. O valor certo é **2**. As requisições de
   `127.0.0.1` nos logs são o health check interno do Render.
-- O valor também está no `render.yaml` (`'2'`): ao mudar no painel do Render,
-  mudar lá também, senão o próximo sync do blueprint volta o valor.
+- **No staging o valor é 3.** O serviço de staging hiberna quando fica parado
+  (o hostname dos logs tem `hibernate`), e o proxy do Render que o acorda é um
+  salto a mais. Em 18/10/2026, com 2, o `remoteAddress` ainda mudava entre IPs
+  da Cloudflare (172.71.x, 162.158.x) a cada requisição; com 3, passou a ser o
+  IP de quem chama. Se o staging deixar de hibernar, volte para 2.
+- **Teste rápido, sem login:** 12 tentativas de login seguidas com um e-mail
+  inexistente. A 11ª tem de responder 429 ("Muitas tentativas"). Se todas
+  derem 401, o limite não está valendo: o IP que a API enxerga muda a cada
+  requisição, sinal de `TRUST_PROXY_HOPS` baixo demais.
+- Os valores também estão no `render.yaml` (`'2'` na produção, `'3'` no
+  staging), mas o painel do Render **não** sincroniza por ele: a variável foi
+  criada à mão nos dois serviços em 18/10/2026. Ao mudar no painel, mude lá
+  também, para os dois continuarem dizendo a mesma coisa.
 - **O IP também aparece no log de acesso.** O logger padrão do Fastify grava o
   `remoteAddress` (o `request.ip` resolvido pelo `trustProxy`) de toda
   requisição, inclusive a do aceite (`POST /billing/me/documents/:id/accept`)
