@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { protheusErrorDetail } from '../protheus.client'
+import { buildTenantId, protheusErrorDetail } from '../protheus.client'
 
 describe('protheusErrorDetail', () => {
   it('lê a mensagem dos campos de erro do Protheus', () => {
@@ -23,5 +23,18 @@ describe('protheusErrorDetail', () => {
     expect(protheusErrorDetail({ items: [] })).toBeNull()
     expect(protheusErrorDetail('')).toBeNull()
     expect(protheusErrorDetail(null)).toBeNull()
+  })
+})
+
+describe('buildTenantId', () => {
+  it('empresa e filial do cadastro, separadas por vírgula', () => {
+    expect(buildTenantId('02', '01')).toBe('02,01')
+    expect(buildTenantId(' 02 ', ' 01 ')).toBe('02,01')
+  })
+
+  it('sem um dos códigos, sem header', () => {
+    expect(buildTenantId('02', null)).toBeNull()
+    expect(buildTenantId(null, '01')).toBeNull()
+    expect(buildTenantId('', '01')).toBeNull()
   })
 })

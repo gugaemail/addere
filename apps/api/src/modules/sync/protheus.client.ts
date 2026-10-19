@@ -4,6 +4,7 @@
 import axios from 'axios'
 import * as http from 'http'
 import * as https from 'https'
+import { prisma } from '@addere/db'
 import { assertSafeUrl } from '../../lib/url-validator'
 
 interface TokenCache {
@@ -208,6 +209,54 @@ function enrichError(err: unknown, url: string): never {
   throw err as Error
 }
 
+// ─── tenantId ────────────────────────────────────────────────────────────────
+// Protheus com mais de uma empresa: sem o header tenantId ("empresa,filial") o
+// REST abre a empresa padrão do servidor, e um usuário que só acessa outra
+// responde 403 "Usuário sem acesso a empresa/filial" em todo serviço (o token
+// sai normalmente). O valor vem do cadastro: código Protheus da empresa e da
+// primeira filial ativa com código. syncConfig.tenantId sobrescreve; vazio ("")
+// desliga o header.
+
+const TENANT_CACHE_MS = 5 * 60 * 1000
+const tenantCache = new Map<string, { value: string | null; expiresAt: number }>()
+
+/** "empresa,filial" a partir dos códigos do cadastro; sem os dois, null */
+export function buildTenantId(
+  companyCode: string | null | undefined,
+  branchCode: string | null | undefined
+): string | null {
+  const company = companyCode?.trim()
+  const branch = branchCode?.trim()
+  return company && branch ? `${company},${branch}` : null
+}
+
+async function resolveTenantId(
+  companyId: string,
+  creds: CompanyCredentials
+): Promise<string | null> {
+  const override = creds.syncConfig?.tenantId
+  if (typeof override === 'string') return override.trim() || null
+
+  const cached = tenantCache.get(companyId)
+  if (cached && cached.expiresAt > Date.now()) return cached.value
+
+  const company = await prisma.company.findUnique({
+    where: { id: companyId },
+    select: {
+      idProtheus: true,
+      branches: {
+        where: { active: true, idProtheus: { not: null } },
+        orderBy: { createdAt: 'asc' },
+        take: 1,
+        select: { idProtheus: true },
+      },
+    },
+  })
+  const value = buildTenantId(company?.idProtheus, company?.branches[0]?.idProtheus)
+  tenantCache.set(companyId, { value, expiresAt: Date.now() + TENANT_CACHE_MS })
+  return value
+}
+
 export interface ProtheusPostOptions {
   /** Timeout da requisição em ms (default 60s) — prévia usa 30s, backfill usa mais (E2) */
   timeoutMs?: number
@@ -223,6 +272,7 @@ export async function protheusPost(
 ): Promise<unknown> {
   await assertSafeUrl(url, 'url')
   const token = await getToken(companyId, creds)
+  const tenantId = await resolveTenantId(companyId, creds)
   try {
     return await postJson(
       url,
@@ -230,6 +280,7 @@ export async function protheusPost(
       {
         Authorization: `Bearer ${token}`,
         'Content-Type': 'application/json',
+        ...(tenantId ? { tenantId } : {}),
       },
       opts.timeoutMs ?? 60000
     )
@@ -253,4 +304,5 @@ export async function protheusPost(
 // Invalida o cache de token de uma empresa (útil quando credenciais mudam)
 export function invalidateToken(companyId: string): void {
   tokenCache.delete(companyId)
+  tenantCache.delete(companyId)
 }
