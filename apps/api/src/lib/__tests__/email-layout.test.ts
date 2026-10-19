@@ -68,3 +68,11 @@ describe('escapeHtml e htmlToText', () => {
     expect(htmlToText('um<br>dois <strong>três</strong>')).toBe('um\ndois três')
   })
 })
+
+describe('filtros de spam', () => {
+  it('o resumo escondido não usa cor transparente nem opacity (HTML_FONT_LOW_CONTRAST)', () => {
+    const { html } = renderEmail(content)
+    expect(html).not.toMatch(/color:\s*transparent/)
+    expect(html).not.toMatch(/opacity:\s*0/)
+  })
+})
