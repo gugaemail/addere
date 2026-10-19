@@ -616,7 +616,10 @@ Empresa bloqueada não roda o `nightly` nem o `refresh` (sem custo de IA); o
    restart); no staging, com a empresa de teste desativada, o app vai para
    "Acesso suspenso", um pedido criado offline fica na fila sem falhar e é
    enviado depois de "Ativar empresa" e "Tentar novamente". Dar alguns dias de
-   uso para os aparelhos em campo reiniciarem o app.
+   uso para os aparelhos em campo reiniciarem o app. Em produção, o OTA do 017
+   chegou ao iOS em 17/10/2026 e ao Android só em 19/10/2026 (OTA 1.1.0 para o
+   build 22 e build 23 no teste interno; ver "Versões no ar" no
+   `DEPLOY_CHECKLIST.md`): para o Android, os dias contam de 19/10.
 3. **Ligar o bloqueio automático** em Pacotes e regras. No staging, antes:
    deixar a fatura do passo 1 correndo até a data prevista e conferir que a
    ficha mostra "Bloqueado por atraso", a faixa do ADMIN fica em tom de perigo e

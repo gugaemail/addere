@@ -1,0 +1,7 @@
+# Saída de cada rodada: fica só na máquina que rodou
+logs/
+uploads/
+state-*.json
+results-*.jsonl
+races.jsonl
+a4a5.jsonl

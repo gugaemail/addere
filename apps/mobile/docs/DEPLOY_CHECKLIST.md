@@ -146,8 +146,13 @@ estava na 1.1.1. Nunca chegou a ninguém.
 EXPO_PUBLIC_API_URL=https://api.addere.com.br \
 EXPO_PUBLIC_APP_ENV=production \
 EXPO_PUBLIC_APP_VERSION=1.1.1 \
-npx eas-cli@latest update --channel production --message "<o que mudou>"
+npx eas-cli@latest update --channel production --environment production --message "<o que mudou>"
 ```
+
+- [ ] `--environment production` no comando. É ele que traz do EAS a
+      `EXPO_PUBLIC_SENTRY_DSN`; sem ele, o OTA sai sem Sentry. Depois de
+      publicar, o `.hbc` em `dist/_expo/static/js/<plataforma>/` tem de conter
+      `https://api.addere.com.br` e `sentry.io`, e nenhum `192.168.`
 
 - [ ] Antes de publicar, conferir o que a config resolve com essa env — se sair
       `Addere Dev` ou `com.addere.app.dev`, a env não foi aplicada:
@@ -169,6 +174,34 @@ EXPO_PUBLIC_APP_ENV=production EXPO_PUBLIC_APP_VERSION=1.1.1 node -e "const c=re
       gerenciador de tarefas e reabrir (OTA só troca o bundle no restart), e
       confirmar que a tela chama a API certa
 
+### Versões no ar (19/10/2026)
+
+| Plataforma | Onde                                | Versão (build)              | Runtime |
+| ---------- | ----------------------------------- | --------------------------- | ------- |
+| iOS        | App Store                           | 1.1.1 (8)                   | 1.1.1   |
+| Android    | Play, teste interno, desde 19/10    | 1.1.1 (23), primeiro com R8 | 1.1.1   |
+| Android    | aparelhos que ainda não atualizaram | 1.1.0 (22)                  | 1.1.0   |
+
+Enquanto houver aparelho Android no build 22, todo OTA sai **duas vezes**: o
+comando acima, com `1.1.1`, e de novo só para o Android, com a versão do
+build 22:
+
+```bash
+EXPO_PUBLIC_API_URL=https://api.addere.com.br \
+EXPO_PUBLIC_APP_ENV=production \
+EXPO_PUBLIC_APP_VERSION=1.1.0 \
+npx eas-cli@latest update --channel production --platform android --environment production --message "<o que mudou>"
+```
+
+Isso só funciona enquanto nenhum módulo nativo novo entrar no app. Desde o
+build 22, a única mudança nativa foi o `expo-build-properties` (R8), que só age
+na compilação. Com módulo nativo novo, o OTA 1.1.0 quebraria o app do build 22,
+e o Android passa a depender só do build novo.
+
+De 05/10 a 19/10/2026, nenhum OTA chegou ao Android: todos saíram como 1.1.1, e
+o Android estava no 1.1.0. Quando todos os aparelhos Android mostrarem 1.1.1 em
+Configurações → Apps → Addere, o segundo OTA deixa de ser necessário.
+
 ## Android: R8 e avisos do Play Console
 
 Desde 15/10/2026 o release Android sai com **R8** ligado
@@ -188,6 +221,10 @@ roteiro num aparelho Android com o `.aab` do teste interno, antes de promover:
 - [ ] PDF do pedido: gerar, salvar na galeria e compartilhar
 - [ ] Arrastar parada na Rota (Reanimated, Gesture Handler)
 - [ ] Erro forçado aparece no Sentry
+
+O build 23 (1.1.1, 19/10/2026) é o primeiro com R8. O log dele mostra o
+`minifyReleaseWithR8` e o upload dos source maps ao Sentry
+(`com.addere.app@1.1.1+23`). O roteiro acima ainda não foi feito.
 
 O mapping do R8 vai dentro do `.aab`; o Play Console desofusca os crashes
 nativos sozinho. O Sentry **não** recebe esse mapping (o plugin do Sentry não
