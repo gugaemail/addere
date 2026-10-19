@@ -14,7 +14,10 @@ registra quem aceitou, a data e a hora, o IP, o navegador e o hash.
 
 - Só depois do OK do advogado. Quem tira as marcas `[[REVISAR]]` é o
   superadmin, no painel; o sistema não publica modelo com marca nem com campo
-  desconhecido.
+  desconhecido. Em "O que impede publicar", cada nota tem **Revisado** (tira
+  só aquela nota) e "linha N" leva o editor até ela; **Marcar todas como
+  revisadas** tira todas de uma vez, com confirmação. Sai só a nota — o texto
+  da cláusula não muda. `[[A DEFINIR]]` não é nota: só sai editando o texto.
 - Antes de publicar o primeiro contrato, resolver os itens que bloqueiam a
   publicação (aviso de `contrato-licenca-de-uso-v1.md`):
   1. o instrumento de transferência internacional (§8.7) conferido fornecedor

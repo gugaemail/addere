@@ -345,6 +345,67 @@ export function checkTemplateForPublish(kind: ContractDocumentKind, body: string
   return issues
 }
 
+// ─── Notas de revisão jurídica ──────────────────────────────────────────────
+// [[REVISAR: motivo]] marca trecho que o advogado precisa validar. Validado,
+// a nota sai do texto e o trecho fica como está. [[A DEFINIR]] não é nota: é
+// texto que falta escrever, e só sai editando.
+
+const REVIEW_NOTE = /[ \t]*\[\[REVISAR\b[^[\]]*\]\]/g
+
+/** `[[REVISAR: …]]` — o que o botão "Revisado" pode tirar */
+export function isReviewNote(marker: string): boolean {
+  return /^\[\[REVISAR\b[^[\]]*\]\]$/.test(marker.trim())
+}
+
+/**
+ * Tira notas `[[REVISAR: …]]` do corpo: todas, ou só a de `target` (linha do
+ * corpo normalizado e texto da nota, como vêm no TemplateIssue). Sai a nota e o
+ * espaço que a separava do texto; o texto em volta não muda. Linha que só tinha
+ * a nota sai inteira, e com ela uma das linhas em branco vizinhas. Sem nota a
+ * tirar, devolve o corpo como veio.
+ */
+export function removeReviewNotes(
+  body: string,
+  target?: Pick<TemplateIssue, 'line' | 'text'>
+): string {
+  const lines = normalizeTemplateBody(body).split('\n')
+  let changed = false
+
+  const strip = (line: string, only?: string): string => {
+    let done = false
+    const out = line.replace(REVIEW_NOTE, (match) => {
+      if (only !== undefined && (done || match.trim() !== only.trim())) return match
+      done = true
+      changed = true
+      return ''
+    })
+    if (out === line) return line
+    // Nota no começo da linha: o espaço que a seguia não vira recuo
+    const indent = /^[ \t]*/.exec(line)?.[0] ?? ''
+    return indent + out.trimStart()
+  }
+
+  const result: string[] = []
+  lines.forEach((line, index) => {
+    if (target && index !== target.line - 1) {
+      result.push(line)
+      return
+    }
+    const out = strip(line, target?.text)
+    if (out.trim() === '' && line.trim() !== '') {
+      // A linha era só a nota: sai, e não deixa duas linhas em branco seguidas
+      const next = lines[index + 1]
+      if (result.length > 0 && result[result.length - 1].trim() === '' && (next ?? '').trim() === '') {
+        result.pop()
+      }
+      return
+    }
+    result.push(out)
+  })
+
+  return changed ? result.join('\n').trim() : body
+}
+
 export type ContractFieldValues = Partial<Record<string, string | null | undefined>>
 
 /**
