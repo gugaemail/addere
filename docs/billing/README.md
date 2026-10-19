@@ -21,13 +21,21 @@ registra quem aceitou, a data e a hora, o IP, o navegador e o hash.
 - Antes de publicar o primeiro contrato, resolver os itens que bloqueiam a
   publicação (aviso de `contrato-licenca-de-uso-v1.md`):
   1. o instrumento de transferência internacional (§8.7) conferido fornecedor
-     a fornecedor, inclusive o caso do Nominatim e o dos SDKs de mapa;
+     a fornecedor, inclusive o caso do Nominatim e o dos SDKs de mapa —
+     **pendente**;
   2. Termos de Uso e Política de Privacidade do site alinhados e publicados
-     junto com o contrato (branch `advisor/014-termos-e-privacidade` do site),
-     e a landing junto (branch `landing/inteligencia-pelo-contrato`);
+     junto com o contrato — **feito**: publicados no site em 16/10/2026;
   3. o monitor de disponibilidade da API e do painel no ar, com histórico
-     mensal, medindo há algumas semanas (ver "Disponibilidade e crédito");
-  4. este documento escrito (é ele).
+     mensal, medindo há algumas semanas (ver "Disponibilidade e crédito") —
+     **pendente**;
+  4. este documento escrito (é ele) — **feito**.
+- **Revisão de 19/10/2026.** As notas `[[REVISAR]]` dos dois modelos v1 (55 no
+  contrato, 9 no aditivo) foram conferidas contra os Termos, a Política e o
+  sistema e retiradas por decisão do dono do produto, sem validação de
+  advogado; o §8.1(a) passou a citar as visitas à distância. A fonte
+  (`*-v1.md`, versão 1.2) e o banco andam juntos: a migration
+  `20261019150000_contract_templates_reviewed` troca o rascunho v1 só se o
+  corpo ainda for o original — rascunho editado no painel fica como está.
 - **A v1 é editada no lugar e publicada.** A migration grava a v1 de cada tipo
   em rascunho (DRAFT), com o texto da minuta e as marcas `[[REVISAR]]`, e a
   API recusa versão nova enquanto houver rascunho aberto (409
