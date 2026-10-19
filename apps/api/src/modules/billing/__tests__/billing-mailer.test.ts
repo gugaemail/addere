@@ -220,6 +220,29 @@ describe('modelos', () => {
       'Lembrete: Aditivo ao Contrato de Licença de Uso do Addere aguardando seu aceite'
     )
   })
+
+  it('todo modelo sai no layout do Addere, com a versão em texto puro e o link', () => {
+    const invoice = {
+      number: 12,
+      competence: new Date('2026-09-01T00:00:00.000Z'),
+      dueDate: new Date('2026-10-10T00:00:00.000Z'),
+      total: '1990.00',
+    }
+    const planned = new Date('2026-10-25T00:00:00.000Z')
+    const emails = [
+      dueReminderEmail('Distribuidora Exemplo', { ...invoice, items: [] }),
+      documentPendingReminderEmail({ id: 'doc-1', kind: 'CONTRACT' }, 'Ana'),
+      buildSuspensionNoticeEmail('Distribuidora Exemplo', invoice, planned),
+      buildSuspensionReminderEmail('Distribuidora Exemplo', invoice, planned),
+      buildAccessReleasedEmail('Distribuidora Exemplo', planned, null),
+    ]
+    for (const email of emails) {
+      expect(email.html.startsWith('<!DOCTYPE html>')).toBe(true)
+      expect(email.html).toContain('GH ENGENHARIA LTDA - ME')
+      expect(email.text).toMatch(/https:\/\/painel\.test\/(plano|contrato\/doc-1)/)
+      expect(email.text).not.toMatch(/<(p|strong|a)\b/)
+    }
+  })
 })
 
 // ─── Plano 017: o aviso de suspensão só conta se foi entregue ───────────────

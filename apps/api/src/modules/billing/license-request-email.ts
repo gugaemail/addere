@@ -1,5 +1,6 @@
 import { formatBrl } from '@addere/types'
-import { escapeHtml, sendBillingEmail, webUrl } from './billing-mailer'
+import { escapeHtml, renderEmail } from '../../lib/email-layout'
+import { sendBillingEmail, webUrl } from './billing-mailer'
 
 // Aviso à Addere de um pedido de licenças adicionais (plano 015), no molde do
 // contract-email.ts. Vai para o notifyEmail das regras de cobrança. Todo valor
@@ -32,22 +33,21 @@ export async function sendLicenseRequestEmail(
     ['Valor por licença', `${formatBrl(req.unitPrice)} por mês`],
     ['Aumento mensal', formatBrl(req.monthlyIncrease)],
   ]
-  const html = [
-    '<p>Um administrador indicado pediu licenças adicionais no painel do Addere.</p>',
-    '<ul>',
-    ...rows.map(([label, value]) => `<li>${escapeHtml(label)}: ${escapeHtml(value)}</li>`),
-    '</ul>',
-    `<p>Declaração aceita: “${escapeHtml(req.declarationText)}”</p>`,
-    req.message ? `<p>Mensagem: ${escapeHtml(req.message)}</p>` : '',
-    `<p><a href="${escapeHtml(webUrl('/gestao/solicitacoes'))}">Abrir solicitações</a></p>`,
-    '<p>Addere</p>',
-  ]
-    .filter(Boolean)
-    .join('\n')
-
   return sendBillingEmail({
     to,
     subject: licenseRequestSubject(req.quantity, req.companyName),
-    html,
+    ...renderEmail({
+      preheader: `${req.companyName} pediu ${req.quantity} ${req.quantity === 1 ? 'licença adicional' : 'licenças adicionais'}.`,
+      heading: 'Pedido de licenças adicionais',
+      paragraphs: ['Um administrador indicado pediu licenças adicionais no painel do Addere.'],
+      details: rows,
+      closing: [
+        `Declaração aceita: “${escapeHtml(req.declarationText)}”`,
+        ...(req.message ? [`Mensagem: ${escapeHtml(req.message)}`] : []),
+      ],
+      action: { label: 'Abrir solicitações', url: webUrl('/gestao/solicitacoes') },
+      reason:
+        'Você recebeu este e-mail porque é o endereço de avisos das regras de cobrança da Gestão Addere.',
+    }),
   })
 }
