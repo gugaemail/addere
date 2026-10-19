@@ -89,12 +89,14 @@ services:
       # o valor para 'false'.
       - key: BILLING_JOBS_ENABLED
         value: 'false'
-      # Proxies na frente da API (plano 014): a Cloudflare e o balanceador do
-      # Render, 2. Com 1, o remoteAddress dos logs era um IP da Cloudflare
-      # (172.71.x, 104.23.x) em 17/10/2026. Mudou a infraestrutura? Confira
-      # de novo nos logs que o remoteAddress é o IP de quem chamou
+      # Proxies na frente da API (plano 014): no staging são 3. Além da
+      # Cloudflare e do balanceador, o serviço hiberna quando fica parado (o
+      # hostname dos logs tem "hibernate"), e o proxy que o acorda é mais um
+      # salto. Com 2, o remoteAddress ainda era da Cloudflare (172.71.x,
+      # 162.158.x) e o limite de login não segurava; com 3, a 11ª senha errada
+      # deu 429 (18/10/2026). Se o serviço deixar de hibernar, volte para 2
       - key: TRUST_PROXY_HOPS
-        value: '2'
+        value: '3'
       # Links e envio dos e-mails (reset de senha e contrato para aceite).
       # WEB_URL é o painel deste ambiente; sem ela o link cai no fallback
       - key: WEB_URL
