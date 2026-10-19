@@ -12,6 +12,8 @@ export default tseslint.config(
       '**/.next/**',
       '**/.expo/**',
       'apps/mobile/e2e/**',
+      // Harness do e2e da Gestão Addere: roda à mão contra Postgres local
+      'apps/api/e2e-billing/**',
       'packages/types/dist/**',
       '**/*.config.js',
       '**/*.config.mjs',
