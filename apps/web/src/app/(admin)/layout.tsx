@@ -55,9 +55,9 @@ interface NavItem {
   icon: LucideIcon
   requires?: NavRequirement
   /**
-   * Destino de quem não é SUPERADMIN. "Empresas" leva o ADMIN direto à ficha da
-   * empresa dele — não existe lista de uma empresa só. Sem companyId resolvido,
-   * o item não é renderizado.
+   * Destino pela empresa do contexto: a do ADMIN, ou a ativa no seletor do
+   * SUPERADMIN. "Empresas" leva direto à ficha — não existe lista de empresas
+   * fora de Clientes. Sem companyId resolvido, o item não é renderizado.
    */
   hrefForCompany?: (companyId: string) => string
 }
@@ -88,8 +88,8 @@ const NAV_GROUPS: NavGroup[] = [
       {
         href: '/gestao/clientes',
         label: 'Clientes',
-        // A ficha técnica (/empresas/[id]) é aberta a partir do cliente
-        match: (p) => p.startsWith('/gestao/clientes') || p.startsWith('/empresas'),
+        // A ficha técnica (/empresas/[id]) tem item próprio, em Empresa
+        match: (p) => p.startsWith('/gestao/clientes'),
         icon: Building2,
         requires: 'superadmin',
       },
@@ -241,15 +241,15 @@ const NAV_GROUPS: NavGroup[] = [
         requires: 'companyAdmin',
       },
       {
-        // E23: o ADMIN cadastra e confere a integração da própria empresa
-        // (filiais, clientes, produtos, pedidos, Protheus, campos e logs). Só o
-        // ADMIN: o SUPERADMIN chega às empresas por Clientes, na Gestão Addere
-        // (plano 013), e abre a ficha técnica pelo botão "Integração"
+        // E23: a ficha técnica da empresa (filiais, clientes, produtos,
+        // pedidos, Protheus, campos e logs). O ADMIN abre a da própria empresa;
+        // o SUPERADMIN, a da empresa ativa do seletor, como o resto deste grupo
+        // (19/10/2026 — a volta pelo botão "Integração" de Clientes era longa)
         href: '/empresas',
         label: 'Empresas',
         match: (p) => p.startsWith('/empresas'),
         icon: Building2,
-        requires: 'companyAdmin',
+        requires: 'admin',
         hrefForCompany: (companyId) => `/empresas/${companyId}`,
       },
     ],
@@ -436,12 +436,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 {group.title}
               </p>
               {group.items.map((item) => {
-                const href =
-                  item.hrefForCompany && !isSuperAdmin
-                    ? companyId
-                      ? item.hrefForCompany(companyId)
-                      : null
-                    : item.href
+                const href = item.hrefForCompany
+                  ? companyId
+                    ? item.hrefForCompany(companyId)
+                    : null
+                  : item.href
                 if (!href) return null
                 const active = item.match(pathname)
                 const Icon = item.icon
