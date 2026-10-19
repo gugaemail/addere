@@ -5,3 +5,4 @@ dist
 package-lock.json
 *.tsbuildinfo
 apps/web/public
+apps/api/e2e-billing
