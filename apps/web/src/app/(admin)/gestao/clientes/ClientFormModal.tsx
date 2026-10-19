@@ -6,7 +6,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { toast } from 'sonner'
 import { BRAZIL_UFS, type ClientDetailDto, type ClientInput } from '@addere/types'
 import { getApiErrorCode, getApiErrorMessage } from '@/lib/api'
-import { maskCEP, maskDocument } from '@/lib/utils'
+import { formatPhoneDisplay, maskCEP, maskDocument, maskPhone } from '@/lib/utils'
 import { clientFormSchema, type ClientFormData } from '@/lib/schemas'
 import { useCreateClient, useUpdateClient } from '@/hooks/useBilling'
 import { Modal } from '@/components/ui/Modal'
@@ -48,10 +48,10 @@ function defaultsFor(client: ClientDetailDto | undefined): ClientFormData {
     legalRepRole: p?.legalRepRole ?? '',
     contactName: p?.contactName ?? '',
     contactEmail: p?.contactEmail ?? '',
-    contactPhone: p?.contactPhone ?? '',
+    contactPhone: p?.contactPhone ? formatPhoneDisplay(p.contactPhone) : '',
     billingContactName: p?.billingContactName ?? '',
     billingEmail: p?.billingEmail ?? '',
-    billingPhone: p?.billingPhone ?? '',
+    billingPhone: p?.billingPhone ? formatPhoneDisplay(p.billingPhone) : '',
     notes: p?.notes ?? '',
   }
 }
@@ -226,7 +226,15 @@ export function ClientFormModal({ mode, client, onClose }: ClientFormModalProps)
             error={errors.contactEmail?.message}
             {...register('contactEmail')}
           />
-          <FormField label="Telefone" type="tel" {...register('contactPhone')} />
+          <FormField
+            label="Telefone"
+            type="tel"
+            placeholder="(00) 00000-0000"
+            inputMode="numeric"
+            {...register('contactPhone', {
+              onChange: (e) => setValue('contactPhone', maskPhone(e.target.value)),
+            })}
+          />
         </div>
 
         <p className={`${SECTION_TITLE} pt-2`}>Cobrança (recebe as faturas)</p>
@@ -238,7 +246,15 @@ export function ClientFormModal({ mode, client, onClose }: ClientFormModalProps)
             error={errors.billingEmail?.message}
             {...register('billingEmail')}
           />
-          <FormField label="Telefone" type="tel" {...register('billingPhone')} />
+          <FormField
+            label="Telefone"
+            type="tel"
+            placeholder="(00) 00000-0000"
+            inputMode="numeric"
+            {...register('billingPhone', {
+              onChange: (e) => setValue('billingPhone', maskPhone(e.target.value)),
+            })}
+          />
         </div>
 
         <p className={`${SECTION_TITLE} pt-2`}>Observações (só a Addere vê)</p>

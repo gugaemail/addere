@@ -2,6 +2,8 @@ import { describe, it, expect } from 'vitest'
 import {
   maskDocument,
   maskCEP,
+  maskPhone,
+  formatPhoneDisplay,
   formatDocumentDisplay,
   formatCEPDisplay,
   formatCurrency,
@@ -23,6 +25,50 @@ describe('maskDocument', () => {
 
   it('ignora não-dígitos e limita a 14', () => {
     expect(maskDocument('12.345.678/9012-34xx99')).toBe('12.345.678/9012-34')
+  })
+})
+
+describe('maskPhone', () => {
+  it('formata progressivamente enquanto digita', () => {
+    expect(maskPhone('')).toBe('')
+    expect(maskPhone('1')).toBe('(1')
+    expect(maskPhone('11')).toBe('(11')
+    expect(maskPhone('113')).toBe('(11) 3')
+    expect(maskPhone('113456')).toBe('(11) 3456')
+    expect(maskPhone('1134567')).toBe('(11) 3456-7')
+  })
+
+  it('fixo com 10 dígitos e celular com 11', () => {
+    expect(maskPhone('1134567890')).toBe('(11) 3456-7890')
+    expect(maskPhone('11987654321')).toBe('(11) 98765-4321')
+  })
+
+  it('0800/0300 no formato próprio; zero de longa distância sai', () => {
+    expect(maskPhone('08001234567')).toBe('0800 123 4567')
+    expect(maskPhone('0800')).toBe('0800')
+    expect(maskPhone('011987654321')).toBe('(11) 98765-4321')
+  })
+
+  it('ignora o que não é dígito, tira o DDI 55 e limita a 11', () => {
+    expect(maskPhone('(11) 98765-4321')).toBe('(11) 98765-4321')
+    expect(maskPhone('+55 11 98765-4321')).toBe('(11) 98765-4321')
+    expect(maskPhone('119876543219999')).toBe('(11) 98765-4321')
+  })
+})
+
+describe('formatPhoneDisplay', () => {
+  it('formata o que já está gravado, inclusive só dígitos (Protheus)', () => {
+    expect(formatPhoneDisplay('1134567890')).toBe('(11) 3456-7890')
+    expect(formatPhoneDisplay('5511987654321')).toBe('(11) 98765-4321')
+    expect(formatPhoneDisplay('(11) 98765-4321')).toBe('(11) 98765-4321')
+  })
+
+  it('vazio vira traço; formato desconhecido fica como veio', () => {
+    expect(formatPhoneDisplay(null)).toBe('—')
+    expect(formatPhoneDisplay('')).toBe('—')
+    expect(formatPhoneDisplay('08001234567')).toBe('0800 123 4567')
+    expect(formatPhoneDisplay('12345')).toBe('12345')
+    expect(formatPhoneDisplay('ramal 22')).toBe('ramal 22')
   })
 })
 

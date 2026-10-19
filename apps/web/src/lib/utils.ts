@@ -66,6 +66,41 @@ export function maskCEP(v: string): string {
   return d
 }
 
+// Telefone BR: fixo (11) 3456-7890 e celular (11) 98765-4321. O DDI 55,
+// quando colado junto ("+55 11 9…"), e o zero de longa distância ("011 9…")
+// saem — o cadastro guarda só DDD + número. 0800/0300 têm formato próprio.
+const SERVICE_NUMBER = /^0[3589]00/
+
+function phoneDigits(v: string): string {
+  let d = v.replace(/\D/g, '')
+  if (SERVICE_NUMBER.test(d)) return d
+  if (d.length > 11 && d.startsWith('55')) d = d.slice(2)
+  return d.replace(/^0+/, '')
+}
+
+export function maskPhone(v: string): string {
+  const d = phoneDigits(v).slice(0, 11)
+  if (d.length === 0) return ''
+  if (SERVICE_NUMBER.test(d)) {
+    return [d.slice(0, 4), d.slice(4, 7), d.slice(7)].filter(Boolean).join(' ')
+  }
+  if (d.length <= 2) return `(${d}`
+  const ddd = d.slice(0, 2)
+  const rest = d.slice(2)
+  if (rest.length <= 4) return `(${ddd}) ${rest}`
+  // Até 10 dígitos é fixo (4+4); o 11º dígito vira celular (5+4)
+  const split = d.length === 11 ? 5 : 4
+  return `(${ddd}) ${rest.slice(0, split)}-${rest.slice(split)}`
+}
+
+/** Telefone já gravado (cadastro, Protheus); formato desconhecido fica como veio */
+export function formatPhoneDisplay(v: string | null | undefined): string {
+  if (!v) return '—'
+  const d = phoneDigits(v)
+  if (d.length === 10 || d.length === 11) return maskPhone(d)
+  return v
+}
+
 export function formatDocumentDisplay(v: string | null): string {
   if (!v) return '—'
   const d = v.replace(/\D/g, '')
