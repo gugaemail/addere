@@ -21,6 +21,7 @@ interface ValidationMessages {
 // Erros por campo de um item do carrinho (exibidos inline pelo CartItemEditor)
 export interface CartItemErrors {
   unitPrice?: string
+  discount?: string
   descricao?: string
   largura?: string
   espessura?: string
@@ -48,6 +49,7 @@ export type OrderFormField = keyof Omit<OrderFormErrors, 'items'>
 
 const ITEM_ERROR_FIELDS: (keyof CartItemErrors)[] = [
   'unitPrice',
+  'discount',
   'descricao',
   'largura',
   'espessura',
@@ -77,6 +79,7 @@ export function useOrderValidation(messages: ValidationMessages) {
   const reqMennota = useFieldRequired('order.mennota')
   const reqNotes = useFieldRequired('order.notes')
   const reqUnitPrice = useFieldRequired('orderItem.unitPrice')
+  const reqDiscount = useFieldRequired('orderItem.discount')
   const reqLargura = useFieldRequired('orderItem.largura')
   const reqEspessura = useFieldRequired('orderItem.espessura')
   const reqEncolhimento = useFieldRequired('orderItem.encolhimento')
@@ -111,6 +114,10 @@ export function useOrderValidation(messages: ValidationMessages) {
       const itemErrors: CartItemErrors = {}
       if (reqUnitPrice && (!item.unitPrice || item.unitPrice <= 0)) {
         itemErrors.unitPrice = 'Informe o preço unitário.'
+      }
+      // Desconto obrigatório: o padrão é 0, então só conta se for maior que zero
+      if (reqDiscount && !(item.discount > 0)) {
+        itemErrors.discount = 'Informe o desconto.'
       }
       if (reqDescricao && !item.descricao?.trim()) {
         itemErrors.descricao = 'Informe a descrição.'

@@ -10,8 +10,8 @@ import { orderFormStyles as s } from './styles'
 import type { CartItem } from './types'
 import type { CartItemErrors } from './validation'
 
-// Editor de um item do carrinho: quantidade, preço e campos extras
-// (descrição, largura, espessura, encolhimento, xcrav, tara).
+// Editor de um item do carrinho: quantidade, preço, desconto (%) e campos
+// extras (descrição, largura, espessura, encolhimento, xcrav, tara).
 // Antes duplicado no wizard de novo pedido e na tela de edição.
 // `errors` exibe as mensagens de validação inline em cada campo.
 export function CartItemEditor({
@@ -26,6 +26,7 @@ export function CartItemEditor({
   errors?: CartItemErrors
 }) {
   const showUnitPrice = useFieldVisible('orderItem.unitPrice')
+  const showDiscount = useFieldVisible('orderItem.discount')
   const showLargura = useFieldVisible('orderItem.largura')
   const showEspessura = useFieldVisible('orderItem.espessura')
   const showEncolhimento = useFieldVisible('orderItem.encolhimento')
@@ -34,6 +35,7 @@ export function CartItemEditor({
   const showDescricao = useFieldVisible('orderItem.descricao')
 
   const reqUnitPrice = useFieldRequired('orderItem.unitPrice')
+  const reqDiscount = useFieldRequired('orderItem.discount')
   const reqLargura = useFieldRequired('orderItem.largura')
   const reqEspessura = useFieldRequired('orderItem.espessura')
   const reqEncolhimento = useFieldRequired('orderItem.encolhimento')
@@ -53,6 +55,13 @@ export function CartItemEditor({
     const value = parseFloat(raw.replace(',', '.'))
     if (isNaN(value) || value < 0) return
     onChange({ ...item, unitPrice: value })
+  }
+
+  // Percentual de 0 a 100, como a API aceita (orders.schema)
+  function updateDiscount(raw: string) {
+    const value = parseFloat(raw.replace(',', '.'))
+    const discount = isNaN(value) ? 0 : Math.min(100, Math.max(0, value))
+    onChange({ ...item, discount })
   }
 
   function updateNumField(field: 'largura' | 'espessura' | 'tara', raw: string) {
@@ -154,8 +163,26 @@ export function CartItemEditor({
         </View>
       </View>
 
-      {(showLargura || showEspessura || showTara) && (
+      {(showDiscount || showLargura || showEspessura || showTara) && (
         <View style={s.itemExtraRow}>
+          {showDiscount && (
+            <View style={s.itemExtraField}>
+              <Text style={s.controlLabel}>Desconto (%){reqDiscount ? ' *' : ''}</Text>
+              <Input
+                containerStyle={s.compactField}
+                style={s.compactInput}
+                keyboardType="decimal-pad"
+                placeholder="0"
+                defaultValue={
+                  item.discount > 0
+                    ? item.discount.toLocaleString('pt-BR', { maximumFractionDigits: 2 })
+                    : ''
+                }
+                onEndEditing={(e) => updateDiscount(e.nativeEvent.text)}
+                error={errors?.discount}
+              />
+            </View>
+          )}
           {showLargura && (
             <View style={s.itemExtraField}>
               <Text style={s.controlLabel}>Largura{reqLargura ? ' *' : ''}</Text>

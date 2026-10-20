@@ -1,7 +1,7 @@
 import * as Print from 'expo-print'
 import type { Order } from '@addere/types'
 import { STATUS_LABEL } from '../utils/orderStatus'
-import { fmtData } from '../utils/format'
+import { fmtData, formatDocument } from '../utils/format'
 import { colors } from '../theme'
 
 function fmtDecimal(value: string | number | null | undefined): string {
@@ -50,7 +50,9 @@ export function buildHtml(order: Order): string {
   const protheusBlock = order.protheusOrderId
     ? `<p>Cód. Protheus: <strong>${order.protheusOrderId}</strong></p>`
     : ''
-  const documentBlock = order.customer.document ? `<p>${order.customer.document}</p>` : ''
+  const documentBlock = order.customer.document
+    ? `<p>${formatDocument(order.customer.document)}</p>`
+    : ''
   // Só a Obs. Nota Fiscal: o PDF vai para o cliente, e a Obs. Interna é a
   // que "não sai na nota" — o PDF a imprimia no lugar da outra.
   const observacoesBlock = order.mennota
