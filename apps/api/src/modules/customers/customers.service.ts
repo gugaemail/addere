@@ -1,9 +1,32 @@
+import type { Prisma } from '@prisma/client'
 import { prisma } from '@addere/db'
 import type { UserRole } from '@addere/types'
 import { notFound } from '../../lib/errors'
 import { customerWhere, resolveViewerScope } from '../users/data-scope'
 
 const DEFAULT_LIMIT = 500
+
+/**
+ * Busca da carteira: cada palavra tem de aparecer no nome, no código Protheus
+ * ou no CPF/CNPJ. O documento é gravado só com dígitos, então "08.039.087"
+ * procura "08039087".
+ */
+export function customerSearchWhere(search?: string): Prisma.CustomerWhereInput {
+  const terms = search?.trim().split(/\s+/).filter(Boolean) ?? []
+  if (terms.length === 0) return {}
+  return {
+    AND: terms.map((term) => {
+      const digits = term.replace(/\D/g, '')
+      return {
+        OR: [
+          { name: { contains: term, mode: 'insensitive' as const } },
+          { protheusCode: { contains: term, mode: 'insensitive' as const } },
+          ...(digits ? [{ document: { contains: digits } }] : []),
+        ],
+      }
+    }),
+  }
+}
 
 export async function listCustomers(
   companyId: string,
@@ -20,12 +43,7 @@ export async function listCustomers(
       companyId,
       active: true,
       ...scopeWhere,
-      ...(search && {
-        OR: [
-          { name: { contains: search, mode: 'insensitive' } },
-          { document: { contains: search } },
-        ],
-      }),
+      ...customerSearchWhere(search),
     },
     orderBy: { name: 'asc' },
     take: DEFAULT_LIMIT,
