@@ -16,7 +16,7 @@ import { Card } from '../../../src/components/ui/Card'
 import { EmptyState } from '../../../src/components/ui/EmptyState'
 import { colors, spacing, typography } from '../../../src/theme'
 import type { Order } from '@addere/types'
-import { fmtMoeda, fmtData, formatDocument } from '../../../src/utils/format'
+import { fmtMoeda, fmtData, formatDocument, formatPhone } from '../../../src/utils/format'
 import { STATUS_LABEL, STATUS_BADGE } from '../../../src/utils/orderStatus'
 import { showRegistryBlockedBadge } from '../../../src/utils/customerBlock'
 
@@ -73,7 +73,7 @@ function PhoneRow({ phone }: { phone: string | null | undefined }) {
         <Phone size={13} color={colors.brand.accent} strokeWidth={1.5} />
         <Text style={styles.infoLabel}>Telefone</Text>
       </View>
-      <Text style={[styles.infoValue, styles.phoneValue]}>{phone}</Text>
+      <Text style={[styles.infoValue, styles.phoneValue]}>{formatPhone(phone)}</Text>
     </TouchableOpacity>
   )
 }

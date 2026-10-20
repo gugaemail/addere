@@ -11,7 +11,7 @@ import { EmptyState } from '../../../src/components/ui/EmptyState'
 import { useFieldVisible } from '../../../src/hooks/useFieldConfig'
 import { colors, spacing, typography } from '../../../src/theme'
 import { isCustomerBlocked, type Customer } from '@addere/types'
-import { formatDocument } from '../../../src/utils/format'
+import { formatDocument, formatPhone } from '../../../src/utils/format'
 import { useCustomerSignals } from '../../../src/hooks/useIntel'
 import { parseIntelStatusParam } from '../../../src/utils/customerStatus'
 import { StatusPill } from '../../../src/components/intel/StatusPill'
@@ -26,7 +26,7 @@ function ClienteItem({ customer, onPress }: { customer: Customer; onPress: () =>
         {showDocument && customer.document && (
           <Text style={s.sub}>{formatDocument(customer.document)}</Text>
         )}
-        {showPhone && customer.phone && <Text style={s.sub}>{customer.phone}</Text>}
+        {showPhone && customer.phone && <Text style={s.sub}>{formatPhone(customer.phone)}</Text>}
       </View>
       {/* Bloqueado no Protheus continua na carteira, com o selo (plano 010) */}
       {isCustomerBlocked(customer.msblql) && <StatusPill status="BLOCKED" />}
@@ -47,7 +47,10 @@ export default function ClientesScreen() {
   // filtrar da segunda vez em diante, e limpar o filtro mudava só o estado
   // local, deixando o parâmetro para ressuscitá-lo no mount seguinte.
   const params = useLocalSearchParams<{ intelStatus?: string }>()
-  const statusFilter = useMemo(() => parseIntelStatusParam(params.intelStatus), [params.intelStatus])
+  const statusFilter = useMemo(
+    () => parseIntelStatusParam(params.intelStatus),
+    [params.intelStatus]
+  )
   const signals = useCustomerSignals()
   const filteredSignals = useMemo(() => {
     if (!statusFilter || !signals.data) return null
