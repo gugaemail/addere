@@ -37,11 +37,12 @@ const fmtBRL = (value: string | null | undefined): string => {
     : '—'
 }
 
+// O percentual vem real da API (passa de 100 com a meta superada); a barra não
 function GoalBar({ pct }: { pct: number | null }) {
   if (pct === null) return null
   return (
     <View style={s.goalTrack}>
-      <View style={[s.goalFill, { width: `${pct}%` }]} />
+      <View style={[s.goalFill, { width: `${Math.min(100, Math.max(0, pct))}%` }]} />
     </View>
   )
 }

@@ -159,6 +159,56 @@ describe('GET /intel/manager/team', () => {
     // manager-a tem intel.manager (PERMISSIONS_BY_SUB) — só "Sem Gerente" fica sem gerente
     expect(res.json().unassignedSellers).toBe(1)
   })
+
+  it('cada vendedor traz a meta do mês corrente — a da Hoje do app — em qualquer recorte', async () => {
+    prismaMock.user.findMany.mockResolvedValue([
+      { id: 'u-ana', name: 'Ana', idVendProt: 'V1', managerId: 'manager-a' },
+      { id: 'u-bia', name: 'Bia', idVendProt: 'V2', managerId: 'manager-a' },
+    ])
+    prismaMock.goalSnapshot.findMany.mockResolvedValue([
+      {
+        vendorCode: 'V1',
+        goalAmount: '1000',
+        soldAmount: '400',
+        capturedAt: new Date('2026-10-01T10:00:00Z'),
+      },
+      {
+        vendorCode: 'V1',
+        goalAmount: '1000',
+        soldAmount: '1200',
+        capturedAt: new Date('2026-10-20T10:00:00Z'),
+      },
+    ])
+    const currentPeriod = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'America/Sao_Paulo',
+      year: 'numeric',
+      month: '2-digit',
+    })
+      .format(new Date())
+      .replace('-', '')
+
+    // Aba Mês num dia de agosto: as visitas são de agosto, a meta é a de agora
+    const res = await app.inject({
+      method: 'GET',
+      url: '/intel/manager/team?date=2026-08-25&range=month',
+      headers: auth('admin-a'),
+    })
+    expect(res.statusCode).toBe(200)
+    expect(prismaMock.goalSnapshot.findMany.mock.calls[0][0].where).toMatchObject({
+      period: currentPeriod,
+      vendorCode: { in: ['V1', 'V2'] },
+    })
+    const [ana, bia] = res.json().sellers
+    expect(ana.goal).toEqual({
+      period: currentPeriod,
+      goalAmount: '1000.00',
+      soldAmount: '1200.00',
+      gap: '0.00',
+      pct: 120,
+      capturedAt: '2026-10-20T10:00:00.000Z',
+    })
+    expect(bia.goal).toBeNull()
+  })
 })
 
 describe('GET /intel/manager/home', () => {

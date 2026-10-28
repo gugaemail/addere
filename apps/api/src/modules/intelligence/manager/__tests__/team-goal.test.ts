@@ -26,11 +26,27 @@ describe('buildTeamGoal', () => {
     const goal = buildTeamGoal([ana], [snap('V1', 1000, 100, 1), snap('V1', 1000, 900, 20)])
     expect(goal.soldAmount).toBe('900.00')
     expect(goal.pct).toBe(90)
+    // O painel mostra quando a meta foi capturada — a do dia 20, não a do dia 1
+    expect(goal.sellers[0].capturedAt).toBe('2026-08-20T00:00:00.000Z')
+  })
+
+  it('cada vendedor traz o quanto falta, a mesma conta da Hoje do app', () => {
+    const goal = buildTeamGoal([ana, bia], [snap('V1', 1000, 250), snap('V2', 3000, null)])
+    expect(goal.sellers[0].gap).toBe('750.00')
+    // Sem vendido capturado, falta a meta inteira (o app conta vendido nulo como 0)
+    expect(goal.sellers[1].gap).toBe('3000.00')
   })
 
   it('vendedor sem meta capturada entra na lista sem número e não zera a soma', () => {
     const goal = buildTeamGoal([ana, bia], [snap('V1', 1000, 400)])
-    expect(goal.sellers[1]).toMatchObject({ name: 'Bia', goalAmount: null, soldAmount: null, pct: null })
+    expect(goal.sellers[1]).toMatchObject({
+      name: 'Bia',
+      goalAmount: null,
+      soldAmount: null,
+      pct: null,
+      gap: null,
+      capturedAt: null,
+    })
     expect(goal.goalAmount).toBe('1000.00')
     expect(goal.sellersWithGoal).toBe(1)
   })
@@ -40,9 +56,11 @@ describe('buildTeamGoal', () => {
     expect(goal).toMatchObject({ goalAmount: null, soldAmount: null, gap: null, pct: null, sellersWithGoal: 0 })
   })
 
-  it('meta batida não passa de 100% e o gap não fica negativo', () => {
+  it('meta batida mostra o percentual real (a barra é que para em 100%) e o gap não fica negativo', () => {
     const goal = buildTeamGoal([ana], [snap('V1', 1000, 1500)])
-    expect(goal.pct).toBe(100)
+    expect(goal.pct).toBe(150)
+    expect(goal.sellers[0].pct).toBe(150)
     expect(goal.gap).toBe('0.00')
+    expect(goal.sellers[0].gap).toBe('0.00')
   })
 })

@@ -22,6 +22,10 @@ export interface SellerGoal {
   goalAmount: string | null
   soldAmount: string | null
   pct: number | null
+  /** Quanto falta, nunca negativo — a mesma conta da Hoje do vendedor (plan.service) */
+  gap: string | null
+  /** Quando a API de metas devolveu esse número (ISO) — null sem captura no mês. */
+  capturedAt: string | null
 }
 
 export interface TeamGoal {
@@ -36,9 +40,11 @@ export interface TeamGoal {
 
 const money = (value: number | null): string | null => (value === null ? null : value.toFixed(2))
 
+// Percentual real: quem vendeu 117% da meta vê 117% — a barra é que para em
+// 100% (no app e no painel). Era travado em 100% e escondia quanto passou.
 function pct(sold: number, goal: number): number | null {
   if (goal <= 0) return null
-  return Math.min(100, Math.round((sold / goal) * 100))
+  return Math.round((sold / goal) * 100)
 }
 
 export function buildTeamGoal(
@@ -72,6 +78,8 @@ export function buildTeamGoal(
       goalAmount: money(goal),
       soldAmount: money(sold),
       pct: goal === null || sold === null ? null : pct(sold, goal),
+      gap: goal === null ? null : money(Math.max(0, goal - (sold ?? 0))),
+      capturedAt: snap?.capturedAt.toISOString() ?? null,
     }
   })
 

@@ -33,6 +33,19 @@ export interface TeamAlert {
   message: string
 }
 
+/**
+ * Meta do mês corrente (São Paulo) — a mesma da tela Hoje do vendedor no app,
+ * seja qual for o recorte (dia, semana, mês) pedido para o resto do card.
+ */
+export interface SellerMonthGoal {
+  period: string // AAAAMM
+  goalAmount: string | null
+  soldAmount: string | null
+  gap: string | null
+  pct: number | null
+  capturedAt: string | null
+}
+
 export interface SellerCard {
   userId: string
   name: string
@@ -44,6 +57,8 @@ export interface SellerCard {
   visitPositivationPct: number | null
   portfolioPositivationPct: number | null
   alerts: TeamAlert[]
+  /** null = nenhuma meta capturada para o vendedor neste mês */
+  goal: SellerMonthGoal | null
 }
 
 export interface TeamTotals {
@@ -70,6 +85,8 @@ export interface TeamInput {
   minVisits: number
   stale: boolean
   lastSyncAt: string | null
+  /** Meta do mês por código de vendedor (o service já escolheu a captura) */
+  goals?: Map<string, SellerMonthGoal>
 }
 
 export interface TeamReport {
@@ -149,6 +166,7 @@ export function buildTeamReport(input: TeamInput): TeamReport {
       visitPositivationPct: pct(withOrder, closed.length),
       portfolioPositivationPct: pct(seller.positivatedInMonth, seller.portfolio),
       alerts,
+      goal: input.goals?.get(seller.vendorCode) ?? null,
     }
   })
 
