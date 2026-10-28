@@ -37,8 +37,23 @@ import { ymdSaoPaulo } from '../engine/business-days'
 import { clockToMinutes } from '../engine/routing'
 import { getFreshness } from './plan.service'
 
+const CUSTOMER_STATUSES = ['NEW', 'ON_CYCLE', 'LATE', 'AT_RISK', 'INACTIVE', 'BLOCKED'] as const
+
 const signalsQuerySchema = z.object({
-  status: z.enum(['NEW', 'ON_CYCLE', 'LATE', 'AT_RISK', 'INACTIVE', 'BLOCKED']).optional(),
+  // Um status ou vários separados por vírgula ("LATE,AT_RISK" é o atalho
+  // "Quem está esfriando?" da Hoje)
+  status: z
+    .string()
+    .optional()
+    .transform((raw) =>
+      raw
+        ? raw
+            .split(',')
+            .map((s) => s.trim())
+            .filter(Boolean)
+        : undefined
+    )
+    .pipe(z.array(z.enum(CUSTOMER_STATUSES)).min(1).optional()),
 })
 
 const briefingParamsSchema = z.object({
@@ -70,11 +85,16 @@ interface PortfolioRow {
   municipio: string | null
 }
 
-/** Sinais da carteira do vendedor já no formato da lista (E7/E19). */
+/**
+ * Sinais da carteira do vendedor já no formato da lista (E7/E19). Sem corte:
+ * a Hoje conta a carteira inteira, e um `take` aqui (que ainda vinha antes do
+ * filtro por loja) deixava "Quem está esfriando?" vazio com 5 esfriando —
+ * a carteira de 500 clientes passava do limite (28/10/2026).
+ */
 async function loadPortfolioItems(
   companyId: string,
   vendorCode: string,
-  status?: CustomerStatus
+  statuses?: CustomerStatus[]
 ): Promise<{ items: CustomerSignalListItem[]; portfolio: PortfolioRow[] }> {
   const portfolio = await prisma.customer.findMany({
     where: { companyId, vendorCode, active: true, protheusCode: { not: null } },
@@ -86,10 +106,9 @@ async function loadPortfolioItems(
     where: {
       companyId,
       customerCode: { in: portfolio.map((c) => c.protheusCode as string) },
-      ...(status ? { status } : {}),
+      ...(statuses ? { status: { in: statuses } } : {}),
     },
     orderBy: [{ scoreTotal: 'desc' }, { daysSinceLastPurchase: 'desc' }],
-    take: 500,
   })
 
   const items = signals
@@ -119,13 +138,15 @@ async function loadPortfolioItems(
 export default async function customersRoutes(app: FastifyInstance) {
   const guard = [authenticate, requireCompany, requireVendorCode]
 
-  // GET /intel/app/customers/signals?status= — "Quem está esfriando?"
+  // GET /intel/app/customers/signals?status=LATE,AT_RISK — "Quem está esfriando?".
+  // O app antigo pede sem status e filtra do lado dele: por isso a lista vai
+  // inteira, sem o corte de 200 que escondia os esfriando de carteira grande.
   app.get('/customers/signals', { preHandler: guard }, async (request, reply) => {
     const query = signalsQuerySchema.parse(request.query)
     const companyId = request.user.companyId as string
     const vendorCode = request.vendorCode as string
     const { items } = await loadPortfolioItems(companyId, vendorCode, query.status)
-    return reply.send({ items: items.slice(0, 200), freshness: await getFreshness(companyId) })
+    return reply.send({ items, freshness: await getFreshness(companyId) })
   })
 
   // GET /intel/app/portfolio — Carteira (E19): contagens, RFM, atrasados e texto do agente

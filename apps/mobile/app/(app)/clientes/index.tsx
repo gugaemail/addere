@@ -51,7 +51,9 @@ export default function ClientesScreen() {
     () => parseIntelStatusParam(params.intelStatus),
     [params.intelStatus]
   )
-  const signals = useCustomerSignals()
+  // A API já devolve só os status do filtro; o `filter` aqui é rede de
+  // proteção para o cache de uma resposta antiga
+  const signals = useCustomerSignals(statusFilter)
   const filteredSignals = useMemo(() => {
     if (!statusFilter || !signals.data) return null
     return signals.data.items.filter((i) => statusFilter.includes(i.status))
@@ -127,7 +129,8 @@ export default function ClientesScreen() {
             />
           }
         />
-      ) : isLoading ? (
+      ) : isLoading || (statusFilter && signals.isLoading) ? (
+        // Com o filtro ligado e a lista ainda vindo, esqueleto — não a carteira inteira
         <View style={{ padding: spacing.md }}>
           {[0, 1, 2, 3, 4].map((i) => (
             <ClienteItemSkeleton key={i} />

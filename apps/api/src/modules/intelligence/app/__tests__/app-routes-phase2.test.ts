@@ -68,6 +68,76 @@ describe('GET /intel/app/portfolio', () => {
   })
 })
 
+// "Quem está esfriando?" (Hoje): a Hoje dizia 5 esfriando e a lista abria
+// vazia — a lista cortava a carteira de 500 clientes antes de filtrar (28/10/2026)
+describe('GET /intel/app/customers/signals', () => {
+  const signal = (code: string, status: string) => ({
+    customerCode: code,
+    loja: '01',
+    status,
+    daysSinceLastPurchase: 40,
+    avgTicket: 1000,
+    reasons: [],
+    cycleDays: 30,
+    orders12m: 6,
+    trendPct: null,
+    rfmSegment: null,
+    crossSell: [],
+  })
+
+  function portfolioOf(size: number) {
+    const codes = Array.from({ length: size }, (_, i) => `C${String(i).padStart(4, '0')}`)
+    prismaMock.customer.findMany.mockResolvedValue(
+      codes.map((code) => ({ protheusCode: code, loja: '01', name: code, municipio: null }))
+    )
+    return codes
+  }
+
+  it('filtra vários status no banco (LATE,AT_RISK), sem limite de quantidade', async () => {
+    portfolioOf(3)
+    prismaMock.customerSignal.findMany.mockResolvedValue([
+      signal('C0001', 'LATE'),
+      signal('C0002', 'AT_RISK'),
+    ])
+    const res = await app.inject({
+      method: 'GET',
+      url: '/intel/app/customers/signals?status=LATE,AT_RISK',
+      headers: auth(),
+    })
+    expect(res.statusCode).toBe(200)
+    const args = prismaMock.customerSignal.findMany.mock.calls[0][0]
+    expect(args.where.status).toEqual({ in: ['LATE', 'AT_RISK'] })
+    expect(args.take).toBeUndefined()
+    expect(res.json().items.map((i: { status: string }) => i.status)).toEqual(['LATE', 'AT_RISK'])
+  })
+
+  it('sem status, devolve a carteira inteira — o app antigo filtra do lado dele', async () => {
+    const codes = portfolioOf(500)
+    // Os esfriando por último, como quando a pontuação deles é a menor
+    prismaMock.customerSignal.findMany.mockResolvedValue([
+      ...codes.slice(0, 495).map((code) => signal(code, 'INACTIVE')),
+      ...codes.slice(495).map((code) => signal(code, 'LATE')),
+    ])
+    const res = await app.inject({
+      method: 'GET',
+      url: '/intel/app/customers/signals',
+      headers: auth(),
+    })
+    const items = res.json().items as { status: string }[]
+    expect(items).toHaveLength(500)
+    expect(items.filter((i) => i.status === 'LATE')).toHaveLength(5)
+  })
+
+  it('status desconhecido → 400', async () => {
+    const res = await app.inject({
+      method: 'GET',
+      url: '/intel/app/customers/signals?status=LATE,FRIO',
+      headers: auth(),
+    })
+    expect(res.statusCode).toBe(400)
+  })
+})
+
 describe('janelas de atendimento', () => {
   it('cliente fora da carteira → 404', async () => {
     const res = await app.inject({ method: 'GET', url: '/intel/app/customers/X/01/windows', headers: auth() })
