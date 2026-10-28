@@ -310,6 +310,99 @@ describe('POST /users', () => {
       companyId: COMPANY_A,
     })
   })
+
+  // Bug de 28/10/2026: o schema da criação não tinha os campos do vendedor e o
+  // Zod os descartava — código, veículo e gerente só gravavam editando depois.
+  const MANAGER = '44444444-4444-4444-8444-444444444444'
+  const sellerBody = {
+    name: 'Vendedor Novo',
+    email: 'vendedor@a.com',
+    password: 'senha12345',
+    role: 'SALESPERSON',
+    idVendProt: '000123',
+    visitsPerDay: 8,
+    vehicle: 'MOTORCYCLE',
+    servedCities: ['Campinas', 'Valinhos'],
+    messageTone: 'formal',
+    managerId: MANAGER,
+  }
+
+  function emailFree() {
+    prismaMock.user.findUnique.mockImplementation(async (args: { where: { email?: string } }) =>
+      args.where.email ? null : { active: true }
+    )
+  }
+
+  it('vendedor nasce com código Protheus, veículo, gerente e o resto do perfil', async () => {
+    emailFree()
+    prismaMock.user.findFirst.mockResolvedValue({ id: MANAGER })
+    prismaMock.user.create.mockResolvedValue({ id: 'novo', role: 'SALESPERSON' })
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/users',
+      headers: auth('admin-a'),
+      payload: sellerBody,
+    })
+
+    expect(res.statusCode).toBe(201)
+    expect(prismaMock.user.create.mock.calls[0][0].data).toMatchObject({
+      companyId: COMPANY_A,
+      idVendProt: '000123',
+      visitsPerDay: 8,
+      vehicle: 'MOTORCYCLE',
+      servedCities: ['Campinas', 'Valinhos'],
+      messageTone: 'formal',
+      managerId: MANAGER,
+    })
+    // O gerente é conferido na empresa de quem cria
+    expect(prismaMock.user.findFirst.mock.calls[0][0].where).toMatchObject({
+      id: MANAGER,
+      companyId: COMPANY_A,
+      active: true,
+    })
+  })
+
+  it('gerente que não é usuário ativo da empresa: 422 e ninguém é criado', async () => {
+    emailFree()
+    prismaMock.user.findFirst.mockResolvedValue(null)
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/users',
+      headers: auth('admin-a'),
+      payload: sellerBody,
+    })
+
+    expect(res.statusCode).toBe(422)
+    expect(prismaMock.user.create).not.toHaveBeenCalled()
+  })
+
+  it('usuário sem empresa não pode nascer com gerente', async () => {
+    emailFree()
+    // SUPERADMIN sem companyId cria usuário global
+    const res = await app.inject({
+      method: 'POST',
+      url: '/users',
+      headers: auth('super-1'),
+      payload: sellerBody,
+    })
+
+    expect(res.statusCode).toBe(422)
+    expect(prismaMock.user.create).not.toHaveBeenCalled()
+  })
+
+  it('veículo fora da lista: 400, como na edição', async () => {
+    emailFree()
+    const res = await app.inject({
+      method: 'POST',
+      url: '/users',
+      headers: auth('admin-a'),
+      payload: { ...sellerBody, vehicle: 'BIKE' },
+    })
+    expect(res.statusCode).toBe(400)
+    expect(prismaMock.user.create).not.toHaveBeenCalled()
+  })
 })
 
 // Transportadora e condição de pagamento no pedido do app: o administrador da

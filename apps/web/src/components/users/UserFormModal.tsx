@@ -83,7 +83,8 @@ export function UserFormModal({
       email: mode === 'copy' ? '' : (user?.email ?? ''),
       password: '',
       profile: user ? (profileOf(user) as 'SALESPERSON' | 'MANAGER' | 'ADMIN') : 'SALESPERSON',
-      idVendProt: user?.idVendProt ?? '',
+      // Nem o código Protheus: é único por empresa, a cópia esbarraria nele
+      idVendProt: mode === 'copy' ? '' : (user?.idVendProt ?? ''),
       visitsPerDay: user?.visitsPerDay ? String(user.visitsPerDay) : '',
       vehicle: (user?.vehicle ?? '') as '' | 'CAR' | 'MOTORCYCLE' | 'FOOT',
       servedCities: (user?.servedCities ?? []).join(', '),

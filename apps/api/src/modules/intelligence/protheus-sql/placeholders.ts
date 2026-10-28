@@ -164,6 +164,38 @@ export function substitutePlaceholders(sql: string, values: PlaceholderValues): 
   return { sql: result, errors }
 }
 
+/**
+ * Complemento da prévia que voltou sem linhas: os valores postos nos
+ * placeholders. Sem eles não dá para saber se a consulta está errada ou se a
+ * filial e o produto usados é que não têm dado (tabela compartilhada no
+ * Protheus grava a filial em branco). Vazio quando não há o que mostrar.
+ */
+export function emptyPreviewHint(sql: string, values: PlaceholderValues): string {
+  const present = findPlaceholders(sql)
+  const used: string[] = []
+  if (present.includes('FILIAL') && values.branches?.length) {
+    used.push(`{{FILIAL}} = ${values.branches.map(quoteCode).join(', ')}`)
+  }
+  if (present.includes('DATA_INI') && values.dataIni && values.dataFim) {
+    used.push(`datas de ${values.dataIni} a ${values.dataFim}`)
+  }
+  if (present.includes('PRODUTO') && values.produto) {
+    used.push(`{{PRODUTO}} = ${quoteCode(values.produto)}`)
+  }
+  if (present.includes('VENDEDOR') && values.vendedor) {
+    used.push(`{{VENDEDOR}} = ${quoteCode(values.vendedor)}`)
+  }
+  if (used.length === 0) return ''
+
+  let hint = `Valores usados na prévia: ${used.join('; ')}.`
+  const acceptsBlankBranch = /\{\{\s*FILIAL\s*\}\}\s*,\s*'\s*'/i.test(sql)
+  if (present.includes('FILIAL') && !acceptsBlankBranch) {
+    hint +=
+      " Se a tabela é compartilhada no Protheus, a filial dela fica em branco: use IN ({{FILIAL}}, ' ')."
+  }
+  return hint
+}
+
 /** Data civil em America/Sao_Paulo no formato YYYYMMDD (dia do plano — §8 timezone). */
 export function formatDateYmdSaoPaulo(date: Date): string {
   const parts = new Intl.DateTimeFormat('en-CA', {

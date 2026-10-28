@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { validateSql, stripStringLiterals } from '../sql-guard'
 import { QUERY_CONTRACTS } from '../contracts'
+import { substitutePlaceholders } from '../placeholders'
 
 const SALES = QUERY_CONTRACTS.SALES
 const CUSTOMERS = QUERY_CONTRACTS.CUSTOMERS
@@ -175,6 +176,21 @@ describe('sql-guard', () => {
       expect(ref.sql, ref.label).not.toMatch(/JOIN SF4|JOIN SB1/)
       if (ref.sql.includes('SF4010')) expect(ref.sql, ref.label).toContain("F4.D_E_L_E_T_=' '")
       expect(codes(ref.sql, QUERY_CONTRACTS.SALES), ref.label).toEqual([])
+    }
+  })
+
+  it('clientes: as referências aceitam a filial em branco (SA1 compartilhada)', () => {
+    // Cadastro compartilhado no Protheus grava A1_FILIAL em branco; só com
+    // {{FILIAL}} a prévia voltava sem nenhuma linha (Rava, 28/10/2026)
+    for (const ref of QUERY_CONTRACTS.CUSTOMERS.referenceSql) {
+      expect(ref.sql, ref.label).toContain("A1_FILIAL IN ({{FILIAL}}, ' ')")
+      const { sql, errors } = substitutePlaceholders(ref.sql, {
+        branches: ['01'],
+        desde: '1900-01-01T00:00:00.000',
+        incremental: 0,
+      })
+      expect(errors, ref.label).toEqual([])
+      expect(sql, ref.label).toContain("A1_FILIAL IN ('01', ' ')")
     }
   })
 

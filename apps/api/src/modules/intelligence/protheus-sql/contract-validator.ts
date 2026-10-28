@@ -51,7 +51,7 @@ export function validateResultAgainstContract(
     key: 'required_columns',
     label:
       rows.length === 0
-        ? 'Colunas obrigatórias do contrato (sem linhas para conferir)'
+        ? 'Consulta sem linhas — colunas obrigatórias não conferidas'
         : `Colunas obrigatórias do contrato (${required.length - missing.length}/${required.length})`,
     ok: rows.length === 0 ? false : missing.length === 0,
     detail:

@@ -34,7 +34,9 @@ export interface QueryContract {
    * sem ordem estável a mesma linha vem em duas páginas e outra fica de fora.
    * Tabela que só filtra (SF4) entra por EXISTS e cadastro (SB1) por OUTER APPLY
    * TOP 1: registro excluído e reincluído N vezes, ou exclusivo por filial,
-   * num JOIN multiplicaria o item N vezes.
+   * num JOIN multiplicaria o item N vezes. Cadastro filtrado por filial (SA1)
+   * aceita também a filial em branco: tabela compartilhada no Protheus não
+   * preenche o campo, e só com {{FILIAL}} a consulta não traria nada.
    */
   referenceSql: ReferenceSql[]
   helpText: string
@@ -84,7 +86,7 @@ export const QUERY_CONTRACTS: Record<IntelQueryName, QueryContract> = {
        A1_LC AS limite_credito, A1_ULTCOM AS ultima_compra,
        D_E_L_E_T_ AS excluido, CONVERT(VARCHAR(23), S_T_A_M_P_, 121) AS stamp
 FROM SA1010
-WHERE A1_FILIAL IN ({{FILIAL}})
+WHERE A1_FILIAL IN ({{FILIAL}}, ' ')
   AND (  ({{INCREMENTAL}} = 1 AND S_T_A_M_P_ > {{DESDE}})
       OR ({{INCREMENTAL}} = 0 AND D_E_L_E_T_ = ' '))
 ORDER BY R_E_C_N_O_`,
@@ -96,12 +98,12 @@ ORDER BY R_E_C_N_O_`,
        A1_END AS endereco, A1_CEP AS cep, A1_CGC AS cnpj, A1_MSBLQL AS bloqueado,
        A1_LC AS limite_credito, A1_ULTCOM AS ultima_compra
 FROM SA1010
-WHERE D_E_L_E_T_ = ' ' AND A1_FILIAL IN ({{FILIAL}})
+WHERE D_E_L_E_T_ = ' ' AND A1_FILIAL IN ({{FILIAL}}, ' ')
 ORDER BY R_E_C_N_O_`,
       },
     ],
     helpText:
-      'Enriquece o cadastro sincronizado via apiCliente com limite de crédito, segmento e última compra. A fronteira de segurança é o endpoint do Protheus (só aceita SELECT) — confirme com o consultor o usuário de banco somente-leitura. Para sincronizar só o que mudou, use a referência incremental: {{INCREMENTAL}} = 1 traz o que mudou desde {{DESDE}} (inclusive exclusões, na coluna excluido); 0 traz a foto completa, usada na prévia, na reconciliação e na carga semanal.',
+      "Enriquece o cadastro sincronizado via apiCliente com limite de crédito, segmento e última compra. O ' ' em A1_FILIAL IN ({{FILIAL}}, ' ') cobre o cadastro compartilhado entre filiais, que fica com a filial em branco. A fronteira de segurança é o endpoint do Protheus (só aceita SELECT) — confirme com o consultor o usuário de banco somente-leitura. Para sincronizar só o que mudou, use a referência incremental: {{INCREMENTAL}} = 1 traz o que mudou desde {{DESDE}} (inclusive exclusões, na coluna excluido); 0 traz a foto completa, usada na prévia, na reconciliação e na carga semanal.",
     reconciliation: {
       kind: 'COUNT_SNAPSHOT',
       column: null,
