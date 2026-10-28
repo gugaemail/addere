@@ -17,6 +17,7 @@ import { env } from '../../../lib/env'
 import { QUERY_CONTRACTS } from '../protheus-sql/contracts'
 import { validateSql } from '../protheus-sql/sql-guard'
 import {
+  emptyPreviewHint,
   findPlaceholders,
   substitutePlaceholders,
   formatDateYmdSaoPaulo,
@@ -291,6 +292,12 @@ export async function previewQuery(
   // 5. Contrato: colunas obrigatórias, tipos, duplicidade e fan-out
   const contractResult = validateResultAgainstContract(contract, rows)
   checks.push(...contractResult.checks)
+  // Sem linhas, o que ajuda é saber com que filial/produto a prévia rodou
+  if (rows.length === 0) {
+    const hint = emptyPreviewHint(latest.sql, values)
+    const columnsCheck = checks.find((c) => c.key === 'required_columns')
+    if (hint && columnsCheck) columnsCheck.detail = `${columnsCheck.detail ?? ''} ${hint}`.trim()
+  }
 
   // 6. Sync incremental (plano 009): sem carimbo válido o cursor não anda
   // Carimbo vazio é normal (registro intocado desde que o S_T_A_M_P_ foi ativado)
