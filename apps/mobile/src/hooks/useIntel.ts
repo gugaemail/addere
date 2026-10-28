@@ -214,17 +214,21 @@ export function useTeamSignals(filters: { status?: CustomerStatus; vendorCode?: 
   })
 }
 
-export function useCustomerSignals(status?: CustomerStatus) {
+/**
+ * Clientes da carteira nos status pedidos ("Quem está esfriando?"). O filtro vai
+ * para a API: filtrar aqui uma lista cortada deixava a tela vazia com a Hoje
+ * contando 5 esfriando. Sem status, nem busca.
+ */
+export function useCustomerSignals(statuses: CustomerStatus[] | null) {
   const hasVendorCode = useHasVendorCode()
+  const status = statuses?.join(',') ?? ''
   return useQuery({
     queryKey: intelKeys.signals(status),
     queryFn: () =>
       api
-        .get<SignalsListResponse>('/intel/app/customers/signals', {
-          params: status ? { status } : {},
-        })
+        .get<SignalsListResponse>('/intel/app/customers/signals', { params: { status } })
         .then((r) => r.data),
-    enabled: hasVendorCode,
+    enabled: hasVendorCode && status !== '',
     staleTime: 5 * 60_000,
   })
 }
