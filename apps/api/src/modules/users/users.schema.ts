@@ -1,5 +1,17 @@
 import { z } from 'zod'
 
+// Perfil de vendedor (E10) — os mesmos campos na criação e na edição. Fora do
+// schema da criação, o Zod descartava o que o formulário mandava e o vendedor
+// nascia sem código Protheus, veículo e gerente.
+const vendorProfileFields = {
+  idVendProt: z.string().max(20).nullable().optional(),
+  visitsPerDay: z.number().int().min(1).max(50).nullable().optional(),
+  vehicle: z.enum(['CAR', 'MOTORCYCLE', 'FOOT']).nullable().optional(),
+  servedCities: z.array(z.string()).optional(),
+  messageTone: z.enum(['informal', 'formal']).nullable().optional(),
+  managerId: z.string().uuid().nullable().optional(),
+}
+
 export const createUserSchema = z.object({
   name: z.string().min(2, 'Nome deve ter pelo menos 2 caracteres'),
   email: z.string().email('Email inválido'),
@@ -15,6 +27,7 @@ export const createUserSchema = z.object({
   // orders.change_payment_terms), ligadas pelo administrador da empresa.
   canChangeCarrier: z.boolean().optional(),
   canChangePaymentTerms: z.boolean().optional(),
+  ...vendorProfileFields,
 })
 
 export const updateUserSchema = z.object({
@@ -27,12 +40,7 @@ export const updateUserSchema = z.object({
   // orders.change_payment_terms), ligadas pelo administrador da empresa.
   canChangeCarrier: z.boolean().optional(),
   canChangePaymentTerms: z.boolean().optional(),
-  idVendProt: z.string().max(20).nullable().optional(),
-  visitsPerDay: z.number().int().min(1).max(50).nullable().optional(),
-  vehicle: z.enum(['CAR', 'MOTORCYCLE', 'FOOT']).nullable().optional(),
-  servedCities: z.array(z.string()).optional(),
-  messageTone: z.enum(['informal', 'formal']).nullable().optional(),
-  managerId: z.string().uuid().nullable().optional(),
+  ...vendorProfileFields,
   // Só para vincular um usuário que ficou sem empresa (bug antigo do painel).
   // Não serve para mover de empresa — ver users.service:updateUserById.
   companyId: z.string().uuid().optional(),
