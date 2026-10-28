@@ -142,9 +142,10 @@ export function HojeScreen() {
             <Text style={s.goalPct}>{goalCard.pct}%</Text>
           </View>
           <View style={s.goalTrack}>
-            <View style={[s.goalFill, { width: `${goalCard.pct}%` }]} />
+            <View style={[s.goalFill, { width: `${goalCard.barPct}%` }]} />
           </View>
           <Text style={s.goalDetail}>{goalCard.line}</Text>
+          {goalCard.detail && <Text style={s.goalDetail}>{goalCard.detail}</Text>}
           {goalCard.hint && <Text style={s.goalHint}>{goalCard.hint}</Text>}
         </Card>
       )}

@@ -363,6 +363,16 @@ export interface TeamAlert {
   message: string
 }
 
+/** Meta do mês corrente — a mesma da Hoje do vendedor no app, em qualquer recorte */
+export interface TeamSellerGoal {
+  period: string // AAAAMM
+  goalAmount: string | null
+  soldAmount: string | null
+  gap: string | null
+  pct: number | null
+  capturedAt: string | null
+}
+
 export interface TeamSellerCard {
   userId: string
   name: string
@@ -374,6 +384,8 @@ export interface TeamSellerCard {
   visitPositivationPct: number | null
   portfolioPositivationPct: number | null
   alerts: TeamAlert[]
+  /** null = nenhuma meta capturada para o vendedor neste mês */
+  goal: TeamSellerGoal | null
 }
 
 export interface TeamReportResponse {

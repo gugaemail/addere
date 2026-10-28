@@ -45,15 +45,21 @@ export function planFallbackLine(plan: {
 }
 
 export interface GoalCardModel {
+  /** Percentual real — passa de 100 quando a meta foi superada */
   pct: number
+  /** Largura da barra, 0–100 */
+  barPct: number
   line: string
+  /** Quanto falta e o ritmo por dia útil — null com a meta batida */
+  detail: string | null
   hint: string | null
 }
 
 /**
  * Card "Meta do mês" da Hoje. Os valores chegam como string decimal — "0.00"
  * é truthy! — então só há card com meta numérica > 0, e gap zerado vira
- * "Meta batida" em vez de "Faltam R$ 0".
+ * "Meta batida" em vez de "Faltam R$ 0". A meta aparece sempre ("Vendido X de
+ * Y"): batida, o vendedor só via o vendido e não tinha como conferir a meta.
  */
 export function goalCardModel(goal: VisitPlanDto['goal'] | undefined): GoalCardModel | null {
   if (!goal) return null
@@ -61,13 +67,17 @@ export function goalCardModel(goal: VisitPlanDto['goal'] | undefined): GoalCardM
   if (target === null || target <= 0) return null
   const sold = toFinite(goal.soldAmount) ?? 0
   const gap = toFinite(goal.gap) ?? Math.max(0, target - sold)
-  const pct = Math.min(100, Math.max(0, Math.round((sold / target) * 100)))
-  if (gap <= 0) return { pct, line: `Meta batida · Vendido ${brl(sold)}`, hint: null }
+  const pct = Math.max(0, Math.round((sold / target) * 100))
+  const barPct = Math.min(100, pct)
+  const soldOfGoal = `Vendido ${brl(sold)} de ${brl(target)}`
+  if (gap <= 0) {
+    return { pct, barPct, line: `Meta batida · ${soldOfGoal}`, detail: null, hint: null }
+  }
   const perDay = toFinite(goal.perBusinessDay) ?? 0
-  const line = `Faltam ${brl(gap)}${perDay > 0 ? ` · ${brl(perDay)} por dia útil` : ''}`
+  const detail = `Faltam ${brl(gap)}${perDay > 0 ? ` · ${brl(perDay)} por dia útil` : ''}`
   const late = toFinite(goal.lateCoverage) ?? 0
   const hint = late > 0 ? `Os clientes atrasados da sua carteira cobrem ${brl(late)} disso.` : null
-  return { pct, line, hint }
+  return { pct, barPct, line: soldOfGoal, detail, hint }
 }
 
 /** "850 m" abaixo de 1 km; senão "2,4 km" (sem ",0" em números redondos) */
