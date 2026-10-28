@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest'
-import { substitutePlaceholders, findPlaceholders, formatDateYmdSaoPaulo } from '../placeholders'
+import {
+  emptyPreviewHint,
+  substitutePlaceholders,
+  findPlaceholders,
+  formatDateYmdSaoPaulo,
+} from '../placeholders'
 
 describe('placeholders', () => {
   it('substitui FILIAL com múltiplas filiais quotadas', () => {
@@ -85,5 +90,42 @@ describe('placeholders', () => {
     // 02:00 UTC = 23:00 do dia anterior em São Paulo (UTC-3)
     expect(formatDateYmdSaoPaulo(new Date('2026-08-20T02:00:00Z'))).toBe('20260819')
     expect(formatDateYmdSaoPaulo(new Date('2026-08-20T12:00:00Z'))).toBe('20260820')
+  })
+})
+
+describe('emptyPreviewHint', () => {
+  it('prévia sem linhas diz com que filial rodou e lembra da filial em branco', () => {
+    const hint = emptyPreviewHint('SELECT 1 FROM SA1010 WHERE A1_FILIAL IN ({{FILIAL}})', {
+      branches: ['01', '02'],
+    })
+    expect(hint).toContain("{{FILIAL}} = '01', '02'")
+    expect(hint).toContain("IN ({{FILIAL}}, ' ')")
+  })
+
+  it('consulta que já aceita a filial em branco não recebe a mesma dica', () => {
+    const hint = emptyPreviewHint("SELECT 1 FROM SA1010 WHERE A1_FILIAL IN ({{FILIAL}}, ' ')", {
+      branches: ['01'],
+    })
+    expect(hint).toContain("{{FILIAL}} = '01'")
+    expect(hint).not.toContain('compartilhada')
+  })
+
+  it('estoque: mostra o produto testado, que pode simplesmente não ter saldo', () => {
+    const hint = emptyPreviewHint(
+      'SELECT 1 FROM SB2010 WHERE B2_COD = {{PRODUTO}} AND B2_FILIAL IN ({{FILIAL}})',
+      { branches: ['01'], produto: 'P001' }
+    )
+    expect(hint).toContain("{{PRODUTO}} = 'P001'")
+  })
+
+  it('só os placeholders que a consulta usa; nenhum → vazio', () => {
+    const values = { branches: ['01'], dataIni: '20260101', dataFim: '20260131' }
+    expect(emptyPreviewHint('SELECT 1 FROM SB1010', values)).toBe('')
+    expect(
+      emptyPreviewHint(
+        'SELECT 1 FROM SD2010 WHERE D2_EMISSAO BETWEEN {{DATA_INI}} AND {{DATA_FIM}}',
+        values
+      )
+    ).toBe('Valores usados na prévia: datas de 20260101 a 20260131.')
   })
 })
