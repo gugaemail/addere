@@ -1,5 +1,6 @@
 import type { LucideIcon } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { InfoTip } from './InfoTip'
 
 type Tone = 'neutral' | 'brand' | 'success' | 'warning' | 'danger'
 
@@ -9,6 +10,8 @@ interface KpiCardProps {
   icon?: LucideIcon
   /** Linha de apoio: denominador, comparação, o que o número quer dizer. */
   hint?: string
+  /** Explicação do número no ícone (i) ao lado do rótulo. */
+  info?: string
   tone?: Tone
 }
 
@@ -23,12 +26,13 @@ const toneClasses: Record<Tone, string> = {
 // Card de KPI das telas da Inteligência (W1/E11). Diferente do MetricCard do
 // piloto, que carrega meta e semáforo: aqui o número não tem meta contra a qual
 // ser julgado — só o valor e o contexto que o torna legível.
-export function KpiCard({ label, value, icon: Icon, hint, tone = 'neutral' }: KpiCardProps) {
+export function KpiCard({ label, value, icon: Icon, hint, info, tone = 'neutral' }: KpiCardProps) {
   return (
-    <div className="rounded-xl border border-[var(--border)] bg-[var(--bg-surface)] px-4 py-3 shadow-card sm:px-5 sm:py-4">
+    <div className="relative rounded-xl border border-[var(--border)] bg-[var(--bg-surface)] px-4 py-3 shadow-card sm:px-5 sm:py-4">
       <span className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-[var(--text-muted)]">
         {Icon && <Icon size={14} strokeWidth={1.5} aria-hidden />}
         {label}
+        {info && <InfoTip text={info} label={label} />}
       </span>
       <p className={cn('mt-1 text-3xl font-bold tracking-tighter', toneClasses[tone])}>{value}</p>
       {hint && <p className="mt-0.5 text-xs text-[var(--text-muted)]">{hint}</p>}

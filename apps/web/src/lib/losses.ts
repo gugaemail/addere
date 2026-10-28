@@ -8,31 +8,47 @@ export type LossTone = 'success' | 'warning' | 'danger' | 'neutral'
 /** Ordem fixa dos componentes na linha da tela: perdas primeiro, ganhos por último. */
 export const LOSS_KINDS: LossKind[] = ['STOPPED', 'REDUCED', 'PRODUCT_DROP', 'GAINED']
 
+// `help` é a dica do ícone (i) no quadro. Os 20% são o limite do motor
+// (REDUCED_THRESHOLD_PCT em engine/decomposition.ts): mudou lá, muda aqui.
 export const LOSS_KIND_META: Record<
   LossKind,
-  { label: string; tone: LossTone; phrase: (count: number) => string }
+  { label: string; tone: LossTone; help: string; phrase: (count: number) => string }
 > = {
   STOPPED: {
     label: 'Pararam de comprar',
     tone: 'danger',
+    help: 'Clientes que compraram na base e não compraram nada no período. O valor é o que eles costumavam comprar.',
     phrase: (n) => (n === 1 ? '1 cliente parou de comprar' : `${n} clientes pararam de comprar`),
   },
   REDUCED: {
     label: 'Compraram menos',
     tone: 'warning',
+    help: 'Clientes que ainda compram, mas 20% ou mais abaixo da média deles. O valor é a queda.',
     phrase: (n) => (n === 1 ? '1 cliente comprou menos' : `${n} clientes compraram menos`),
   },
   PRODUCT_DROP: {
     label: 'Produtos em queda',
     tone: 'warning',
+    help: 'Produtos vendendo 20% ou mais abaixo da média. É outro recorte das mesmas vendas: não some com os quadros de clientes.',
     phrase: (n) => (n === 1 ? '1 produto em queda' : `${n} produtos em queda`),
   },
   GAINED: {
     label: 'Ganhos',
     tone: 'success',
+    help: 'Clientes novos, recuperados ou que compraram 20% ou mais acima da média. O valor é o aumento.',
     phrase: (n) =>
       n === 1 ? '1 cliente ganho ou recuperado' : `${n} clientes ganhos ou recuperados`,
   },
+}
+
+/** Dicas dos quatro totais do topo; a base depende de quantos meses foram escolhidos. */
+export function lossTotalsHelp(baselineMonths: number) {
+  return {
+    baseline: `Quanto se costuma vender num período deste tamanho: a média dos ${baselineMonths} meses fechados anteriores, ajustada aos dias do período.`,
+    current: 'Total vendido do dia 1º do mês até a data escolhida.',
+    diff: 'Receita atual menos a base. Negativo: abaixo do normal; positivo: acima.',
+    diffPct: 'A diferença em porcentagem da receita base.',
+  }
 }
 
 export const BASELINE_OPTIONS = [3, 6] as const

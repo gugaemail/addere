@@ -25,6 +25,7 @@ import {
   componentsByKind,
   customerKey,
   diffTone,
+  lossTotalsHelp,
   lossesSummaryText,
   planItemFromLoss,
   signedBrl,
@@ -36,6 +37,7 @@ import { SelectCompanyNotice } from '@/components/intel/SelectCompanyNotice'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { FreshnessBadge } from '@/components/ui/FreshnessBadge'
+import { InfoTip } from '@/components/ui/InfoTip'
 import { KpiCard } from '@/components/ui/KpiCard'
 import { Spinner } from '@/components/ui/Spinner'
 import { StatusPill } from '@/components/ui/StatusPill'
@@ -89,6 +91,7 @@ export default function PerdasPage() {
 
   const components = useMemo(() => componentsByKind(data?.components ?? []), [data])
   const summary = data ? (data.text ?? lossesSummaryText(data, scopeLabel)) : ''
+  const totalsHelp = lossTotalsHelp(data?.period.baselineMonths ?? baselineMonths)
 
   if (!hasTenant) return <SelectCompanyNotice />
 
@@ -299,6 +302,7 @@ export default function PerdasPage() {
               value={brl(data.totals.baselineAmount)}
               icon={Scale}
               hint={`${data.period.baselineMonths} meses fechados, normalizados para o período`}
+              info={totalsHelp.baseline}
             />
             <KpiCard
               label="Receita atual"
@@ -306,6 +310,7 @@ export default function PerdasPage() {
               icon={Wallet}
               tone="brand"
               hint={rangeLabel(data.period)}
+              info={totalsHelp.current}
             />
             <KpiCard
               label="Diferença"
@@ -313,6 +318,7 @@ export default function PerdasPage() {
               icon={TrendingDown}
               tone={diffTone(data.totals.diffAmount)}
               hint="Atual menos base"
+              info={totalsHelp.diff}
             />
             <KpiCard
               label="Diferença %"
@@ -320,6 +326,7 @@ export default function PerdasPage() {
               icon={Percent}
               tone={diffTone(data.totals.diffPct)}
               hint="Sobre a receita base"
+              info={totalsHelp.diffPct}
             />
           </div>
 
@@ -327,9 +334,13 @@ export default function PerdasPage() {
             {components.map((component) => {
               const meta = LOSS_KIND_META[component.kind]
               return (
-                <Card key={component.kind} className={cn('space-y-1', TONE_CARD[meta.tone])}>
-                  <p className="text-xs font-medium uppercase tracking-wide text-[var(--text-muted)]">
+                <Card
+                  key={component.kind}
+                  className={cn('relative space-y-1', TONE_CARD[meta.tone])}
+                >
+                  <p className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-[var(--text-muted)]">
                     {meta.label}
+                    <InfoTip text={meta.help} label={meta.label} />
                   </p>
                   <p className={cn('text-xl font-bold tracking-tight', TONE_TEXT[meta.tone])}>
                     {signedBrl(component.amount)}
