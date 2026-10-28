@@ -2,7 +2,7 @@ import { prisma } from '@addere/db'
 import { Prisma } from '@prisma/client'
 import bcrypt from 'bcryptjs'
 import type { JwtPayload } from '@addere/types'
-import { conflict, forbidden, notFound } from '../../lib/errors'
+import { conflict, forbidden, notFound, unprocessable } from '../../lib/errors'
 import type { CreateUserInput, UpdateUserInput } from './users.schema'
 import {
   applyDefaultPermissions,
@@ -10,7 +10,7 @@ import {
   grantPermissions,
   revokePermissions,
 } from '../permissions/permissions.service'
-import { updateUser as updateCompanyUser } from '../companies/companies.service'
+import { assertValidManager, updateUser as updateCompanyUser } from '../companies/companies.service'
 import { writeWithSeatGuard } from '../billing/seat-guard'
 
 const userSelect = {
@@ -131,6 +131,12 @@ export async function createUser(input: CreateUserInput, requester: JwtPayload) 
   const companyId =
     requester.role === 'SUPERADMIN' ? (input.companyId ?? null) : requester.companyId
 
+  // Mesma regra da edição: o gerente é usuário ativo da mesma empresa
+  if (input.managerId) {
+    if (!companyId) throw unprocessable('Usuário sem empresa não pode ter gerente')
+    await assertValidManager(companyId, input.managerId)
+  }
+
   // Vendedor e gerente ocupam licença: a criação passa pela trava (plano 015).
   // A checagem do e-mail acima fica fora da transação: duas criações ao mesmo
   // tempo passam por ela, e a segunda esbarra no @unique (P2002)
@@ -142,6 +148,12 @@ export async function createUser(input: CreateUserInput, requester: JwtPayload) 
         password: hashedPassword,
         role: input.role,
         companyId,
+        idVendProt: input.idVendProt ?? null,
+        visitsPerDay: input.visitsPerDay ?? null,
+        vehicle: input.vehicle ?? null,
+        servedCities: input.servedCities ?? [],
+        messageTone: input.messageTone ?? null,
+        managerId: input.managerId ?? null,
       },
       select: userSelect,
     })

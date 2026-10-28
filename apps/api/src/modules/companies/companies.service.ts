@@ -283,7 +283,7 @@ export interface CreateUserInput extends VendorProfileInput {
 }
 
 // Gerente precisa ser usuário ativo da MESMA empresa (D3b); nunca ele mesmo
-async function assertValidManager(companyId: string, managerId: string, selfId?: string) {
+export async function assertValidManager(companyId: string, managerId: string, selfId?: string) {
   if (selfId && managerId === selfId) {
     throw unprocessable('O vendedor não pode ser gerente de si mesmo')
   }
