@@ -15,11 +15,12 @@ import {
   buildTeamReport,
   type PlanFact,
   type SellerFact,
+  type SellerMonthGoal,
   type TeamReport,
   type VisitFact,
 } from './team'
 import { buildPilotMetrics, type PilotMetrics } from './pilot-metrics'
-import { buildTeamGoal, type TeamGoal } from './team-goal'
+import { buildTeamGoal, type GoalSnapshotInput, type TeamGoal } from './team-goal'
 import { loadTeamPortfolio } from './portfolio.service'
 import type { TeamPortfolio } from './portfolio'
 import { addDays, rangeWindow, ymdToUtcDate, type DateWindow, type TeamRange } from './range'
@@ -51,6 +52,30 @@ export async function loadSellers(companyId: string, scope: ViewerScope) {
     select: { id: true, name: true, idVendProt: true, managerId: true },
     orderBy: { name: 'asc' },
   })
+}
+
+/** AAAAMM do mês corrente em São Paulo — o mesmo que a Hoje do vendedor usa (plan.service). */
+function currentGoalPeriod(): string {
+  return ymdSaoPaulo(new Date()).slice(0, 6)
+}
+
+/** Capturas de meta do mês (append-only — buildTeamGoal fica com a mais recente). */
+async function loadGoalSnapshots(
+  companyId: string,
+  vendorCodes: string[],
+  period: string
+): Promise<GoalSnapshotInput[]> {
+  if (vendorCodes.length === 0) return []
+  const rows = await prisma.goalSnapshot.findMany({
+    where: { companyId, period, vendorCode: { in: vendorCodes } },
+    select: { vendorCode: true, goalAmount: true, soldAmount: true, capturedAt: true },
+  })
+  return rows.map((snap) => ({
+    vendorCode: snap.vendorCode,
+    goalAmount: snap.goalAmount === null ? null : Number(snap.goalAmount),
+    soldAmount: snap.soldAmount === null ? null : Number(snap.soldAmount),
+    capturedAt: snap.capturedAt,
+  }))
 }
 
 /** Chaves da carteira e do que foi comprado no mês, por vendedor. */
@@ -188,14 +213,35 @@ export async function buildTeam(
     })
   }
 
-  const [portfolio, plans, visits, minVisits, freshness, managers] = await Promise.all([
+  // A meta é sempre a do mês corrente, a mesma da Hoje do vendedor — o recorte
+  // dia/semana/mês e o dia escolhido valem só para as visitas
+  const goalPeriod = currentGoalPeriod()
+  const [portfolio, plans, visits, minVisits, freshness, managers, snapshots] = await Promise.all([
     loadPortfolio(companyId, vendorCodes, anchorYmd.slice(0, 6)),
     loadPlans(companyId, vendorCodes, window),
     loadVisits(companyId, vendorCodes, window),
     resolveMinVisits(companyId, range),
     getFreshness(companyId),
     managerIdsAmong(sellers.map((s) => s.id)),
+    loadGoalSnapshots(companyId, vendorCodes, goalPeriod),
   ])
+
+  const teamGoal = buildTeamGoal(
+    sellers.map((s) => ({ userId: s.id, name: s.name, vendorCode: s.idVendProt as string })),
+    snapshots
+  )
+  const goals = new Map<string, SellerMonthGoal>()
+  for (const g of teamGoal.sellers) {
+    if (g.capturedAt === null) continue
+    goals.set(g.vendorCode, {
+      period: goalPeriod,
+      goalAmount: g.goalAmount,
+      soldAmount: g.soldAmount,
+      gap: g.gap,
+      pct: g.pct,
+      capturedAt: g.capturedAt,
+    })
+  }
 
   const sellerFacts: SellerFact[] = sellers.map((seller) => {
     const code = seller.idVendProt as string
@@ -220,6 +266,7 @@ export async function buildTeam(
     minVisits,
     stale: freshness.stale,
     lastSyncAt: freshness.lastSyncAt,
+    goals,
   })
 }
 
@@ -342,29 +389,19 @@ export interface ManagerHome {
  */
 export async function buildManagerHome(companyId: string, scope: ViewerScope): Promise<ManagerHome> {
   const todayYmd = ymdSaoPaulo(new Date())
-  const period = todayYmd.slice(0, 6)
+  const period = currentGoalPeriod()
   const sellers = await loadSellers(companyId, scope)
   const vendorCodes = sellers.map((s) => s.idVendProt as string)
 
   const [snapshots, team, portfolio] = await Promise.all([
-    vendorCodes.length === 0
-      ? Promise.resolve([])
-      : prisma.goalSnapshot.findMany({
-          where: { companyId, period, vendorCode: { in: vendorCodes } },
-          select: { vendorCode: true, goalAmount: true, soldAmount: true, capturedAt: true },
-        }),
+    loadGoalSnapshots(companyId, vendorCodes, period),
     buildTeam(companyId, scope, todayYmd, 'day'),
     loadTeamPortfolio(companyId, sellers),
   ])
 
   const goal = buildTeamGoal(
     sellers.map((s) => ({ userId: s.id, name: s.name, vendorCode: s.idVendProt as string })),
-    snapshots.map((snap) => ({
-      vendorCode: snap.vendorCode,
-      goalAmount: snap.goalAmount === null ? null : Number(snap.goalAmount),
-      soldAmount: snap.soldAmount === null ? null : Number(snap.soldAmount),
-      capturedAt: snap.capturedAt,
-    }))
+    snapshots
   )
   const visitsBy = new Map(team.sellers.map((card) => [card.vendorCode, card]))
 

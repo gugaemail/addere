@@ -60,32 +60,36 @@ describe('goalCardModel', () => {
     expect(goalCardModel(undefined)).toBeNull()
   })
 
-  it('meta em andamento: percentual, faltam e por dia útil', () => {
+  it('meta em andamento: vendido de meta, depois faltam e por dia útil', () => {
     const model = goalCardModel(goal({}))
     expect(model?.pct).toBe(40)
-    expect(model?.line).toContain('Faltam')
-    expect(model?.line).toContain('30.000')
-    expect(model?.line).toContain('por dia útil')
+    expect(model?.barPct).toBe(40)
+    expect(model?.line).toMatch(/^Vendido R\$\s20\.000 de R\$\s50\.000$/)
+    expect(model?.detail).toContain('Faltam')
+    expect(model?.detail).toContain('30.000')
+    expect(model?.detail).toContain('por dia útil')
     expect(model?.hint).toContain('8.000')
   })
 
-  it('por dia útil zerado some da linha; lateCoverage zerada some do hint', () => {
+  it('por dia útil zerado some do detalhe; lateCoverage zerada some do hint', () => {
     const model = goalCardModel(goal({ perBusinessDay: '0.00', lateCoverage: '0.00' }))
-    expect(model?.line).not.toContain('por dia útil')
+    expect(model?.detail).not.toContain('por dia útil')
     expect(model?.hint).toBeNull()
   })
 
-  it('gap zerado vira "Meta batida" com o vendido', () => {
-    const model = goalCardModel(goal({ soldAmount: '52000.00', gap: '0.00' }))
-    expect(model?.pct).toBe(100)
-    expect(model?.line).toContain('Meta batida')
-    expect(model?.line).toContain('52.000')
+  it('meta batida mostra o valor da meta e o percentual real; a barra para em 100', () => {
+    // Bug de 28/10/2026: batida, o card só dizia o vendido — a meta sumia
+    const model = goalCardModel(goal({ soldAmount: '58500.00', gap: '0.00' }))
+    expect(model?.pct).toBe(117)
+    expect(model?.barPct).toBe(100)
+    expect(model?.line).toMatch(/^Meta batida · Vendido R\$\s58\.500 de R\$\s50\.000$/)
+    expect(model?.detail).toBeNull()
     expect(model?.hint).toBeNull()
   })
 
   it('sem gap informado, calcula a diferença', () => {
     const model = goalCardModel(goal({ gap: null, perBusinessDay: null, lateCoverage: null }))
-    expect(model?.line).toContain('30.000')
+    expect(model?.detail).toContain('30.000')
   })
 })
 

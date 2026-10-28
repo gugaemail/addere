@@ -31,6 +31,7 @@ import {
   type TeamAlert,
   type TeamRange,
   type TeamSellerCard,
+  type TeamSellerGoal,
 } from '@/hooks/useIntel'
 import {
   dayLabel,
@@ -39,7 +40,9 @@ import {
   rangeLabel,
   todayInSaoPaulo,
 } from '@/lib/intel-helpers'
+import { sellerGoalView } from '@/lib/seller-goal'
 import { filterMapSellers, mapBounds, withoutPinLabel, withoutPinRows } from '@/lib/team-map'
+import { cn } from '@/lib/utils'
 import { visitMetaLine } from '@/lib/visit-history'
 import { SelectCompanyNotice } from '@/components/intel/SelectCompanyNotice'
 import { Badge } from '@/components/ui/Badge'
@@ -506,6 +509,8 @@ function SellerCard({
         {seller.outOfPlan > 0 && <Badge variant="info">{seller.outOfPlan} fora do plano</Badge>}
       </div>
 
+      <SellerGoalBlock goal={seller.goal} />
+
       <dl className="grid grid-cols-3 gap-2 text-center">
         <Stat label="Previstas" value={String(seller.planned)} />
         <Stat label="Realizadas" value={String(seller.done)} />
@@ -649,6 +654,50 @@ function TeamPortfolioCard({ portfolio }: { portfolio: TeamPortfolioDto }) {
         </p>
       )}
     </Card>
+  )
+}
+
+// Meta do mês do vendedor: a mesma da Hoje dele no app, e por isso não segue
+// o Hoje/Semana/Mês da tela — é sempre o mês corrente.
+function SellerGoalBlock({ goal }: { goal: TeamSellerGoal | null }) {
+  const view = sellerGoalView(goal)
+  return (
+    <div className="space-y-1.5 rounded-lg bg-[var(--bg-page)] px-3 py-2">
+      <div className="flex items-baseline justify-between gap-2">
+        <span className="text-[10px] uppercase tracking-wide text-[var(--text-muted)]">
+          {view.title}
+        </span>
+        {view.pctLabel && (
+          <span
+            className={cn(
+              'text-base font-semibold',
+              view.reached ? 'text-success' : 'text-[var(--text-primary)]'
+            )}
+          >
+            {view.pctLabel}
+          </span>
+        )}
+      </div>
+      {view.pctLabel && (
+        <div
+          role="progressbar"
+          aria-label={view.title}
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={view.barPct}
+          className="h-1.5 overflow-hidden rounded-full bg-[var(--border)]"
+        >
+          <div
+            className={cn('h-full rounded-full', view.reached ? 'bg-success' : 'bg-brand')}
+            style={{ width: `${view.barPct}%` }}
+          />
+        </div>
+      )}
+      <p className="text-xs text-[var(--text-secondary)]">{view.line}</p>
+      {view.capturedLabel && (
+        <p className="text-[10px] text-[var(--text-muted)]">{view.capturedLabel}</p>
+      )}
+    </div>
   )
 }
 
