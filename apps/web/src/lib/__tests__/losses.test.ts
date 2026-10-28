@@ -6,6 +6,7 @@ import {
   diffTone,
   LOSS_KIND_META,
   LOSS_KINDS,
+  lossTotalsHelp,
   lossesSummaryText,
   planItemFromLoss,
   signedBrl,
@@ -148,5 +149,18 @@ describe('planItemFromLoss/customerKey', () => {
 
   it('customerKey junta código e loja', () => {
     expect(customerKey({ customerCode: '000123', loja: '02' })).toBe('000123-02')
+  })
+})
+
+describe('dicas dos quadros', () => {
+  it('todo componente tem a explicação do ícone (i)', () => {
+    for (const kind of LOSS_KINDS) {
+      expect(LOSS_KIND_META[kind].help.length, kind).toBeGreaterThan(20)
+    }
+  })
+
+  it('a dica da receita base diz quantos meses entram na média', () => {
+    expect(lossTotalsHelp(6).baseline).toContain('6 meses')
+    expect(lossTotalsHelp(3).baseline).toContain('3 meses')
   })
 })
