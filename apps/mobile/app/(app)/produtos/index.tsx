@@ -20,7 +20,7 @@ function ProductCard({ product, ufs }: { product: Product; ufs: string[] }) {
   const showStock = useFieldVisible('product.stock')
   const showDescription = useFieldVisible('product.description')
   const showProtheusCode = useFieldVisible('product.protheusCode')
-  const { price, uf, others } = catalogPrice(product, ufs)
+  const { price, uf } = catalogPrice(product, ufs)
   return (
     <Card style={s.card}>
       <View style={{ flex: 1 }}>
@@ -31,11 +31,6 @@ function ProductCard({ product, ufs }: { product: Product; ufs: string[] }) {
         {showDescription && product.description && (
           <Text style={s.desc} numberOfLines={2}>
             {product.description}
-          </Text>
-        )}
-        {others && (
-          <Text style={s.sub} numberOfLines={2}>
-            {others}
           </Text>
         )}
       </View>
