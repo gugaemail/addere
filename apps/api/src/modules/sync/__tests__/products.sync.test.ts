@@ -9,8 +9,13 @@ vi.mock('@addere/db', async () => (await import('../../../test-utils/prisma-mock
 
 // A paginação real chama o Protheus; aqui ela só aplica o mapRecord às linhas
 const rawRows: Record<string, unknown>[] = []
+const sentBody: Record<string, unknown> = {}
 vi.mock('../paginated-fetch', () => ({
-  fetchPaginated: async (opts: { mapRecord: (raw: Record<string, unknown>) => unknown }) => {
+  fetchPaginated: async (opts: {
+    bodyExtra: Record<string, unknown>
+    mapRecord: (raw: Record<string, unknown>) => unknown
+  }) => {
+    Object.assign(sentBody, opts.bodyExtra)
     const records = rawRows.map(opts.mapRecord).filter((r) => r !== null)
     return { records, totalRecords: records.length, totalFetched: records.length }
   },
@@ -56,6 +61,7 @@ function upsertArgsFor(code: string) {
 beforeEach(() => {
   resetPrismaMock()
   rawRows.length = 0
+  for (const key of Object.keys(sentBody)) delete sentBody[key]
 })
 
 // Trechos do retorno real da apiPord (28/10/2026)
@@ -197,5 +203,24 @@ describe('syncProducts — incremental (INTERV > 0)', () => {
     await syncProducts('c1')
 
     expect(upsertArgsFor('P1').update).toMatchObject({ price: 10, ufPrices: { SP: 11 } })
+  })
+})
+
+describe('syncProducts — manual (full)', () => {
+  beforeEach(() => companyWithInterv(60))
+
+  it('ignora o INTERV da agenda e faz a carga completa', async () => {
+    rawRows.push(row('P1', 0, ' '), row('P1', 453.61, 'CE'))
+
+    await syncProducts('c1', 'syncProducts', { full: true })
+
+    expect(sentBody.INTERV).toBe(0)
+    expect(prismaMock.product.findMany).not.toHaveBeenCalled()
+    expect(upsertArgsFor('P1').update).toMatchObject({ price: 0, ufPrices: { CE: 453.61 } })
+  })
+
+  it('sem full vale o INTERV da agenda', async () => {
+    await syncProducts('c1')
+    expect(sentBody.INTERV).toBe(60)
   })
 })
