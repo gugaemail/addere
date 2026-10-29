@@ -75,12 +75,16 @@ export const BILLING_EVENT_LABELS: Record<BillingEventType, string> = {
   ACCESS_UNBLOCKED: 'Acesso liberado',
   SUSPENSION_NOTICE_NO_RECIPIENT: 'Aviso de suspensão sem destinatário',
   LLM_BUDGET_UPDATED: 'Orçamento de IA alterado',
+  LLM_BUDGET_WARNING: 'IA em 80% do orçamento do mês',
+  LLM_BUDGET_EXCEEDED: 'IA pausada: orçamento do mês atingido',
+  LLM_MODEL_UPDATED: 'Modelo da IA trocado',
 }
 
 // Rótulo de cada campo que aparece no histórico. Campo sem rótulo aparece cru.
 export const BILLING_FIELD_LABELS: Record<string, string> = {
   llmMonthlyTokenBudget: 'Orçamento de IA (tokens)',
   llmMonthlyBudgetBrl: 'Orçamento de IA (R$)',
+  llmModel: 'Modelo da IA',
   // Empresa
   name: 'Nome no sistema',
   cnpj: 'CNPJ',

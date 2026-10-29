@@ -1,15 +1,16 @@
 // Serviço do agente (E6): cache 4h por (companyId, kind, vendorCode, targetKey),
-// cap diário de tokens por tenant (D13), allowlist de fatos como defesa em
-// profundidade e self-check com 1 regeneração — falhou tudo, entrega só-motor.
-// Toda saída grava uma linha em intel_llm_calls (plano 012): é o que alimenta
-// o teto diário, o custo do mês e o alarme de queda para só-motor.
+// teto diário de tokens por vendedor e orçamento mensal da empresa (limits.ts),
+// allowlist de fatos como defesa em profundidade e self-check com 1
+// regeneração — falhou tudo, entrega só-motor. Toda saída grava uma linha em
+// intel_llm_calls (plano 012): é o que alimenta o teto diário, o orçamento, o
+// custo do mês e o alarme de queda para só-motor.
 import { createHash } from 'node:crypto'
 import { prisma } from '@addere/db'
 import type { Prisma } from '@prisma/client'
-import { env } from '../../../lib/env'
 import { captureError } from '../../../lib/sentry'
 import { complete, llmAvailable, type LlmUsage } from './client'
 import { validateFactsPayload } from './facts'
+import { companyLlmSettings, monthlyBudgetPct, vendorDailyCap, vendorTokensToday } from './limits'
 import { selfCheck, type SelfCheckFacts } from './self-check'
 import { premiseNumbers, promptVersion } from './tenant-context'
 
@@ -33,6 +34,8 @@ export interface GenerateInput<T> {
   cache?: boolean
   /** Regras do tipo de texto além do self-check (tamanho da homeLine, mensagem ao cliente) */
   validate?: (data: T) => string[]
+  /** Só o eval: testa outro modelo sem trocar o da empresa */
+  model?: string
 }
 
 export interface GenerateOutput<T> {
@@ -48,24 +51,8 @@ export interface GenerateOutput<T> {
   rejected?: { text: string; violations: string[] }[]
 }
 
-/** Vendedor fictício dos casos de eval — não consome o teto do tenant. */
+/** Vendedor fictício dos casos de eval — não consome teto nem é barrado pelo orçamento. */
 export const EVAL_VENDOR_CODE = 'eval'
-
-export async function dailyTokensUsed(companyId: string, now: Date = new Date()): Promise<number> {
-  const dayStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()))
-  // Soma do registro de chamadas, não do cache: o cache só guardava a geração
-  // aprovada (tentativa reprovada gastava e não contava) e o upsert substituía
-  // os tokens da mesma chave. input_tokens da API exclui o que passou pelo
-  // cache de prompt; a gravação (cache_creation, 1,25×) conta no teto e a
-  // leitura (0,1×) fica de fora de propósito — é o desconto que o cache dá.
-  const sum = await prisma.intelLlmCall.aggregate({
-    where: { companyId, createdAt: { gte: dayStart }, vendorCode: { not: EVAL_VENDOR_CODE } },
-    _sum: { inputTokens: true, outputTokens: true, cacheCreationTokens: true },
-  })
-  return (
-    (sum._sum.inputTokens ?? 0) + (sum._sum.outputTokens ?? 0) + (sum._sum.cacheCreationTokens ?? 0)
-  )
-}
 
 /**
  * Hash de tudo o que o modelo recebe. Entra na chave do cache porque o texto
@@ -75,15 +62,18 @@ export async function dailyTokensUsed(companyId: string, now: Date = new Date())
  * aparecia com o nome de outro —, e o gerente que pedia perdas sem filtro
  * recebia o texto escrito para a equipe de outro gerente (chave '*').
  */
-export function inputHash(input: {
-  system: GenerateInput<unknown>['system']
-  userPrompt: string
-  schema: Record<string, unknown>
-}): string {
+export function inputHash(
+  input: {
+    system: GenerateInput<unknown>['system']
+    userPrompt: string
+    schema: Record<string, unknown>
+  },
+  model: string
+): string {
   return createHash('sha256')
     .update(
       JSON.stringify({
-        model: env.INTEL_LLM_MODEL,
+        model,
         system: input.system.map((block) => block.text),
         user: input.userPrompt,
         schema: input.schema,
@@ -162,13 +152,17 @@ export async function generateWithGuardrails<T>(
     return result
   }
 
+  // Modelo da empresa (ou o do eval) e orçamento do mês
+  const settings = await companyLlmSettings(input.companyId)
+  const llmModel = input.model ?? settings.model
+
   // Cache 4h por alvo E pela entrada exata (§5.3) — ver inputHash
   const useCache = input.cache !== false
   const cacheKey = {
     companyId: input.companyId,
     kind: input.kind,
     vendorCode: input.vendorCode,
-    targetKey: `${input.targetKey}#${inputHash(input)}`,
+    targetKey: `${input.targetKey}#${inputHash(input, llmModel)}`,
   }
   if (useCache) {
     const cached = await prisma.intelLlmCache.findUnique({
@@ -179,11 +173,19 @@ export async function generateWithGuardrails<T>(
     }
   }
 
-  // Cap diário de tokens por tenant (D13: 500k default) — o eval não entra
+  // Limites de custo — o eval não entra. Teto do vendedor primeiro: é o que
+  // zera amanhã; o orçamento só volta no mês seguinte
   if (input.vendorCode !== EVAL_VENDOR_CODE) {
-    const used = await dailyTokensUsed(input.companyId)
-    if (used >= env.INTEL_LLM_DAILY_TOKEN_CAP) {
+    const [used, cap] = await Promise.all([
+      vendorTokensToday(input.companyId, input.vendorCode),
+      vendorDailyCap(input.companyId, input.vendorCode),
+    ])
+    if (used >= cap) {
       return finish({ data: null, source: 'engine', reason: 'daily_cap' })
+    }
+    const budgetPct = await monthlyBudgetPct(input.companyId, settings.budget)
+    if (budgetPct !== null && budgetPct >= 100) {
+      return finish({ data: null, source: 'engine', reason: 'monthly_budget' })
     }
   }
 
@@ -213,10 +215,20 @@ export async function generateWithGuardrails<T>(
           ? input.userPrompt
           : `${input.userPrompt}\n\nATENÇÃO: a resposta anterior citou dados fora dos fatos. Use SOMENTE números e clientes presentes no JSON.`,
       schema: input.schema,
+      model: llmModel,
     })
     attempts++
 
     if (!result.ok) {
+      // Resposta descartada (truncada, fora do schema…) também foi cobrada
+      if (result.usage) {
+        usage.inputTokens += result.usage.inputTokens
+        usage.outputTokens += result.usage.outputTokens
+        usage.cacheReadTokens += result.usage.cacheReadTokens
+        usage.cacheCreationTokens += result.usage.cacheCreationTokens
+      }
+      model = result.model ?? model
+      latencyMs += result.ms ?? 0
       return finish({ data: null, source: 'engine', reason: result.error })
     }
 

@@ -5,6 +5,8 @@ import {
   companyIdParam,
   contractDraftSchema,
   llmBudgetSchema,
+  llmEvalSchema,
+  llmModelSchema,
   packageActiveSchema,
   packageCreateSchema,
   packageIdParam,
@@ -30,6 +32,7 @@ import {
 } from './license-requests.schema'
 import { decideLicenseRequest, listLicenseRequests } from './license-requests.service'
 import { getLlmUsage, listLlmUsage, updateLlmBudget } from './llm-usage.service'
+import { startLlmEval, updateLlmModel } from './llm-model.service'
 import { unblockClient } from './overdue-block.service'
 
 // Gestão Addere (plano 013) — registrado com o prefixo /admin/billing. Só o
@@ -130,6 +133,27 @@ export default async function billingAdminRoutes(app: FastifyInstance) {
       const { companyId } = companyIdParam.parse(request.params)
       const input = llmBudgetSchema.parse(request.body)
       return reply.send(await updateLlmBudget(companyId, input, request.user.sub))
+    }
+  )
+
+  // Teste de modelo: o eval roda em segundo plano; a ficha acompanha pelo GET
+  app.post(
+    '/clients/:companyId/llm-eval',
+    superadmin,
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const { companyId } = companyIdParam.parse(request.params)
+      const { model } = llmEvalSchema.parse(request.body)
+      return reply.status(202).send(await startLlmEval(companyId, model))
+    }
+  )
+
+  app.put(
+    '/clients/:companyId/llm-model',
+    superadmin,
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const { companyId } = companyIdParam.parse(request.params)
+      const { model } = llmModelSchema.parse(request.body)
+      return reply.send(await updateLlmModel(companyId, model, request.user.sub))
     }
   )
 

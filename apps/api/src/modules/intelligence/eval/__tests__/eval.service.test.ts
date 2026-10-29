@@ -35,7 +35,11 @@ const facts = {
   city: null,
 }
 
-const evalCase = (id: string, expected: Record<string, unknown>) => ({ id, snapshot: facts, expected })
+const evalCase = (id: string, expected: Record<string, unknown>) => ({
+  id,
+  snapshot: facts,
+  expected,
+})
 
 beforeEach(() => {
   resetPrismaMock()
@@ -75,7 +79,11 @@ describe('runEval (plano 012)', () => {
       expect(call[0]).toMatchObject({ cache: false, vendorCode: 'eval' })
       expect(call[0].validate).toBeTypeOf('function')
     }
-    expect(generateMock.mock.calls.map((c) => c[0].kind)).toEqual(['briefing', 'briefing', 'message'])
+    expect(generateMock.mock.calls.map((c) => c[0].kind)).toEqual([
+      'briefing',
+      'briefing',
+      'message',
+    ])
     const results = prismaMock.evalCase.update.mock.calls.map(
       (c: [{ data: { lastResult: string } }]) => c[0].data.lastResult
     )
@@ -99,5 +107,25 @@ describe('runEval (plano 012)', () => {
     generateMock.mockResolvedValue({ data: null, source: 'engine', reason: 'x', attempts: 2 })
     const summary = await runEval(company)
     expect(summary).toMatchObject({ blockedFailed: 1, approved: false })
+  })
+
+  it('modelo candidato: usa o modelo e não mexe no resultado de prontidão dos casos', async () => {
+    prismaMock.evalCase.findMany.mockResolvedValue([
+      evalCase('a', { kind: 'briefing', status: 'LATE', hasCutMix: false }),
+    ])
+    generateMock.mockResolvedValue({ data: null, source: 'engine', reason: 'x', attempts: 2 })
+    await runEval(company, { model: 'claude-haiku-5-5' })
+    expect(generateMock.mock.calls[0][0]).toMatchObject({ model: 'claude-haiku-5-5' })
+    expect(prismaMock.evalCase.update).not.toHaveBeenCalled()
+  })
+
+  it('o modelo que a empresa já usa grava o resultado como sempre', async () => {
+    prismaMock.evalCase.findMany.mockResolvedValue([
+      evalCase('a', { kind: 'briefing', status: 'LATE', hasCutMix: false }),
+    ])
+    generateMock.mockResolvedValue({ data: {}, source: 'llm', attempts: 1 })
+    const haikuCompany = { id: 'company-1', llmModel: 'claude-haiku-5-5' } as never
+    await runEval(haikuCompany, { model: 'claude-haiku-5-5' })
+    expect(prismaMock.evalCase.update).toHaveBeenCalledTimes(1)
   })
 })

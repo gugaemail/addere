@@ -1,7 +1,11 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 
 vi.mock('../../../../lib/env', () => ({
-  env: { INTEL_LLM_ENABLED: 'true', ANTHROPIC_API_KEY: 'sk-test', INTEL_LLM_MODEL: 'claude-sonnet-5' },
+  env: {
+    INTEL_LLM_ENABLED: 'true',
+    ANTHROPIC_API_KEY: 'sk-test',
+    INTEL_LLM_MODEL: 'claude-sonnet-5',
+  },
 }))
 
 import { complete, setClientForTests } from '../client'
@@ -51,5 +55,27 @@ describe('complete — integridade da resposta (plano 012)', () => {
     const result = await run()
     expect(result.ok).toBe(false)
     expect(!result.ok && result.error).toContain('formato fora do schema')
+  })
+
+  it('resposta descartada devolve o usage — a Anthropic cobra mesmo assim', async () => {
+    create.mockResolvedValue(
+      response({
+        stop_reason: 'max_tokens',
+        usage: { input_tokens: 900, output_tokens: 2000, cache_read_input_tokens: 300 },
+      })
+    )
+    expect(await run()).toMatchObject({
+      ok: false,
+      usage: { inputTokens: 900, outputTokens: 2000, cacheReadTokens: 300, cacheCreationTokens: 0 },
+      model: 'claude-sonnet-5',
+    })
+  })
+
+  it('usa o modelo pedido e, sem ele, o do ambiente', async () => {
+    create.mockResolvedValue(response({}))
+    await complete({ system: [], user: 'gere', schema: SCHEMA, model: 'claude-haiku-5-5' })
+    await run()
+    expect(create.mock.calls[0][0].model).toBe('claude-haiku-5-5')
+    expect(create.mock.calls[1][0].model).toBe('claude-sonnet-5')
   })
 })

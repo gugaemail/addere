@@ -8,7 +8,12 @@
 // congelado é conferido de verdade.
 import { prisma } from '@addere/db'
 import type { Company } from '@prisma/client'
-import { EVAL_VENDOR_CODE, generateWithGuardrails, type GenerateOutput } from '../agent/agent.service'
+import { env } from '../../../lib/env'
+import {
+  EVAL_VENDOR_CODE,
+  generateWithGuardrails,
+  type GenerateOutput,
+} from '../agent/agent.service'
 import { llmAvailable } from '../agent/client'
 import {
   buildCustomerFacts,
@@ -137,7 +142,8 @@ async function runCase(
   system: ReturnType<typeof systemBlocks>,
   caseId: string,
   facts: CustomerFacts,
-  expected: EvalExpected
+  expected: EvalExpected,
+  model: string | undefined
 ): Promise<GenerateOutput<unknown>> {
   const common = {
     companyId: company.id,
@@ -146,6 +152,7 @@ async function runCase(
     system,
     selfCheckFacts: selfCheckFactsFor(facts),
     cache: false,
+    model,
   }
   if (expected.kind === 'message') {
     const messageFacts: MessageFacts = {
@@ -177,9 +184,20 @@ async function runCase(
   })
 }
 
-export async function runEval(company: Company): Promise<EvalRunSummary> {
+export interface RunEvalOptions {
+  /** Modelo candidato (teste de custo); sem ele, o da empresa */
+  model?: string
+}
+
+export async function runEval(
+  company: Company,
+  opts: RunEvalOptions = {}
+): Promise<EvalRunSummary> {
   const cases = await prisma.evalCase.findMany({ where: { companyId: company.id } })
   const version = promptVersion()
+  // O resultado por caso (lastResult) é o do modelo em uso: o teste de um
+  // candidato reprovado não pode marcar o tenant como reprovado na prontidão
+  const recordResults = !opts.model || opts.model === (company.llmModel ?? env.INTEL_LLM_MODEL)
   let passedFirst = 0
   let passedRetry = 0
   let failed = 0
@@ -193,16 +211,18 @@ export async function runEval(company: Company): Promise<EvalRunSummary> {
   for (const evalCase of cases) {
     if (!llmAvailable()) {
       skipped++
-      await prisma.evalCase.update({
-        where: { id: evalCase.id },
-        data: { lastResult: 'SKIPPED', ranAt: new Date(), promptVersion: version },
-      })
+      if (recordResults) {
+        await prisma.evalCase.update({
+          where: { id: evalCase.id },
+          data: { lastResult: 'SKIPPED', ranAt: new Date(), promptVersion: version },
+        })
+      }
       continue
     }
 
     const facts = evalCase.snapshot as unknown as CustomerFacts
     const expected = evalCase.expected as unknown as EvalExpected
-    const result = await runCase(company, system, evalCase.id, facts, expected)
+    const result = await runCase(company, system, evalCase.id, facts, expected, opts.model)
 
     let lastResult: string
     if (result.source === 'llm' && result.attempts === 1) {
@@ -216,10 +236,12 @@ export async function runEval(company: Company): Promise<EvalRunSummary> {
       if (expected.status === 'BLOCKED') blockedFailed++
       lastResult = `FAIL: ${result.reason ?? ''}`.slice(0, 100)
     }
-    await prisma.evalCase.update({
-      where: { id: evalCase.id },
-      data: { lastResult, ranAt: new Date(), promptVersion: version },
-    })
+    if (recordResults) {
+      await prisma.evalCase.update({
+        where: { id: evalCase.id },
+        data: { lastResult, ranAt: new Date(), promptVersion: version },
+      })
+    }
     if (lastResult !== 'PASS') {
       notFirst.push({
         kind: expected.kind ?? 'briefing',

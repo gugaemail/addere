@@ -2,9 +2,13 @@
 import { describe, it, expect } from 'vitest'
 import {
   budgetStatus,
+  dailyCapLabel,
   dayLabel,
+  evalScoreLine,
+  fallbackReasonLabel,
   formatCost,
   formatTokens,
+  modelLabel,
   pctOfMonthlyFee,
   rateLabel,
   vendorLabel,
@@ -61,5 +65,46 @@ describe('pctOfMonthlyFee', () => {
     expect(pctOfMonthlyFee(64.95, '1299.00')).toBe(5)
     expect(pctOfMonthlyFee(10, null)).toBeNull()
     expect(pctOfMonthlyFee(null, '1299.00')).toBeNull()
+  })
+})
+
+describe('controle de custo', () => {
+  it('nome curto do modelo; fora da lista, o id', () => {
+    expect(modelLabel('claude-haiku-5-5')).toBe('Haiku 5.5')
+    expect(modelLabel('claude-opus-5-5')).toBe('claude-opus-5-5')
+  })
+
+  it('teto diário do vendedor: o dele, o padrão ou desligado', () => {
+    expect(dailyCapLabel(50_000, 100_000)).toBe('50 mil/dia')
+    expect(dailyCapLabel(null, 100_000)).toBe('100 mil/dia')
+    expect(dailyCapLabel(0, 100_000)).toBe('IA desligada')
+  })
+
+  it('motivo do só-motor em português, e o desconhecido como veio', () => {
+    expect(fallbackReasonLabel('daily_cap')).toBe('Teto diário do vendedor atingido')
+    expect(fallbackReasonLabel('self_check: número fora dos fatos: N')).toBe(
+      'Reprovada no autocheck: número fora dos fatos: N'
+    )
+    expect(fallbackReasonLabel('Erro da API Anthropic (N)')).toBe('Erro da API Anthropic (N)')
+  })
+
+  it('placar do teste de modelo', () => {
+    const line = evalScoreLine({
+      total: 26,
+      passed: 25,
+      passedFirst: 24,
+      passedRetry: 1,
+      failed: 1,
+      blockedFailed: 0,
+      skipped: 0,
+      approved: true,
+      promptVersion: 'abcd1234',
+      cost: { tokens: 52_000, costUsd: 0.026, costBrl: 0.13 },
+      costPerCaseUsd: 0.001,
+      failures: [],
+    })
+    expect(nbsp(line)).toBe(
+      '92% de primeira (24 de 26) · 0 falha(s) em bloqueado · US$ 0,0010 por caso'
+    )
   })
 })

@@ -85,9 +85,11 @@ model Company {
   intelligenceEnabled Boolean @default(false) // liga a camada de inteligência (plano Business+)
   intelligenceConfig  Json? // { syncHour, syncEveryHours, defaultTone, retentionDays, lgpdNoticeAcceptedAt }
 
-  // ─── Custo de IA (Gestão Addere): orçamento mensal do agente, só informativo ───
+  // ─── Custo de IA (Gestão Addere): orçamento mensal do agente ───
+  // Atingido o orçamento, o agente pausa até o fim do mês (só-motor)
   llmMonthlyTokenBudget Int? // tokens cobráveis por mês (entrada + saída + gravação de cache); null = sem orçamento
   llmMonthlyBudgetBrl   Decimal? @db.Decimal(12, 2) // R$ por mês; null = sem orçamento
+  llmModel              String? // modelo do agente nesta empresa; null = INTEL_LLM_MODEL do ambiente
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -185,6 +187,12 @@ model User {
   managerId    String? // gerente comercial do vendedor (usuário com intel.manager)
   manager      User?    @relation("SellerManager", fields: [managerId], references: [id], onDelete: SetNull)
   sellers      User[]   @relation("SellerManager")
+
+  // Custo de IA: teto diário de tokens do agente para este vendedor (todo
+  // usuário nasce com o padrão) e o último uso do app, que decide quem recebe
+  // a frase do Hoje gerada de madrugada
+  llmDailyTokenCap Int       @default(100000)
+  lastAppSeenAt    DateTime?
 
   // null para SUPERADMIN; obrigatório para ADMIN e SALESPERSON
   companyId String?

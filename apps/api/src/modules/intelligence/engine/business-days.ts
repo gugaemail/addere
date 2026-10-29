@@ -17,7 +17,11 @@ function weekdayUtc(year: number, month: number, day: number): number {
 }
 
 export function isBusinessDay(ymd: string, saturdayWorkday: boolean): boolean {
-  const weekday = weekdayUtc(Number(ymd.slice(0, 4)), Number(ymd.slice(4, 6)), Number(ymd.slice(6, 8)))
+  const weekday = weekdayUtc(
+    Number(ymd.slice(0, 4)),
+    Number(ymd.slice(4, 6)),
+    Number(ymd.slice(6, 8))
+  )
   if (weekday === 0) return false
   if (weekday === 6) return saturdayWorkday
   return true
@@ -78,6 +82,13 @@ export function businessDaysLeftInWeek(ymd: string, saturdayWorkday: boolean): s
     if (isBusinessDay(day, saturdayWorkday)) days.push(day)
   }
   return days
+}
+
+/** Dia útil anterior a `ymd` (na segunda, a sexta; ou o sábado, se é dia de trabalho). */
+export function previousBusinessDay(ymd: string, saturdayWorkday: boolean): string {
+  let day = addDaysYmd(ymd, -1)
+  while (!isBusinessDay(day, saturdayWorkday)) day = addDaysYmd(day, -1)
+  return day
 }
 
 /** 'YYYYMMDD' → Date UTC à meia-noite (convenção de VisitPlan.date @db.Date). */

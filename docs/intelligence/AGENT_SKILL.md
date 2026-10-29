@@ -34,7 +34,8 @@ mudar qualquer um deles muda a versão e o eval passa a rodar contra ela.
    (tolerância de arredondamento); bloqueado sem ação de venda; novo sem
    certeza de ciclo; linha de frescor. Reprova → regenera 1× → só-motor.
 3. `agent.service.ts`: cache 4h por (companyId, kind, vendorCode, targetKey);
-   cap diário de tokens por tenant (`INTEL_LLM_DAILY_TOKEN_CAP`, D13).
+   teto diário de tokens por vendedor (`users.llmDailyTokenCap`, padrão 100 mil)
+   e orçamento mensal da empresa (`limits.ts`) — ver "Custo de IA" no README.
 
 ## Pendência E0-8 (Gustavo)
 

@@ -475,6 +475,9 @@ export const BILLING_EVENT_TYPES = [
   'SUSPENSION_NOTICE_NO_RECIPIENT',
   // Custo de IA: orçamento mensal do agente por empresa
   'LLM_BUDGET_UPDATED',
+  'LLM_BUDGET_WARNING', // 80% do orçamento do mês: aviso à Addere
+  'LLM_BUDGET_EXCEEDED', // 100%: o agente pausa até o fim do mês
+  'LLM_MODEL_UPDATED', // modelo do agente trocado depois do eval aprovado
 ] as const
 export type BillingEventType = (typeof BILLING_EVENT_TYPES)[number]
 
@@ -961,6 +964,21 @@ export interface BillingDashboardDto {
 // Tokens "cobráveis" = entrada + saída + gravação de cache, o mesmo critério do
 // teto diário; a leitura de cache sai mais barata e entra só no custo.
 
+/** Modelos que o superadmin pode testar no eval e usar numa empresa */
+export const LLM_MODEL_OPTIONS = [
+  { id: 'claude-sonnet-5', label: 'Sonnet 5' },
+  { id: 'claude-sonnet-5-5', label: 'Sonnet 5.5' },
+  { id: 'claude-haiku-5-5', label: 'Haiku 5.5' },
+] as const
+export type LlmModelId = (typeof LLM_MODEL_OPTIONS)[number]['id']
+export const LLM_MODEL_IDS = LLM_MODEL_OPTIONS.map((option) => option.id) as [
+  LlmModelId,
+  ...LlmModelId[],
+]
+
+/** Teto diário de tokens com que todo vendedor nasce */
+export const DEFAULT_LLM_DAILY_TOKEN_CAP = 100_000
+
 export interface UsdBrlRateDto {
   rate: number | null // null = nunca houve cotação: os custos ficam só em US$
   quotedAt: string | null // ISO da cotação no BCB
@@ -996,6 +1014,43 @@ export interface LlmUsageRow extends LlmCost {
   label: string | null // nome do vendedor; o web traduz os tipos
   generations: number
   pct: number // % do custo do mês (0–100)
+  /** Só nas linhas de vendedor: o teto diário dele (null = sem cadastro, vale o padrão) */
+  dailyCap?: number | null
+  daysAtCap?: number // dias do mês em que ele bateu o teto
+}
+
+/** Motivo de uma geração sem texto do modelo (só-motor), com números trocados por N */
+export interface LlmFallbackRow {
+  kind: string
+  reason: string
+  count: number
+  attempts: number // idas ao modelo que esse motivo custou
+}
+
+export interface LlmEvalResult {
+  total: number
+  passed: number
+  passedFirst: number
+  passedRetry: number
+  failed: number
+  blockedFailed: number // falhas em cliente bloqueado: qualquer uma reprova
+  skipped: number
+  approved: boolean // zero falha em bloqueado e ≥ 90 % de primeira
+  promptVersion: string
+  cost: LlmCost // o eval inteiro
+  costPerCaseUsd: number
+  /** O que não passou de primeira (até 10), com o motivo de cada tentativa */
+  failures: { kind: string; status: string; result: string; violations: string[] }[]
+}
+
+export interface LlmEvalRunDto {
+  id: string
+  status: 'RUNNING' | 'OK' | 'ERROR'
+  startedAt: string
+  finishedAt: string | null
+  error: string | null
+  model: string
+  result: LlmEvalResult | null
 }
 
 export interface LlmUsageDay extends LlmCost {
@@ -1023,9 +1078,17 @@ export interface LlmUsageDetailDto {
   sources: { llm: number; cache: number; engine: number } // gerações por origem
   /** Ritmo do mês até agora estendido até o último dia */
   projection: LlmCost
-  budget: LlmBudgetDto & { tokensPct: number | null; brlPct: number | null }
-  dailyTokenCap: number // teto diário de tokens do agente (técnico, igual para todas)
-  daysAtCap: number // dias do mês em que o teto diário foi atingido
+  budget: LlmBudgetDto & {
+    tokensPct: number | null
+    brlPct: number | null
+    paused: boolean // atingiu 100 %: o agente está pausado até o fim do mês
+  }
+  defaultDailyCap: number // teto das gerações sem vendedor (perdas da equipe toda)
+  daysAtCap: number // dias do mês em que algum vendedor bateu o teto diário
+  fallbacks: LlmFallbackRow[] // por que caiu no só-motor, do mais frequente ao menos
+  retried: number // aprovadas só na 2ª tentativa (a 1ª foi paga e descartada)
+  model: { current: string; default: string; custom: boolean } // custom = escolhido para a empresa
+  evals: LlmEvalRunDto[] // testes de modelo mais recentes, do mais novo ao mais antigo
   daily: LlmUsageDay[] // do dia 1 até hoje
   byKind: LlmUsageRow[] // do mais caro para o mais barato
   byVendor: LlmUsageRow[]
@@ -1036,4 +1099,12 @@ export interface LlmUsageDetailDto {
 export interface LlmBudgetInput {
   tokens: number | null
   brl: number | null
+}
+
+export interface LlmModelInput {
+  model: LlmModelId | null // null = volta ao modelo do ambiente
+}
+
+export interface LlmEvalInput {
+  model: LlmModelId
 }
