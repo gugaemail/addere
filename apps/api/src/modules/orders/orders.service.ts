@@ -1,11 +1,11 @@
 import { prisma } from '@addere/db'
-import { isCustomerBlocked } from '@addere/types'
+import { isCustomerBlocked, productPriceForUf } from '@addere/types'
 import { notFound, forbidden, unprocessable } from '../../lib/errors'
 import { priceOrderItems } from './orders.pricing'
 import type { CreateOrderInput, UpdateOrderInput } from './orders.schema'
 
 const orderInclude = {
-  customer: { select: { id: true, name: true, document: true } },
+  customer: { select: { id: true, name: true, document: true, uf: true } },
   // Quem criou — o gerente vê os pedidos da equipe e precisa saber de quem é
   user: { select: { id: true, name: true } },
   branch: { select: { id: true, name: true, idProtheus: true } },
@@ -57,13 +57,18 @@ const BLOCKED_CUSTOMER_MESSAGE = 'Cliente bloqueado no Protheus — não é poss
 // Pedido só para cliente da empresa, não excluído (active) e não bloqueado no
 // Protheus (A1_MSBLQL='1'). O app já não oferece o bloqueado — aqui é a garantia,
 // inclusive para pedido offline que chega depois do bloqueio
-async function assertCustomerAcceptsOrders(companyId: string, customerId: string): Promise<void> {
+// Devolve a UF do cliente: o preço de tabela do item depende dela
+async function assertCustomerAcceptsOrders(
+  companyId: string,
+  customerId: string
+): Promise<{ uf: string | null }> {
   const customer = await prisma.customer.findFirst({
     where: { id: customerId, companyId, active: true },
-    select: { msblql: true },
+    select: { msblql: true, uf: true },
   })
   if (!customer) throw notFound('Cliente não encontrado')
   if (isCustomerBlocked(customer.msblql)) throw unprocessable(BLOCKED_CUSTOMER_MESSAGE)
+  return { uf: customer.uf }
 }
 
 // Garante que filial, transportadora e condição de pagamento referenciadas
@@ -176,7 +181,7 @@ export async function updateOrder(
   if (!order) throw notFound('Pedido não encontrado')
   if (order.status !== 'PENDING') throw unprocessable('Apenas pedidos pendentes podem ser editados')
 
-  await assertCustomerAcceptsOrders(companyId, order.customerId)
+  const customer = await assertCustomerAcceptsOrders(companyId, order.customerId)
   await assertCarrierAndPaymentTermsAllowed(companyId, order.customerId, input, permissions)
   await assertOrderRefsBelongToCompany(companyId, input)
 
@@ -189,7 +194,7 @@ export async function updateOrder(
     throw unprocessable('Um ou mais produtos não foram encontrados ou estão inativos')
   }
 
-  const defaultPrices = new Map(products.map((p) => [p.id, Number(p.price)]))
+  const defaultPrices = new Map(products.map((p) => [p.id, productPriceForUf(p, customer.uf)]))
   const { items: itemsWithTotals, orderTotal } = priceOrderItems(input.items, defaultPrices)
 
   return prisma.$transaction(async (tx) => {
@@ -216,7 +221,7 @@ export async function createOrder(
   input: CreateOrderInput,
   permissions: Set<string>
 ) {
-  await assertCustomerAcceptsOrders(companyId, input.customerId)
+  const customer = await assertCustomerAcceptsOrders(companyId, input.customerId)
   await assertCarrierAndPaymentTermsAllowed(companyId, input.customerId, input, permissions)
   await assertOrderRefsBelongToCompany(companyId, input)
 
@@ -230,7 +235,7 @@ export async function createOrder(
     throw unprocessable('Um ou mais produtos não foram encontrados ou estão inativos')
   }
 
-  const defaultPrices = new Map(products.map((p) => [p.id, Number(p.price)]))
+  const defaultPrices = new Map(products.map((p) => [p.id, productPriceForUf(p, customer.uf)]))
   const { items: itemsWithTotals, orderTotal } = priceOrderItems(input.items, defaultPrices)
 
   return prisma.order.create({

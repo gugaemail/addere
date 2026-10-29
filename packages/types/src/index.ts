@@ -270,11 +270,31 @@ export interface Product {
   protheusCode: string | null
   name: string
   description: string | null
-  price: string // Decimal serializado como string
+  price: string // Decimal serializado como string — preço geral (UF em branco)
+  ufPrices?: Record<string, number> | null // preço por UF do cliente (tabela de preço com UF)
   unit: string
   stock: string // Decimal serializado como string
   saldo: string // Decimal serializado como string
   active: boolean
+}
+
+/**
+ * Preço de tabela do produto para um cliente: o da UF dele, se a tabela de
+ * preço tiver; senão o geral (UF em branco). Sem nenhum dos dois sai 0 e o
+ * vendedor informa o preço no pedido. Fonte única para API e app.
+ */
+export function productPriceForUf(
+  product: { price: string | number | { toString(): string }; ufPrices?: unknown },
+  uf: string | null | undefined
+): number {
+  const key = uf?.trim().toUpperCase()
+  const byUf = product.ufPrices
+  if (key && byUf && typeof byUf === 'object' && !Array.isArray(byUf)) {
+    const value = (byUf as Record<string, unknown>)[key]
+    if (typeof value === 'number' && Number.isFinite(value)) return value
+  }
+  const general = Number(product.price)
+  return Number.isFinite(general) ? general : 0
 }
 
 // ─── Order ─────────────────────────────────────────────────────────────────
@@ -308,7 +328,8 @@ export interface Order {
   syncedAt: string | null
   emissao: string | null
   createdAt: string
-  customer: Pick<Customer, 'id' | 'name' | 'document'>
+  // uf: o preço de tabela do item adicionado na edição depende dela
+  customer: Pick<Customer, 'id' | 'name' | 'document'> & { uf?: string | null }
   branch: { id: string; name: string; idProtheus: string | null } | null
   transportadora: { id: string; nome: string } | null
   condPag: { id: string; nome: string } | null

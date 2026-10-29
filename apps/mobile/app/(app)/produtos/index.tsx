@@ -12,12 +12,14 @@ import { useFieldVisible } from '../../../src/hooks/useFieldConfig'
 import { colors, spacing, typography } from '../../../src/theme'
 import type { Product } from '@addere/types'
 import { fmtMoeda, fmtQtd } from '../../../src/utils/format'
+import { ufPricesLine } from '../../../src/utils/ufPrices'
 
 function ProductCard({ product }: { product: Product }) {
   const stockNum = Number(product.stock)
   const showStock = useFieldVisible('product.stock')
   const showDescription = useFieldVisible('product.description')
   const showProtheusCode = useFieldVisible('product.protheusCode')
+  const ufLine = ufPricesLine(product.ufPrices)
   return (
     <Card style={s.card}>
       <View style={{ flex: 1 }}>
@@ -28,6 +30,11 @@ function ProductCard({ product }: { product: Product }) {
         {showDescription && product.description && (
           <Text style={s.desc} numberOfLines={2}>
             {product.description}
+          </Text>
+        )}
+        {ufLine && (
+          <Text style={s.sub} numberOfLines={2}>
+            {ufLine}
           </Text>
         )}
       </View>

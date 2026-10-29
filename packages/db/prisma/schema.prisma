@@ -322,7 +322,8 @@ model Product {
   protheusCode String? // código do produto no ERP Protheus (único por empresa)
   name         String
   description  String?
-  price        Decimal @db.Decimal(10, 2)
+  price        Decimal @db.Decimal(10, 2) // preço geral (UF em branco na tabela de preço)
+  ufPrices     Json? // preço por UF do cliente, { "SP": 11.2 } — vence o preço geral
   unit         String  @default("UN") // unidade de medida
   stock        Decimal @default(0) @db.Decimal(10, 3)
   saldo        Decimal @default(0) @db.Decimal(10, 2) // saldo disponível

@@ -32,7 +32,11 @@ export interface MixCart {
  * para a tela avisar. O catálogo do app pode estar sem um produto que o
  * histórico de vendas tem — inativado no Protheus, ou ainda não sincronizado.
  */
-export function cartFromMix(codes: string[], products: Product[]): MixCart {
+export function cartFromMix(
+  codes: string[],
+  products: Product[],
+  customerUf: string | null | undefined
+): MixCart {
   const byCode = new Map<string, Product>()
   for (const product of products) {
     if (product.protheusCode) byCode.set(product.protheusCode, product)
@@ -42,7 +46,7 @@ export function cartFromMix(codes: string[], products: Product[]): MixCart {
   const missing: string[] = []
   for (const code of codes) {
     const product = byCode.get(code)
-    if (product) cart.push(cartItemFromProduct(product))
+    if (product) cart.push(cartItemFromProduct(product, customerUf))
     else missing.push(code)
   }
   return { cart, missing }

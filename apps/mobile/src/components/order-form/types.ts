@@ -1,4 +1,4 @@
-import type { OrderItemDetail, Product } from '@addere/types'
+import { productPriceForUf, type OrderItemDetail, type Product } from '@addere/types'
 
 // Item do carrinho — modelo único usado pelo wizard de novo pedido
 // e pela tela de edição (antes cada tela tinha um shape próprio).
@@ -17,14 +17,18 @@ export interface CartItem {
   tara?: number
 }
 
-// Cria um item de carrinho a partir de um produto do catálogo
-export function cartItemFromProduct(product: Product): CartItem {
+// Cria um item de carrinho a partir de um produto do catálogo, no preço de
+// tabela da UF do cliente
+export function cartItemFromProduct(
+  product: Product,
+  customerUf: string | null | undefined
+): CartItem {
   return {
     productId: product.id,
     productName: product.name,
     productUnit: product.unit,
     quantity: 1,
-    unitPrice: Number(product.price),
+    unitPrice: productPriceForUf(product, customerUf),
     discount: 0,
     descricao: product.name,
   }
@@ -46,6 +50,22 @@ export function cartItemFromOrderItem(item: OrderItemDetail): CartItem {
     xcrav: item.xcrav === '1' || item.xcrav === '2' ? item.xcrav : undefined,
     tara: item.tara != null ? Number(item.tara) : undefined,
   }
+}
+
+// Cliente trocado com itens no carrinho: o que ainda está no preço de tabela
+// da UF anterior passa ao da UF nova; preço editado pelo vendedor fica
+export function repriceCart(
+  cart: CartItem[],
+  products: Product[],
+  fromUf: string | null | undefined,
+  toUf: string | null | undefined
+): CartItem[] {
+  const byId = new Map(products.map((p) => [p.id, p]))
+  return cart.map((item) => {
+    const product = byId.get(item.productId)
+    if (!product || item.unitPrice !== productPriceForUf(product, fromUf)) return item
+    return { ...item, unitPrice: productPriceForUf(product, toUf) }
+  })
 }
 
 // Soma o total do carrinho aplicando desconto percentual por item
