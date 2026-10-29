@@ -85,6 +85,10 @@ model Company {
   intelligenceEnabled Boolean @default(false) // liga a camada de inteligência (plano Business+)
   intelligenceConfig  Json? // { syncHour, syncEveryHours, defaultTone, retentionDays, lgpdNoticeAcceptedAt }
 
+  // ─── Custo de IA (Gestão Addere): orçamento mensal do agente, só informativo ───
+  llmMonthlyTokenBudget Int? // tokens cobráveis por mês (entrada + saída + gravação de cache); null = sem orçamento
+  llmMonthlyBudgetBrl   Decimal? @db.Decimal(12, 2) // R$ por mês; null = sem orçamento
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -1381,12 +1385,16 @@ model BillingEvent {
 
 // Regras globais, linha única (id "global", criada pela migration).
 model BillingSettings {
-  id               String   @id @default("global")
-  overdueBlockDays Int      @default(15) // dias de atraso para suspender; o contrato pode ter exceção
-  dueReminderDays  Int      @default(3) // lembrete antes do vencimento (plano 016)
-  autoBlockEnabled Boolean  @default(false) // nasce desligado; só o plano 017 liga, depois do OTA
+  id               String    @id @default("global")
+  overdueBlockDays Int       @default(15) // dias de atraso para suspender; o contrato pode ter exceção
+  dueReminderDays  Int       @default(3) // lembrete antes do vencimento (plano 016)
+  autoBlockEnabled Boolean   @default(false) // nasce desligado; só o plano 017 liga, depois do OTA
   notifyEmail      String? // e-mail da Addere que recebe os avisos
-  updatedAt        DateTime @updatedAt
+  // Câmbio do custo de IA: PTAX venda do BCB, atualizada sozinha (a última que deu certo fica)
+  usdBrlRate       Decimal?  @db.Decimal(10, 4)
+  usdBrlRateAt     DateTime? // data e hora da cotação no BCB
+  usdBrlFetchedAt  DateTime? // última consulta ao BCB que deu certo
+  updatedAt        DateTime  @updatedAt
 
   @@map("billing_settings")
 }

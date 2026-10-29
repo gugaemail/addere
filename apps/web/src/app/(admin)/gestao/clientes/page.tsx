@@ -2,10 +2,14 @@
 
 export const dynamic = 'force-dynamic'
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Building2, Plus } from 'lucide-react'
-import { CLIENT_STATUS_LABELS, type ClientListItemDto } from '@addere/types'
+import { AlertTriangle, Building2, Plus } from 'lucide-react'
+import {
+  CLIENT_STATUS_LABELS,
+  type ClientListItemDto,
+  type LlmUsageListItemDto,
+} from '@addere/types'
 import { StatCard } from '@/components/ui/StatCard'
 import { StatusBadge } from '@/components/ui/StatusBadge'
 import { Badge } from '@/components/ui/Badge'
@@ -14,8 +18,10 @@ import { Table, type Column } from '@/components/ui/Table'
 import { getApiErrorMessage } from '@/lib/api'
 import { formatCurrency } from '@/lib/utils'
 import { CLIENT_STATUS_BADGE, LICENSE_TYPE_LABELS } from '@/lib/billing-ui'
-import { useClients } from '@/hooks/useBilling'
+import { useClients, useLlmUsage } from '@/hooks/useBilling'
+import { budgetStatus, formatCost, formatPct, rateLabel } from '@/lib/llm-usage-ui'
 import { ClientFormModal } from './ClientFormModal'
+import { LlmUsageModal } from './LlmUsageModal'
 
 // Clientes da Gestão Addere (plano 013). Substitui a
 // antiga lista de empresas. A linha inteira abre a ficha; o
@@ -41,7 +47,47 @@ function packageCell(c: ClientListItemDto) {
   return <span className="text-[var(--text-muted)]">—</span>
 }
 
-const columns: Column<ClientListItemDto>[] = [
+// Custo de IA do mês: o valor abre o resumo do cliente (sem abrir a ficha)
+function llmCell(
+  usage: LlmUsageListItemDto | undefined,
+  state: 'loading' | 'error' | 'ready',
+  onOpen: () => void
+): React.ReactNode {
+  if (state === 'loading') return <span className="text-[var(--text-muted)]">…</span>
+  // Sem a consulta, zero enganaria: parece que o cliente não gastou nada
+  if (state === 'error') return <span className="text-[var(--text-muted)]">—</span>
+  const status = budgetStatus(usage?.budgetPct ?? null)
+  return (
+    <button
+      type="button"
+      onClick={(e) => {
+        e.stopPropagation()
+        onOpen()
+      }}
+      className="text-left rounded-md -mx-1 px-1 hover:bg-brand/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
+    >
+      <span className="block font-medium text-brand tabular-nums">
+        {usage ? formatCost(usage) : formatCost({ costBrl: 0, costUsd: 0 })}
+      </span>
+      {usage?.budgetPct != null && (
+        <span
+          className={
+            status === 'over'
+              ? 'flex items-center gap-1 text-xs text-danger'
+              : status === 'warning'
+                ? 'flex items-center gap-1 text-xs text-warning'
+                : 'block text-xs text-[var(--text-muted)]'
+          }
+        >
+          {status !== 'ok' && <AlertTriangle size={12} strokeWidth={1.5} aria-hidden />}
+          {formatPct(usage.budgetPct)} do orçamento
+        </span>
+      )}
+    </button>
+  )
+}
+
+const baseColumns: Column<ClientListItemDto>[] = [
   {
     key: 'client',
     header: 'Cliente',
@@ -93,7 +139,25 @@ const columns: Column<ClientListItemDto>[] = [
 export default function ClientesPage() {
   const router = useRouter()
   const { data: clients = [], isLoading, error, refetch } = useClients()
+  const { data: llm, isLoading: llmLoading, isError: llmError } = useLlmUsage()
   const [showCreate, setShowCreate] = useState(false)
+  const [llmClient, setLlmClient] = useState<ClientListItemDto | null>(null)
+
+  const columns = useMemo<Column<ClientListItemDto>[]>(() => {
+    const byCompany = new Map(llm?.companies.map((c) => [c.companyId, c]))
+    const llmColumn: Column<ClientListItemDto> = {
+      key: 'llm',
+      header: 'IA no mês',
+      className: 'whitespace-nowrap',
+      render: (c) =>
+        llmCell(byCompany.get(c.id), llmLoading ? 'loading' : llmError ? 'error' : 'ready', () =>
+          setLlmClient(c)
+        ),
+    }
+    // Logo depois do valor mensal: o custo de IA lido ao lado da receita
+    const at = baseColumns.findIndex((col) => col.key === 'monthly') + 1
+    return [...baseColumns.slice(0, at), llmColumn, ...baseColumns.slice(at)]
+  }, [llm, llmLoading, llmError])
 
   return (
     <div className="space-y-6">
@@ -118,13 +182,13 @@ export default function ClientesPage() {
         <>
           {/* Cards resumo */}
           {isLoading ? (
-            <div className="grid gap-4 sm:grid-cols-3">
-              {[0, 1, 2].map((i) => (
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              {[0, 1, 2, 3].map((i) => (
                 <StatCardSkeleton key={i} />
               ))}
             </div>
           ) : (
-            <div className="grid gap-4 sm:grid-cols-3">
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               <StatCard label="Total" value={clients.length} accent="brand" />
               <StatCard
                 label="Ativas"
@@ -136,13 +200,19 @@ export default function ClientesPage() {
                 value={clients.filter((c) => !c.active).length}
                 accent="neutral"
               />
+              <StatCard
+                label="IA no mês (todas)"
+                value={llm ? formatCost(llm.total) : llmError ? '—' : '…'}
+                accent="brand"
+                text
+              />
             </div>
           )}
 
           {/* Tabela */}
           <div className="bg-[var(--bg-surface)] rounded-xl shadow-card border border-[var(--border)] overflow-hidden">
             {isLoading ? (
-              <TableSkeleton cols={6} rows={4} />
+              <TableSkeleton cols={7} rows={4} />
             ) : clients.length === 0 ? (
               <EmptyState onCreate={() => setShowCreate(true)} />
             ) : (
@@ -157,13 +227,17 @@ export default function ClientesPage() {
           </div>
           {!isLoading && clients.length > 0 && (
             <p className="text-xs text-[var(--text-muted)]">
-              Licenças: vendedores e gerentes ativos / limite do contrato (“—” = sem limite).
+              Licenças: vendedores e gerentes ativos / limite do contrato (“—” = sem limite). IA no
+              mês: custo do agente desde o dia 1
+              {llm ? ` (${rateLabel(llm.rate)}${llm.rate.stale ? ', desatualizada' : ''})` : ''} —
+              clique no valor para ver o resumo.
             </p>
           )}
         </>
       )}
 
       {showCreate && <ClientFormModal mode="create" onClose={() => setShowCreate(false)} />}
+      {llmClient && <LlmUsageModal client={llmClient} onClose={() => setLlmClient(null)} />}
     </div>
   )
 }
