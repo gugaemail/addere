@@ -8,6 +8,8 @@ import { fetchPaginated } from './paginated-fetch'
 import { upsertChunked } from './upsert-chunked'
 import { getCredentials, parseJsonField, toStr, toNum } from './utils'
 
+const DEACTIVATE_CHUNK = 1000
+
 type UfPrice = { uf: string; price: number } // uf '' = preço geral (UF em branco)
 
 // Um registro da apiPord: o produto com os preços dele. O mesmo produto pode
@@ -104,14 +106,58 @@ function toUfPrices(value: Prisma.JsonValue | undefined): Record<string, number>
 }
 
 /**
+ * Recarga só desativa com a carga inteira na mão: vazia ou interrompida no meio
+ * da paginação, desativaria produtos que só não chegaram a ser lidos.
+ */
+function assertCompleteLoad(products: number, totalRecords: number, totalFetched: number) {
+  if (products === 0) {
+    throw unprocessable('A carga completa não trouxe nenhum produto — nada foi desativado.')
+  }
+  if (totalRecords > 0 && totalFetched < totalRecords) {
+    throw unprocessable(
+      `A apiPord informou ${totalRecords} registros, mas vieram ${totalFetched} — nada foi desativado.`
+    )
+  }
+}
+
+/**
+ * Desativa os produtos ativos da empresa fora da carga (inclusive os sem
+ * código). A diferença sai em memória e o update vai em lotes — um NOT IN com
+ * o catálogo inteiro estouraria o limite de parâmetros do Postgres.
+ */
+async function deactivateMissingProducts(companyId: string, codes: string[]) {
+  const loaded = new Set(codes)
+  const active = await prisma.product.findMany({
+    where: { companyId, active: true },
+    select: { id: true, protheusCode: true },
+  })
+  const ids = active.filter((p) => !p.protheusCode || !loaded.has(p.protheusCode)).map((p) => p.id)
+
+  let count = 0
+  for (let i = 0; i < ids.length; i += DEACTIVATE_CHUNK) {
+    const { count: n } = await prisma.product.updateMany({
+      where: { companyId, id: { in: ids.slice(i, i + DEACTIVATE_CHUNK) } },
+      data: { active: false },
+    })
+    count += n
+  }
+  return count
+}
+
+/**
  * `full` força a carga completa (INTERV = 0) — é o "Sincronizar Produtos" do
  * painel. Sem ele vale o INTERV da agenda, que é o do auto-sync: incremental
  * só traz o que mudou nos últimos N minutos.
+ *
+ * `prune` é a recarga do catálogo: carga completa e, no fim, desativa
+ * (active = false) todo produto da empresa que não veio. Nada é apagado — os
+ * pedidos antigos continuam apontando para os produtos, e o que voltar na API
+ * é reativado pelo upsert. Só desativa se a carga veio inteira e não vazia.
  */
 export async function syncProducts(
   companyId: string,
   operationLabel = 'syncProducts',
-  opts: { full?: boolean } = {}
+  opts: { full?: boolean; prune?: boolean } = {}
 ) {
   const company = await prisma.company.findUniqueOrThrow({
     where: { id: companyId },
@@ -127,11 +173,11 @@ export async function syncProducts(
   const filial = branch.idProtheus
   const creds = getCredentials(company)
   const schedule = (company.syncSchedule as SyncSchedule | null) ?? DEFAULT_SYNC_SCHEDULE
-  const INTERV = opts.full ? 0 : (schedule.products.interv ?? 0)
+  const INTERV = opts.full || opts.prune ? 0 : (schedule.products.interv ?? 0)
   const t0 = Date.now()
 
   try {
-    const { records, totalRecords } = await fetchPaginated<ProductRecord>({
+    const { records, totalRecords, totalFetched } = await fetchPaginated<ProductRecord>({
       companyId,
       url: company.apiPord,
       creds,
@@ -157,6 +203,7 @@ export async function syncProducts(
     // que se somam aos de antes — sem o de UF em branco, o geral fica como está
     const full = INTERV === 0
     const products = groupProductRecords(records)
+    if (opts.prune) assertCompleteLoad(products.length, totalRecords, totalFetched)
     const saved = new Map<string, Prisma.JsonValue>()
     if (!full && products.length > 0) {
       const rows = await prisma.product.findMany({
@@ -199,6 +246,14 @@ export async function syncProducts(
       (p) => p.protheusCode
     )
 
+    // Produto com erro no upsert veio na carga — fica como está, não é desativado
+    const deactivated = opts.prune
+      ? await deactivateMissingProducts(
+          companyId,
+          products.map((p) => p.protheusCode)
+        )
+      : undefined
+
     // Com um registro por UF a API conta registros (produto × UF), não produtos
     const total =
       products.length < records.length ? products.length : totalRecords || records.length
@@ -211,9 +266,10 @@ export async function syncProducts(
       durationMs: Date.now() - t0,
       recordsSynced: synced,
       totalRecords: total,
+      ...(deactivated !== undefined ? { metadata: { deactivated } } : {}),
     })
 
-    return { synced, total, errors }
+    return { synced, total, errors, ...(deactivated !== undefined ? { deactivated } : {}) }
   } catch (err: unknown) {
     const e = err as { response?: { status?: number }; message?: string }
     await logProtheusCall({
