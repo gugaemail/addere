@@ -10,7 +10,7 @@ import {
   vendorLabel,
 } from '../llm-usage-ui'
 
-const nbsp = (s: string) => s.replace(/ /g, ' ')
+const nbsp = (s: string) => s.replace(/\u00a0/g, ' ')
 
 describe('budgetStatus', () => {
   it('até 80% ok, de 80% alerta, de 100% estourado; sem orçamento, nada', () => {
