@@ -157,6 +157,14 @@ const NUMBER_WORD_PATTERN = new RegExp(
 const PRODUCT_CODE_LIKE = /\b(?=[A-Z0-9-]*[A-Z])(?=(?:[A-Z-]*\d){3})[A-Z0-9-]{5,}\b/g
 const UNIT_LIKE = /^\d+(?:KG|G|GR|ML|L|LT|UN|CX|PC|PCT|M|MM|CM)$/
 const PSEUDONYM_LIKE = /^C\d+$/
+// Medida de produto: número com unidade ("500g", "18 mm") ou dimensões
+// separadas por "x" ("10CMX20CM", "280 x 300")
+const UNIT = '(?:kg|gr|g|ml|lt|l|un|cx|pct|pc|mm|cm|mts|mt|m)'
+const MEASURE_LIKE = new RegExp(
+  `(?<![\\p{L}\\d])\\d+(?:[.,]\\d+)?\\s*${UNIT}?(?:\\s*x\\s*\\d+(?:[.,]\\d+)?\\s*${UNIT}?)+(?![\\p{L}\\d])` +
+    `|(?<![\\p{L}\\d])\\d+(?:[.,]\\d+)?\\s*${UNIT}(?![\\p{L}\\d])`,
+  'giu'
+)
 
 // Status do motor e segmentos RFM: rótulo interno, nunca vai para o cliente
 const INTERNAL_LABELS = words(
@@ -174,25 +182,55 @@ const THIRD_PERSON_CUSTOMER = words(
 export const MESSAGE_MAX_CHARS = 400
 export const HOME_LINE_MAX_CHARS = 140
 
-/** Números do texto em formato BR ("1.234,56"), US ("1234.56"), inteiro ou %. */
-export function extractNumbers(text: string): number[] {
-  const numbers: number[] = []
+/** Número citado no texto e a folga do arredondamento que o próprio texto declara. */
+interface CitedNumber {
+  value: number
+  /** "15 mil" cobre de 14.500 a 15.500; algarismo por extenso não tem folga própria */
+  slack: number
+}
+
+// Valor abreviado ("R$ 15 mil", "R$ 2,5k", "1,2 milhão"): sem o multiplicador
+// o 15 era cobrado como 15 e a frase da meta caía em só-motor
+const NUMBER_PATTERN =
+  /(\d{1,3}(?:\.\d{3})+(?:,\d+)?|\d+(?:[.,]\d+)?)(?:\s*(mil|k|milh[ãa]o|milh[õo]es)(?![\p{L}\d]))?/giu
+const MULTIPLIERS: Record<string, number> = {
+  mil: 1e3,
+  k: 1e3,
+  milhão: 1e6,
+  milhao: 1e6,
+  milhões: 1e6,
+  milhoes: 1e6,
+}
+
+function citedNumbers(text: string): CitedNumber[] {
+  const cited: CitedNumber[] = []
   // Remove pseudônimos para C12 não virar o número 12
   const clean = text.replace(/\bC\d+\b/g, ' ')
-  const pattern = /\d{1,3}(?:\.\d{3})+(?:,\d+)?|\d+(?:[.,]\d+)?/g
-  for (const match of clean.match(pattern) ?? []) {
-    const normalized = match.includes(',')
-      ? match.replace(/\./g, '').replace(',', '.')
-      : match.includes('.') && /\.\d{3}(?!\d)/.test(match)
-        ? match.replace(/\./g, '')
-        : match
-    const value = Number(normalized)
-    if (Number.isFinite(value)) numbers.push(value)
+  for (const match of clean.matchAll(NUMBER_PATTERN)) {
+    const raw = match[1]
+    const normalized = raw.includes(',')
+      ? raw.replace(/\./g, '').replace(',', '.')
+      : raw.includes('.') && /\.\d{3}(?!\d)/.test(raw)
+        ? raw.replace(/\./g, '')
+        : raw
+    const base = Number(normalized)
+    if (!Number.isFinite(base)) continue
+    const multiplier = match[2] ? MULTIPLIERS[match[2].toLowerCase()] : 1
+    const decimals = normalized.split('.')[1]?.length ?? 0
+    cited.push({
+      value: base * multiplier,
+      slack: multiplier > 1 ? (multiplier * 10 ** -decimals) / 2 : 0,
+    })
   }
   for (const match of clean.matchAll(NUMBER_WORD_PATTERN)) {
-    numbers.push(NUMBER_WORDS[match[1].toLowerCase()])
+    cited.push({ value: NUMBER_WORDS[match[1].toLowerCase()], slack: 0 })
   }
-  return numbers
+  return cited
+}
+
+/** Números do texto em formato BR ("1.234,56"), US ("1234.56"), inteiro, % ou "15 mil". */
+export function extractNumbers(text: string): number[] {
+  return citedNumbers(text).map((cited) => cited.value)
 }
 
 function stripAccents(text: string): string {
@@ -203,10 +241,10 @@ function escapeRegExp(text: string): string {
   return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
-function numberMatches(cited: number, facts: number[]): boolean {
+function numberMatches(cited: CitedNumber, facts: number[]): boolean {
   return facts.some((fact) => {
-    const tolerance = Math.max(1, Math.abs(fact) * 0.01) // arredondamento (§5.2)
-    return Math.abs(cited - fact) <= tolerance
+    const tolerance = Math.max(1, Math.abs(fact) * 0.01, cited.slack) // arredondamento (§5.2)
+    return Math.abs(cited.value - fact) <= tolerance
   })
 }
 
@@ -260,6 +298,15 @@ export function selfCheck(text: string, facts: SelfCheckFacts): SelfCheckResult 
       const pattern = escapeRegExp(stripAccents(literal)).replace(/\s+/g, '\\s*')
       scannable = scannable.replace(new RegExp(pattern, 'gi'), ' ')
     }
+    // Só parte da descrição ("Fita 10CMX20CM" para "FITA ADESIVA 10CMX20CM
+    // C/50"): a medida sobrava e caía como código inventado (Saúde, 29/10).
+    // Ela sai quando todos os números dela estão na MESMA descrição — "280x030"
+    // para "280 X 300" continua cobrado
+    const descNumbers = facts.products.map((p) => extractNumbers(p.productDesc ?? ''))
+    scannable = scannable.replace(MEASURE_LIKE, (measure) => {
+      const values = extractNumbers(measure)
+      return descNumbers.some((nums) => values.every((v) => nums.includes(v))) ? ' ' : measure
+    })
     // O que sobrou com cara de código não está nos fatos
     for (const code of new Set(scannable.match(PRODUCT_CODE_LIKE) ?? [])) {
       if (UNIT_LIKE.test(code) || PSEUDONYM_LIKE.test(code)) continue
@@ -269,9 +316,9 @@ export function selfCheck(text: string, facts: SelfCheckFacts): SelfCheckResult 
 
   // 3. Todo número citado existe nos fatos (tolerância de arredondamento)…
   const allNumbers = [...facts.numbers, ...facts.customers.flatMap((c) => c.numbers ?? [])]
-  for (const value of extractNumbers(scannable)) {
-    if (!numberMatches(value, allNumbers)) {
-      violations.push(`número fora dos fatos: ${value}`)
+  for (const cited of citedNumbers(scannable)) {
+    if (!numberMatches(cited, allNumbers)) {
+      violations.push(`número fora dos fatos: ${cited.value}`)
     }
   }
 
@@ -282,9 +329,9 @@ export function selfCheck(text: string, facts: SelfCheckFacts): SelfCheckResult 
     const customer = known.get([...inSentence][0])
     if (!customer?.numbers) continue
     const allowed = [...customer.numbers, ...facts.numbers]
-    for (const value of extractNumbers(sentence)) {
-      if (numberMatches(value, allNumbers) && !numberMatches(value, allowed)) {
-        violations.push(`número de outro cliente em ${customer.pseudonym}: ${value}`)
+    for (const cited of citedNumbers(sentence)) {
+      if (numberMatches(cited, allNumbers) && !numberMatches(cited, allowed)) {
+        violations.push(`número de outro cliente em ${customer.pseudonym}: ${cited.value}`)
       }
     }
   }

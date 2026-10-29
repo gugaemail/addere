@@ -23,6 +23,12 @@ describe('extractNumbers', () => {
   it('pseudônimos não viram números', () => {
     expect(extractNumbers('visite C12 hoje')).toEqual([])
   })
+
+  it('valor abreviado vira o valor inteiro', () => {
+    expect(extractNumbers('R$ 15 mil, R$ 2,5k e 1,2 milhão')).toEqual([15000, 2500, 1200000])
+    // Unidade não é multiplicador: 10KG continua 10
+    expect(extractNumbers('caixas de 10KG e 5 milhas')).toEqual([10, 5])
+  })
 })
 
 describe('selfCheck — clientes citados', () => {
