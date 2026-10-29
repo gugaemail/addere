@@ -10,6 +10,8 @@ vi.mock('@addere/db', async () => (await import('../../../test-utils/prisma-mock
 // A paginação real chama o Protheus; aqui ela só aplica o mapRecord às linhas
 const rawRows: Record<string, unknown>[] = []
 const sentBody: Record<string, unknown> = {}
+// Total que a API informa em paginas.total (0 = o que veio)
+const reported = { total: 0 }
 vi.mock('../paginated-fetch', () => ({
   fetchPaginated: async (opts: {
     bodyExtra: Record<string, unknown>
@@ -17,7 +19,11 @@ vi.mock('../paginated-fetch', () => ({
   }) => {
     Object.assign(sentBody, opts.bodyExtra)
     const records = rawRows.map(opts.mapRecord).filter((r) => r !== null)
-    return { records, totalRecords: records.length, totalFetched: records.length }
+    return {
+      records,
+      totalRecords: reported.total || records.length,
+      totalFetched: records.length,
+    }
   },
 }))
 vi.mock('../protheus-logger', () => ({ logProtheusCall: async () => undefined }))
@@ -62,6 +68,7 @@ beforeEach(() => {
   resetPrismaMock()
   rawRows.length = 0
   for (const key of Object.keys(sentBody)) delete sentBody[key]
+  reported.total = 0
 })
 
 // Trechos do retorno real da apiPord (28/10/2026)
@@ -222,5 +229,58 @@ describe('syncProducts — manual (full)', () => {
   it('sem full vale o INTERV da agenda', async () => {
     await syncProducts('c1')
     expect(sentBody.INTERV).toBe(60)
+  })
+})
+
+describe('syncProducts — recarga do catálogo (prune)', () => {
+  beforeEach(() => companyWithInterv(60))
+
+  it('carga completa e desativa o que não veio, inclusive produto sem código', async () => {
+    prismaMock.product.findMany.mockResolvedValue([
+      { id: 'id-p1', protheusCode: 'P1' },
+      { id: 'id-old', protheusCode: 'OLD' },
+      { id: 'id-manual', protheusCode: null },
+    ])
+    prismaMock.product.updateMany.mockResolvedValue({ count: 2 })
+    rawRows.push(row('P1', 453.61, 'CE'))
+
+    const result = await syncProducts('c1', 'reloadProducts', { prune: true })
+
+    expect(sentBody.INTERV).toBe(0)
+    expect(upsertArgsFor('P1').update).toMatchObject({ active: true, ufPrices: { CE: 453.61 } })
+    expect(prismaMock.product.findMany).toHaveBeenCalledWith({
+      where: { companyId: 'c1', active: true },
+      select: { id: true, protheusCode: true },
+    })
+    expect(prismaMock.product.updateMany).toHaveBeenCalledWith({
+      where: { companyId: 'c1', id: { in: ['id-old', 'id-manual'] } },
+      data: { active: false },
+    })
+    expect(result).toMatchObject({ synced: 1, deactivated: 2 })
+  })
+
+  it('carga vazia não desativa nada', async () => {
+    await expect(syncProducts('c1', 'reloadProducts', { prune: true })).rejects.toThrow(
+      'nada foi desativado'
+    )
+    expect(prismaMock.product.upsert).not.toHaveBeenCalled()
+    expect(prismaMock.product.updateMany).not.toHaveBeenCalled()
+  })
+
+  it('paginação interrompida (veio menos que o total) não desativa nada', async () => {
+    reported.total = 476
+    rawRows.push(row('P1', 10))
+
+    await expect(syncProducts('c1', 'reloadProducts', { prune: true })).rejects.toThrow(
+      'informou 476 registros, mas vieram 1'
+    )
+    expect(prismaMock.product.updateMany).not.toHaveBeenCalled()
+  })
+
+  it('sem prune nada é desativado', async () => {
+    rawRows.push(row('P1', 10))
+    const result = await syncProducts('c1', 'syncProducts', { full: true })
+    expect(prismaMock.product.updateMany).not.toHaveBeenCalled()
+    expect(result).not.toHaveProperty('deactivated')
   })
 })

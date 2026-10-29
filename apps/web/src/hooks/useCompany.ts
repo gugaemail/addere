@@ -17,6 +17,8 @@ export interface SyncResult {
   synced: number
   total: number
   errors: string[]
+  /** Só na recarga do catálogo: produtos desativados por não virem na carga */
+  deactivated?: number
 }
 
 // ─── Queries ──────────────────────────────────────────────────────────────────
@@ -188,5 +190,16 @@ export function useRunSync(companyId: string) {
         queryClient.invalidateQueries({ queryKey: companiesKeys.entity(companyId, entity) })
       }
     },
+  })
+}
+
+// Recarga do catálogo (só SUPERADMIN): carga completa e desativa os produtos que não vieram
+export function useReloadProducts(companyId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: () =>
+      api.post<SyncResult>('/sync/products/reload', { companyId }).then((r) => r.data),
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: companiesKeys.entity(companyId, 'products') }),
   })
 }

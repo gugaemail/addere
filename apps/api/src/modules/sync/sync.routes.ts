@@ -3,7 +3,7 @@ import { z } from 'zod'
 import axios from 'axios'
 import { prisma } from '@addere/db'
 import type { Company } from '@prisma/client'
-import { authenticate, requirePermission } from '../../middleware/authenticate'
+import { authenticate, requirePermission, requireSuperAdmin } from '../../middleware/authenticate'
 import { requireCompany, assertSameCompany } from '../../middleware/require-company'
 import {
   syncProducts,
@@ -54,12 +54,21 @@ export default async function syncRoutes(app: FastifyInstance) {
     path: string
     label: string
     run: (companyId: string) => Promise<unknown>
+    preHandler?: typeof requireSuperAdmin
   }> = [
     // Manual é sempre a carga completa: o INTERV da agenda é só do auto-sync
     {
       path: '/products',
       label: 'produtos',
       run: (companyId) => syncProducts(companyId, 'syncProducts', { full: true }),
+    },
+    // Recarga do catálogo: carga completa e desativa o que não veio — só o
+    // SUPERADMIN (o ADMIN da empresa não tem o botão nem passa aqui)
+    {
+      path: '/products/reload',
+      label: 'catálogo de produtos',
+      run: (companyId) => syncProducts(companyId, 'reloadProducts', { prune: true }),
+      preHandler: requireSuperAdmin,
     },
     { path: '/customers', label: 'clientes', run: syncCustomers },
     { path: '/transportadoras', label: 'transportadoras', run: syncTransportadoras },
@@ -69,7 +78,7 @@ export default async function syncRoutes(app: FastifyInstance) {
   for (const endpoint of syncEndpoints) {
     app.post(
       endpoint.path,
-      { preHandler: syncPermission, config: rateLimited },
+      { preHandler: endpoint.preHandler ?? syncPermission, config: rateLimited },
       async (request, reply) => {
         const company = await resolveCompany(request, reply)
         if (!company) return
