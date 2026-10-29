@@ -473,6 +473,8 @@ export const BILLING_EVENT_TYPES = [
   'ACCESS_UNBLOCKED',
   // Aviso que não saiu por falta de destinatário, gravado uma vez por fatura
   'SUSPENSION_NOTICE_NO_RECIPIENT',
+  // Custo de IA: orçamento mensal do agente por empresa
+  'LLM_BUDGET_UPDATED',
 ] as const
 export type BillingEventType = (typeof BILLING_EVENT_TYPES)[number]
 
@@ -951,4 +953,87 @@ export interface BillingDashboardDto {
   pendingLicenseRequests: DashboardList<DashboardLicenseRequestItem>
   nearSeatLimit: DashboardList<DashboardSeatItem>
   revenue12m: RevenueMonth[] // 12 meses fechados, do mais antigo ao mais recente
+}
+
+// ─── Custo de IA (LLM) por empresa ───────────────────────────────────────────
+// Custo do agente da Inteligência, calculado dos tokens de intel_llm_calls com
+// a tabela de preço da Anthropic (US$) e convertido pela PTAX venda do BCB.
+// Tokens "cobráveis" = entrada + saída + gravação de cache, o mesmo critério do
+// teto diário; a leitura de cache sai mais barata e entra só no custo.
+
+export interface UsdBrlRateDto {
+  rate: number | null // null = nunca houve cotação: os custos ficam só em US$
+  quotedAt: string | null // ISO da cotação no BCB
+  stale: boolean // a consulta mais recente falhou e ficou a última conhecida
+}
+
+export interface LlmBudgetDto {
+  tokens: number | null // null = sem orçamento de tokens
+  brl: number | null // null = sem orçamento em R$
+}
+
+export interface LlmCost {
+  tokens: number // cobráveis
+  costUsd: number
+  costBrl: number | null // null sem câmbio
+}
+
+export interface LlmUsageListItemDto extends LlmCost {
+  companyId: string
+  budget: LlmBudgetDto
+  budgetPct: number | null // o maior % usado (tokens ou R$); null sem orçamento
+}
+
+export interface LlmUsageListDto {
+  month: string // 'YYYY-MM' em São Paulo
+  rate: UsdBrlRateDto
+  total: LlmCost
+  companies: LlmUsageListItemDto[] // só as que têm consumo ou orçamento
+}
+
+export interface LlmUsageRow extends LlmCost {
+  key: string // tipo de texto (kind) ou código do vendedor
+  label: string | null // nome do vendedor; o web traduz os tipos
+  generations: number
+  pct: number // % do custo do mês (0–100)
+}
+
+export interface LlmUsageDay extends LlmCost {
+  date: string // 'YYYY-MM-DD'
+}
+
+export interface LlmUsageMonth extends LlmCost {
+  month: string // 'YYYY-MM'
+}
+
+export interface LlmUsageDetailDto {
+  companyId: string
+  month: string // 'YYYY-MM'
+  rate: UsdBrlRateDto
+  totals: LlmCost & {
+    generations: number // registros do agente no mês (gerado, cache e só-motor)
+    modelCalls: number // idas ao modelo (uma geração pode ter 2 tentativas)
+    inputTokens: number
+    outputTokens: number
+    cacheWriteTokens: number
+    cacheReadTokens: number
+    cacheSavingsUsd: number // quanto a leitura de cache economizou
+    cacheSavingsBrl: number | null
+  }
+  sources: { llm: number; cache: number; engine: number } // gerações por origem
+  /** Ritmo do mês até agora estendido até o último dia */
+  projection: LlmCost
+  budget: LlmBudgetDto & { tokensPct: number | null; brlPct: number | null }
+  dailyTokenCap: number // teto diário de tokens do agente (técnico, igual para todas)
+  daysAtCap: number // dias do mês em que o teto diário foi atingido
+  daily: LlmUsageDay[] // do dia 1 até hoje
+  byKind: LlmUsageRow[] // do mais caro para o mais barato
+  byVendor: LlmUsageRow[]
+  byModel: Array<LlmCost & { model: string; priced: boolean }>
+  history: LlmUsageMonth[] // até 3 meses (o registro guarda 90 dias), do mais antigo ao atual
+}
+
+export interface LlmBudgetInput {
+  tokens: number | null
+  brl: number | null
 }
