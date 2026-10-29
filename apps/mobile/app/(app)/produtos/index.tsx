@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { View, Text, FlatList, StyleSheet } from 'react-native'
 import { Search } from 'lucide-react-native'
 import { useCatalog } from '../../../src/hooks/useCatalog'
+import { useClientes } from '../../../src/hooks/useClientes'
 import { useDebouncedValue } from '../../../src/hooks/useDebounce'
 import { Badge } from '../../../src/components/ui/Badge'
 import { Card } from '../../../src/components/ui/Card'
@@ -12,14 +13,14 @@ import { useFieldVisible } from '../../../src/hooks/useFieldConfig'
 import { colors, spacing, typography } from '../../../src/theme'
 import type { Product } from '@addere/types'
 import { fmtMoeda, fmtQtd } from '../../../src/utils/format'
-import { ufPricesLine } from '../../../src/utils/ufPrices'
+import { catalogPrice, portfolioUfs } from '../../../src/utils/ufPrices'
 
-function ProductCard({ product }: { product: Product }) {
+function ProductCard({ product, ufs }: { product: Product; ufs: string[] }) {
   const stockNum = Number(product.stock)
   const showStock = useFieldVisible('product.stock')
   const showDescription = useFieldVisible('product.description')
   const showProtheusCode = useFieldVisible('product.protheusCode')
-  const ufLine = ufPricesLine(product.ufPrices)
+  const { price, uf, others } = catalogPrice(product, ufs)
   return (
     <Card style={s.card}>
       <View style={{ flex: 1 }}>
@@ -32,15 +33,15 @@ function ProductCard({ product }: { product: Product }) {
             {product.description}
           </Text>
         )}
-        {ufLine && (
+        {others && (
           <Text style={s.sub} numberOfLines={2}>
-            {ufLine}
+            {others}
           </Text>
         )}
       </View>
       <View style={s.right}>
-        <Text style={s.price}>R$ {fmtMoeda(Number(product.price))}</Text>
-        <Text style={s.unit}>{product.unit}</Text>
+        <Text style={s.price}>R$ {fmtMoeda(price)}</Text>
+        <Text style={s.unit}>{uf ? `${product.unit} · ${uf}` : product.unit}</Text>
         {showStock && (
           <Badge variant={stockNum > 0 ? 'success' : 'danger'}>
             {stockNum > 0 ? `${fmtQtd(stockNum)} em estoque` : 'Sem estoque'}
@@ -55,6 +56,9 @@ export default function ProdutosScreen() {
   const [search, setSearch] = useState('')
   const debouncedSearch = useDebouncedValue(search)
   const { data: products, isLoading, refetch } = useCatalog(debouncedSearch || undefined)
+  // Preço pela UF dos clientes do vendedor — a mesma lista (e cache) da aba Clientes
+  const { data: customers } = useClientes()
+  const ufs = useMemo(() => portfolioUfs(customers), [customers])
 
   return (
     <View style={s.container}>
@@ -74,7 +78,7 @@ export default function ProdutosScreen() {
         <FlatList
           data={products}
           keyExtractor={(item) => item.id}
-          renderItem={({ item }) => <ProductCard product={item} />}
+          renderItem={({ item }) => <ProductCard product={item} ufs={ufs} />}
           onRefresh={refetch}
           refreshing={isLoading}
           ListEmptyComponent={
