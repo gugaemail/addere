@@ -1,5 +1,4 @@
 import { productPriceForUf, type Customer, type Product } from '@addere/types'
-import { fmtMoeda } from './format'
 
 /** UFs da carteira, da que tem mais clientes para a que tem menos. */
 export function portfolioUfs(customers: Pick<Customer, 'uf'>[] | undefined): string[] {
@@ -15,31 +14,19 @@ export function portfolioUfs(customers: Pick<Customer, 'uf'>[] | undefined): str
 
 export interface CatalogPrice {
   price: number
-  /** UF do preço grande — só quando a carteira tem mais de uma UF. */
+  /** UF do preço — a da carteira com mais clientes; null sem UF na carteira. */
   uf: string | null
-  /** Outras UFs da carteira com preço diferente: "MG R$ 463,24 · RJ R$ 470,95". */
-  others: string | null
 }
 
 /**
  * Preço do produto na aba Produtos: o da UF dos clientes do vendedor — sem
- * preço para a UF, o geral; sem nenhum, 0. Carteira em mais de uma UF: a UF
- * com mais clientes fica no preço grande e as outras numa linha, só as de
- * preço diferente. Nunca a tabela inteira de UFs.
+ * preço para a UF, o geral; sem nenhum, 0. Carteira em mais de uma UF: vale a
+ * UF com mais clientes. Só esse preço aparece — nunca o das outras UFs.
  */
 export function catalogPrice(
   product: Pick<Product, 'price' | 'ufPrices'>,
   ufs: string[]
 ): CatalogPrice {
-  const [main, ...rest] = ufs
-  const price = productPriceForUf(product, main)
-  const others = rest
-    .map((uf) => ({ uf, price: productPriceForUf(product, uf) }))
-    .filter((o) => o.price !== price)
-    .map((o) => `${o.uf} R$ ${fmtMoeda(o.price)}`)
-  return {
-    price,
-    uf: rest.length > 0 ? main : null,
-    others: others.length > 0 ? others.join(' · ') : null,
-  }
+  const uf = ufs[0] ?? null
+  return { price: productPriceForUf(product, uf), uf }
 }

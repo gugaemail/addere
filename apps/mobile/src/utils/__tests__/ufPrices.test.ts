@@ -1,5 +1,5 @@
-// Aba Produtos: preço pela UF dos clientes do vendedor — nunca a tabela
-// inteira de UFs. Sem preço para a UF, o geral; sem nenhum, 0.
+// Aba Produtos: preço pela UF dos clientes do vendedor — só o da UF com mais
+// clientes, nunca o das outras UFs. Sem preço para a UF, o geral; sem nenhum, 0.
 import { catalogPrice, portfolioUfs } from '../ufPrices'
 
 const product = (price: number, ufPrices?: Record<string, number>) => ({
@@ -22,8 +22,8 @@ describe('portfolioUfs', () => {
 })
 
 describe('catalogPrice', () => {
-  it('carteira só em SP: preço de SP, sem rótulo nem outras UFs', () => {
-    expect(catalogPrice(AAA145, ['SP'])).toEqual({ price: 472.21, uf: null, others: null })
+  it('carteira só em SP: preço de SP', () => {
+    expect(catalogPrice(AAA145, ['SP'])).toEqual({ price: 472.21, uf: 'SP' })
   })
 
   it('UF da carteira fora da tabela: preço geral; sem geral, 0', () => {
@@ -31,23 +31,11 @@ describe('catalogPrice', () => {
     expect(catalogPrice(AAA145, ['BA']).price).toBe(0)
   })
 
-  it('carteira sem UF: preço geral', () => {
-    expect(catalogPrice(product(10, { SP: 12 }), [])).toEqual({
-      price: 10,
-      uf: null,
-      others: null,
-    })
+  it('carteira sem UF: preço geral, sem UF', () => {
+    expect(catalogPrice(product(10, { SP: 12 }), [])).toEqual({ price: 10, uf: null })
   })
 
-  it('carteira em mais de uma UF: a principal no preço, só as outras da carteira na linha', () => {
-    expect(catalogPrice(AAA145, ['SP', 'MG'])).toEqual({
-      price: 472.21,
-      uf: 'SP',
-      others: 'MG R$ 463,24',
-    })
-  })
-
-  it('outras UFs com o mesmo preço da principal não entram na linha', () => {
-    expect(catalogPrice(product(10), ['SP', 'MG'])).toEqual({ price: 10, uf: 'SP', others: null })
+  it('carteira em mais de uma UF: só o preço da UF com mais clientes', () => {
+    expect(catalogPrice(AAA145, ['SP', 'MG'])).toEqual({ price: 472.21, uf: 'SP' })
   })
 })
