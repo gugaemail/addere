@@ -8,19 +8,21 @@ import { fetchPaginated } from './paginated-fetch'
 import { upsertChunked } from './upsert-chunked'
 import { getCredentials, parseJsonField, toStr, toNum } from './utils'
 
-// Um registro da apiPord: um por produto e UF da tabela de preço
-export type PriceRecord = {
+type UfPrice = { uf: string; price: number } // uf '' = preço geral (UF em branco)
+
+// Um registro da apiPord: o produto com os preços dele. O mesmo produto pode
+// vir em mais de um registro (um por UF) — os registros são juntados depois
+export type ProductRecord = {
   protheusCode: string
-  uf: string // '' = preço geral (UF em branco, ou ausente na API sem UF)
   name: string
-  price: number
   stock: number
+  prices: UfPrice[]
 }
 
 type ProductData = {
   protheusCode: string
   name: string
-  generalPrice: number | undefined // undefined: nenhum registro com UF em branco
+  generalPrice: number | undefined // undefined: nenhum preço com UF em branco
   ufPrices: Record<string, number>
   unit: string
   stock: number
@@ -28,10 +30,46 @@ type ProductData = {
 }
 
 /**
- * Junta os registros de cada produto num só: o de UF em branco é o preço
+ * Lê o campo `preco` da apiPord: um objeto, a string de um objeto ou a string
+ * com um objeto por UF separados por vírgula, sem os colchetes de lista — é
+ * assim que a API manda. Objeto sem `atual` é descartado: a API cola na
+ * frente da lista o estoque do produto anterior ({"quantidade": …}).
+ */
+export function parsePriceList(value: unknown): UfPrice[] {
+  let items: unknown[]
+  if (Array.isArray(value)) {
+    items = value
+  } else if (typeof value === 'string') {
+    const text = value.trim()
+    if (!text) return []
+    try {
+      // `}{` sem vírgula entre o lixo e o primeiro preço; o flat cobre a
+      // string que já vier como lista
+      items = (JSON.parse(`[${text.replace(/\}\s*\{/g, '},{')}]`) as unknown[]).flat()
+    } catch {
+      return []
+    }
+  } else if (value && typeof value === 'object') {
+    items = [value]
+  } else {
+    return []
+  }
+
+  const prices: UfPrice[] = []
+  for (const item of items) {
+    if (!item || typeof item !== 'object' || !('atual' in item)) continue
+    const raw = item as Record<string, unknown>
+    const price = toNum(raw['atual'], NaN)
+    if (Number.isFinite(price)) prices.push({ uf: toStr(raw['uf']).toUpperCase(), price })
+  }
+  return prices
+}
+
+/**
+ * Junta os registros de cada produto num só: o preço de UF em branco é o
  * geral, os demais viram o preço daquela UF. Exportado para o teste.
  */
-export function groupPriceRecords(records: PriceRecord[]): ProductData[] {
+export function groupProductRecords(records: ProductRecord[]): ProductData[] {
   const byCode = new Map<string, ProductData>()
   for (const r of records) {
     let product = byCode.get(r.protheusCode)
@@ -47,8 +85,10 @@ export function groupPriceRecords(records: PriceRecord[]): ProductData[] {
       }
       byCode.set(r.protheusCode, product)
     }
-    if (r.uf) product.ufPrices[r.uf] = r.price
-    else product.generalPrice = r.price
+    for (const { uf, price } of r.prices) {
+      if (uf) product.ufPrices[uf] = price
+      else product.generalPrice = price
+    }
   }
   return [...byCode.values()]
 }
@@ -82,7 +122,7 @@ export async function syncProducts(companyId: string, operationLabel = 'syncProd
   const t0 = Date.now()
 
   try {
-    const { records, totalRecords } = await fetchPaginated<PriceRecord>({
+    const { records, totalRecords } = await fetchPaginated<ProductRecord>({
       companyId,
       url: company.apiPord,
       creds,
@@ -92,16 +132,13 @@ export async function syncProducts(companyId: string, operationLabel = 'syncProd
         const protheusCode = toStr(raw['id'])
         if (!protheusCode) return null
 
-        const preco = parseJsonField(raw['preco'])
-        const price = toNum(preco['atual'])
         const stock = toNum(parseJsonField(raw['estoque'])['quantidade'])
 
         return {
           protheusCode,
-          uf: toStr(preco['uf']).toUpperCase(),
           name: toStr(raw['nome'], protheusCode),
-          price: Number.isFinite(price) ? price : 0,
           stock: Number.isFinite(stock) ? stock : 0,
+          prices: parsePriceList(raw['preco']),
         }
       },
     })
@@ -110,7 +147,7 @@ export async function syncProducts(companyId: string, operationLabel = 'syncProd
     // substitui os gravados; a incremental traz só os registros alterados,
     // que se somam aos de antes — sem o de UF em branco, o geral fica como está
     const full = INTERV === 0
-    const products = groupPriceRecords(records)
+    const products = groupProductRecords(records)
     const saved = new Map<string, Prisma.JsonValue>()
     if (!full && products.length > 0) {
       const rows = await prisma.product.findMany({
@@ -153,7 +190,7 @@ export async function syncProducts(companyId: string, operationLabel = 'syncProd
       (p) => p.protheusCode
     )
 
-    // Com preço por UF a API conta registros (produto × UF), não produtos
+    // Com um registro por UF a API conta registros (produto × UF), não produtos
     const total =
       products.length < records.length ? products.length : totalRecords || records.length
 
