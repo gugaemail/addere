@@ -103,7 +103,16 @@ function toUfPrices(value: Prisma.JsonValue | undefined): Record<string, number>
   )
 }
 
-export async function syncProducts(companyId: string, operationLabel = 'syncProducts') {
+/**
+ * `full` força a carga completa (INTERV = 0) — é o "Sincronizar Produtos" do
+ * painel. Sem ele vale o INTERV da agenda, que é o do auto-sync: incremental
+ * só traz o que mudou nos últimos N minutos.
+ */
+export async function syncProducts(
+  companyId: string,
+  operationLabel = 'syncProducts',
+  opts: { full?: boolean } = {}
+) {
   const company = await prisma.company.findUniqueOrThrow({
     where: { id: companyId },
     include: { branches: { where: { active: true }, take: 1 } },
@@ -118,7 +127,7 @@ export async function syncProducts(companyId: string, operationLabel = 'syncProd
   const filial = branch.idProtheus
   const creds = getCredentials(company)
   const schedule = (company.syncSchedule as SyncSchedule | null) ?? DEFAULT_SYNC_SCHEDULE
-  const INTERV = schedule.products.interv ?? 0
+  const INTERV = opts.full ? 0 : (schedule.products.interv ?? 0)
   const t0 = Date.now()
 
   try {

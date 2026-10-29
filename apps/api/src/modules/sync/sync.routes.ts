@@ -55,7 +55,12 @@ export default async function syncRoutes(app: FastifyInstance) {
     label: string
     run: (companyId: string) => Promise<unknown>
   }> = [
-    { path: '/products', label: 'produtos', run: syncProducts },
+    // Manual é sempre a carga completa: o INTERV da agenda é só do auto-sync
+    {
+      path: '/products',
+      label: 'produtos',
+      run: (companyId) => syncProducts(companyId, 'syncProducts', { full: true }),
+    },
     { path: '/customers', label: 'clientes', run: syncCustomers },
     { path: '/transportadoras', label: 'transportadoras', run: syncTransportadoras },
     { path: '/cond-pags', label: 'condições de pagamento', run: syncCondPags },
