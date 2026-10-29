@@ -21,6 +21,13 @@ import {
   type SortConfig,
 } from './shared'
 
+// Preços por UF da tabela de preço, abaixo do geral: "MG R$ 9.90 · SP R$ 11.20"
+function ufPricesText(ufPrices: Product['ufPrices']): string | null {
+  const entries = Object.entries(ufPrices ?? {}).sort(([a], [b]) => a.localeCompare(b))
+  if (entries.length === 0) return null
+  return entries.map(([uf, price]) => `${uf} R$ ${price.toFixed(2)}`).join(' · ')
+}
+
 export function ProductsTab({ companyId }: { companyId: string }) {
   const queryClient = useQueryClient()
   const { data: products = [] } = useCompanyProducts(companyId)
@@ -62,7 +69,19 @@ export function ProductsTab({ companyId }: { companyId: string }) {
       header: 'Unidade',
       render: (p) => <span className="text-[var(--text-muted)]">{p.unit}</span>,
     },
-    { key: 'price', header: 'Preço', render: (p) => <>R$ {Number(p.price).toFixed(2)}</> },
+    {
+      key: 'price',
+      header: 'Preço',
+      render: (p) => {
+        const byUf = ufPricesText(p.ufPrices)
+        return (
+          <>
+            R$ {Number(p.price).toFixed(2)}
+            {byUf && <span className="block text-xs text-[var(--text-muted)]">{byUf}</span>}
+          </>
+        )
+      },
+    },
     {
       key: 'stock',
       header: 'Estoque',

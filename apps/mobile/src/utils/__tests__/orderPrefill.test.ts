@@ -48,7 +48,7 @@ describe('parseMixParam', () => {
 
 describe('cartFromMix', () => {
   it('monta o carrinho na ordem do motor, com quantidade 1', () => {
-    const { cart, missing } = cartFromMix(['P008', 'P001'], CATALOG)
+    const { cart, missing } = cartFromMix(['P008', 'P001'], CATALOG, null)
 
     expect(missing).toEqual([])
     expect(cart.map((i) => i.productId)).toEqual(['id-sabao', 'id-arroz'])
@@ -64,18 +64,24 @@ describe('cartFromMix', () => {
   it('denuncia o produto sugerido que não está no catálogo', () => {
     // Inativado no Protheus ou ainda não sincronizado: some do carrinho sem
     // avisar, e o vendedor acha que o mix inteiro entrou.
-    const { cart, missing } = cartFromMix(['P001', 'P999'], CATALOG)
+    const { cart, missing } = cartFromMix(['P001', 'P999'], CATALOG, null)
 
     expect(cart.map((i) => i.productId)).toEqual(['id-arroz'])
     expect(missing).toEqual(['P999'])
   })
 
   it('produto sem código Protheus nunca casa', () => {
-    expect(cartFromMix([''], CATALOG).cart).toEqual([])
-    expect(cartFromMix(['P001'], [CATALOG[2]])).toEqual({ cart: [], missing: ['P001'] })
+    expect(cartFromMix([''], CATALOG, null).cart).toEqual([])
+    expect(cartFromMix(['P001'], [CATALOG[2]], null)).toEqual({ cart: [], missing: ['P001'] })
+  })
+
+  it('preço de tabela da UF do cliente, se houver; senão o geral', () => {
+    const catalog = [{ ...CATALOG[0], ufPrices: { SP: 31.5 } }]
+    expect(cartFromMix(['P001'], catalog, 'SP').cart[0].unitPrice).toBe(31.5)
+    expect(cartFromMix(['P001'], catalog, 'MG').cart[0].unitPrice).toBe(28.9)
   })
 
   it('mix vazio devolve carrinho vazio', () => {
-    expect(cartFromMix([], CATALOG)).toEqual({ cart: [], missing: [] })
+    expect(cartFromMix([], CATALOG, null)).toEqual({ cart: [], missing: [] })
   })
 })
