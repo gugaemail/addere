@@ -124,7 +124,9 @@ export function ProtheusTab({ company }: { company: CompanyDetail }) {
               }
               className={formControlClass}
             />
-            <p className="text-xs text-[var(--text-muted)] mt-1">0 = busca todos</p>
+            <p className="text-xs text-[var(--text-muted)] mt-1">
+              {entity === 'products' ? 'Só no auto-sync · 0 = busca todos' : '0 = busca todos'}
+            </p>
           </div>
           <div>
             <label className="block text-xs text-[var(--text-muted)] mb-1">
@@ -261,8 +263,9 @@ export function ProtheusTab({ company }: { company: CompanyDetail }) {
               <div>
                 <p className="text-sm font-medium text-[var(--text-primary)]">Sincronizar</p>
                 <p className="text-xs text-[var(--text-muted)] mt-0.5">
-                  Importa via <code className="bg-[var(--bg-subtle)] px-1 rounded">apiPord</code> e
-                  atualiza o catálogo.
+                  Importa todos os produtos e preços via{' '}
+                  <code className="bg-[var(--bg-subtle)] px-1 rounded">apiPord</code> (carga
+                  completa, ignora o INTERV).
                 </p>
                 {missingProd && (
                   <p className="flex items-start gap-1 mt-1.5 text-xs text-warning">
