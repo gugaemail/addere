@@ -19,7 +19,9 @@ const envSchema = z.object({
   ANTHROPIC_API_KEY: z.string().optional(),
   INTEL_LLM_MODEL: z.string().default('claude-sonnet-5'),
   INTEL_LLM_ENABLED: z.enum(['true', 'false']).default('true'),
-  INTEL_LLM_DAILY_TOKEN_CAP: z.coerce.number().int().positive().default(500_000),
+  // Teto diário das gerações sem vendedor (perdas da equipe toda, chave '*');
+  // o de cada vendedor fica no cadastro do usuário (users.llmDailyTokenCap)
+  INTEL_LLM_DAILY_TOKEN_CAP: z.coerce.number().int().positive().default(100_000),
   // Geocodificação (E15-F1, decisão D14a) — Nominatim agora; Google via stub
   INTEL_GEOCODER: z.enum(['nominatim', 'google', 'mock']).default('nominatim'),
   GOOGLE_GEOCODING_API_KEY: z.string().optional(),

@@ -1,4 +1,10 @@
-import type { LlmCost, LlmUsageRow, UsdBrlRateDto } from '@addere/types'
+import {
+  LLM_MODEL_OPTIONS,
+  type LlmCost,
+  type LlmEvalResult,
+  type LlmUsageRow,
+  type UsdBrlRateDto,
+} from '@addere/types'
 import { agentKindLabel } from './intel-helpers'
 import { formatCurrency } from './utils'
 
@@ -86,6 +92,53 @@ export function pctOfMonthlyFee(
   const fee = Number(monthlyTotal)
   if (costBrl === null || !monthlyTotal || !Number.isFinite(fee) || fee <= 0) return null
   return Math.round((costBrl / fee) * 1000) / 10
+}
+
+/** Nome curto do modelo ("Haiku 5.5"); fora da lista, o id */
+export function modelLabel(model: string): string {
+  return LLM_MODEL_OPTIONS.find((option) => option.id === model)?.label ?? model
+}
+
+/** Teto diário do vendedor: "100 mil/dia"; 0 = IA desligada; null = padrão */
+export function dailyCapLabel(cap: number | null | undefined, defaultCap: number): string {
+  if (cap === 0) return 'IA desligada'
+  return `${formatTokens(cap ?? defaultCap)}/dia`
+}
+
+const FALLBACK_REASONS: Record<string, string> = {
+  daily_cap: 'Teto diário do vendedor atingido',
+  monthly_budget: 'Orçamento do mês atingido',
+  llm_off: 'IA desligada no ambiente',
+  facts_leak: 'Dado fora da lista permitida (barrado antes de sair)',
+  'resposta truncada': 'Resposta cortada no limite de tamanho',
+  'recusa do modelo': 'Recusa do modelo',
+  self_check: 'Reprovada no autocheck',
+}
+
+/** Motivo do só-motor em português ("self_check: número fora dos fatos: N" → "Reprovada no autocheck: …") */
+export function fallbackReasonLabel(reason: string): string {
+  if (FALLBACK_REASONS[reason]) return FALLBACK_REASONS[reason]
+  if (reason.startsWith('self_check: ')) {
+    return `${FALLBACK_REASONS.self_check}: ${reason.slice('self_check: '.length)}`
+  }
+  return reason
+}
+
+/** "92% de primeira · 0 falha em bloqueado · US$ 0,0010 por caso" */
+export function evalScoreLine(result: LlmEvalResult): string {
+  const ran = result.total - result.skipped
+  const first = ran > 0 ? Math.round((result.passedFirst / ran) * 100) : 0
+  const perCase = new Intl.NumberFormat('pt-BR', {
+    style: 'currency',
+    currency: 'USD',
+    minimumFractionDigits: 4,
+    maximumFractionDigits: 4,
+  }).format(result.costPerCaseUsd)
+  return [
+    `${first}% de primeira (${result.passedFirst} de ${ran})`,
+    `${result.blockedFailed} falha(s) em bloqueado`,
+    `${perCase} por caso`,
+  ].join(' · ')
 }
 
 /** "01/10" para o eixo do gráfico diário */

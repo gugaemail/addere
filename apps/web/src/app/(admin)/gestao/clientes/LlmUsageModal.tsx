@@ -1,12 +1,28 @@
 'use client'
 
 import { useState } from 'react'
-import { AlertTriangle, CheckCircle2, Pencil, XCircle } from 'lucide-react'
+import {
+  AlertTriangle,
+  CheckCircle2,
+  FlaskConical,
+  PauseCircle,
+  Pencil,
+  RotateCcw,
+  XCircle,
+} from 'lucide-react'
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { toast } from 'sonner'
-import type { ClientListItemDto, LlmUsageDetailDto, LlmUsageRow } from '@addere/types'
+import {
+  LLM_MODEL_OPTIONS,
+  type ClientListItemDto,
+  type LlmEvalRunDto,
+  type LlmModelId,
+  type LlmUsageDetailDto,
+  type LlmUsageRow,
+} from '@addere/types'
 import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
+import { FormSelect } from '@/components/ui/FormField'
 import { Input } from '@/components/ui/Input'
 import { Spinner } from '@/components/ui/Spinner'
 import { Table, type Column } from '@/components/ui/Table'
@@ -15,16 +31,25 @@ import { getApiErrorMessage } from '@/lib/api'
 import { brlCompact, monthLongLabel } from '@/lib/billing-dashboard'
 import { cn, formatCurrency } from '@/lib/utils'
 import { agentStatsLine } from '@/lib/intel-helpers'
-import { useClientLlmUsage, useUpdateLlmBudget } from '@/hooks/useBilling'
+import {
+  useClientLlmUsage,
+  useStartLlmEval,
+  useUpdateLlmBudget,
+  useUpdateLlmModel,
+} from '@/hooks/useBilling'
 import {
   BUDGET_STATUS_LABELS,
   budgetStatus,
+  dailyCapLabel,
   dayLabel,
+  evalScoreLine,
+  fallbackReasonLabel,
   formatCost,
   formatPct,
   formatTokens,
   formatUsd,
   kindLabel,
+  modelLabel,
   pctOfMonthlyFee,
   rateLabel,
   vendorLabel,
@@ -34,6 +59,7 @@ import {
 // Custo de IA de um cliente (Gestão Addere): quanto o agente custou no mês,
 // contra o orçamento, e onde está gastando — por tipo de texto, por vendedor e
 // dia a dia. O gráfico é uma série só (sem legenda) e tem a tabela embaixo.
+// Embaixo, o modelo da IA: testar um candidato (eval) e trocar se passar.
 
 const STATUS_STYLE: Record<BudgetStatus, { bar: string; text: string; Icon: typeof CheckCircle2 }> =
   {
@@ -43,6 +69,8 @@ const STATUS_STYLE: Record<BudgetStatus, { bar: string; text: string; Icon: type
   }
 
 const VENDOR_ROWS = 10
+const FALLBACK_ROWS = 6
+const FAILURE_ROWS = 5
 
 export function LlmUsageModal({
   client,
@@ -128,6 +156,12 @@ function UsageBody({ client, usage }: { client: ClientListItemDto; usage: LlmUsa
           title="Por vendedor"
           rows={usage.byVendor.slice(0, VENDOR_ROWS)}
           name={vendorLabel}
+          detail={(row) =>
+            row.key === 'eval'
+              ? null
+              : `teto ${dailyCapLabel(row.dailyCap, usage.defaultDailyCap)}` +
+                (row.daysAtCap ? ` · bateu em ${row.daysAtCap} dia(s)` : '')
+          }
           footer={
             usage.byVendor.length > VENDOR_ROWS
               ? `Mais ${usage.byVendor.length - VENDOR_ROWS} vendedor(es) com custo menor.`
@@ -137,6 +171,8 @@ function UsageBody({ client, usage }: { client: ClientListItemDto; usage: LlmUsa
       </div>
 
       <ActivitySection usage={usage} />
+
+      <ModelSection client={client} usage={usage} />
 
       <p className="text-xs text-[var(--text-muted)]">
         Custo = tokens registrados × preço da Anthropic de cada modelo, convertido pela PTAX venda.
@@ -180,12 +216,20 @@ function BudgetSection({ client, usage }: { client: ClientListItemDto; usage: Ll
         )}
       </div>
 
+      {budget.paused && !editing && (
+        <p className="mb-3 flex items-start gap-2 rounded-lg bg-danger/10 px-3 py-2 text-sm text-danger">
+          <PauseCircle size={16} strokeWidth={1.5} className="mt-0.5 shrink-0" aria-hidden />
+          IA pausada: o orçamento do mês foi atingido. Volta no dia 1º — ou aumente o orçamento para
+          liberar agora. O app segue com o texto do motor.
+        </p>
+      )}
+
       {editing ? (
         <BudgetForm client={client} usage={usage} onDone={() => setEditing(false)} />
       ) : !hasBudget ? (
         <p className="text-sm text-[var(--text-muted)]">
-          Sem orçamento definido. O teto técnico de {formatTokens(usage.dailyTokenCap)} tokens por
-          dia continua valendo.
+          Sem orçamento definido: a IA não pausa por custo. Cada vendedor continua com o próprio
+          teto diário (cadastro do usuário).
         </p>
       ) : (
         <div className="space-y-4">
@@ -210,8 +254,8 @@ function BudgetSection({ client, usage }: { client: ClientListItemDto; usage: Ll
             />
           )}
           <p className="text-xs text-[var(--text-muted)]">
-            O orçamento é informativo: estourar não desliga o agente. O teto técnico de{' '}
-            {formatTokens(usage.dailyTokenCap)} tokens por dia continua valendo.
+            Aos 80% e aos 100%, a Addere recebe um e-mail. Aos 100%, a IA pausa até o dia 1º e o app
+            segue com o texto do motor.
           </p>
         </div>
       )}
@@ -427,10 +471,10 @@ function DailyChart({ usage }: { usage: LlmUsageDetailDto }) {
         {usage.daysAtCap > 0 && (
           <AlertTriangle size={14} strokeWidth={1.5} className="text-warning" aria-hidden />
         )}
-        Teto técnico de {formatTokens(usage.dailyTokenCap)} tokens por dia:{' '}
+        Teto diário dos vendedores:{' '}
         {usage.daysAtCap > 0
-          ? `atingido em ${usage.daysAtCap} dia(s) neste mês — o agente caiu para o só-motor`
-          : 'não atingido neste mês'}
+          ? `algum vendedor bateu o teto em ${usage.daysAtCap} dia(s) neste mês — nesses dias ele ficou com o texto do motor`
+          : 'ninguém bateu o teto neste mês'}
         .
       </p>
       <details className="mt-3">
@@ -451,11 +495,14 @@ function Ranking({
   title,
   rows,
   name,
+  detail,
   footer,
 }: {
   title: string
   rows: LlmUsageRow[]
   name: (row: LlmUsageRow) => string
+  /** Linha extra embaixo da contagem (o teto diário de cada vendedor) */
+  detail?: (row: LlmUsageRow) => string | null
   footer?: string
 }) {
   return (
@@ -479,6 +526,7 @@ function Ranking({
               </div>
               <p className="mt-0.5 text-xs text-[var(--text-muted)]">
                 {row.generations} geração(ões) · {formatTokens(row.tokens)} tokens
+                {detail?.(row) ? ` · ${detail(row)}` : ''}
               </p>
             </li>
           ))}
@@ -517,6 +565,27 @@ function ActivitySection({ usage }: { usage: LlmUsageDetailDto }) {
             Sonnet atual.
           </p>
         )}
+        {usage.retried > 0 && (
+          <p className="text-[var(--text-muted)]">
+            {usage.retried} aprovada(s) só na 2ª tentativa — a 1ª foi paga e descartada
+          </p>
+        )}
+        {usage.fallbacks.length > 0 && (
+          <div className="pt-2">
+            <h4 className="mb-1 font-medium text-[var(--text-secondary)]">
+              Por que caiu no só-motor
+            </h4>
+            <ul className="space-y-1">
+              {usage.fallbacks.slice(0, FALLBACK_ROWS).map((row) => (
+                <li key={`${row.kind}|${row.reason}`} className="text-[var(--text-muted)]">
+                  <span className="text-[var(--text-primary)]">{agentKindName(row.kind)}</span> —{' '}
+                  {fallbackReasonLabel(row.reason)}: {row.count}
+                  {row.attempts > 0 && ` (${row.attempts} ida(s) ao modelo pagas)`}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
       </section>
 
       <section>
@@ -534,5 +603,196 @@ function ActivitySection({ usage }: { usage: LlmUsageDetailDto }) {
         </ul>
       </section>
     </div>
+  )
+}
+
+const agentKindName = (kind: string) => kindLabel({ key: kind })
+
+// ─── Modelo da IA ────────────────────────────────────────────────────────────
+
+const EVAL_STATUS_STYLE = {
+  approved: { text: 'text-success', Icon: CheckCircle2, label: 'Aprovado' },
+  rejected: { text: 'text-danger', Icon: XCircle, label: 'Reprovado' },
+} as const
+
+function ModelSection({ client, usage }: { client: ClientListItemDto; usage: LlmUsageDetailDto }) {
+  const { model, evals } = usage
+  const startEval = useStartLlmEval(client.id)
+  const updateModel = useUpdateLlmModel(client.id)
+  const [candidate, setCandidate] = useState<LlmModelId>(
+    LLM_MODEL_OPTIONS.find((option) => option.id !== model.current)?.id ?? LLM_MODEL_OPTIONS[0].id
+  )
+  const running = evals.some((run) => run.status === 'RUNNING')
+
+  async function runTest() {
+    try {
+      await startEval.mutateAsync({ model: candidate })
+      toast.success('Teste iniciado. Leva alguns minutos — a ficha atualiza sozinha.')
+    } catch (err) {
+      toast.error(getApiErrorMessage(err, 'Erro ao iniciar o teste.'))
+    }
+  }
+
+  async function switchTo(next: LlmModelId | null) {
+    try {
+      await updateModel.mutateAsync({ model: next })
+      toast.success(
+        next ? `Este cliente passou a usar o ${modelLabel(next)}.` : 'Voltou ao modelo padrão.'
+      )
+    } catch (err) {
+      toast.error(getApiErrorMessage(err, 'Erro ao trocar o modelo.'))
+    }
+  }
+
+  return (
+    <section className="rounded-xl border border-[var(--border)] p-4">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+        <h3 className="text-sm font-semibold text-[var(--text-secondary)]">Modelo da IA</h3>
+        {model.custom && (
+          <Button
+            variant="ghost"
+            size="sm"
+            leftIcon={RotateCcw}
+            onClick={() => switchTo(null)}
+            loading={updateModel.isPending}
+          >
+            Voltar ao padrão ({modelLabel(model.default)})
+          </Button>
+        )}
+      </div>
+      <p className="text-sm text-[var(--text-primary)]">
+        Em uso: <span className="font-medium">{modelLabel(model.current)}</span>
+        <span className="text-[var(--text-muted)]">
+          {model.custom ? ' · escolhido para este cliente' : ' · padrão do ambiente'}
+        </span>
+      </p>
+
+      <div className="mt-4 flex flex-wrap items-end gap-3">
+        <div className="w-48">
+          <FormSelect
+            label="Testar o modelo"
+            value={candidate}
+            onChange={(e) => setCandidate(e.target.value as LlmModelId)}
+            disabled={running}
+          >
+            {LLM_MODEL_OPTIONS.map((option) => (
+              <option key={option.id} value={option.id}>
+                {option.label}
+              </option>
+            ))}
+          </FormSelect>
+        </div>
+        <Button
+          variant="secondary"
+          leftIcon={FlaskConical}
+          onClick={runTest}
+          loading={startEval.isPending}
+          disabled={running}
+        >
+          {running ? 'Teste rodando…' : 'Rodar teste'}
+        </Button>
+      </div>
+      <p className="mt-2 text-xs text-[var(--text-muted)]">
+        Roda os casos de regressão do cliente (antes de entrar e mensagem ao cliente) com o modelo
+        escolhido. Aprova com nenhuma falha em cliente bloqueado e 90% ou mais de primeira. Não
+        cobre a frase do Hoje. A troca só é liberada com o teste aprovado.
+      </p>
+
+      {evals.length > 0 && (
+        <ul className="mt-4 space-y-3">
+          {evals.map((run) => (
+            <EvalRunRow
+              key={run.id}
+              run={run}
+              current={model.current}
+              switching={updateModel.isPending}
+              onUse={(id) => switchTo(id)}
+            />
+          ))}
+        </ul>
+      )}
+    </section>
+  )
+}
+
+function EvalRunRow({
+  run,
+  current,
+  switching,
+  onUse,
+}: {
+  run: LlmEvalRunDto
+  current: string
+  switching: boolean
+  onUse: (model: LlmModelId) => void
+}) {
+  const when = new Date(run.finishedAt ?? run.startedAt).toLocaleString('pt-BR', {
+    timeZone: 'America/Sao_Paulo',
+    day: '2-digit',
+    month: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+  const result = run.result
+  const verdict = result ? EVAL_STATUS_STYLE[result.approved ? 'approved' : 'rejected'] : null
+  const usable =
+    result?.approved &&
+    run.model !== current &&
+    LLM_MODEL_OPTIONS.some((option) => option.id === run.model)
+
+  return (
+    <li className="rounded-lg bg-[var(--bg-subtle)] px-3 py-2 text-sm">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <span className="text-[var(--text-primary)]">
+          <span className="font-medium">{modelLabel(run.model)}</span>
+          <span className="text-[var(--text-muted)]"> · {when}</span>
+        </span>
+        {run.status === 'RUNNING' ? (
+          <span className="inline-flex items-center gap-1.5 text-[var(--text-muted)]">
+            <Spinner size="sm" /> Rodando…
+          </span>
+        ) : run.status === 'ERROR' ? (
+          <span className="inline-flex items-center gap-1 text-danger">
+            <XCircle size={14} strokeWidth={1.5} aria-hidden /> Erro
+          </span>
+        ) : verdict ? (
+          <span className={cn('inline-flex items-center gap-1 font-medium', verdict.text)}>
+            <verdict.Icon size={14} strokeWidth={1.5} aria-hidden /> {verdict.label}
+          </span>
+        ) : null}
+      </div>
+      {run.status === 'ERROR' && run.error && (
+        <p className="mt-1 text-xs text-danger">{run.error}</p>
+      )}
+      {result && (
+        <>
+          <p className="mt-1 text-xs text-[var(--text-muted)]">
+            {evalScoreLine(result)} · custo do teste {formatCost(result.cost)}
+          </p>
+          {result.failures.length > 0 && (
+            <details className="mt-1">
+              <summary className="cursor-pointer text-xs font-medium text-brand">
+                O que não passou de primeira
+              </summary>
+              <ul className="mt-1 space-y-0.5 text-xs text-[var(--text-muted)]">
+                {result.failures.slice(0, FAILURE_ROWS).map((failure, i) => (
+                  <li key={i}>
+                    {agentKindName(failure.kind)} ({failure.status}): {failure.result}
+                    {failure.violations.length > 0 && ` — ${failure.violations.join('; ')}`}
+                  </li>
+                ))}
+              </ul>
+            </details>
+          )}
+          {usable && (
+            <div className="mt-2">
+              <Button size="xs" onClick={() => onUse(run.model as LlmModelId)} loading={switching}>
+                Usar o {modelLabel(run.model)} neste cliente
+              </Button>
+            </div>
+          )}
+        </>
+      )}
+    </li>
   )
 }

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { daysOverdueOn, ymdToDate } from '../business-days'
+import { daysOverdueOn, previousBusinessDay, ymdToDate } from '../business-days'
 
 describe('daysOverdueOn', () => {
   it('não vencido ou vencendo hoje → 0', () => {
@@ -20,5 +20,21 @@ describe('daysOverdueOn', () => {
   it('fevereiro bissexto conta o dia 29', () => {
     expect(daysOverdueOn(ymdToDate('20280228'), '20280301')).toBe(2)
     expect(daysOverdueOn(ymdToDate('20270228'), '20270301')).toBe(1)
+  })
+})
+
+describe('previousBusinessDay', () => {
+  it('terça olha a segunda; segunda olha a sexta', () => {
+    expect(previousBusinessDay('20261103', false)).toBe('20261102')
+    expect(previousBusinessDay('20261102', false)).toBe('20261030')
+  })
+
+  it('com sábado de trabalho, a segunda olha o sábado', () => {
+    expect(previousBusinessDay('20261102', true)).toBe('20261031')
+  })
+
+  it('vira o mês e o ano', () => {
+    expect(previousBusinessDay('20270101', false)).toBe('20261231')
+    expect(previousBusinessDay('20261201', false)).toBe('20261130')
   })
 })

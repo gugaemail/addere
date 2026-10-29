@@ -73,4 +73,10 @@ describe('engineShareAlarm', () => {
   it('LLM desligado de propósito (llm_off) não é alarme', () => {
     expect(engineShareAlarm(many(20, { source: 'engine', reason: 'llm_off' }), NOW)).toBeNull()
   })
+
+  it('orçamento do mês atingido é pausa de propósito, não alarme', () => {
+    expect(
+      engineShareAlarm(many(20, { source: 'engine', reason: 'monthly_budget' }), NOW)
+    ).toBeNull()
+  })
 })

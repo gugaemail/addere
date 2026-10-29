@@ -93,10 +93,12 @@ async function permissionKeysByUser(userIds: string[], keys: string[]) {
 
 // SUPERADMIN enxerga todos os usuários; demais roles apenas os da própria empresa
 export async function listUsers(requester: JwtPayload) {
-  const where = requester.role === 'SUPERADMIN' ? {} : { companyId: requester.companyId }
+  const superAdmin = requester.role === 'SUPERADMIN'
+  const where = superAdmin ? {} : { companyId: requester.companyId }
   const users = await prisma.user.findMany({
     where,
-    select: userSelect,
+    // O teto de IA é controle de custo da Addere: só o SUPERADMIN vê e edita
+    select: superAdmin ? { ...userSelect, llmDailyTokenCap: true } : userSelect,
     orderBy: { createdAt: 'desc' },
     take: 1000,
   })
@@ -154,6 +156,10 @@ export async function createUser(input: CreateUserInput, requester: JwtPayload) 
         servedCities: input.servedCities ?? [],
         messageTone: input.messageTone ?? null,
         managerId: input.managerId ?? null,
+        // Sem valor (ou criado por ADMIN), vale o padrão do banco: 100 mil
+        ...(requester.role === 'SUPERADMIN' && input.llmDailyTokenCap !== undefined
+          ? { llmDailyTokenCap: input.llmDailyTokenCap }
+          : {}),
       },
       select: userSelect,
     })
@@ -219,7 +225,14 @@ export async function updateUserById(id: string, input: UpdateUserInput, request
   if (requester.role !== 'SUPERADMIN' && target.companyId !== requester.companyId) {
     throw forbidden('Não é permitido editar usuários de outra empresa')
   }
-  const { intelManager, companyId, canChangeCarrier, canChangePaymentTerms, ...profile } = input
+  const {
+    intelManager,
+    companyId,
+    canChangeCarrier,
+    canChangePaymentTerms,
+    llmDailyTokenCap,
+    ...profile
+  } = input
 
   // Vincular empresa é conserto de cadastro órfão, não mudança de lotação:
   // mover alguém de empresa arrastaria junto pedidos, gerente e código de
@@ -253,6 +266,11 @@ export async function updateUserById(id: string, input: UpdateUserInput, request
     if (isEmailTaken(err)) throw conflict(EMAIL_TAKEN_MESSAGE)
     throw err
   })
+
+  // Teto de IA: só o SUPERADMIN grava (para o ADMIN da empresa, o campo nem aparece)
+  if (requester.role === 'SUPERADMIN' && llmDailyTokenCap !== undefined) {
+    await prisma.user.update({ where: { id }, data: { llmDailyTokenCap } })
+  }
 
   // O perfil Gerente é a permissão intel.manager: trocar de perfil na tela tem
   // de conceder ou revogar, senão o rótulo e o acesso ficam discordando.

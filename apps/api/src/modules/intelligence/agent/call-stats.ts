@@ -68,16 +68,21 @@ export function summarizeAgentCalls(rows: CallRow[], now: Date = new Date()): Ag
     }))
 }
 
+/** Agente parado de propósito, não quebrado: desligado ou com o orçamento do mês atingido */
+const DELIBERATE_REASONS = new Set(['llm_off', 'monthly_budget'])
+
 /**
- * Alarme das últimas 24 h, todos os tipos somados. `llm_off` não conta: é o
- * agente desligado de propósito, não quebrado. Devolve null quando está tudo bem.
+ * Alarme das últimas 24 h, todos os tipos somados. `llm_off` e `monthly_budget`
+ * não contam (DELIBERATE_REASONS). Devolve null quando está tudo bem.
  */
 export function engineShareAlarm(
   rows: CallRow[],
   now: Date = new Date()
 ): { calls: number; engine: number; reasons: Record<string, number> } | null {
   const dayAgo = now.getTime() - DAY_MS
-  const recent = rows.filter((r) => r.createdAt.getTime() >= dayAgo && r.reason !== 'llm_off')
+  const recent = rows.filter(
+    (r) => r.createdAt.getTime() >= dayAgo && !DELIBERATE_REASONS.has(r.reason ?? '')
+  )
   if (recent.length < ALARM_MIN_CALLS) return null
   const engine = recent.filter((r) => r.source === 'engine')
   if (engine.length / recent.length <= ALARM_ENGINE_SHARE) return null

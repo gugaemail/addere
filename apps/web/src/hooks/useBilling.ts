@@ -15,6 +15,8 @@ import type {
   LicensePackageDto,
   LlmBudgetDto,
   LlmBudgetInput,
+  LlmEvalInput,
+  LlmModelInput,
   LlmUsageDetailDto,
   LlmUsageListDto,
   LicenseRequestDecision,
@@ -112,6 +114,34 @@ export function useClientLlmUsage(id: string) {
     queryKey: billingKeys.llmUsageOf(id),
     queryFn: () =>
       api.get<LlmUsageDetailDto>(`/admin/billing/clients/${id}/llm-usage`).then((r) => r.data),
+    // Teste de modelo rodando em segundo plano: acompanha até terminar
+    refetchInterval: (query) =>
+      query.state.data?.evals.some((run) => run.status === 'RUNNING') ? 5000 : false,
+  })
+}
+
+/** Roda o eval com um modelo (job em segundo plano; a ficha acompanha) */
+export function useStartLlmEval(id: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (input: LlmEvalInput) =>
+      api
+        .post<{ runId: string }>(`/admin/billing/clients/${id}/llm-eval`, input)
+        .then((r) => r.data),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: billingKeys.llmUsageOf(id) }),
+  })
+}
+
+/** Troca o modelo da empresa (só com eval aprovado) ou volta ao padrão (null) */
+export function useUpdateLlmModel(id: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (input: LlmModelInput) =>
+      api.put(`/admin/billing/clients/${id}/llm-model`, input).then((r) => r.data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: billingKeys.llmUsageOf(id) })
+      queryClient.invalidateQueries({ queryKey: billingKeys.events(id) })
+    },
   })
 }
 
