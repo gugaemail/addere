@@ -6,6 +6,7 @@ import { AlertCircle, CheckCircle2 } from 'lucide-react'
 import { toast } from 'sonner'
 import type { CompanyDetail, SyncSchedule } from '@addere/types'
 import { api, getApiErrorMessage } from '@/lib/api'
+import { useAuth } from '@/contexts/AuthContext'
 import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
 import { formControlClass } from '@/components/ui/FormField'
@@ -14,11 +15,13 @@ import {
   useCompanySyncSchedule,
   useSaveSyncSchedule,
   useRunSync,
+  useReloadProducts,
   SYNC_ENTITY_LABELS,
   type SyncEntity,
   type SyncResult,
 } from '@/hooks/useCompany'
 import { ProtheusConfigForm } from '../ProtheusConfigForm'
+import { ConfirmModal } from '../ConfirmModal'
 
 type TestKind = 'token' | 'products' | 'customers'
 
@@ -46,7 +49,10 @@ function CardHeader({ title, subtitle }: { title: string; subtitle?: string }) {
 
 export function ProtheusTab({ company }: { company: CompanyDetail }) {
   const queryClient = useQueryClient()
+  const { isSuperAdmin } = useAuth()
   const runSync = useRunSync(company.id)
+  const reloadProducts = useReloadProducts(company.id)
+  const [confirmReload, setConfirmReload] = useState(false)
   const saveSchedule = useSaveSyncSchedule(company.id)
   const { data: remoteSchedule } = useCompanySyncSchedule(company.id)
 
@@ -71,6 +77,16 @@ export function ProtheusTab({ company }: { company: CompanyDetail }) {
       setSyncResult({ entity: SYNC_ENTITY_LABELS[entity], result })
     } catch (err) {
       toast.error(getApiErrorMessage(err, 'Erro ao sincronizar'))
+    }
+  }
+
+  async function handleReload() {
+    setSyncResult(null)
+    try {
+      const result = await reloadProducts.mutateAsync()
+      setSyncResult({ entity: 'Catálogo de produtos', result })
+    } catch (err) {
+      toast.error(getApiErrorMessage(err, 'Erro ao recarregar o catálogo'))
     }
   }
 
@@ -191,6 +207,8 @@ export function ProtheusTab({ company }: { company: CompanyDetail }) {
             <p className="text-sm font-medium text-success">
               {syncResult.entity}: {syncResult.result.synced} de {syncResult.result.total}{' '}
               sincronizados.
+              {syncResult.result.deactivated !== undefined &&
+                ` ${syncResult.result.deactivated} desativado(s) por não virem mais do Protheus.`}
             </p>
             {syncResult.result.errors.length > 0 && (
               <ul className="mt-1.5 text-xs text-danger space-y-1 list-disc list-inside">
@@ -284,6 +302,29 @@ export function ProtheusTab({ company }: { company: CompanyDetail }) {
               </Button>
             </div>
           </div>
+          {isSuperAdmin && (
+            <div className="mt-3 border border-danger/20 rounded-lg p-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-sm font-medium text-[var(--text-primary)]">
+                  Recarregar catálogo
+                </p>
+                <p className="text-xs text-[var(--text-muted)] mt-0.5">
+                  Carga completa que desativa os produtos que não vierem mais da{' '}
+                  <code className="bg-[var(--bg-subtle)] px-1 rounded">apiPord</code>. Pedidos
+                  antigos não mudam, e o produto que voltar na API é reativado.
+                </p>
+              </div>
+              <Button
+                variant="danger-outline"
+                onClick={() => setConfirmReload(true)}
+                loading={reloadProducts.isPending}
+                disabled={!!missingProd || runSync.isPending}
+                className="shrink-0"
+              >
+                {reloadProducts.isPending ? 'Recarregando…' : 'Recarregar catálogo'}
+              </Button>
+            </div>
+          )}
           {scheduleSection('products')}
         </div>
       </div>
@@ -435,6 +476,16 @@ export function ProtheusTab({ company }: { company: CompanyDetail }) {
           </pre>
         </div>
       </Modal>
+
+      {confirmReload && (
+        <ConfirmModal
+          title="Recarregar o catálogo?"
+          description={`Faz a carga completa de produtos de ${company.name} e desativa todos os que não vierem mais do Protheus — eles somem do app e do painel. Pedidos antigos não mudam, e o produto que voltar na API é reativado na próxima carga.`}
+          confirmLabel="Sim, recarregar"
+          onConfirm={handleReload}
+          onClose={() => setConfirmReload(false)}
+        />
+      )}
     </div>
   )
 }
