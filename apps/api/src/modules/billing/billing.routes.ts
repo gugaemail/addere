@@ -4,6 +4,7 @@ import {
   clientSchema,
   companyIdParam,
   contractDraftSchema,
+  llmBudgetSchema,
   packageActiveSchema,
   packageCreateSchema,
   packageIdParam,
@@ -28,6 +29,7 @@ import {
   listLicenseRequestsQuerySchema,
 } from './license-requests.schema'
 import { decideLicenseRequest, listLicenseRequests } from './license-requests.service'
+import { getLlmUsage, listLlmUsage, updateLlmBudget } from './llm-usage.service'
 import { unblockClient } from './overdue-block.service'
 
 // Gestão Addere (plano 013) — registrado com o prefixo /admin/billing. Só o
@@ -104,6 +106,30 @@ export default async function billingAdminRoutes(app: FastifyInstance) {
       const { companyId } = companyIdParam.parse(request.params)
       const input = clientSchema.parse(request.body)
       return reply.send(await updateClient(companyId, input, request.user.sub))
+    }
+  )
+
+  // ─── Custo de IA: consumo do agente em R$ e orçamento mensal ───────────────
+  app.get('/llm-usage', superadmin, async (_request: FastifyRequest, reply: FastifyReply) => {
+    return reply.send(await listLlmUsage(new Date()))
+  })
+
+  app.get(
+    '/clients/:companyId/llm-usage',
+    superadmin,
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const { companyId } = companyIdParam.parse(request.params)
+      return reply.send(await getLlmUsage(companyId, new Date()))
+    }
+  )
+
+  app.put(
+    '/clients/:companyId/llm-budget',
+    superadmin,
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const { companyId } = companyIdParam.parse(request.params)
+      const input = llmBudgetSchema.parse(request.body)
+      return reply.send(await updateLlmBudget(companyId, input, request.user.sub))
     }
   )
 

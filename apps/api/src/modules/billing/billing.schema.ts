@@ -74,6 +74,17 @@ export const settingsSchema = z.object({
 
 export type SettingsData = z.infer<typeof settingsSchema>
 
+// Orçamento mensal de IA da empresa — só informativo; null = sem orçamento
+export const llmBudgetSchema = z.object({
+  tokens: z.number().int().positive().max(2_000_000_000).nullable(),
+  brl: z
+    .number()
+    .positive()
+    .max(10_000_000)
+    .transform((v) => Math.round(v * 100) / 100)
+    .nullable(),
+})
+
 // ─── Cadastro ────────────────────────────────────────────────────────────────
 
 const uf = z

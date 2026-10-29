@@ -13,6 +13,10 @@ import type {
   CompanyContractDto,
   ContractDraftInput,
   LicensePackageDto,
+  LlmBudgetDto,
+  LlmBudgetInput,
+  LlmUsageDetailDto,
+  LlmUsageListDto,
   LicenseRequestDecision,
   LicenseRequestDto,
   LicenseRequestInput,
@@ -40,6 +44,9 @@ export const billingKeys = {
   // Plano 018: debaixo da raiz, para toda mutação que invalida billingKeys.all
   // (contrato, aditivo, pedido de licenças, faturas) atualizar o painel
   dashboard: ['billing', 'dashboard'] as const,
+  // Custo de IA: a lista do mês e o detalhe de cada cliente
+  llmUsage: ['billing', 'llm-usage'] as const,
+  llmUsageOf: (id: string) => ['billing', 'llm-usage', id] as const,
 }
 
 export interface LicenseRequestFilters {
@@ -88,6 +95,35 @@ export function useClients() {
   return useQuery({
     queryKey: billingKeys.clients,
     queryFn: () => api.get<ClientListItemDto[]>('/admin/billing/clients').then((r) => r.data),
+  })
+}
+
+// Custo de IA do mês por cliente. Carrega à parte da lista: a cotação do dólar
+// pode demorar e não segura a tabela de clientes
+export function useLlmUsage() {
+  return useQuery({
+    queryKey: billingKeys.llmUsage,
+    queryFn: () => api.get<LlmUsageListDto>('/admin/billing/llm-usage').then((r) => r.data),
+  })
+}
+
+export function useClientLlmUsage(id: string) {
+  return useQuery({
+    queryKey: billingKeys.llmUsageOf(id),
+    queryFn: () =>
+      api.get<LlmUsageDetailDto>(`/admin/billing/clients/${id}/llm-usage`).then((r) => r.data),
+  })
+}
+
+export function useUpdateLlmBudget(id: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (input: LlmBudgetInput) =>
+      api.put<LlmBudgetDto>(`/admin/billing/clients/${id}/llm-budget`, input).then((r) => r.data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: billingKeys.llmUsage })
+      queryClient.invalidateQueries({ queryKey: billingKeys.events(id) })
+    },
   })
 }
 
