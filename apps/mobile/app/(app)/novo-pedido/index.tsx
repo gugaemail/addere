@@ -41,15 +41,17 @@ import {
   cartItemFromProduct,
   cartTotal,
   cartToOrderItems,
+  repriceCart,
 } from '../../../src/components/order-form/types'
 import type { CartItem } from '../../../src/components/order-form/types'
-import type {
-  Branch,
-  Customer,
-  Product,
-  Transportadora,
-  CondPag,
-  CreateOrderItemInput,
+import {
+  productPriceForUf,
+  type Branch,
+  type Customer,
+  type Product,
+  type Transportadora,
+  type CondPag,
+  type CreateOrderItemInput,
 } from '@addere/types'
 import { fmtMoeda, formatDocument } from '../../../src/utils/format'
 import { getApiErrorMessage } from '../../../src/lib/errors'
@@ -186,10 +188,12 @@ function Step1({
 
 function Step2({
   cart,
+  customerUf,
   onCartChange,
   onBack,
 }: {
   cart: CartItem[]
+  customerUf: string | null | undefined
   onCartChange: (cart: CartItem[]) => void
   onBack: () => void
 }) {
@@ -204,7 +208,7 @@ function Step2({
         cart.map((i) => (i.productId === product.id ? { ...i, quantity: i.quantity + 1 } : i))
       )
     } else {
-      onCartChange([...cart, cartItemFromProduct(product)])
+      onCartChange([...cart, cartItemFromProduct(product, customerUf)])
     }
   }
 
@@ -290,7 +294,7 @@ function Step2({
             >
               <Text style={styles.listItemTitle}>{item.name}</Text>
               <Text style={styles.listItemSub}>
-                R$ {fmtMoeda(item.price)} / {item.unit}
+                R$ {fmtMoeda(productPriceForUf(item, customerUf))} / {item.unit}
               </Text>
             </Card>
           )}
@@ -637,7 +641,7 @@ export default function NovoPedidoScreen() {
       )
       return
     }
-    const { cart: mixCart, missing } = cartFromMix(codes, allProducts ?? [])
+    const { cart: mixCart, missing } = cartFromMix(codes, allProducts ?? [], target.uf)
 
     setCustomer(target)
     setCart(mixCart)
@@ -666,6 +670,17 @@ export default function NovoPedidoScreen() {
     allProducts,
     router,
   ])
+
+  // O preço de tabela depende da UF do cliente: voltar ao passo 1 e trocar o
+  // cliente reprecifica o carrinho para a UF nova
+  const pricedUfRef = useRef<string | null | undefined>(undefined)
+  useEffect(() => {
+    if (!customer) return
+    const fromUf = pricedUfRef.current
+    pricedUfRef.current = customer.uf
+    if (fromUf === undefined || fromUf === customer.uf) return
+    setCart((prev) => repriceCart(prev, allProducts ?? [], fromUf, customer.uf))
+  }, [customer, allProducts])
 
   // Auto-preenche transportadora e condPag a partir dos padrões do cliente
   useEffect(() => {
@@ -786,7 +801,12 @@ export default function NovoPedidoScreen() {
         )}
         {step === 2 && (
           <View style={{ flex: 1 }}>
-            <Step2 cart={cart} onCartChange={setCart} onBack={() => setStep(1)} />
+            <Step2
+              cart={cart}
+              customerUf={customer?.uf}
+              onCartChange={setCart}
+              onBack={() => setStep(1)}
+            />
             <Button
               testID="btn-proximo-step"
               size="lg"

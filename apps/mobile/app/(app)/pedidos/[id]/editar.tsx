@@ -33,7 +33,7 @@ import {
   cartToOrderItems,
 } from '../../../../src/components/order-form/types'
 import type { CartItem } from '../../../../src/components/order-form/types'
-import type { Product, Transportadora, CondPag } from '@addere/types'
+import { productPriceForUf, type Product, type Transportadora, type CondPag } from '@addere/types'
 
 export default function EditarPedidoScreen() {
   const { id } = useLocalSearchParams<{ id: string }>()
@@ -115,7 +115,7 @@ export default function EditarPedidoScreen() {
         prev.map((i) => (i.productId === product.id ? { ...i, quantity: i.quantity + 1 } : i))
       )
     } else {
-      setCart((prev) => [...prev, cartItemFromProduct(product)])
+      setCart((prev) => [...prev, cartItemFromProduct(product, order?.customer.uf)])
     }
     setSearch('')
   }
@@ -231,7 +231,7 @@ export default function EditarPedidoScreen() {
                 <Card padding="sm" style={s.productItem} onPress={() => addProduct(item)}>
                   <Text style={s.productItemName}>{item.name}</Text>
                   <Text style={s.productItemSub}>
-                    R$ {fmtMoeda(item.price)} / {item.unit}
+                    R$ {fmtMoeda(productPriceForUf(item, order?.customer.uf))} / {item.unit}
                   </Text>
                 </Card>
               )}
