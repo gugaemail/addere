@@ -5,6 +5,7 @@ import {
   DUE_DAY_MIN,
   GRACE_MONTHS_MAX,
   LICENSE_TYPES,
+  LLM_MODEL_IDS,
   isValidCpf,
 } from '@addere/types'
 import { isoDay } from './invoices.schema'
@@ -74,7 +75,8 @@ export const settingsSchema = z.object({
 
 export type SettingsData = z.infer<typeof settingsSchema>
 
-// Orçamento mensal de IA da empresa — só informativo; null = sem orçamento
+// Orçamento mensal de IA da empresa — atingido, o agente pausa até o fim do
+// mês; null = sem orçamento
 export const llmBudgetSchema = z.object({
   tokens: z.number().int().positive().max(2_000_000_000).nullable(),
   brl: z
@@ -84,6 +86,10 @@ export const llmBudgetSchema = z.object({
     .transform((v) => Math.round(v * 100) / 100)
     .nullable(),
 })
+
+// Teste e troca do modelo do agente da empresa; null volta ao do ambiente
+export const llmEvalSchema = z.object({ model: z.enum(LLM_MODEL_IDS) })
+export const llmModelSchema = z.object({ model: z.enum(LLM_MODEL_IDS).nullable() })
 
 // ─── Cadastro ────────────────────────────────────────────────────────────────
 

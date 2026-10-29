@@ -3,6 +3,7 @@ import type {
   LlmBudgetDto,
   LlmBudgetInput,
   LlmCost,
+  LlmFallbackRow,
   LlmUsageDay,
   LlmUsageDetailDto,
   LlmUsageListDto,
@@ -15,6 +16,7 @@ import { env } from '../../lib/env'
 import { notFound } from '../../lib/errors'
 import { changedFields, recordBillingEvent } from './billing-events'
 import { billableTokens, llmCostUsd, modelPrice, type TokenCounts } from './llm-pricing'
+import { modelState, recentEvalRuns } from './llm-model.service'
 import { getUsdBrlRate } from './usd-brl'
 
 // Custo de IA por empresa (Gestão Addere): soma intel_llm_calls do mês (em São
@@ -29,6 +31,7 @@ const SP_DAY = new Intl.DateTimeFormat('en-CA', {
   day: '2-digit',
 })
 const HISTORY_MONTHS = 3 // o PURGE apaga o registro com 90 dias
+const EVAL_VENDOR = 'eval' // vendorCode dos casos de regressão (EVAL_VENDOR_CODE do agente)
 const DAY_MS = 24 * 60 * 60 * 1000
 
 /** 'YYYY-MM-DD' em São Paulo */
@@ -88,7 +91,7 @@ function getBucket<K>(map: Map<K, Bucket>, key: K): Bucket {
   return bucket
 }
 
-function budgetDto(company: {
+export function budgetDto(company: {
   llmMonthlyTokenBudget: number | null
   llmMonthlyBudgetBrl: { toString(): string } | null
 }): LlmBudgetDto {
@@ -117,6 +120,57 @@ function tokenCounts(sum: Partial<Record<keyof TokenCounts, number | null>>): To
     cacheCreationTokens: sum.cacheCreationTokens ?? 0,
     cacheReadTokens: sum.cacheReadTokens ?? 0,
   }
+}
+
+// ─── Consumo do mês de uma empresa (orçamento do agente) ───────────────────
+
+export interface MonthUsage {
+  month: string // 'YYYY-MM' em São Paulo
+  tokens: number // cobráveis
+  costBrl: number | null // null sem câmbio
+}
+
+/** O mesmo número que a ficha mostra: tudo o que foi ao modelo no mês, eval incluído */
+export async function companyMonthUsage(companyId: string, now: Date): Promise<MonthUsage> {
+  const month = spDay(now).slice(0, 7)
+  const [rate, groups] = await Promise.all([
+    getUsdBrlRate(now),
+    prisma.intelLlmCall.groupBy({
+      by: ['model'],
+      where: { companyId, createdAt: { gte: monthStart(month) } },
+      _sum: TOKEN_SUM,
+    }),
+  ])
+  const bucket = new Bucket()
+  for (const group of groups) bucket.add(group.model, tokenCounts(group._sum))
+  const cost = bucket.cost(rate)
+  return { month, tokens: cost.tokens, costBrl: cost.costBrl }
+}
+
+/** Custo de um teste de modelo: as chamadas do eval desde o início do run */
+export async function evalCostSince(companyId: string, since: Date, now: Date): Promise<LlmCost> {
+  const [rate, groups] = await Promise.all([
+    getUsdBrlRate(now),
+    prisma.intelLlmCall.groupBy({
+      by: ['model'],
+      where: { companyId, vendorCode: EVAL_VENDOR, createdAt: { gte: since } },
+      _sum: TOKEN_SUM,
+    }),
+  ])
+  const bucket = new Bucket()
+  for (const group of groups) bucket.add(group.model, tokenCounts(group._sum))
+  return bucket.cost(rate)
+}
+
+/** O maior % usado entre os dois orçamentos; null sem orçamento */
+export function budgetUsedPct(
+  usage: { tokens: number; costBrl: number | null },
+  budget: LlmBudgetDto
+): number | null {
+  const pcts = [pctOf(usage.tokens, budget.tokens), pctOf(usage.costBrl, budget.brl)].filter(
+    (p): p is number => p !== null
+  )
+  return pcts.length > 0 ? Math.max(...pcts) : null
 }
 
 // ─── Lista de clientes: custo do mês corrente ──────────────────────────────
@@ -149,15 +203,7 @@ export async function listLlmUsage(now: Date): Promise<LlmUsageListDto> {
     const bucket = byCompany.get(company.id)
     if (!bucket && budget.tokens === null && budget.brl === null) continue
     const cost = (bucket ?? new Bucket()).cost(rate)
-    const pcts = [pctOf(cost.tokens, budget.tokens), pctOf(cost.costBrl, budget.brl)].filter(
-      (p): p is number => p !== null
-    )
-    items.push({
-      companyId: company.id,
-      ...cost,
-      budget,
-      budgetPct: pcts.length > 0 ? Math.max(...pcts) : null,
-    })
+    items.push({ companyId: company.id, ...cost, budget, budgetPct: budgetUsedPct(cost, budget) })
   }
 
   return { month, rate, total: total.cost(rate), companies: items }
@@ -192,11 +238,11 @@ export async function getLlmUsage(companyId: string, now: Date): Promise<LlmUsag
 
   const company = await prisma.company.findUnique({
     where: { id: companyId },
-    select: { llmMonthlyTokenBudget: true, llmMonthlyBudgetBrl: true },
+    select: { llmMonthlyTokenBudget: true, llmMonthlyBudgetBrl: true, llmModel: true },
   })
   if (!company) throw notFound('Cliente não encontrado')
 
-  const [rate, calls, users, ...history] = await Promise.all([
+  const [rate, calls, users, evals, ...history] = await Promise.all([
     getUsdBrlRate(now),
     prisma.intelLlmCall.findMany({
       where: { companyId, createdAt: { gte: from } },
@@ -213,8 +259,9 @@ export async function getLlmUsage(companyId: string, now: Date): Promise<LlmUsag
     }),
     prisma.user.findMany({
       where: { companyId, idVendProt: { not: null } },
-      select: { idVendProt: true, name: true },
+      select: { idVendProt: true, name: true, llmDailyTokenCap: true },
     }),
+    recentEvalRuns(companyId),
     ...previous.map((m) =>
       prisma.intelLlmCall.groupBy({
         by: ['model'],
@@ -231,6 +278,9 @@ export async function getLlmUsage(companyId: string, now: Date): Promise<LlmUsag
   const byModel = new Map<string, Bucket>()
   const sources = { llm: 0, cache: 0, engine: 0 }
   const capDays = new Set<string>()
+  const vendorCapDays = new Map<string, Set<string>>()
+  const fallbacks = new Map<string, LlmFallbackRow>()
+  let retried = 0
   const tokens = { input: 0, output: 0, cacheWrite: 0, cacheRead: 0 }
   let modelCalls = 0
 
@@ -244,7 +294,20 @@ export async function getLlmUsage(companyId: string, now: Date): Promise<LlmUsag
     if (call.source === 'llm' || call.source === 'cache' || call.source === 'engine') {
       sources[call.source] += 1
     }
-    if (call.reason === 'daily_cap') capDays.add(day)
+    if (call.reason === 'daily_cap') {
+      capDays.add(day)
+      vendorCapDays.set(call.vendorCode, (vendorCapDays.get(call.vendorCode) ?? new Set()).add(day))
+    }
+    if (call.source === 'engine') {
+      const reason = call.reason ?? 'desconhecido'
+      const key = `${call.kind}|${reason}`
+      const row = fallbacks.get(key) ?? { kind: call.kind, reason, count: 0, attempts: 0 }
+      row.count += 1
+      row.attempts += call.attempts
+      fallbacks.set(key, row)
+    } else if (call.source === 'llm' && call.attempts > 1) {
+      retried += 1
+    }
     tokens.input += call.inputTokens
     tokens.output += call.outputTokens
     tokens.cacheWrite += call.cacheCreationTokens
@@ -253,6 +316,7 @@ export async function getLlmUsage(companyId: string, now: Date): Promise<LlmUsag
   }
 
   const names = new Map(users.map((u) => [u.idVendProt ?? '', u.name]))
+  const caps = new Map(users.map((u) => [u.idVendProt ?? '', u.llmDailyTokenCap]))
   const daily: LlmUsageDay[] = []
   for (let d = 1; d <= Number(today.slice(8, 10)); d++) {
     const date = `${month}-${String(d).padStart(2, '0')}`
@@ -267,6 +331,7 @@ export async function getLlmUsage(companyId: string, now: Date): Promise<LlmUsag
 
   const current = total.cost(rate)
   const budget = budgetDto(company)
+  const usedPct = budgetUsedPct(current, budget)
   const historyRows: LlmUsageMonth[] = previous.map((m, i) => {
     const bucket = new Bucket()
     for (const group of history[i]) bucket.add(group.model, tokenCounts(group._sum))
@@ -295,12 +360,24 @@ export async function getLlmUsage(companyId: string, now: Date): Promise<LlmUsag
       ...budget,
       tokensPct: pctOf(current.tokens, budget.tokens),
       brlPct: pctOf(current.costBrl, budget.brl),
+      paused: usedPct !== null && usedPct >= 100,
     },
-    dailyTokenCap: env.INTEL_LLM_DAILY_TOKEN_CAP,
+    defaultDailyCap: env.INTEL_LLM_DAILY_TOKEN_CAP,
     daysAtCap: capDays.size,
+    fallbacks: [...fallbacks.values()].sort(
+      (a, b) =>
+        b.count - a.count || a.kind.localeCompare(b.kind) || a.reason.localeCompare(b.reason)
+    ),
+    retried,
+    model: modelState(company.llmModel),
+    evals,
     daily,
     byKind: rows(byKind, total.usd, rate, () => null),
-    byVendor: rows(byVendor, total.usd, rate, (code) => names.get(code) ?? null),
+    byVendor: rows(byVendor, total.usd, rate, (code) => names.get(code) ?? null).map((row) => ({
+      ...row,
+      dailyCap: caps.get(row.key) ?? null,
+      daysAtCap: vendorCapDays.get(row.key)?.size ?? 0,
+    })),
     byModel: [...byModel.entries()]
       .map(([model, bucket]) => ({ model, priced: modelPrice(model).priced, ...bucket.cost(rate) }))
       .sort((a, b) => b.costUsd - a.costUsd),

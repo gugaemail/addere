@@ -80,7 +80,9 @@ describe('getLlmUsage', () => {
       llmMonthlyTokenBudget: 4_000_000,
       llmMonthlyBudgetBrl: '100.00',
     })
-    prismaMock.user.findMany.mockResolvedValue([{ idVendProt: '000001', name: 'Ana Souza' }])
+    prismaMock.user.findMany.mockResolvedValue([
+      { idVendProt: '000001', name: 'Ana Souza', llmDailyTokenCap: 100_000 },
+    ])
     prismaMock.intelLlmCall.findMany.mockResolvedValue([
       // 01/10 em São Paulo: home da Ana, 1M de entrada = US$ 2
       call({ createdAt: new Date('2026-10-01T12:00:00Z'), ...sums(1_000_000) }),
@@ -153,7 +155,13 @@ describe('getLlmUsage', () => {
   it('orçamento, ritmo até o fim do mês e os meses anteriores', async () => {
     const usage = await getLlmUsage(COMPANY_A, NOW)
 
-    expect(usage.budget).toEqual({ tokens: 4_000_000, brl: 100, tokensPct: 38.8, brlPct: 18.5 })
+    expect(usage.budget).toEqual({
+      tokens: 4_000_000,
+      brl: 100,
+      tokensPct: 38.8,
+      brlPct: 18.5,
+      paused: false,
+    })
     // 28,625 dias decorridos de 31
     expect(usage.projection.costUsd).toBeCloseTo((3.7 * 31) / 28.625, 4)
     expect(usage.history.map((m) => [m.month, m.costUsd])).toEqual([
@@ -161,6 +169,66 @@ describe('getLlmUsage', () => {
       ['2026-09', 0.5],
       ['2026-10', 3.7],
     ])
+  })
+
+  it('orçamento atingido: a ficha mostra a IA pausada', async () => {
+    prismaMock.company.findUnique.mockResolvedValue({
+      llmMonthlyTokenBudget: 1_000_000,
+      llmMonthlyBudgetBrl: null,
+    })
+    const usage = await getLlmUsage(COMPANY_A, NOW)
+    expect(usage.budget).toMatchObject({ tokensPct: 155, paused: true })
+  })
+
+  it('desperdício: motivos do só-motor e as aprovadas só na 2ª tentativa', async () => {
+    const usage = await getLlmUsage(COMPANY_A, NOW)
+    expect(usage.fallbacks).toEqual([{ kind: 'today', reason: 'daily_cap', count: 1, attempts: 0 }])
+    expect(usage.retried).toBe(1) // a mensagem do eval passou na regeneração
+  })
+
+  it('teto diário de cada vendedor e os dias em que ele bateu', async () => {
+    const usage = await getLlmUsage(COMPANY_A, NOW)
+    expect(usage.byVendor[0]).toMatchObject({ key: '000001', dailyCap: 100_000, daysAtCap: 1 })
+    expect(usage.byVendor[1]).toMatchObject({ key: 'eval', dailyCap: null, daysAtCap: 0 })
+  })
+
+  it('modelo em uso e testes de modelo recentes', async () => {
+    prismaMock.company.findUnique.mockResolvedValue({
+      llmMonthlyTokenBudget: null,
+      llmMonthlyBudgetBrl: null,
+      llmModel: 'claude-haiku-5-5',
+    })
+    prismaMock.intelJobRun.findMany.mockResolvedValue([
+      {
+        id: 'run-1',
+        status: 'OK',
+        startedAt: new Date('2026-10-29T15:00:00Z'),
+        finishedAt: new Date('2026-10-29T15:06:00Z'),
+        error: null,
+        metadata: { model: 'claude-haiku-5-5', result: { approved: true } },
+      },
+    ])
+    const usage = await getLlmUsage(COMPANY_A, NOW)
+    expect(usage.model).toEqual({
+      current: 'claude-haiku-5-5',
+      default: 'claude-sonnet-5',
+      custom: true,
+    })
+    expect(usage.evals).toEqual([
+      {
+        id: 'run-1',
+        status: 'OK',
+        startedAt: '2026-10-29T15:00:00.000Z',
+        finishedAt: '2026-10-29T15:06:00.000Z',
+        error: null,
+        model: 'claude-haiku-5-5',
+        result: { approved: true },
+      },
+    ])
+    expect(prismaMock.intelJobRun.findMany.mock.calls[0][0].where).toEqual({
+      companyId: COMPANY_A,
+      job: 'EVAL',
+    })
   })
 
   it('empresa que não existe: 404', async () => {

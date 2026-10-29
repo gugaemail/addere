@@ -4,9 +4,14 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vites
 import type { FastifyInstance } from 'fastify'
 
 vi.mock('@addere/db', async () => (await import('../../../../test-utils/prisma-mock')).mockDb())
+vi.mock('../../agent/plan-summary.job', async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  fillDaySummary: vi.fn(async () => undefined),
+}))
 
 import { prismaMock, resetPrismaMock } from '../../../../test-utils/prisma-mock'
 import { buildApp } from '../../../../app'
+import { fillDaySummary } from '../../agent/plan-summary.job'
 
 const COMPANY_A = '11111111-1111-4111-8111-111111111111'
 const PLAN_ID = '33333333-3333-4333-8333-333333333333'
@@ -75,6 +80,7 @@ afterAll(async () => {
 
 beforeEach(() => {
   resetPrismaMock()
+  vi.mocked(fillDaySummary).mockClear()
   prismaMock.user.findUnique.mockImplementation(
     async (args: { where: { id: string } }) => USER_ROWS[args.where.id] ?? null
   )
@@ -86,19 +92,43 @@ const auth = (sub = 'seller-a') => ({
 
 describe('portões de acesso (require-vendor-code)', () => {
   it('sem idVendProt → 422 com orientação', async () => {
-    const res = await app.inject({ method: 'GET', url: '/intel/app/home', headers: auth('seller-no-code') })
+    const res = await app.inject({
+      method: 'GET',
+      url: '/intel/app/home',
+      headers: auth('seller-no-code'),
+    })
     expect(res.statusCode).toBe(422)
     expect(res.json().message).toContain('vendedor')
   })
 
   it('empresa com Inteligência desligada → 403', async () => {
-    const res = await app.inject({ method: 'GET', url: '/intel/app/home', headers: auth('seller-off') })
+    const res = await app.inject({
+      method: 'GET',
+      url: '/intel/app/home',
+      headers: auth('seller-off'),
+    })
     expect(res.statusCode).toBe(403)
   })
 
   it('sem token → 401', async () => {
     const res = await app.inject({ method: 'GET', url: '/intel/app/home' })
     expect(res.statusCode).toBe(401)
+  })
+
+  it('marca o uso do app (decide a frase do Hoje de madrugada)', async () => {
+    await app.inject({ method: 'GET', url: '/intel/app/home', headers: auth() })
+    const update = prismaMock.user.update.mock.calls[0][0]
+    expect(update.where).toEqual({ id: 'seller-a' })
+    expect(update.data.lastAppSeenAt).toBeInstanceOf(Date)
+  })
+
+  it('uso marcado há menos de 15 min não grava de novo', async () => {
+    prismaMock.user.findUnique.mockResolvedValue({
+      ...USER_ROWS['seller-a'],
+      lastAppSeenAt: new Date(Date.now() - 5 * 60_000),
+    })
+    await app.inject({ method: 'GET', url: '/intel/app/home', headers: auth() })
+    expect(prismaMock.user.update).not.toHaveBeenCalled()
   })
 })
 
@@ -116,12 +146,28 @@ describe('GET /intel/app/home e /plan', () => {
     expect(body.plan.itemsCount).toBe(1)
     expect(body.portfolio).toEqual({ total: 1, byStatus: { LATE: 1 } })
     expect(body.freshness.stale).toBe(true) // sem run OK mockado
+    expect(fillDaySummary).not.toHaveBeenCalled() // a frase já existe
+  })
+
+  it('plano sem frase: a home pede a frase e responde sem esperar', async () => {
+    prismaMock.visitPlan.findUnique.mockResolvedValue(fakePlan({ llmSummary: null }))
+    const res = await app.inject({ method: 'GET', url: '/intel/app/home', headers: auth() })
+    expect(res.statusCode).toBe(200)
+    expect(res.json().llmSummary).toBeNull()
+    expect(fillDaySummary).toHaveBeenCalledWith(COMPANY_A, PLAN_ID)
   })
 
   it('plan devolve DTO com itens, sinais e meta nula sem snapshot', async () => {
     prismaMock.visitPlan.findUnique.mockResolvedValue(fakePlan())
     prismaMock.customer.findMany.mockResolvedValue([
-      { protheusCode: 'A', loja: '01', name: 'Cliente A', address: 'Rua X', municipio: 'Campinas', phone: null },
+      {
+        protheusCode: 'A',
+        loja: '01',
+        name: 'Cliente A',
+        address: 'Rua X',
+        municipio: 'Campinas',
+        phone: null,
+      },
     ])
     const res = await app.inject({ method: 'GET', url: '/intel/app/plan', headers: auth() })
     expect(res.statusCode).toBe(200)
@@ -179,11 +225,21 @@ describe('visitas — idempotência offline e posse', () => {
 
   it('check-in novo → 201; retry do mesmo clientId → atualiza (200)', async () => {
     prismaMock.visit.create.mockResolvedValue({ id: 'visit-1' })
-    const first = await app.inject({ method: 'POST', url: '/intel/app/visits', headers: auth(), payload: visitPayload })
+    const first = await app.inject({
+      method: 'POST',
+      url: '/intel/app/visits',
+      headers: auth(),
+      payload: visitPayload,
+    })
     expect(first.statusCode).toBe(201)
 
     prismaMock.visit.findUnique.mockResolvedValue({ id: 'visit-1', vendorCode: 'V1' })
-    const retry = await app.inject({ method: 'POST', url: '/intel/app/visits', headers: auth(), payload: visitPayload })
+    const retry = await app.inject({
+      method: 'POST',
+      url: '/intel/app/visits',
+      headers: auth(),
+      payload: visitPayload,
+    })
     expect(retry.statusCode).toBe(200)
     expect(retry.json().updated).toBe(true)
   })
@@ -208,14 +264,24 @@ describe('visitas — idempotência offline e posse', () => {
 
   it('check-in sem planItemId (fora do plano) não mexe em plano nenhum', async () => {
     prismaMock.visit.create.mockResolvedValue({ id: 'visit-4' })
-    const res = await app.inject({ method: 'POST', url: '/intel/app/visits', headers: auth(), payload: visitPayload })
+    const res = await app.inject({
+      method: 'POST',
+      url: '/intel/app/visits',
+      headers: auth(),
+      payload: visitPayload,
+    })
     expect(res.statusCode).toBe(201)
     expect(prismaMock.visitPlan.updateMany).not.toHaveBeenCalled()
   })
 
   it('clientId de OUTRO vendedor → 409', async () => {
     prismaMock.visit.findUnique.mockResolvedValue({ id: 'visit-2', vendorCode: 'V2' })
-    const res = await app.inject({ method: 'POST', url: '/intel/app/visits', headers: auth(), payload: visitPayload })
+    const res = await app.inject({
+      method: 'POST',
+      url: '/intel/app/visits',
+      headers: auth(),
+      payload: visitPayload,
+    })
     expect(res.statusCode).toBe(409)
   })
 
@@ -767,11 +833,12 @@ describe('GET /intel/app/visits — histórico (plano 003)', () => {
   ]
 
   it('devolve só as visitas do vendorCode do token, mesmo com visita de outro vendedor no banco', async () => {
-    prismaMock.visit.findMany.mockImplementation(
-      async (args: { where: { vendorCode: string } }) =>
-        ALL_VISITS.filter((v) => v.vendorCode === args.where.vendorCode)
+    prismaMock.visit.findMany.mockImplementation(async (args: { where: { vendorCode: string } }) =>
+      ALL_VISITS.filter((v) => v.vendorCode === args.where.vendorCode)
     )
-    prismaMock.customer.findMany.mockResolvedValue([{ protheusCode: 'A', loja: '01', name: 'Cliente A' }])
+    prismaMock.customer.findMany.mockResolvedValue([
+      { protheusCode: 'A', loja: '01', name: 'Cliente A' },
+    ])
     const res = await app.inject({
       method: 'GET',
       url: '/intel/app/visits?from=2026-08-01&to=2026-08-31',
@@ -829,15 +896,28 @@ describe('GET /intel/app/visits — histórico (plano 003)', () => {
 
 describe('mensagens e feedback', () => {
   it('mensagem sem LLM usa o template determinístico e registra', async () => {
-    prismaMock.customer.findFirst.mockResolvedValue({ name: 'Padaria Central', municipio: 'Campinas' })
+    prismaMock.customer.findFirst.mockResolvedValue({
+      name: 'Padaria Central',
+      municipio: 'Campinas',
+    })
     prismaMock.company.findUnique.mockResolvedValue({ id: COMPANY_A, intelligenceConfig: null })
     prismaMock.customerSignal.findUnique.mockResolvedValue({
-      status: 'LATE', confidence: 'HIGH', cycleDays: 28, daysSinceLastPurchase: 41,
-      orders12m: 10, avgTicket: 1500, trendPct: null, usualMix: [], cutMix: [], reasons: [],
+      status: 'LATE',
+      confidence: 'HIGH',
+      cycleDays: 28,
+      daysSinceLastPurchase: 41,
+      orders12m: 10,
+      avgTicket: 1500,
+      trendPct: null,
+      usualMix: [],
+      cutMix: [],
+      reasons: [],
     })
     prismaMock.customerMessage.create.mockImplementation(
       async (args: { data: Record<string, unknown> }) => ({
-        id: 'msg-1', generatedAt: new Date(), ...args.data,
+        id: 'msg-1',
+        generatedAt: new Date(),
+        ...args.data,
       })
     )
     const res = await app.inject({
@@ -854,13 +934,28 @@ describe('mensagens e feedback', () => {
   })
 
   it('mensagem lê os títulos em aberto do cliente (não zera mais)', async () => {
-    prismaMock.customer.findFirst.mockResolvedValue({ name: 'Padaria Central', municipio: 'Campinas' })
+    prismaMock.customer.findFirst.mockResolvedValue({
+      name: 'Padaria Central',
+      municipio: 'Campinas',
+    })
     prismaMock.customerSignal.findUnique.mockResolvedValue({
-      status: 'LATE', confidence: 'HIGH', cycleDays: 28, daysSinceLastPurchase: 41,
-      orders12m: 10, avgTicket: 1500, trendPct: null, usualMix: [], cutMix: [], reasons: [],
+      status: 'LATE',
+      confidence: 'HIGH',
+      cycleDays: 28,
+      daysSinceLastPurchase: 41,
+      orders12m: 10,
+      avgTicket: 1500,
+      trendPct: null,
+      usualMix: [],
+      cutMix: [],
+      reasons: [],
     })
     prismaMock.customerMessage.create.mockImplementation(
-      async (args: { data: Record<string, unknown> }) => ({ id: 'msg-1', generatedAt: new Date(), ...args.data })
+      async (args: { data: Record<string, unknown> }) => ({
+        id: 'msg-1',
+        generatedAt: new Date(),
+        ...args.data,
+      })
     )
     await app.inject({
       method: 'POST',
@@ -883,8 +978,16 @@ describe('mensagens e feedback', () => {
       ...customerOver,
     })
     prismaMock.customerSignal.findUnique.mockResolvedValue({
-      status, confidence: 'HIGH', cycleDays: 28, daysSinceLastPurchase: 41,
-      orders12m: 10, avgTicket: 1500, trendPct: null, usualMix: [], cutMix: [], reasons: [],
+      status,
+      confidence: 'HIGH',
+      cycleDays: 28,
+      daysSinceLastPurchase: 41,
+      orders12m: 10,
+      avgTicket: 1500,
+      trendPct: null,
+      usualMix: [],
+      cutMix: [],
+      reasons: [],
     })
     const res = await app.inject({
       method: 'POST',
@@ -934,7 +1037,12 @@ describe('mensagens e feedback', () => {
 describe('POST /intel/app/messages/:id/sent — marca envio', () => {
   const MSG_ID = 'ed3e7801-f230-43de-b383-4ba7cfb497ea'
   const markSent = (payload: Record<string, unknown>) =>
-    app.inject({ method: 'POST', url: `/intel/app/messages/${MSG_ID}/sent`, headers: auth(), payload })
+    app.inject({
+      method: 'POST',
+      url: `/intel/app/messages/${MSG_ID}/sent`,
+      headers: auth(),
+      payload,
+    })
 
   it('corpo vazio (app até 09/10/2026) → 200 e canal whatsapp — antes era 400 e a fila descartava', async () => {
     prismaMock.customerMessage.findFirst.mockResolvedValue({ id: MSG_ID })
@@ -967,19 +1075,30 @@ describe('briefing', () => {
   it('cliente da carteira sem sinais → 404 amigável; com sinais → DTO com fallback', async () => {
     prismaMock.customer.findFirst.mockResolvedValue({ name: 'Cliente A', municipio: 'Campinas' })
     const noSignals = await app.inject({
-      method: 'GET', url: '/intel/app/customers/A/01/briefing', headers: auth(),
+      method: 'GET',
+      url: '/intel/app/customers/A/01/briefing',
+      headers: auth(),
     })
     expect(noSignals.statusCode).toBe(404)
     expect(noSignals.json().message).toContain('Sinais')
 
     prismaMock.customerSignal.findUnique.mockResolvedValue({
-      status: 'LATE', confidence: 'HIGH', cycleDays: 28, daysSinceLastPurchase: 41,
-      orders12m: 10, avgTicket: 1500, trendPct: -10, usualMix: [], cutMix: [],
+      status: 'LATE',
+      confidence: 'HIGH',
+      cycleDays: 28,
+      daysSinceLastPurchase: 41,
+      orders12m: 10,
+      avgTicket: 1500,
+      trendPct: -10,
+      usualMix: [],
+      cutMix: [],
       reasons: ['Compra a cada 28 dias, está no dia 41'],
     })
     prismaMock.company.findUnique.mockResolvedValue({ id: COMPANY_A, intelligenceConfig: null })
     const res = await app.inject({
-      method: 'GET', url: '/intel/app/customers/A/01/briefing', headers: auth(),
+      method: 'GET',
+      url: '/intel/app/customers/A/01/briefing',
+      headers: auth(),
     })
     expect(res.statusCode).toBe(200)
     const body = res.json()

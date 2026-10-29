@@ -405,6 +405,108 @@ describe('POST /users', () => {
   })
 })
 
+// Teto diário de tokens do agente (custo de IA): todo usuário nasce com o
+// padrão do banco (100 mil); só o SUPERADMIN muda e só ele vê.
+describe('teto diário de IA do vendedor', () => {
+  const body = {
+    name: 'Vendedor Novo',
+    email: 'vendedor@a.com',
+    password: 'senha12345',
+    role: 'SALESPERSON',
+    idVendProt: '000123',
+    companyId: COMPANY_A,
+  }
+
+  function emailFree() {
+    prismaMock.user.findUnique.mockImplementation(async (args: { where: { email?: string } }) =>
+      args.where.email ? null : { active: true }
+    )
+  }
+
+  it('sem valor, nasce com o padrão do banco', async () => {
+    emailFree()
+    prismaMock.user.create.mockResolvedValue({ id: 'novo', role: 'SALESPERSON' })
+    await app.inject({ method: 'POST', url: '/users', headers: auth('super-1'), payload: body })
+    expect(prismaMock.user.create.mock.calls[0][0].data).not.toHaveProperty('llmDailyTokenCap')
+  })
+
+  it('SUPERADMIN cria com outro teto', async () => {
+    emailFree()
+    prismaMock.user.create.mockResolvedValue({ id: 'novo', role: 'SALESPERSON' })
+    const res = await app.inject({
+      method: 'POST',
+      url: '/users',
+      headers: auth('super-1'),
+      payload: { ...body, llmDailyTokenCap: 50_000 },
+    })
+    expect(res.statusCode).toBe(201)
+    expect(prismaMock.user.create.mock.calls[0][0].data.llmDailyTokenCap).toBe(50_000)
+  })
+
+  it('ADMIN da empresa: o teto é ignorado na criação e na edição', async () => {
+    emailFree()
+    prismaMock.user.create.mockResolvedValue({ id: 'novo', role: 'SALESPERSON' })
+    await app.inject({
+      method: 'POST',
+      url: '/users',
+      headers: auth('admin-a'),
+      payload: { ...body, llmDailyTokenCap: 9_000_000 },
+    })
+    expect(prismaMock.user.create.mock.calls[0][0].data).not.toHaveProperty('llmDailyTokenCap')
+
+    targetInCompany(COMPANY_A)
+    prismaMock.user.findFirst.mockResolvedValue({ id: TARGET, companyId: COMPANY_A })
+    prismaMock.user.update.mockResolvedValue({ id: TARGET })
+    await app.inject({
+      method: 'PATCH',
+      url: `/users/${TARGET}`,
+      headers: auth('admin-a'),
+      payload: { name: 'Ana', llmDailyTokenCap: 9_000_000 },
+    })
+    for (const [args] of prismaMock.user.update.mock.calls) {
+      expect(args.data).not.toHaveProperty('llmDailyTokenCap')
+    }
+  })
+
+  it('SUPERADMIN edita o teto (0 desliga a IA do vendedor)', async () => {
+    targetInCompany(COMPANY_A)
+    prismaMock.user.findFirst.mockResolvedValue({ id: TARGET, companyId: COMPANY_A })
+    prismaMock.user.update.mockResolvedValue({ id: TARGET })
+    const res = await app.inject({
+      method: 'PATCH',
+      url: `/users/${TARGET}`,
+      headers: auth('super-1'),
+      payload: { llmDailyTokenCap: 0 },
+    })
+    expect(res.statusCode).toBe(200)
+    const capUpdate = prismaMock.user.update.mock.calls.find(
+      ([args]: [{ data: Record<string, unknown> }]) => 'llmDailyTokenCap' in args.data
+    )
+    expect(capUpdate?.[0]).toEqual({ where: { id: TARGET }, data: { llmDailyTokenCap: 0 } })
+  })
+
+  it('teto negativo: 400', async () => {
+    targetInCompany(COMPANY_A)
+    const res = await app.inject({
+      method: 'PATCH',
+      url: `/users/${TARGET}`,
+      headers: auth('super-1'),
+      payload: { llmDailyTokenCap: -1 },
+    })
+    expect(res.statusCode).toBe(400)
+  })
+
+  it('só o SUPERADMIN recebe o teto na lista', async () => {
+    await app.inject({ method: 'GET', url: '/users', headers: auth('super-1') })
+    await app.inject({ method: 'GET', url: '/users', headers: auth('admin-a') })
+    const [superArgs, adminArgs] = prismaMock.user.findMany.mock.calls.map(
+      ([args]: [{ select: Record<string, unknown> }]) => args.select
+    )
+    expect(superArgs.llmDailyTokenCap).toBe(true)
+    expect(adminArgs).not.toHaveProperty('llmDailyTokenCap')
+  })
+})
+
 // Transportadora e condição de pagamento no pedido do app: o administrador da
 // empresa liga e desliga por usuário no formulário de edição (o modal de
 // Permissões é só do SUPERADMIN).

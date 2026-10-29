@@ -54,7 +54,7 @@ Tudo continua puro em `engine/` e testado com fixture; as rotas só carregam e m
 | --- | --- | --- |
 | E16 ordem por distância | `engine/routing.ts` | Vizinho-mais-próximo com Haversine e fator de tortuosidade urbana (1,3×). Preenche `distFromPrevM`, `etaMin` e `plannedTime` de cada parada. Janelas de atendimento (`intel_customer_windows`, `PUT /intel/app/customers/:code/:loja/windows`) entram como restrição suave: quem ainda não abriu cede a vez; sem alternativa, a hora prevista espera a janela. Sem coordenada → fim da lista, sem hora. Bloqueados nunca entram na rota. Quando o vendedor reordena, `persistPlanEdit` reanota os números sem mexer na ordem dele. Desliga por premissa (`route_by_distance=false`: mantém a ordem do ranking, só com as horas). |
 | E17 arrasto | app | Reordenar por arrasto na lista do Plano do dia; na API é a mesma op `reorder`. |
-| E18 semana | `engine.service.ts` | Plano `kind=WEEK` com `date` = segunda-feira e `plannedDate` em cada item: dia 1 = o plano do dia, os seguintes = ranking do que sobrou, um dia por vez. `GET /intel/app/plan?kind=week`; op `moveToDay` (só na semana, dentro dela, de hoje em diante). Plano da semana `EDITED` não é regerado, e as paradas que o vendedor moveu para o dia entram na frente do plano do dia seguinte (`forcedForToday`). Texto do agente no job `PLAN` (prompt `week`). |
+| E18 semana | `engine.service.ts` | Plano `kind=WEEK` com `date` = segunda-feira e `plannedDate` em cada item: dia 1 = o plano do dia, os seguintes = ranking do que sobrou, um dia por vez. `GET /intel/app/plan?kind=week`; op `moveToDay` (só na semana, dentro dela, de hoje em diante). Plano da semana `EDITED` não é regerado, e as paradas que o vendedor moveu para o dia entram na frente do plano do dia seguinte (`forcedForToday`). O texto do agente (prompt `week`) deixou de ser gerado em 29/10/2026: o app nunca o mostrou (ver "Custo de IA"). |
 | E19 carteira | `engine/rfm.ts` | Quintis R/F/M dentro da carteira do vendedor (só com ≥ 30 clientes que compraram; senão tudo nulo) e segmento (`CHAMPION`…`LOST`). Cross-sell tenant-wide: pares = `segment` do cadastro ou, sem ele, o segmento RFM; produto entra quando ≥ `cross_sell_min_pct`% dos pares o compram e o cliente nunca comprou (grupos < 5 não sugerem). Vai para `CustomerSignal.crossSell`, para o `signalsSnapshot` e para o `suggestedOffer` (`source: 'cross_sell'`, até 2). `GET /intel/app/portfolio` com texto do agente (prompt `portfolio`, cache diário). |
 | E20 mapa da equipe | `manager/team-map.ts` | `GET /intel/manager/team-map?date=`: paradas do dia com coordenada por vendedor, `visited` pelo check-in e o último check-in com GPS. Painel: Leaflet + tiles do OpenStreetMap (atribuição obrigatória; para volume alto, trocar o provedor de tiles). |
 | E21 onde estou perdendo | `engine/decomposition.ts` | `GET /intel/manager/losses?date=&baselineMonths=&vendorCode=`: período atual (1º do mês → data) contra a média dos N meses fechados anteriores, normalizada pelo tamanho do período. Componentes `STOPPED` / `REDUCED` (queda ≥ 20 %) / `PRODUCT_DROP` / `GAINED`. "Pôr no plano" reaproveita `POST /intel/manager/plan-items`. Texto do agente (prompt `losses`, cache por recorte/dia). |
@@ -114,6 +114,36 @@ O agendador roda só o `PURGE`, uma vez por dia, no horário do noturno. Ao
 desbloquear, o `nightly` está vencido desde o último dia em que rodou e o
 catch-up sai sozinho no tick seguinte. Empresa desativada já fica de fora pelo
 `active` (`listEnabledCompanies`).
+
+## Custo de IA (29/10/2026)
+
+O custo do agente por empresa, em R$, fica na Gestão → Clientes (coluna "IA no
+mês" e a ficha de cada cliente). Os controles:
+
+- **Teto diário por vendedor** — `users.llmDailyTokenCap`, padrão 100 mil
+  tokens cobráveis (entrada + saída + gravação de cache), zera à meia-noite de
+  São Paulo. Só o SUPERADMIN muda, no cadastro do usuário; 0 desliga a IA do
+  vendedor. Atingido, a geração cai para só-motor com motivo `daily_cap`. As
+  perdas da equipe toda (chave `*`) usam o `INTEL_LLM_DAILY_TOKEN_CAP`.
+- **Orçamento mensal da empresa** — tokens e/ou R$ na ficha de custo. Aos 80 %
+  e aos 100 % sai um e-mail para o `notifyEmail` das regras de cobrança (uma vez
+  por nível e por mês); aos 100 % o agente pausa até o dia 1º (`monthly_budget`,
+  fora do alarme de só-motor). O cache continua valendo — não custa nada.
+- **Frase do Hoje** — de madrugada, só para quem usou o app no dia útil anterior
+  (`users.lastAppSeenAt`, marcado pelo `requireVendorCode` no máximo a cada
+  15 min). Quem volta a usar ganha a frase ao abrir a home: a rota dispara a
+  geração sem esperar (`fillDaySummary`), uma tentativa por plano.
+- **Resumo da semana** — não é mais gerado: o app nunca mostrou o texto, e o
+  motor remonta o plano da semana toda noite. O prompt continua no código (entra
+  no `promptVersion`).
+- **Modelo por empresa** — `companies.llmModel` (null = `INTEL_LLM_MODEL`). Na
+  ficha de custo, "Testar modelo" roda o eval como job `EVAL` (metadata
+  `{ model, result }`, casos congelados na primeira vez); a troca só é aceita
+  com o eval mais recente daquele modelo aprovado nos últimos 30 dias. O eval
+  cobre briefing e mensagem, não a frase do Hoje.
+- **Resposta descartada também custa** — truncada, recusa ou fora do schema
+  entram no registro com os tokens cobrados (antes ficavam de fora do custo e do
+  teto).
 
 ## Rodar sem tocar no Protheus
 

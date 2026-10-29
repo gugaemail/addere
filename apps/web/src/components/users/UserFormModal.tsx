@@ -10,7 +10,13 @@ import { useQueryClient } from '@tanstack/react-query'
 import { AlertTriangle } from 'lucide-react'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { toast } from 'sonner'
-import { consumesSeat, type SeatSubject, type SeatUsage, type UserPublic } from '@addere/types'
+import {
+  DEFAULT_LLM_DAILY_TOKEN_CAP,
+  consumesSeat,
+  type SeatSubject,
+  type SeatUsage,
+  type UserPublic,
+} from '@addere/types'
 import { makeUserFormSchema, type UserFormData } from '@/lib/schemas'
 import { api, getApiErrorCode, getApiErrorMessage } from '@/lib/api'
 import { seatBlocksSave } from '@/lib/seats'
@@ -93,6 +99,9 @@ export function UserFormModal({
       // Vendedor novo nasce com as duas, como no padrão do perfil na API
       canChangeCarrier: user?.canChangeCarrier ?? true,
       canChangePaymentTerms: user?.canChangePaymentTerms ?? true,
+      llmDailyTokenCapK: String(
+        Math.round((user?.llmDailyTokenCap ?? DEFAULT_LLM_DAILY_TOKEN_CAP) / 1000)
+      ),
     },
   })
 
@@ -120,6 +129,10 @@ export function UserFormModal({
       managerId: data.managerId || null,
       canChangeCarrier: !!data.canChangeCarrier,
       canChangePaymentTerms: !!data.canChangePaymentTerms,
+      // Custo de IA é controle da Addere: a API ignora o campo vindo de outro perfil
+      ...(isSuperAdmin && data.llmDailyTokenCapK
+        ? { llmDailyTokenCap: Number(data.llmDailyTokenCapK) * 1000 }
+        : {}),
     }
   }
 
@@ -262,6 +275,17 @@ export function UserFormModal({
                   ))}
               </FormSelect>
             </div>
+            {isSuperAdmin && (
+              <FormField
+                type="number"
+                min={0}
+                step={1}
+                label="Teto diário de IA (mil tokens)"
+                hint="Padrão 100. Ao bater, o vendedor fica com o texto do motor até a meia-noite. 0 desliga a IA dele."
+                error={errors.llmDailyTokenCapK?.message}
+                {...register('llmDailyTokenCapK')}
+              />
+            )}
             <fieldset className="space-y-2">
               <legend className="mb-1.5 text-sm font-medium text-[var(--text-secondary)]">
                 No pedido, pode alterar

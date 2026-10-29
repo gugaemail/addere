@@ -12,6 +12,10 @@ const vendorProfileFields = {
   managerId: z.string().uuid().nullable().optional(),
 }
 
+// Teto diário de tokens do agente (custo de IA). Só o SUPERADMIN grava — para
+// os demais o serviço ignora; 0 desliga a IA do vendedor
+const llmDailyTokenCap = z.number().int().min(0).max(10_000_000).optional()
+
 export const createUserSchema = z.object({
   name: z.string().min(2, 'Nome deve ter pelo menos 2 caracteres'),
   email: z.string().email('Email inválido'),
@@ -27,6 +31,7 @@ export const createUserSchema = z.object({
   // orders.change_payment_terms), ligadas pelo administrador da empresa.
   canChangeCarrier: z.boolean().optional(),
   canChangePaymentTerms: z.boolean().optional(),
+  llmDailyTokenCap,
   ...vendorProfileFields,
 })
 
@@ -40,6 +45,7 @@ export const updateUserSchema = z.object({
   // orders.change_payment_terms), ligadas pelo administrador da empresa.
   canChangeCarrier: z.boolean().optional(),
   canChangePaymentTerms: z.boolean().optional(),
+  llmDailyTokenCap,
   ...vendorProfileFields,
   // Só para vincular um usuário que ficou sem empresa (bug antigo do painel).
   // Não serve para mover de empresa — ver users.service:updateUserById.

@@ -7,6 +7,7 @@ import { prisma } from '@addere/db'
 import { authenticate } from '../../../middleware/authenticate'
 import { requireCompany } from '../../../middleware/require-company'
 import { requireVendorCode } from '../../../middleware/require-vendor-code'
+import { fillDaySummary } from '../agent/plan-summary.job'
 import { addDaysYmd, dateToYmdUtc, ymdSaoPaulo } from '../engine/business-days'
 import { applyPlanOps } from './plan-ops'
 import {
@@ -28,7 +29,12 @@ const planQuerySchema = z.object({
 
 const opId = z.string().min(1).max(64)
 const opSchema = z.discriminatedUnion('type', [
-  z.object({ opId, type: z.literal('reorder'), itemId: z.string().uuid(), position: z.number().int().min(1).max(100) }),
+  z.object({
+    opId,
+    type: z.literal('reorder'),
+    itemId: z.string().uuid(),
+    position: z.number().int().min(1).max(100),
+  }),
   z.object({ opId, type: z.literal('remove'), itemId: z.string().uuid() }),
   z.object({ opId, type: z.literal('restore'), itemId: z.string().uuid() }),
   z.object({ opId, type: z.literal('skip'), itemId: z.string().uuid() }),
@@ -47,6 +53,9 @@ export default async function planRoutes(app: FastifyInstance) {
 
     const plan = await getPlanForDate(companyId, vendorCode, todayPlanDate())
     const activeItems = plan?.items.filter((i) => !i.removedAt) ?? []
+    // Quem não usou o app no dia útil anterior não ganhou a frase de madrugada:
+    // gera agora, sem esperar — ela aparece na próxima leitura da home
+    if (plan && !plan.llmSummary) void fillDaySummary(companyId, plan.id)
 
     const portfolio = await prisma.customer.findMany({
       where: { companyId, vendorCode, active: true, protheusCode: { not: null } },
@@ -88,7 +97,12 @@ export default async function planRoutes(app: FastifyInstance) {
     const day = query.date ? new Date(`${query.date}T00:00:00Z`) : todayPlanDate()
     const plan =
       query.kind === 'week'
-        ? await getPlanForDate(companyId, vendorCode, query.date ? weekPlanDateOf(day) : weekPlanDate(), 'WEEK')
+        ? await getPlanForDate(
+            companyId,
+            vendorCode,
+            query.date ? weekPlanDateOf(day) : weekPlanDate(),
+            'WEEK'
+          )
         : await getPlanForDate(companyId, vendorCode, day)
     if (!plan) {
       return reply.status(404).send({
@@ -103,7 +117,10 @@ export default async function planRoutes(app: FastifyInstance) {
 
   // PATCH /intel/app/plans/:id/items — edição do vendedor (editar é sinal)
   app.patch('/plans/:id/items', { preHandler: guard }, async (request, reply) => {
-    const planId = z.string().uuid().parse((request.params as { id: string }).id)
+    const planId = z
+      .string()
+      .uuid()
+      .parse((request.params as { id: string }).id)
     const body = patchSchema.parse(request.body)
     const companyId = request.user.companyId as string
     const vendorCode = request.vendorCode as string
@@ -133,7 +150,9 @@ export default async function planRoutes(app: FastifyInstance) {
           return reply.status(400).send({ message: 'O dia precisa estar dentro desta semana' })
         }
         if (ymd < today) {
-          return reply.status(400).send({ message: 'Não dá para mover uma parada para um dia que já passou' })
+          return reply
+            .status(400)
+            .send({ message: 'Não dá para mover uma parada para um dia que já passou' })
         }
       }
     }

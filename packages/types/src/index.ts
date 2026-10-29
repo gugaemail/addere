@@ -79,6 +79,7 @@ export interface UserPublic {
   servedCities?: string[]
   messageTone?: string | null
   managerId?: string | null
+  llmDailyTokenCap?: number // teto diário de tokens do agente (GET /users; só o SUPERADMIN edita)
   intelManager?: boolean // tem a permissão intel.manager (D3b)
   canChangeCarrier?: boolean // tem orders.change_carrier (GET /users)
   canChangePaymentTerms?: boolean // tem orders.change_payment_terms (GET /users)

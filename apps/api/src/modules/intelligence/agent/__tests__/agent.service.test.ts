@@ -5,15 +5,20 @@ vi.mock('../client', () => ({
   llmAvailable: vi.fn(() => true),
   complete: vi.fn(),
 }))
+vi.mock('../../../billing/usd-brl', () => ({
+  getUsdBrlRate: vi.fn(async () => ({ rate: 5, quotedAt: null, stale: false })),
+}))
+vi.mock('../../../billing/llm-budget-alert', () => ({
+  sendLlmBudgetAlert: vi.fn(async () => 'sent'),
+}))
 
 import { prismaMock, resetPrismaMock } from '../../../../test-utils/prisma-mock'
+import { sendLlmBudgetAlert } from '../../../billing/llm-budget-alert'
 import { llmAvailable, complete } from '../client'
-import {
-  dailyTokensUsed,
-  generateWithGuardrails,
-  inputHash,
-  type GenerateInput,
-} from '../agent.service'
+import { generateWithGuardrails, inputHash, type GenerateInput } from '../agent.service'
+import { resetLimitsState } from '../limits'
+
+const sendAlertMock = vi.mocked(sendLlmBudgetAlert)
 
 const llmAvailableMock = vi.mocked(llmAvailable)
 const completeMock = vi.mocked(complete)
@@ -45,6 +50,8 @@ const okCompletion = (text: string) => ({
 
 beforeEach(() => {
   resetPrismaMock()
+  resetLimitsState()
+  sendAlertMock.mockClear()
   llmAvailableMock.mockReturnValue(true)
   completeMock.mockReset()
   prismaMock.intelLlmCall.aggregate.mockResolvedValue({ _sum: { inputTokens: 0, outputTokens: 0 } })
@@ -155,7 +162,10 @@ describe('generateWithGuardrails', () => {
   it('chave do cache leva o hash da entrada — fatos diferentes, chave diferente', async () => {
     completeMock.mockResolvedValue(okCompletion('C1 compra a cada 28 dias.'))
     await generateWithGuardrails(baseInput())
-    await generateWithGuardrails({ ...baseInput(), userPrompt: 'gere {"pseudonym":"C1","cycleDays":30}' })
+    await generateWithGuardrails({
+      ...baseInput(),
+      userPrompt: 'gere {"pseudonym":"C1","cycleDays":30}',
+    })
     const keys = prismaMock.intelLlmCache.findUnique.mock.calls.map(
       (call: [{ where: { companyId_kind_vendorCode_targetKey: { targetKey: string } } }]) =>
         call[0].where.companyId_kind_vendorCode_targetKey.targetKey
@@ -174,8 +184,10 @@ describe('generateWithGuardrails', () => {
       userPrompt: '[{"p":"C1","k":"A"},{"p":"C2","k":"B"}]',
     }
     const swapped = { ...ordered, userPrompt: '[{"p":"C1","k":"B"},{"p":"C2","k":"A"}]' }
-    expect(inputHash(ordered)).toBe(inputHash({ ...ordered }))
-    expect(inputHash(ordered)).not.toBe(inputHash(swapped))
+    expect(inputHash(ordered, 'claude-sonnet-5')).toBe(inputHash({ ...ordered }, 'claude-sonnet-5'))
+    expect(inputHash(ordered, 'claude-sonnet-5')).not.toBe(inputHash(swapped, 'claude-sonnet-5'))
+    // Trocar o modelo da empresa não reaproveita o texto do modelo anterior
+    expect(inputHash(ordered, 'claude-sonnet-5')).not.toBe(inputHash(ordered, 'claude-haiku-5-5'))
   })
 
   it('cache: false → não lê nem grava o cache de texto', async () => {
@@ -239,10 +251,124 @@ describe('generateWithGuardrails', () => {
     expect(prismaMock.intelLlmCall.aggregate).not.toHaveBeenCalled()
   })
 
-  it('teto diário soma do registro de chamadas, sem o eval', async () => {
-    await dailyTokensUsed('company-1')
+  it('teto diário soma o dia do vendedor, desde a meia-noite de São Paulo', async () => {
+    completeMock.mockResolvedValue(okCompletion('C1 compra a cada 28 dias.'))
+    await generateWithGuardrails(baseInput())
     const where = prismaMock.intelLlmCall.aggregate.mock.calls[0][0].where
-    expect(where).toMatchObject({ companyId: 'company-1', vendorCode: { not: 'eval' } })
+    expect(where).toMatchObject({ companyId: 'company-1', vendorCode: 'V1' })
+    // Meia-noite em São Paulo = 03:00 UTC (sem horário de verão)
+    expect(where.createdAt.gte.getUTCHours()).toBe(3)
+    expect(where.createdAt.gte.getUTCMinutes()).toBe(0)
+  })
+
+  it('teto do cadastro do vendedor: atingido, cai para só-motor', async () => {
+    prismaMock.user.findFirst.mockResolvedValue({ llmDailyTokenCap: 20_000 })
+    prismaMock.intelLlmCall.aggregate.mockResolvedValue({
+      _sum: { inputTokens: 15_000, outputTokens: 5_000, cacheCreationTokens: 0 },
+    })
+    const result = await generateWithGuardrails(baseInput())
+    expect(result).toMatchObject({ source: 'engine', reason: 'daily_cap' })
+    expect(completeMock).not.toHaveBeenCalled()
+    expect(prismaMock.user.findFirst.mock.calls[0][0].where).toEqual({
+      companyId: 'company-1',
+      idVendProt: 'V1',
+    })
+  })
+
+  it('teto 0 desliga a IA do vendedor', async () => {
+    prismaMock.user.findFirst.mockResolvedValue({ llmDailyTokenCap: 0 })
+    const result = await generateWithGuardrails(baseInput())
+    expect(result).toMatchObject({ source: 'engine', reason: 'daily_cap' })
+  })
+
+  it('cache vale mesmo com o teto atingido — não custa nada', async () => {
+    prismaMock.user.findFirst.mockResolvedValue({ llmDailyTokenCap: 0 })
+    prismaMock.intelLlmCache.findUnique.mockResolvedValue({
+      payload: { text: 'do cache' },
+      expiresAt: new Date(Date.now() + 60_000),
+    })
+    expect((await generateWithGuardrails(baseInput())).source).toBe('cache')
+  })
+})
+
+describe('generateWithGuardrails — orçamento do mês e modelo da empresa', () => {
+  // Sonnet 5: US$ 2/MTok de entrada; 1 milhão de tokens = US$ 2 = R$ 10 com câmbio 5
+  const monthUsage = (inputTokens: number) =>
+    prismaMock.intelLlmCall.groupBy.mockResolvedValue([
+      {
+        model: 'claude-sonnet-5',
+        _sum: { inputTokens, outputTokens: 0, cacheCreationTokens: 0, cacheReadTokens: 0 },
+      },
+    ])
+  const company = (over: Record<string, unknown>) =>
+    prismaMock.company.findUnique.mockResolvedValue({
+      llmModel: null,
+      llmMonthlyTokenBudget: null,
+      llmMonthlyBudgetBrl: null,
+      ...over,
+    })
+
+  it('orçamento atingido → pausa (só-motor) e avisa a Addere uma vez', async () => {
+    company({ llmMonthlyTokenBudget: 1_000_000 })
+    monthUsage(1_000_000)
+    const result = await generateWithGuardrails(baseInput())
+    expect(result).toMatchObject({ source: 'engine', reason: 'monthly_budget' })
+    expect(completeMock).not.toHaveBeenCalled()
+    await generateWithGuardrails(baseInput())
+    expect(sendAlertMock).toHaveBeenCalledTimes(1)
+    expect(sendAlertMock.mock.calls[0][0]).toMatchObject({ companyId: 'company-1', level: 100 })
+  })
+
+  it('80 % do orçamento em R$ → avisa e segue gerando', async () => {
+    company({ llmMonthlyBudgetBrl: '10.00' })
+    monthUsage(800_000) // R$ 8 de R$ 10
+    completeMock.mockResolvedValue(okCompletion('C1 compra a cada 28 dias.'))
+    const result = await generateWithGuardrails(baseInput())
+    expect(result.source).toBe('llm')
+    expect(sendAlertMock.mock.calls[0][0]).toMatchObject({ level: 80, pct: 80, costBrl: 8 })
+  })
+
+  it('sem orçamento não soma o mês', async () => {
+    company({})
+    completeMock.mockResolvedValue(okCompletion('C1 compra a cada 28 dias.'))
+    await generateWithGuardrails(baseInput())
+    expect(prismaMock.intelLlmCall.groupBy).not.toHaveBeenCalled()
+  })
+
+  it('o eval passa pelo orçamento estourado', async () => {
+    company({ llmMonthlyTokenBudget: 1 })
+    monthUsage(5)
+    completeMock.mockResolvedValue(okCompletion('C1 compra a cada 28 dias.'))
+    const result = await generateWithGuardrails({ ...baseInput(), vendorCode: 'eval' })
+    expect(result.source).toBe('llm')
+  })
+
+  it('usa o modelo da empresa; o do eval tem prioridade', async () => {
+    company({ llmModel: 'claude-haiku-5-5' })
+    completeMock.mockResolvedValue(okCompletion('C1 compra a cada 28 dias.'))
+    await generateWithGuardrails(baseInput())
+    await generateWithGuardrails({ ...baseInput(), model: 'claude-sonnet-5-5', cache: false })
+    expect(completeMock.mock.calls[0][0].model).toBe('claude-haiku-5-5')
+    expect(completeMock.mock.calls[1][0].model).toBe('claude-sonnet-5-5')
+  })
+
+  it('resposta descartada pela API entra no registro com os tokens cobrados', async () => {
+    company({})
+    completeMock.mockResolvedValue({
+      ok: false,
+      error: 'resposta truncada',
+      retryable: true,
+      usage: { inputTokens: 900, outputTokens: 2000, cacheReadTokens: 0, cacheCreationTokens: 0 },
+      model: 'claude-sonnet-5',
+      ms: 4000,
+    })
+    const result = await generateWithGuardrails(baseInput())
+    expect(result).toMatchObject({ source: 'engine', reason: 'resposta truncada', attempts: 1 })
+    expect(prismaMock.intelLlmCall.create.mock.calls[0][0].data).toMatchObject({
+      inputTokens: 900,
+      outputTokens: 2000,
+      model: 'claude-sonnet-5',
+    })
   })
 
   it('validate do tipo reprova como o self-check (regenera e cai para só-motor)', async () => {
@@ -260,7 +386,9 @@ describe('generateWithGuardrails', () => {
   })
 
   it('premissas do DADOS.md valem como fatos ("vencido há mais de 5 dias")', async () => {
-    completeMock.mockResolvedValue(okCompletion('C1 está bloqueado: título vencido há mais de 5 dias.'))
+    completeMock.mockResolvedValue(
+      okCompletion('C1 está bloqueado: título vencido há mais de 5 dias.')
+    )
     const result = await generateWithGuardrails({
       ...baseInput(),
       system: [
@@ -295,7 +423,11 @@ describe('generateWithGuardrails', () => {
   })
 
   it('erro da API → fallback com o motivo', async () => {
-    completeMock.mockResolvedValue({ ok: false, error: 'Rate limit da API Anthropic', retryable: true })
+    completeMock.mockResolvedValue({
+      ok: false,
+      error: 'Rate limit da API Anthropic',
+      retryable: true,
+    })
     const result = await generateWithGuardrails(baseInput())
     expect(result).toMatchObject({ source: 'engine', reason: 'Rate limit da API Anthropic' })
   })

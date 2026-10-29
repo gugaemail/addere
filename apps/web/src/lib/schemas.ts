@@ -55,6 +55,11 @@ export const companyUserBaseSchema = z.object({
   // Permissões do pedido no app (orders.change_carrier / change_payment_terms)
   canChangeCarrier: z.boolean().optional(),
   canChangePaymentTerms: z.boolean().optional(),
+  // Teto diário de IA em milhares de tokens (só o SUPERADMIN vê); 0 desliga
+  llmDailyTokenCapK: z
+    .string()
+    .regex(/^\d{0,5}$/, 'Use um número inteiro de mil tokens (0 a 10000)')
+    .optional(),
 })
 
 export type UserFormData = z.infer<typeof companyUserBaseSchema>
