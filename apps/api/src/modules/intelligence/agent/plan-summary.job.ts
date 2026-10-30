@@ -19,7 +19,12 @@ import { buildTenantContext, systemBlocks } from './tenant-context'
 import { buildTodayPrompt, TODAY_SCHEMA, type TodayOutput } from './prompts/today'
 import { Pseudonymizer } from './pseudonymizer'
 import type { TodayFacts } from './facts'
-import { freshnessLine, HOME_LINE_MAX_CHARS, type SelfCheckFacts } from './self-check'
+import {
+  extractNumbers,
+  freshnessLine,
+  HOME_LINE_MAX_CHARS,
+  type SelfCheckFacts,
+} from './self-check'
 
 export function registerPlanJob(): void {
   registerJobHandler('PLAN', planSummaryHandler)
@@ -104,17 +109,28 @@ async function summarizeDayPlan(
     freshness: { lastSyncAt: ctx.lastSyncAt },
   }
 
+  const expected = facts.plan.flatMap((p) =>
+    p.expectedAmount === null ? [] : [Number(p.expectedAmount)]
+  )
   const selfCheckFacts: SelfCheckFacts = {
-    // Valor previsto é de cada cliente; posição, total de paradas e gap são globais
+    // Valor previsto e motivo curto são de cada cliente; posição, total de
+    // paradas, gap e total previsto são globais. O motivo vai nos fatos ("Compra
+    // a cada 30 dias, está no dia 45") e o modelo explica a prioridade com ele.
+    // Sem os números dele, "número fora dos fatos" foi o motivo de 6 dos 9
+    // só-motor do Hoje na semana (Saúde, 29/10)
     customers: facts.plan.map((p) => ({
       pseudonym: p.pseudonym,
       status: p.status,
-      numbers: p.expectedAmount === null ? [] : [Number(p.expectedAmount)],
+      numbers: [
+        ...(p.expectedAmount === null ? [] : [Number(p.expectedAmount)]),
+        ...extractNumbers(p.shortReason ?? ''),
+      ],
     })),
     numbers: [
       facts.plan.length,
       ...facts.plan.map((p) => p.position),
       ...(facts.goal?.gap ? [Number(facts.goal.gap)] : []),
+      ...(expected.length > 1 ? [expected.reduce((sum, v) => sum + v, 0)] : []),
     ],
     // O prompt exige a linha; sem informá-la aqui, "03:12" virava número
     // fora dos fatos e todo vendedor caía em só-motor (a home mostra o
