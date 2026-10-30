@@ -144,6 +144,13 @@ mês" e a ficha de cada cliente). Os controles:
 - **Resposta descartada também custa** — truncada, recusa ou fora do schema
   entram no registro com os tokens cobrados (antes ficavam de fora do custo e do
   teto).
+- **Reprovação do self-check custa em dobro** — a reprovação regenera uma vez e,
+  reprovada de novo, entrega só-motor depois de pagar as duas. Na Saúde de 29/10
+  os motivos eram regra, não erro do modelo: o Hoje não contava os números do
+  `shortReason` que ele mesmo manda ("está no dia 45"), "R$ 15 mil" virava 15 e
+  a medida tirada de parte da descrição ("Fita 10CMX20CM") caía como código
+  inventado. Texto real que cair sem motivo vira caso no
+  `self-check.corpus.test.ts`.
 
 ## Rodar sem tocar no Protheus
 

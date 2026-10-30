@@ -35,6 +35,12 @@ const newBriefing: SelfCheckFacts = {
   freshnessLine: null,
 }
 
+// Carteira com produto de medida na descrição (Saúde de 29/10)
+const tape: SelfCheckFacts = {
+  ...portfolio,
+  products: [{ productCode: 'PA0004', productDesc: 'FITA ADESIVA TRANSP 10CMX20CM C/50' }],
+}
+
 // [rótulo, texto, fatos, trecho da violação esperada] — reprovar pelo motivo certo
 const MUST_FAIL: Array<[string, string, SelfCheckFacts, string]> = [
   ['número certo no cliente errado', 'C3 está 41 dias sem comprar.', portfolio, 'número de outro cliente em C3'],
@@ -68,6 +74,11 @@ const MUST_FAIL: Array<[string, string, SelfCheckFacts, string]> = [
     },
     'número fora dos fatos: 30',
   ],
+  ['medida que não é de produto dos fatos', 'Leve a Fita 10CMX30CM para C1.', tape, 'produto fora dos fatos: 10CMX30CM'],
+  // A folga do "mil" é a do arredondamento: 4.500 vira "5 mil", nunca "6 mil"
+  ['valor abreviado fora do arredondamento', 'Faltam R$ 6 mil para a meta.', portfolio, 'número fora dos fatos: 6000'],
+  // "3 mil" era lido como 3 e passava pela contagem de clientes
+  ['"3 mil" não é a contagem 3', 'Faltam R$ 3 mil para a meta.', portfolio, 'número fora dos fatos: 3000'],
 ]
 
 const MUST_PASS: Array<[string, string, SelfCheckFacts]> = [
@@ -129,6 +140,11 @@ const MUST_PASS: Array<[string, string, SelfCheckFacts]> = [
   // Eval de 14/10: 9 das 21 reprovações eram a janela do orders12m
   ['janela do orders12m', 'C1 fez 10 pedidos nos últimos 12 meses.', portfolio],
   ['janela do orders12m, sem "últimos"', 'C3 tem 2 pedidos em 12 meses — histórico curto.', portfolio],
+  // Saúde de 29/10: "produto fora dos fatos: NCMXNCM" — o modelo citou só parte da descrição
+  ['medida tirada de parte da descrição (Saúde 29/10)', 'Leve a Fita 10CMX20CM para C1.', tape],
+  ['medida em caixa baixa e com espaço', 'C1 parou de levar a fita 10 cm x 20 cm.', tape],
+  ['valor da meta abreviado em mil', 'Faltam R$ 4,5 mil para a meta de R$ 12 mil.', portfolio],
+  ['valor abreviado arredondado', 'Faltam uns R$ 5 mil para a meta; comece por C1.', portfolio],
 ]
 
 describe('corpus do self-check — tem de reprovar', () => {

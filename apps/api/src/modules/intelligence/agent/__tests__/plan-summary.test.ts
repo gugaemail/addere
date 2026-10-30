@@ -13,6 +13,7 @@ import { prismaMock, resetPrismaMock } from '../../../../test-utils/prisma-mock'
 import { captureError } from '../../../../lib/sentry'
 import { ymdSaoPaulo, ymdToDate } from '../../engine/business-days'
 import { generateWithGuardrails } from '../agent.service'
+import { selfCheck } from '../self-check'
 import {
   activeVendorCodes,
   fillDaySummary,
@@ -116,6 +117,45 @@ describe('planSummaryHandler — alarme de só-motor (plano 012)', () => {
   it('dia sem plano → sem alarme', async () => {
     await planSummaryHandler('company-1')
     expect(captureMock).not.toHaveBeenCalled()
+  })
+})
+
+describe('planSummaryHandler — fatos do self-check', () => {
+  it('números do motivo curto valem para o cliente; o total previsto, para o dia', async () => {
+    const twoStops = {
+      ...plan('p1'),
+      items: [
+        {
+          ...plan('p1').items[0],
+          shortReason: 'Compra a cada 30 dias, está no dia 45',
+          expectedAmount: 2500,
+        },
+        {
+          ...plan('p1').items[0],
+          customerCode: 'B',
+          position: 2,
+          shortReason: 'Título vencido há 120 dias',
+          expectedAmount: 5000,
+        },
+      ],
+    }
+    prismaMock.visitPlan.findMany.mockImplementation(async (args: { where: { kind: string } }) =>
+      args.where.kind === 'DAY' ? [twoStops] : []
+    )
+    generateMock.mockResolvedValue({ data: null, source: 'engine', reason: 'x', attempts: 1 })
+
+    await planSummaryHandler('company-1')
+    const facts = generateMock.mock.calls[0][0].selfCheckFacts
+    const footer = facts.freshnessLine ?? ''
+    // Texto como o modelo escreve: prioridade explicada pelo motivo e o total do dia
+    const good =
+      'Comece por C1, que compra a cada 30 dias e já está no dia 45. ' +
+      `O dia soma R$ 7,5 mil previstos.\n${footer}`
+    expect(selfCheck(good, facts).violations).toEqual([])
+    // O motivo de um cliente não serve para o outro
+    expect(selfCheck(`C2 está no dia 45.\n${footer}`, facts).violations).toEqual([
+      'número de outro cliente em C2: 45',
+    ])
   })
 })
 
