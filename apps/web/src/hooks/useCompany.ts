@@ -55,6 +55,20 @@ export function useCompanyOrders(id: string) {
   })
 }
 
+/** JSON que o pedido manda ao Protheus, montado agora com o cadastro atual (não envia) */
+export function useOrderPayload(companyId: string, orderId: string | null) {
+  return useQuery({
+    queryKey: [...companiesKeys.entity(companyId, 'orders'), orderId, 'payload'],
+    queryFn: () =>
+      api
+        .get<Record<string, unknown>>(`/companies/${companyId}/orders/${orderId}/payload`)
+        .then((r) => r.data),
+    enabled: !!companyId && !!orderId,
+    // 422 é cadastro incompleto: repetir não muda a resposta
+    retry: false,
+  })
+}
+
 export interface ProtheusLogFilters {
   page: number
   operation: string

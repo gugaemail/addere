@@ -29,6 +29,7 @@ import {
 } from './companies.service'
 import { createBranch, updateBranch, toggleBranchActive } from '../branches/branches.service'
 import { applySchedule } from '../sync/scheduler'
+import { previewOrderPayload } from '../sync/sync.service'
 import {
   createCompanySchema,
   updateCompanySchema,
@@ -241,6 +242,16 @@ export default async function companiesRoutes(app: FastifyInstance) {
     const { limit, page } = listQuerySchema.parse(request.query)
     return reply.send(await listCompanyOrders(id, limit, page))
   })
+
+  // GET /companies/:id/orders/:orderId/payload — JSON que vai ao Protheus (só monta, não envia)
+  app.get(
+    '/:id/orders/:orderId/payload',
+    companyScoped,
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const { id, orderId } = request.params as { id: string; orderId: string }
+      return reply.send(await previewOrderPayload(orderId, id))
+    }
+  )
 
   // PATCH /companies/:id/orders/:orderId/cancel — cancela pedido
   app.patch(
