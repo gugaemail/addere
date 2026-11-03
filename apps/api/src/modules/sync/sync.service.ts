@@ -5,5 +5,10 @@
 export { syncProducts } from './products.sync'
 export { syncCustomers } from './customers.sync'
 export { syncTransportadoras, syncCondPags } from './references.sync'
-export { syncOrderToProtheus, consultOrderStatus, testOrderSync } from './orders.sync'
+export {
+  syncOrderToProtheus,
+  consultOrderStatus,
+  testOrderSync,
+  previewOrderPayload,
+} from './orders.sync'
 export { fetchMetaVendedor } from './metas.sync'

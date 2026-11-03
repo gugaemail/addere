@@ -1,11 +1,16 @@
 'use client'
 
 import { useState } from 'react'
+import { AlertTriangle, Braces, Check, Copy } from 'lucide-react'
+import { toast } from 'sonner'
 import type { CompanyOrder, OrderStatus } from '@addere/types'
 import { Table, type Column } from '@/components/ui/Table'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
-import { useCompanyOrders, useCancelOrder } from '@/hooks/useCompany'
+import { Modal } from '@/components/ui/Modal'
+import { Spinner } from '@/components/ui/Spinner'
+import { getApiErrorMessage } from '@/lib/api'
+import { useCompanyOrders, useCancelOrder, useOrderPayload } from '@/hooks/useCompany'
 import { ConfirmModal } from '../ConfirmModal'
 import {
   TabSection,
@@ -92,12 +97,75 @@ function OrderDetail({ order }: { order: CompanyOrder }) {
   )
 }
 
+// JSON do pedido no formato do Protheus (C5/C6), do mesmo builder do envio real.
+// Abrir não envia nada; cadastro incompleto aparece como o motivo que trava o envio
+function OrderJsonModal({
+  companyId,
+  order,
+  onClose,
+}: {
+  companyId: string
+  order: CompanyOrder
+  onClose: () => void
+}) {
+  const { data, isLoading, error } = useOrderPayload(companyId, order.id)
+  const [copied, setCopied] = useState(false)
+  const json = data ? JSON.stringify(data, null, 2) : ''
+
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(json)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch {
+      toast.error('Não foi possível copiar — selecione o texto manualmente')
+    }
+  }
+
+  return (
+    <Modal
+      isOpen
+      onClose={onClose}
+      className="max-w-2xl"
+      title={`JSON do pedido #${order.id.slice(0, 8)}`}
+    >
+      <p className="mb-3 text-xs text-[var(--text-muted)]">
+        {order.status === 'SYNCED'
+          ? 'Remontado agora com o cadastro atual — pode diferir do que foi enviado se cliente, produto ou vendedor mudaram depois.'
+          : 'O que o app envia ao Protheus, montado agora com o cadastro atual. Abrir aqui não envia nada.'}
+      </p>
+      {isLoading ? (
+        <div className="flex justify-center py-8">
+          <Spinner />
+        </div>
+      ) : error ? (
+        <div className="flex items-start gap-2 rounded-lg bg-danger/10 p-3 text-sm text-danger">
+          <AlertTriangle size={16} strokeWidth={1.5} className="mt-0.5 shrink-0" aria-hidden />
+          <span>{getApiErrorMessage(error, 'Não foi possível montar o JSON do pedido.')}</span>
+        </div>
+      ) : (
+        <>
+          <pre className="max-h-[60vh] overflow-auto rounded-xl bg-[var(--bg-subtle)] p-4 font-mono text-xs text-[var(--text-secondary)] whitespace-pre-wrap break-all">
+            {json}
+          </pre>
+          <div className="mt-3 flex justify-end">
+            <Button variant="outline" size="sm" leftIcon={copied ? Check : Copy} onClick={copy}>
+              {copied ? 'Copiado' : 'Copiar'}
+            </Button>
+          </div>
+        </>
+      )}
+    </Modal>
+  )
+}
+
 export function OrdersTab({ companyId }: { companyId: string }) {
   const { data: orders = [] } = useCompanyOrders(companyId)
   const cancelOrder = useCancelOrder(companyId)
 
   const [expandedOrder, setExpandedOrder] = useState<string | null>(null)
   const [confirmCancel, setConfirmCancel] = useState<string | null>(null)
+  const [jsonOrder, setJsonOrder] = useState<CompanyOrder | null>(null)
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
   const [sort, setSort] = useState<SortConfig>(null)
@@ -167,19 +235,34 @@ export function OrdersTab({ companyId }: { companyId: string }) {
       key: 'actions',
       header: '',
       className: 'text-right',
-      render: (o) =>
-        o.status !== 'CANCELLED' ? (
+      render: (o) => (
+        <div className="flex justify-end gap-2">
           <Button
-            variant="danger-outline"
+            variant="outline"
             size="xs"
+            leftIcon={Braces}
+            aria-label={`Ver JSON do pedido #${o.id.slice(0, 8)}`}
             onClick={(e) => {
               e.stopPropagation()
-              setConfirmCancel(o.id)
+              setJsonOrder(o)
             }}
           >
-            Cancelar
+            JSON
           </Button>
-        ) : null,
+          {o.status !== 'CANCELLED' && (
+            <Button
+              variant="danger-outline"
+              size="xs"
+              onClick={(e) => {
+                e.stopPropagation()
+                setConfirmCancel(o.id)
+              }}
+            >
+              Cancelar
+            </Button>
+          )}
+        </div>
+      ),
     },
   ]
 
@@ -218,6 +301,14 @@ export function OrdersTab({ companyId }: { companyId: string }) {
           )}
         </div>
       </TabSection>
+
+      {jsonOrder && (
+        <OrderJsonModal
+          companyId={companyId}
+          order={jsonOrder}
+          onClose={() => setJsonOrder(null)}
+        />
+      )}
 
       {confirmCancel && (
         <ConfirmModal
