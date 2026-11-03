@@ -226,3 +226,81 @@ describe('o que continua exclusivo do SUPERADMIN', () => {
     expect(res.statusCode).toBe(200)
   })
 })
+
+describe('GET /companies/:id/orders/:orderId/payload — JSON do pedido', () => {
+  const ORDER_ID = '33333333-3333-4333-8333-333333333333'
+  const order = (over: Record<string, unknown> = {}) => ({
+    id: ORDER_ID,
+    companyId: COMPANY_A,
+    status: 'PENDING',
+    emissao: new Date('2026-10-29T12:00:00Z'),
+    mennota: null,
+    notes: 'Entregar pela manhã',
+    branch: { idProtheus: '01' },
+    customer: { protheusCode: '000123', loja: '01', tes: '501' },
+    user: { idVendProt: 'V001' },
+    transportadora: null,
+    condPag: { protheusCode: '001' },
+    items: [
+      {
+        quantity: 2,
+        unitPrice: 898.62,
+        discount: 0,
+        largura: null,
+        espessura: null,
+        encolhimento: null,
+        xcrav: null,
+        tara: null,
+        product: { name: 'Filme', protheusCode: 'PA0001' },
+      },
+    ],
+    ...over,
+  })
+  const url = `/companies/${COMPANY_A}/orders/${ORDER_ID}/payload`
+
+  it('ADMIN vê o payload do Protheus do pedido da própria empresa', async () => {
+    prismaMock.order.findFirst.mockResolvedValue(order())
+    const res = await app.inject({ method: 'GET', url, headers: auth('adminA') })
+    expect(res.statusCode).toBe(200)
+    expect(res.json().PEDIDO[0]).toMatchObject({
+      C5_XIDPED: ORDER_ID,
+      C5_CLIENTE: '000123',
+      C5_VEND1: 'V001',
+      C5_XOBS: 'Entregar pela manhã',
+      ITENS: [{ C6_PRODUTO: 'PA0001', C6_QTDVEN: '2', C6_TES: '501' }],
+    })
+    // Busca presa ao tenant da URL — pedido de outra empresa não aparece
+    expect(prismaMock.order.findFirst.mock.calls[0][0].where).toEqual({
+      id: ORDER_ID,
+      companyId: COMPANY_A,
+    })
+  })
+
+  it('ADMIN não alcança pedido de outro tenant', async () => {
+    const res = await app.inject({
+      method: 'GET',
+      url: `/companies/${COMPANY_B}/orders/${ORDER_ID}/payload`,
+      headers: auth('adminA'),
+    })
+    expect(res.statusCode).toBe(403)
+    expect(prismaMock.order.findFirst).not.toHaveBeenCalled()
+  })
+
+  it('pedido inexistente → 404', async () => {
+    prismaMock.order.findFirst.mockResolvedValue(null)
+    const res = await app.inject({ method: 'GET', url, headers: auth('adminA') })
+    expect(res.statusCode).toBe(404)
+  })
+
+  it('cadastro incompleto → 422 com o motivo, que é o que trava o envio', async () => {
+    prismaMock.order.findFirst.mockResolvedValue(order({ user: { idVendProt: null } }))
+    const res = await app.inject({ method: 'GET', url, headers: auth('adminA') })
+    expect(res.statusCode).toBe(422)
+    expect(res.json().message).toContain('Vendedor sem código Protheus')
+  })
+
+  it('vendedor não vê o JSON', async () => {
+    const res = await app.inject({ method: 'GET', url, headers: auth('salesA') })
+    expect(res.statusCode).toBe(403)
+  })
+})

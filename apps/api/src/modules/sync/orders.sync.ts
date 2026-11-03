@@ -14,6 +14,20 @@ const orderSyncInclude = {
   items: { include: { product: true } },
 } as const
 
+/**
+ * JSON que o envio manda ao Protheus, montado com o cadastro atual e sem
+ * enviar nada — o test-order faz o POST de verdade. Cadastro incompleto (filial,
+ * cliente ou vendedor sem código Protheus) sai como 422 com o motivo.
+ */
+export async function previewOrderPayload(orderId: string, companyId: string) {
+  const order = await prisma.order.findFirst({
+    where: { id: orderId, companyId },
+    include: orderSyncInclude,
+  })
+  if (!order) throw notFound('Pedido não encontrado')
+  return buildOrderPayload(order)
+}
+
 export async function syncOrderToProtheus(orderId: string, companyId: string) {
   // Atomic claim: garante que apenas uma requisição concorrente processa o pedido.
   // updateMany retorna count=0 se o pedido não estiver em PENDING, evitando race condition.
